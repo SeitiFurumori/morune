@@ -103,7 +103,89 @@ Duas conexoes, uma sessao so:
   bandeja e reproducao. Um pedido de cada vez, e o ultimo ganha -- e o
   comportamento certo para uma caixa de busca.
 
+## O Web API esta fechado para o Morune -- medido em 19/08/2026
+
+O ciclo 2 nao falhou por defeito de codigo. O `api.spotify.com` responde **429
+Too Many Requests** na primeira requisicao de qualquer sessao, e o texto abaixo,
+escrito antes, partia de uma premissa que a medicao derrubou.
+
+A sonda esta em `crates/morune-spotify/examples/sonda.rs`. Ela exige login real,
+e o que se sabe hoje veio de tres rodadas dela:
+
+| Caminho | Resultado |
+|---|---|
+| `api.spotify.com` com token do OAuth | **429** |
+| `api.spotify.com` com token do **login5** | **429** |
+| `hm://keymaster/token/authenticated` | **403** |
+| `hm://searchview/km/v4/search/` | 404 |
+| `spclient searchview/{km/v4, v3, km/v3}` | 404 |
+| `collection/v2/paging` na spclient | 404 |
+| `play-history/v1`, `recently-played/v3` | 404 |
+| **`api-partner.spotify.com/pathfinder/v1/query`, consulta persistida** | **OK, 69 KB de JSON** |
+| `pathfinder` com consulta GraphQL crua | 400 |
+| `get_rootlist`, `get_track_metadata`, `get_radio_for_track` | OK |
+| `hm://collection/collection/{user}` (curtidas) | OK, 20 KB |
+| `hm://collection/artist/{user}` | OK |
+| `hm://collection/album/{user}` | 404 |
+| plano da conta por `get_user_attribute("type")` | OK, ~200 ms apos `connect` |
+
+Tres conclusoes, e nenhuma delas e reversivel por ajuste de codigo:
+
+**Nenhum token abre o Web API.** Nao e cota estourada -- e a primeira chamada da
+sessao, e o limite da librespot e de 300 por 30 s. O `Retry-After` volta em
+10, 1 e 59 segundos, o que e recusa deliberada. O client ID do cliente oficial
+de desktop serve para o protocolo interno e nao serve para o Web API publico.
+
+**Registrar um client ID proprio nao resolve o produto.** Aplicativo novo nasce
+em modo de desenvolvimento, onde so entram usuarios adicionados a mao, um a um.
+Como o Morune e aberto e a proposta e baixar, entrar e usar, isso reprovaria
+todo mundo que nao estivesse na lista. Extended Quota depende de revisao do
+Spotify, e um player de desktop de terceiro e justamente a categoria que os
+termos do programa restringem. **Decisao: o Web API sai do caminho.**
+
+**O `pathfinder` cobre o buraco.** E por onde o player web busca, aceita o token
+do login5 com o client token -- os dois ja existem na sessao -- e devolve album,
+artista e faixa em JSON limpo. Ver a divida que ele traz na secao seguinte.
+
+### A divida do pathfinder
+
+A consulta crua e recusada com 400: so passa **consulta persistida**, que e
+identificada por um hash SHA-256 acordado entre cliente e servidor. Esse hash
+acompanha a versao do player web e **muda sem aviso**. Quando mudar, a busca do
+Morune para de responder ate alguem atualizar a constante.
+
+Isso e divida assumida, nao descuido. Nao ha alternativa medida: a consulta
+crua nao passa, o `searchview` morreu em todas as versoes testadas, e o Web API
+esta fechado. O que a implementacao deve garantir e que a falha seja **local**:
+busca que quebra nao pode derrubar Inicio, Biblioteca nem reproducao.
+
+### O que ainda nao tem caminho
+
+Albuns salvos, mais ouvidos e tocadas recentemente responderam 404 em todos os
+enderecos testados. Provavelmente existem como operacoes do proprio pathfinder,
+que nao foram sondadas ainda. Ate la, sao prateleiras que nao podem ser
+prometidas na interface.
+
+### A conta gratuita continua matando o processo
+
+`check_catalogue` chama `exit(1)`, e quem a chama e o manipulador do pacote de
+produto -- o mesmo pacote que traz o plano. Ou seja, ler
+`get_user_attribute("type")` **nao** serve de guarda: quando o valor existe, a
+decisao de encerrar ja foi tomada. O guarda que existia era o `/v1/me`, que
+acabou de morrer junto com o Web API.
+
+Enquanto isso nao for resolvido, qualquer pessoa com conta gratuita que baixar o
+Morune e clicar em "Entrar" ve a janela sumir sem explicacao. A unica saida e
+alterar a librespot -- ela e MIT, entao um `[patch.crates-io]` para um fork com
+`exit(1)` trocado por erro e compativel com o projeto.
+
+---
+
 ## A mudanca de 2024 no Web API, e o que fazemos a respeito
+
+> **Obsoleto desde 19/08/2026.** Vale como historico do porque `internal.rs`
+> existe. A conclusao pratica esta na secao acima: nao e so a lista de 2024 que
+> caiu, e o Web API inteiro.
 
 Em 27/11/2024 o Spotify fechou, para aplicativos novos, uma lista de endpoints
 que inclui exatamente o que um player usa para nao ser so uma caixa de busca:
