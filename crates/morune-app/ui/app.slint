@@ -570,23 +570,106 @@ component PlayerBar inherits Rectangle {
     }
 }
 
-component HomePage inherits VerticalLayout {
+// Uma secao do Inicio: titulo e uma fileira de cards.
+//
+// Nao rola sozinha. O Inicio inteiro e um visor so, e um visor dentro do outro
+// rouba o gesto de rolagem de quem esta so passando o olho. Quantos cards
+// aparecem e decisao de quem preenche a lista, nao daqui.
+component CardShelf inherits VerticalLayout {
+    in property <string> title;
     in property <[CardItem]> items;
     callback activated(string);
 
-    spacing: Theme.space-md;
+    spacing: Theme.space-sm;
+    vertical-stretch: 0;
 
-    SectionTitle { text: "Inicio"; }
+    SectionTitle { text: root.title; }
 
-    if root.items.length == 0: EmptyState {
-        title: "Nada por aqui ainda";
-        hint: "Entre na sua conta para ver suas playlists, ou use a busca para encontrar musica.";
+    HorizontalLayout {
+        spacing: Theme.space-md;
+        alignment: start;
+
+        for item in root.items: Card {
+            item: item;
+            activated => { root.activated(item.id); }
+        }
     }
+}
 
-    if root.items.length > 0: CardGrid {
-        vertical-stretch: 1;
-        items: root.items;
-        activated(id) => { root.activated(id); }
+// Uma secao do Inicio feita de faixas, para o que se ouve e nao se navega.
+component TrackShelf inherits VerticalLayout {
+    in property <string> title;
+    in property <[TrackRow]> tracks;
+    callback activated(string);
+
+    spacing: Theme.space-sm;
+    vertical-stretch: 0;
+
+    SectionTitle { text: root.title; }
+
+    VerticalLayout {
+        spacing: Theme.space-xs;
+
+        for track[i] in root.tracks: TrackListRow {
+            track: track;
+            index: i;
+            activated => { root.activated(track.id); }
+        }
+    }
+}
+
+component HomePage inherits Flickable {
+    in property <[TrackRow]> liked;
+    in property <[TrackRow]> recent;
+    in property <[CardItem]> top-artists;
+    in property <[CardItem]> playlists;
+    in property <bool> logged-in;
+    callback activated(string);
+
+    // Verdadeiro enquanto nenhuma secao tem conteudo: antes do login, e nos
+    // segundos entre entrar e as listas chegarem.
+    property <bool> empty: root.liked.length == 0 && root.recent.length == 0
+        && root.top-artists.length == 0 && root.playlists.length == 0;
+
+    viewport-height: sections.preferred-height;
+
+    sections := VerticalLayout {
+        spacing: Theme.space-lg;
+        alignment: start;
+
+        if root.empty && !root.logged-in: EmptyState {
+            title: "Nada por aqui ainda";
+            hint: "Entre na sua conta para ver suas musicas curtidas, o que voce mais ouve e suas playlists.";
+        }
+
+        if root.empty && root.logged-in: EmptyState {
+            title: "Carregando sua conta";
+            hint: "Suas listas aparecem aqui em instantes.";
+        }
+
+        if root.recent.length > 0: TrackShelf {
+            title: "Tocadas recentemente";
+            tracks: root.recent;
+            activated(id) => { root.activated(id); }
+        }
+
+        if root.liked.length > 0: TrackShelf {
+            title: "Musicas curtidas";
+            tracks: root.liked;
+            activated(id) => { root.activated(id); }
+        }
+
+        if root.top-artists.length > 0: CardShelf {
+            title: "Seus mais ouvidos";
+            items: root.top-artists;
+            activated(id) => { root.activated(id); }
+        }
+
+        if root.playlists.length > 0: CardShelf {
+            title: "Suas playlists";
+            items: root.playlists;
+            activated(id) => { root.activated(id); }
+        }
     }
 }
 
@@ -915,7 +998,10 @@ export component AppWindow inherits Window {
     in property <bool> logged-in: false;
     in property <string> account-name;
 
-    in property <[CardItem]> home-items;
+    in property <[TrackRow]> home-liked;
+    in property <[TrackRow]> home-recent;
+    in property <[CardItem]> home-top-artists;
+    in property <[CardItem]> home-playlists;
     in property <[TrackRow]> search-tracks;
     in property <[CardItem]> library-items;
     in property <[TrackRow]> queue-tracks;
@@ -1032,7 +1118,11 @@ export component AppWindow inherits Window {
                     spacing: Theme.space-md;
 
                     if root.page == 0: HomePage {
-                        items: root.home-items;
+                        liked: root.home-liked;
+                        recent: root.home-recent;
+                        top-artists: root.home-top-artists;
+                        playlists: root.home-playlists;
+                        logged-in: root.logged-in;
                         activated(id) => { root.play-track(id); }
                     }
 

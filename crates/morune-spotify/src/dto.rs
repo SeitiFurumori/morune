@@ -157,6 +157,16 @@ pub(crate) struct TopTracksDto {
     pub tracks: Vec<Option<TrackDto>>,
 }
 
+/// Item de `/v1/me/player/recently-played`.
+///
+/// O historico e paginado por cursor e cada item carrega o instante em que a
+/// faixa tocou. O instante nao entra no modelo: a ordem da resposta ja e a
+/// ordem cronologica, e uma data na tela nao ajuda a decidir o que ouvir.
+#[derive(Debug, Deserialize)]
+pub(crate) struct PlayHistoryDto {
+    pub track: Option<TrackDto>,
+}
+
 /// Item de `/v1/me/albums`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct SavedAlbumDto {
@@ -486,6 +496,26 @@ mod tests {
         let playlist = dto.into_playlist().unwrap();
         assert_eq!(playlist.tracks.len(), 1);
         assert_eq!(playlist.tracks[0].name.as_ref(), "vale");
+    }
+
+    #[test]
+    fn the_history_keeps_the_order_it_arrived_in() {
+        // A resposta ja vem da mais recente para a mais antiga, e reordenar
+        // seria inventar um criterio que o usuario nao pediu.
+        let page: Paged<PlayHistoryDto> = parse(
+            r#"{"items": [
+                {"track": {"id": "t1", "name": "ultima", "duration_ms": 1}},
+                {"track": null},
+                {"track": {"id": "t2", "name": "anterior", "duration_ms": 1}}
+            ]}"#,
+        );
+        let nomes: Vec<String> = page
+            .present()
+            .into_iter()
+            .filter_map(|i| i.track?.into_track())
+            .map(|t| t.name.to_string())
+            .collect();
+        assert_eq!(nomes, vec!["ultima", "anterior"]);
     }
 
     #[test]

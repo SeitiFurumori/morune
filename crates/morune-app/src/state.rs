@@ -16,7 +16,7 @@ use morune_storage::{AppPaths, Config};
 use morune_theme::{loader, ThemeSpec};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
-use crate::browse::{Card, Outcome, Target};
+use crate::browse::{Card, Home, Outcome, Target};
 use crate::session::Session;
 use crate::theme_bridge::{self, UserOverrides};
 use crate::ui;
@@ -56,11 +56,15 @@ pub struct AppState {
     /// Eventos do motor ativo. Trocado junto com o motor.
     player_events: Option<broadcast::Receiver<PlayerEvent>>,
     volume: f32,
-    /// Ultima busca, guardada inteira: ativar uma faixa da lista transforma a
-    /// lista toda em contexto da fila, e nao so a faixa clicada.
-    search_query: String,
-    search_tracks: Vec<Track>,
-    home: Vec<Card>,
+    /// Listas de faixas visiveis na tela, guardadas inteiras: ativar uma faixa
+    /// transforma a lista onde ela esta em contexto da fila, e nao so a faixa
+    /// clicada. Sem isso, clicar numa faixa da busca tocaria uma faixa so e o
+    /// botao de proxima nao teria para onde ir.
+    search: TrackList,
+    liked: TrackList,
+    recent: TrackList,
+    home_top_artists: Vec<Card>,
+    home_playlists: Vec<Card>,
     library: Vec<Card>,
     /// `true` depois de a tela ter sido pedida ao backend, e nao depois de
     /// chegar: sem isso, ir e voltar numa tela lenta dispara uma requisicao por
@@ -128,9 +132,11 @@ impl AppState {
             engine: Arc::new(NullEngine::new("entre na sua conta para tocar musica")),
             session: Session::new(Arc::from(morune_storage::platform_store())),
             player_events: None,
-            search_query: String::new(),
-            search_tracks: Vec::new(),
-            home: Vec::new(),
+            search: TrackList::default(),
+            liked: TrackList::default(),
+            recent: TrackList::default(),
+            home_top_artists: Vec::new(),
+            home_playlists: Vec::new(),
             library: Vec::new(),
             home_requested: false,
             library_requested: false,
@@ -198,13 +204,20 @@ impl AppState {
                 } else {
                     format!("{} faixas para \"{query}\".", tracks.len())
                 };
-                self.search_query = query;
-                self.search_tracks = tracks;
+                self.search = TrackList { origin: QueueOrigin::Search(query), tracks };
             }
             // Sem mensagem no sucesso: a tela vazia ja se explica sozinha, e
             // uma linha de status aqui apagaria o "Conectado como ..." que o
             // usuario acabou de receber.
-            Outcome::Home(cards) => self.home = cards,
+            Outcome::Home(home) => {
+                let Home { recent, liked, top_artists, playlists } = *home;
+                self.recent =
+                    TrackList { origin: QueueOrigin::Custom("Tocadas recentemente".into()), tracks: recent };
+                self.liked =
+                    TrackList { origin: QueueOrigin::Custom("Musicas curtidas".into()), tracks: liked };
+                self.home_top_artists = top_artists;
+                self.home_playlists = playlists;
+            }
             Outcome::Library(cards) => self.library = cards,
             Outcome::Context { origin, title, tracks } => {
                 if tracks.is_empty() {
@@ -246,6 +259,17 @@ impl AppState {
             }
             _ => {}
         }
+    }
+
+    /// Procura a faixa nas listas visiveis e devolve a lista inteira.
+    ///
+    /// Clona porque a fila fica dona do contexto; e o mesmo custo que a busca
+    /// ja pagava, e vale a pena para o botao de proxima ter para onde ir.
+    fn open_lists(&self, id: &morune_core::model::TrackId) -> Option<(QueueOrigin, Vec<Track>, usize)> {
+        [&self.search, &self.liked, &self.recent].into_iter().find_map(|list| {
+            let index = list.tracks.iter().position(|t| t.id == *id)?;
+            Some((list.origin.clone(), list.tracks.clone(), index))
+        })
     }
 
     /// Carrega a faixa selecionada na fila e comeca a tocar.
@@ -554,11 +578,10 @@ impl AppState {
                 return;
             }
 
-            // Nos resultados da busca: a lista inteira vira o contexto, para
-            // que "proxima" continue pelos resultados e nao pare na primeira.
-            if let Some(index) = self.search_tracks.iter().position(|t| t.id == *id) {
-                let origin = QueueOrigin::Search(self.search_query.clone());
-                self.queue.set_context(origin, self.search_tracks.clone(), Some(index));
+            // Numa lista aberta: a lista inteira vira o contexto, para que
+            // "proxima" continue por ela e nao pare na primeira faixa.
+            if let Some((origin, tracks, index)) = self.open_lists(id) {
+                self.queue.set_context(origin, tracks, Some(index));
                 self.play_current();
                 return;
             }
@@ -637,11 +660,13 @@ impl AppState {
         self.player_events = None;
         self.session.logout();
         self.queue.clear();
-        // Busca e biblioteca sao da conta que saiu: deixa-las na tela mostraria
-        // a playlist de alguem que nao esta mais conectado.
-        self.search_query.clear();
-        self.search_tracks.clear();
-        self.home.clear();
+        // Busca, inicio e biblioteca sao da conta que saiu: deixa-los na tela
+        // mostraria a playlist de alguem que nao esta mais conectado.
+        self.search = TrackList::default();
+        self.liked = TrackList::default();
+        self.recent = TrackList::default();
+        self.home_top_artists.clear();
+        self.home_playlists.clear();
         self.library.clear();
         self.home_requested = false;
         self.library_requested = false;
@@ -688,9 +713,12 @@ impl AppState {
         window.set_queue_tracks(track_rows(self.queue.upcoming(200), current));
         window.set_themes(self.theme_items());
         window.set_diagnostics(self.diagnostics());
-        window.set_home_items(card_items(&self.home));
+        window.set_home_liked(track_rows(self.liked.tracks.iter().collect(), current));
+        window.set_home_recent(track_rows(self.recent.tracks.iter().collect(), current));
+        window.set_home_top_artists(card_items(&self.home_top_artists));
+        window.set_home_playlists(card_items(&self.home_playlists));
         window.set_library_items(card_items(&self.library));
-        window.set_search_tracks(track_rows(self.search_tracks.iter().collect(), current));
+        window.set_search_tracks(track_rows(self.search.tracks.iter().collect(), current));
     }
 
     fn theme_items(&self) -> ModelRc<ui::ThemeItem> {
@@ -742,6 +770,13 @@ fn track_rows(tracks: Vec<&Track>, current: Option<&Track>) -> ModelRc<ui::Track
         })
         .collect();
     ModelRc::new(VecModel::from(rows))
+}
+
+/// Uma lista de faixas visivel numa tela, com a origem que ela dara a fila.
+#[derive(Debug, Default)]
+struct TrackList {
+    origin: QueueOrigin,
+    tracks: Vec<Track>,
 }
 
 fn card_items(cards: &[Card]) -> ModelRc<ui::CardItem> {
