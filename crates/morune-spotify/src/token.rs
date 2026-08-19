@@ -15,7 +15,6 @@
 //! que no Windows e o Gerenciador de Credenciais.
 
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 use librespot_oauth::{OAuthClient, OAuthClientBuilder, OAuthToken};
 use morune_core::auth::CredentialStore;
@@ -64,13 +63,6 @@ const BROWSER_MESSAGE: &str = concat!(
     "<div style=\"text-align:center\"><h1 style=\"font-weight:600\">Pronto</h1>",
     "<p>Pode fechar esta aba e voltar para o Morune.</p></div></body>"
 );
-
-/// Quanto antes do vencimento o token e considerado vencido.
-///
-/// Uma requisicao que sai com o token no ultimo segundo de vida chega depois
-/// dele: o servidor responde 401 e o usuario ve um erro que nao existia. Um
-/// minuto de folga cobre a viagem com sobra.
-const RENEW_MARGIN: Duration = Duration::from_secs(60);
 
 /// Fonte unica de token de acesso.
 pub(crate) struct TokenSource {
@@ -150,42 +142,6 @@ impl TokenSource {
         Ok(Self::keeping_refresh(token, refresh))
     }
 
-    /// Token de acesso valido para assinar uma requisicao ao Web API.
-    ///
-    /// Renova quando o atual esta perto de vencer. Sem sessao nem segredo
-    /// guardado, responde [`CoreError::NotAuthenticated`] -- que a interface ja
-    /// sabe traduzir em "entre na sua conta".
-    pub(crate) async fn bearer(&self) -> CoreResult<String> {
-        let mut current = self.current.lock().await;
-
-        if let Some(token) = current.as_ref() {
-            if !is_expiring(token) {
-                return Ok(token.access_token.clone());
-            }
-        }
-
-        let refresh = match current.as_ref() {
-            Some(token) if !token.refresh_token.is_empty() => token.refresh_token.clone(),
-            _ => self.stored_refresh()?.ok_or(CoreError::NotAuthenticated)?,
-        };
-
-        let renewed = self.exchange(&refresh).await?;
-        self.persist(&renewed);
-        let access = renewed.access_token.clone();
-        *current = Some(renewed);
-        Ok(access)
-    }
-
-    /// Marca o token atual como vencido.
-    ///
-    /// Chamado quando o servidor recusa um token que ainda estava no prazo --
-    /// acontece quando a conta revoga o acesso. A proxima chamada renova.
-    pub(crate) async fn invalidate(&self) {
-        if let Some(token) = self.current.lock().await.as_mut() {
-            token.expires_at = Instant::now();
-        }
-    }
-
     fn persist(&self, token: &OAuthToken) {
         if token.refresh_token.is_empty() {
             return;
@@ -209,12 +165,10 @@ impl TokenSource {
     }
 }
 
-fn is_expiring(token: &OAuthToken) -> bool {
-    token.expires_at.checked_duration_since(Instant::now()).unwrap_or_default() <= RENEW_MARGIN
-}
-
 #[cfg(test)]
 mod tests {
+    use std::time::{Duration, Instant};
+
     use super::*;
     use morune_core::auth::MemoryCredentialStore;
 
@@ -234,24 +188,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_valid_token_is_reused_instead_of_renewed() {
-        // Renovar sem precisar seria uma ida a rede em cada busca digitada.
-        let (_, tokens) = source();
-        tokens.adopt(token("refresh", Duration::from_secs(3600))).await;
-        assert_eq!(tokens.bearer().await.unwrap(), "acesso");
-    }
-
-    #[tokio::test]
     async fn adopting_a_token_stores_the_refresh_secret() {
         let (store, tokens) = source();
         tokens.adopt(token("segredo", Duration::from_secs(3600))).await;
         assert_eq!(store.load(REFRESH_KEY).unwrap().as_deref(), Some(&b"segredo"[..]));
-    }
-
-    #[tokio::test]
-    async fn without_session_or_stored_secret_there_is_no_token() {
-        let (_, tokens) = source();
-        assert!(matches!(tokens.bearer().await, Err(CoreError::NotAuthenticated)));
     }
 
     #[tokio::test]
@@ -261,23 +201,7 @@ mod tests {
         tokens.forget().await.unwrap();
 
         assert!(store.load(REFRESH_KEY).unwrap().is_none());
-        assert!(matches!(tokens.bearer().await, Err(CoreError::NotAuthenticated)));
-    }
-
-    #[tokio::test]
-    async fn an_invalidated_token_is_no_longer_served() {
-        // Sem rede a renovacao nao termina; o que este teste garante e que o
-        // token invalidado deixa de ser devolvido como valido.
-        let (_, tokens) = source();
-        tokens.adopt(token("", Duration::from_secs(3600))).await;
-        tokens.invalidate().await;
-        assert!(matches!(tokens.bearer().await, Err(CoreError::NotAuthenticated)));
-    }
-
-    #[test]
-    fn a_token_about_to_expire_counts_as_expired() {
-        assert!(is_expiring(&token("r", Duration::from_secs(10))));
-        assert!(!is_expiring(&token("r", Duration::from_secs(3600))));
+        assert!(tokens.stored_refresh().unwrap().is_none());
     }
 
     #[test]
