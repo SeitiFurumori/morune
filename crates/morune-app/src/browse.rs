@@ -10,9 +10,13 @@
 //! explicito e sem resultado antigo pintando por cima do novo.
 
 use std::sync::Arc;
+
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+
+use crate::artwork::{ArtworkCache, Ready};
 use std::sync::mpsc::{Receiver, TryRecvError};
 
-use morune_core::catalog::{Catalog, Library, SearchKind, TopRange};
+use morune_core::catalog::{Artwork, Catalog, Library, SearchKind, TopRange};
 use morune_core::model::{AlbumId, ArtistId, PlaylistId, Track, TrackId};
 use morune_core::queue::QueueOrigin;
 use morune_core::{CoreError, CoreResult};
@@ -84,6 +88,13 @@ pub struct Card {
     pub tag: String,
     pub title: String,
     pub subtitle: String,
+    /// URL da capa no tamanho que o cartao desenha, ou vazio quando o item nao
+    /// tem imagem. Quem resolve isso em arquivo e o cache -- ver
+    /// [`crate::artwork`].
+    pub cover: String,
+    /// Arquivo da capa, quando o cache ja a tem. Preenchido depois, quando o
+    /// download termina -- e por isso o cartao nunca reserva espaco que pula.
+    pub cover_path: Option<std::path::PathBuf>,
 }
 
 /// As prateleiras do Inicio.
@@ -116,6 +127,13 @@ pub struct Browse {
     library: Arc<dyn Library>,
     handle: tokio::runtime::Handle,
     pending: Option<Receiver<Outcome>>,
+    artwork: Arc<dyn Artwork>,
+    covers: ArtworkCache,
+    /// Canal proprio das capas, separado de `pending`: um cartao continua
+    /// utilizavel sem a capa, entao a chegada dela nao pode competir com o
+    /// pedido da tela nem cancela-lo.
+    art_tx: UnboundedSender<Ready>,
+    art_rx: UnboundedReceiver<Ready>,
 }
 
 impl std::fmt::Debug for Browse {
@@ -131,9 +149,57 @@ impl Browse {
     pub fn new(
         catalog: Arc<dyn Catalog>,
         library: Arc<dyn Library>,
+        artwork: Arc<dyn Artwork>,
+        covers_dir: std::path::PathBuf,
         handle: tokio::runtime::Handle,
     ) -> Self {
-        Self { catalog, library, handle, pending: None }
+        let (art_tx, art_rx) = tokio::sync::mpsc::unbounded_channel();
+        Self {
+            catalog,
+            library,
+            handle,
+            pending: None,
+            artwork,
+            covers: ArtworkCache::new(covers_dir),
+            art_tx,
+            art_rx,
+        }
+    }
+
+    /// Resolve a capa de cada cartao, pedindo o que ainda nao esta em disco.
+    ///
+    /// O que ja estiver em cache entra no primeiro quadro; o resto chega
+    /// depois por [`Browse::poll_artwork`].
+    pub fn resolve_covers(&mut self, cards: &mut [Card]) {
+        for card in cards {
+            if card.cover.is_empty() {
+                continue;
+            }
+            match self.covers.cached(&card.cover) {
+                Some(path) => card.cover_path = Some(path),
+                None => {
+                    self.covers.request(
+                        &card.cover,
+                        &self.artwork,
+                        &self.handle,
+                        self.art_tx.clone(),
+                    );
+                }
+            }
+        }
+    }
+
+    /// Recolhe as capas que terminaram de baixar.
+    ///
+    /// Devolve as prontas desde a ultima leitura. Vazio no caso comum, que e
+    /// o que mantem barato rodar isto a cada 100 ms.
+    pub fn poll_artwork(&mut self) -> Vec<Ready> {
+        let mut prontas = Vec::new();
+        while let Ok(ready) = self.art_rx.try_recv() {
+            self.covers.settle(&ready);
+            prontas.push(ready);
+        }
+        prontas
     }
 
     /// Esquece o pedido em andamento. Usado ao sair da conta.
@@ -214,15 +280,15 @@ impl Browse {
 
             match library.saved_playlists(0, SECTION_LIMIT).await {
                 Ok(page) => cards.extend(page.items.iter().map(playlist_card)),
-                Err(e) => failure = Some(describe(&e)),
+                Err(e) => failure = note(failure, &e, "playlists salvas"),
             }
             match library.saved_albums(0, SECTION_LIMIT).await {
                 Ok(page) => cards.extend(page.items.iter().map(album_card)),
-                Err(e) => failure = failure.or(Some(describe(&e))),
+                Err(e) => failure = note(failure, &e, "albuns salvos"),
             }
             match library.followed_artists(0, SECTION_LIMIT).await {
                 Ok(page) => cards.extend(page.items.iter().map(artist_card)),
-                Err(e) => failure = failure.or(Some(describe(&e))),
+                Err(e) => failure = note(failure, &e, "artistas seguidos"),
             }
 
             // Uma secao que falhou nao apaga as que vieram: a tela mostra o que
@@ -308,6 +374,17 @@ async fn resolve(catalog: Arc<dyn Catalog>, target: Target) -> CoreResult<Outcom
     })
 }
 
+
+/// URL da capa no tamanho que o cartao desenha.
+///
+/// `best_for_width` devolve a menor imagem que ainda serve. Baixar 640 px para
+/// desenhar 160 seria dezesseis vezes mais bytes por cartao numa grade que
+/// mostra dezenas deles -- e o criterio do projeto e nao disputar recurso com
+/// quem esta jogando.
+fn cover(images: &morune_core::model::ImageSet) -> String {
+    images.best_for_width(CARD_ARTWORK_WIDTH).map(|i| i.url.to_string()).unwrap_or_default()
+}
+
 fn playlist_card(p: &morune_core::model::Playlist) -> Card {
     Card {
         tag: Target::Playlist(p.id.clone()).tag(),
@@ -318,6 +395,8 @@ fn playlist_card(p: &morune_core::model::Playlist) -> Card {
             (None, Some(total)) => format!("{total} faixas"),
             (None, None) => String::new(),
         },
+        cover: cover(&p.images),
+        cover_path: None,
     }
 }
 
@@ -326,6 +405,8 @@ fn album_card(a: &morune_core::model::Album) -> Card {
         tag: Target::Album(a.id.clone()).tag(),
         title: a.name.to_string(),
         subtitle: a.artists.iter().map(|x| x.name.as_ref()).collect::<Vec<_>>().join(", "),
+        cover: cover(&a.images),
+        cover_path: None,
     }
 }
 
@@ -334,8 +415,17 @@ fn artist_card(a: &morune_core::model::Artist) -> Card {
         tag: Target::Artist(a.id.clone()).tag(),
         title: a.name.to_string(),
         subtitle: a.genres.first().map(|g| g.to_string()).unwrap_or_else(|| "Artista".into()),
+        cover: cover(&a.images),
+        cover_path: None,
     }
 }
+
+/// Largura em que a grade desenha uma capa.
+///
+/// Nao e a largura exata do cartao: e o piso que `best_for_width` usa para nao
+/// escolher uma imagem borrada. Telas de alta densidade desenham maior, e a
+/// diferenca nao se ve num quadrado pequeno.
+const CARD_ARTWORK_WIDTH: u32 = 300;
 
 /// Guarda a primeira falha e registra as demais no log.
 ///
@@ -343,6 +433,15 @@ fn artist_card(a: &morune_core::model::Artist) -> Card {
 /// honesto; empilhar as quatro so faz o usuario parar de ler.
 fn note(previous: Option<String>, error: &CoreError, secao: &str) -> Option<String> {
     tracing::debug!(secao, error = %error, "prateleira do inicio nao carregou");
+
+    // `Unsupported` nao e falha: e uma prateleira que o Spotify deixou de
+    // expor por qualquer caminho que o Morune alcance. Mostrar erro por isso
+    // faria a tela reclamar em toda abertura, para sempre, de algo que o
+    // usuario nao pode resolver. A prateleira simplesmente nao aparece.
+    if matches!(error, CoreError::Unsupported(_)) {
+        return previous;
+    }
+
     previous.or_else(|| Some(describe(error)))
 }
 

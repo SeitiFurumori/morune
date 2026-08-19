@@ -17,6 +17,7 @@
 // nem pelo modulo gerado. Nosso codigo continua sem `unsafe`.
 #![deny(unsafe_code)]
 
+mod artwork;
 mod browse;
 mod bundled;
 mod session;
@@ -39,7 +40,12 @@ use state::AppState;
 
 fn main() -> anyhow::Result<()> {
     let started = Instant::now();
-    init_logging();
+    // Os caminhos vem antes do log porque e neles que o arquivo de log mora.
+    // `ensure` e idempotente; `AppState::load` chama de novo logo abaixo.
+    let paths = morune_storage::AppPaths::discover();
+    let _ = paths.ensure();
+    init_logging(&paths);
+    tracing::info!(versao = env!("CARGO_PKG_VERSION"), log = %paths.log_file().display(), "Morune iniciando");
 
     let mut state = AppState::load();
     state.open_page_from_env();
@@ -233,15 +239,52 @@ fn wire_tray(
     Some(timer)
 }
 
-fn init_logging() {
+/// Tamanho a partir do qual o log da vez vira `morune.log.old`.
+///
+/// Teto explicito, dois arquivos, como o cache de capas: o log nunca cresce sem
+/// limite, e a sessao anterior continua disponivel quando o defeito so aparece
+/// na seguinte.
+const LOG_MAX_BYTES: u64 = 4 * 1024 * 1024;
+
+/// Liga o log em arquivo, e tambem no console quando ele existe.
+///
+/// **Por que arquivo e obrigatorio:** o build de release e
+/// `windows_subsystem = "windows"`, ou seja, roda sem console nenhum. Tudo que
+/// o `tracing` escrevia em `stdout` era descartado em silencio -- e um usuario
+/// que ve "Sem conexao com o Spotify" nao tinha como saber o motivo, nem tinha
+/// o que anexar a um relato de defeito. O caminho e
+/// [`AppPaths::log_file`], que ja existia e nunca era usado.
+///
+/// Escrever e sincrono, sob trava. No nivel padrao (`info`) sao poucas linhas
+/// por sessao; `MORUNE_LOG=debug` custa I/O e e opcional, para quem esta
+/// investigando.
+fn init_logging(paths: &morune_storage::AppPaths) {
     use tracing_subscriber::filter::EnvFilter;
 
     let filter = EnvFilter::try_from_env("MORUNE_LOG").unwrap_or_else(|_| EnvFilter::new("info"));
-    tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .with_target(false)
-        .compact()
-        .init();
+    let builder = tracing_subscriber::fmt().with_env_filter(filter).with_target(false).compact();
+
+    match open_log_file(paths) {
+        // Sem cor: o arquivo e lido em editor de texto, e o codigo de escape
+        // apareceria como lixo no meio da mensagem.
+        Some(file) => builder.with_ansi(false).with_writer(std::sync::Mutex::new(file)).init(),
+        None => builder.init(),
+    }
+}
+
+/// Abre o log para acrescimo, rodando o anterior quando passa do teto.
+///
+/// Devolve `None` quando o arquivo nao pode ser aberto -- disco cheio, pasta
+/// sem permissao. Falhar aqui **nao** pode impedir o aplicativo de abrir: fica
+/// so o console, que em release nao existe, e o resto segue.
+fn open_log_file(paths: &morune_storage::AppPaths) -> Option<std::fs::File> {
+    let path = paths.log_file();
+
+    if std::fs::metadata(&path).is_ok_and(|m| m.len() >= LOG_MAX_BYTES) {
+        let _ = std::fs::rename(&path, path.with_extension("log.old"));
+    }
+
+    std::fs::OpenOptions::new().create(true).append(true).open(&path).ok()
 }
 
 fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState>>) {

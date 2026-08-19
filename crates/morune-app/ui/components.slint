@@ -277,6 +277,9 @@ export component Slider inherits Rectangle {
 export component Artwork inherits Rectangle {
     in property <string> seed;
     in property <length> radius: Theme.radius-artwork;
+    // Capa de verdade. Vazia enquanto ela nao chega do cache, e o bloco neutro
+    // abaixo ocupa o lugar sem mudar o layout quando ela chegar.
+    in property <image> source;
 
     border-radius: root.radius;
     background: Theme.surface-raised;
@@ -286,10 +289,20 @@ export component Artwork inherits Rectangle {
     // texto: um titulo cortado no meio chama mais atencao que um bloco neutro,
     // e trocar o bloco pela capa depois nao muda o layout.
     Rectangle {
+        visible: root.source.width == 0;
         width: parent.width * 0.34;
         height: self.width;
         border-radius: self.width / 2;
         background: Theme.border;
+    }
+
+    Image {
+        source: root.source;
+        width: 100%;
+        height: 100%;
+        // A capa e quadrada e a caixa tambem; `fill` evita a borda de fundo
+        // aparecer por arredondamento de um pixel.
+        image-fit: fill;
     }
 }
 
