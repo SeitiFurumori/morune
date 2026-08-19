@@ -6,6 +6,112 @@ Versionamento semantico.
 ## [Nao lancado]
 
 ### Adicionado
+
+**Backend de Spotify (`morune-spotify`)**
+- Crate nova, implementando os contratos de `morune-core` sobre a librespot 0.8.
+  A interface continua guardando `Arc<dyn PlaybackEngine>`, `Arc<dyn Catalog>` e
+  `Arc<dyn Authenticator>`: nenhuma tela sabe que o provedor e o Spotify.
+- **Login OAuth com PKCE**, sem client secret e sem campo de senha. O usuario
+  entra no site do Spotify, no navegador dele, e o Morune so ve o codigo que
+  volta. O refresh token vai para o Gerenciador de Credenciais do Windows.
+- **Fonte unica de token** (`token.rs`): login e catalogo usam o mesmo token e a
+  renovacao acontece num lugar so, sob trava. Um token recusado dentro do prazo
+  -- acontece quando a conta revoga o acesso pelo site -- e renovado e a
+  requisicao repetida, sem a tela pedir login de novo.
+- **Reproducao**: carregar, tocar, pausar, buscar posicao e volume, com o fim de
+  faixa ligado a `Queue::next(false)` -- e o que faz "repetir uma" repetir em
+  vez de pular. A posicao e interpolada por relogio local entre os avisos da
+  librespot, e nao consultada a cada quadro.
+- **Volume com curva cubica**, guardado em inteiro atomico porque o misturador
+  le esse valor na thread de audio, a cada bloco.
+- **Busca e biblioteca** sobre o Web API do Spotify, que e onde elas existem --
+  o protocolo da librespot entrega audio, nao catalogo. O cliente HTTP e o da
+  propria sessao: TLS, proxy e limite de requisicoes ja resolvidos, sem uma
+  segunda pilha de TLS no binario.
+- **Mais ouvidos e historico recente**: `/v1/me/top/tracks`, `/v1/me/top/artists`
+  e `/v1/me/player/recently-played`. Os escopos `user-top-read` e
+  `user-read-recently-played` ja eram pedidos no login e ate agora nao serviam
+  para nada. O historico sai sem repeticao: ouvir a mesma faixa tres vezes rende
+  tres itens no Spotify, e como lista para clicar a repeticao nao ajuda.
+- `Library` no core ganhou `top_tracks`, `top_artists`, `recently_played` e
+  `made_for_you`, todos com implementacao padrao que recusa com `Unsupported`.
+  Um provedor de arquivos locais nao tem "mais ouvidos", e obrigar todo backend
+  futuro a escrever um `unimplemented` seria pior que um padrao honesto.
+- Traducao de JSON para o modelo do core isolada em `dto.rs`, testavel sem rede:
+  item nulo, faixa sem id e arquivo local da conta somem da lista em vez de
+  derrubarem a pagina inteira, e as capas saem ordenadas da menor para a maior,
+  que e o que `ImageSet::best_for_width` precisa para nao carregar capa grande
+  numa grade.
+
+**Contorno da mudanca de 2024 no Web API**
+- Em 27/11/2024 o Spotify fechou, para aplicativos novos, `/v1/recommendations`,
+  artistas parecidos, vitrine editorial, caracteristicas de faixa e o acesso as
+  playlists que ele monta para a conta. Ate hoje nao ha substituto oficial.
+- `internal.rs` fala o **protocolo interno** para o que caiu: `get_rootlist` e
+  `get_playlist` da librespot, o mesmo caminho que ja entrega o audio. As duas
+  respostas sao protobuf tipado pela propria librespot, com nome, dono e tamanho
+  decorados junto -- nao ha JSON adivinhado nem endpoint inventado.
+- Abrir uma playlist tenta o Web API e cai para o caminho interno em 404 ou 403,
+  que e como Descobertas da Semana e Radar de Novidades se apresentam. O
+  metadado das faixas volta pelo Web API em lote de 50, porque o protocolo
+  interno entrega URIs e uma requisicao por faixa custaria cem numa playlist de
+  cem.
+- O campo `format` do rootlist separa o que o usuario criou do que o Spotify
+  montou; as editoriais, que nao trazem `format`, aparecem pelo dono `spotify`.
+
+**Qualquer pessoa consegue entrar**
+- **Conta nao-Premium deixou de matar o aplicativo.** `check_catalogue`, em
+  `librespot-core`, chama `exit(1)` ao ver uma conta que nao e Premium: sem
+  erro, sem mensagem, a janela sumia. Como a maioria das contas do Spotify e
+  gratuita e qualquer pessoa pode clicar em "Entrar", essa era a primeira
+  experiencia possivel com o Morune. O login agora pergunta ao `/v1/me` antes de
+  entregar a credencial a librespot, e recusa com uma frase que explica o
+  motivo.
+- `CoreError::AccountPlan`, para "o login funcionou mas o plano nao permite" --
+  que nao e o mesmo que credencial recusada, porque entrar de novo nao resolve.
+- **Porta de retorno ocupada deixou de ser reportada como falha de rede.** Quem
+  tivesse a `5588` em uso era mandado "verificar a internet", que e o lugar
+  errado para procurar.
+- O perfil passou a vir do `/v1/me`: nome de exibicao escolhido pela pessoa em
+  vez do identificador tecnico, e avatar, escolhido no menor tamanho que sirva
+  para a barra lateral.
+- README ganhou **Como entrar na sua conta**: nao ha cadastro, nao ha servidor
+  do Morune no meio, e nao e preciso registrar aplicativo nenhum no Spotify para
+  usar nem para compilar.
+
+**Corrigido**
+- **Recolher a barra lateral quebrava o visual.** O botao encolhia a caixa para
+  a largura de icone, mas os rotulos, o nome "Morune" e o botao de entrar
+  seguiam desenhados: eram controlados por `sidebar-labels`, que e escolha do
+  tema e nao muda quando o usuario recolhe. O resultado era texto de 210 px
+  espremido em 60 px. `Layout` ganhou `sidebar-labels-shown`, que so e verdadeiro
+  quando o tema permite **e** a barra nao esta recolhida.
+- Recolhida, a marca e o botao de expandir agora empilham, porque nao cabem lado
+  a lado; e o botao aparece mesmo em tema com `collapsible = false`, senao nao
+  haveria como voltar.
+- Recolhida, os icones passam a ser desenhados mesmo em tema com
+  `show_icons = false`: sem rotulo e sem icone, a navegacao virava tres linhas
+  clicaveis e vazias.
+
+**Interface**
+- **Inicio deixou de ser uma grade e virou cinco prateleiras**: Feito para voce,
+  Tocadas recentemente, Musicas curtidas, Seus mais ouvidos e Suas playlists.
+  Cada uma e independente -- a que falhar chega vazia e as outras aparecem
+  igual, porque uma tela inicial que some inteira por causa de uma fonte seria
+  pior que uma tela inicial menor.
+- Buscar e Biblioteca deixaram de ser vazias: Biblioteca lista playlists, albuns
+  salvos e artistas seguidos; a busca devolve faixas.
+- Ativar um card carrega o album, a playlist ou as faixas populares do artista
+  na fila e comeca a tocar. Ativar uma faixa da busca faz a **lista inteira**
+  virar contexto, para que "proxima" continue pelos resultados.
+- Cada pedido de catalogo vira tarefa no runtime do backend e e recolhido no
+  temporizador que ja atende bandeja e reproducao: a thread da interface nao
+  espera rede em nenhum caminho.
+- Qualquer lista de faixas visivel na tela vira contexto da fila ao ser clicada,
+  entao "proxima" continua pela lista em vez de parar na primeira faixa.
+- Sair da conta limpa busca, inicio e biblioteca da tela, junto com a fila.
+
+**Identidade visual, licenciamento e distribuicao**
 - Identidade visual aplicada: simbolo da marca na barra lateral (desenhado como
   caminho vetorial, presente tambem com a barra recolhida), icone do executavel,
   da janela, da barra de tarefas, da bandeja e do instalador.
@@ -34,6 +140,18 @@ Versionamento semantico.
 - Licenca definida: **MIT**, com o texto em [LICENSE](LICENSE). O `Cargo.toml`
   declarava `MIT OR Apache-2.0` sem nenhum arquivo de licenca no repositorio.
 
+### Nao verificado ainda
+Nada do backend de Spotify pode ser declarado funcionando: falta o login
+interativo com uma conta Premium real. O que existe hoje e codigo que compila,
+204 testes passando e clippy limpo com `-D warnings`. O estado recolhido da
+barra lateral foi verificado por captura de tela, com o defeito reproduzido
+antes da correcao.
+
+Duas incognitas dependem desse primeiro login: se o client ID do cliente oficial
+escapa da restricao de 2024, e qual campo o rootlist preenche de verdade nas
+playlists algoritmicas. As duas estao descritas em
+[docs/HANDOFF.md](docs/HANDOFF.md).
+
 ### Alterado
 - **Criterio de desempenho redefinido.** A meta de "RAM em repouso < 70 MB" saiu:
   numa maquina com 16 GB, 70 ou 90 MB nao muda nada para ninguem. O criterio
@@ -55,9 +173,14 @@ Versionamento semantico.
   detalhamento medido em [PERFORMANCE.md](PERFORMANCE.md).
 
 ### A fazer no proximo ciclo
-- Backend de reproducao `morune-spotify` sobre librespot 0.8.
-- Login OAuth PKCE com token no Gerenciador de Credenciais.
-- Busca, biblioteca e capas ligadas as telas existentes.
+- Login real com conta Premium, que e o unico jeito de verificar o ciclo 2.
+- Radio e autoplay pelo caminho interno (`get_radio_for_track`,
+  `get_apollo_station`). E o que sobra de recomendacao depois de 2024 e resolve
+  o silencio quando a fila acaba. Diferente do rootlist, essas respostas sao
+  JSON sem tipo: o formato precisa ser visto uma vez antes de virar parser.
+- Capas: download, cache em disco com teto explicito e descarte por LRU.
+- Paginacao das telas: hoje cada secao traz o que cabe e para por ai.
+- Medir de novo CPU e GPU em segundo plano, agora que ha o que tocar.
 
 ## [0.1.0] — 2026-08-18
 

@@ -52,11 +52,27 @@ Ja implementado:
   executavel, na janela, na barra de tarefas, na bandeja e no instalador;
 - **instalador `.exe` unico** com escolha de disco, sem UAC e sem pre-requisitos.
 
+Escrito, compilando e coberto por teste de unidade, mas **ainda nao exercitado
+contra uma conta real** — ver [docs/HANDOFF.md](docs/HANDOFF.md):
+
+- login no Spotify por OAuth com PKCE, sem senha e sem client secret, com o
+  token no Gerenciador de Credenciais;
+- reproducao sobre a librespot, ligada a fila que ja existia;
+- busca, e um Inicio com cinco prateleiras — o que o Spotify monta pra voce,
+  tocadas recentemente, musicas curtidas, seus mais ouvidos e suas playlists;
+- biblioteca com playlists, albuns salvos e artistas seguidos.
+
+As playlists que o Spotify monta para a conta — Descobertas da Semana, Radar de
+Novidades — nao sao mais acessiveis pelo Web API desde a
+[mudanca de novembro de 2024](https://developer.spotify.com/blog/2024-11-27-changes-to-the-web-api).
+O Morune as busca pelo mesmo protocolo interno que ja usa para tocar.
+
 Ainda **nao** implementado — ver [ROADMAP.md](ROADMAP.md):
 
-- reproducao. O backend `librespot` e o proximo ciclo; hoje o aplicativo usa um
-  motor nulo que aceita preferencias e recusa reproducao de forma explicita.
-- busca, biblioteca e capas dependem da sessao e vem junto.
+- radio e autoplay quando a fila acaba;
+- capas: nem download nem cache;
+- paginacao das telas de conteudo;
+- telas de detalhe de album, artista e playlist.
 
 Nada aqui e declarado funcionando sem medicao ou teste. Onde falta, esta dito.
 
@@ -89,6 +105,27 @@ instalacao por maquina, apontar para um disco secundario ainda dispararia UAC.
 Suas configuracoes e temas ficam sempre em `%APPDATA%\morune`, independente do
 disco escolhido, e **nao** sao apagados ao desinstalar, a menos que voce marque
 essa opcao.
+
+---
+
+## Como entrar na sua conta
+
+Abra **Configuracoes → Entrar no Spotify**. O navegador abre no site do Spotify,
+voce autoriza, e pronto. O Morune nunca ve sua senha: o login e OAuth com PKCE,
+e o unico segredo que chega aqui e um token, guardado no Gerenciador de
+Credenciais do Windows. Nao ha cadastro, nao ha servidor do Morune no meio, e
+nao ha nada para configurar antes.
+
+**Precisa ser Premium.** Nao e escolha do Morune: o Spotify so entrega audio
+para contas Premium, e nenhum cliente aberto contorna isso. Uma conta gratuita e
+recusada no login, com essa explicacao na tela.
+
+**Se o navegador nao abrir sozinho**, o login espera a autorizacao em
+`127.0.0.1:5588`. Essa porta precisa estar livre, porque e nela que o Spotify
+devolve a resposta — o endereco de retorno e fixo e nao pode ser sorteado.
+
+Voce nao precisa registrar nenhum aplicativo no Spotify para usar o Morune, nem
+para compila-lo.
 
 Para gerar o instalador a partir do codigo:
 

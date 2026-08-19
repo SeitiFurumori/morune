@@ -14,11 +14,14 @@
 use std::sync::Arc;
 
 use morune_core::auth::{Authenticator, CredentialStore};
+use morune_core::catalog::{Catalog, Library};
 use morune_core::playback::PlaybackEngine;
 use morune_core::{CoreError, CoreResult};
 
 use crate::auth::{SharedSession, SpotifyAuthenticator};
+use crate::catalog::SpotifyCatalog;
 use crate::engine::SpotifyEngine;
+use crate::token::TokenSource;
 
 /// Numero de threads de trabalho do runtime.
 ///
@@ -33,6 +36,7 @@ const WORKER_THREADS: usize = 2;
 pub struct SpotifyBackend {
     runtime: tokio::runtime::Runtime,
     authenticator: Arc<SpotifyAuthenticator>,
+    catalog: Arc<SpotifyCatalog>,
     session: SharedSession,
 }
 
@@ -56,16 +60,36 @@ impl SpotifyBackend {
             .build()
             .map_err(|e| CoreError::InvalidState(format!("runtime do Spotify: {e}")))?;
 
+        // Autenticador e catalogo compartilham a mesma fonte de token: o
+        // catalogo assina requisicao com o token que o login obteve, e a
+        // renovacao acontece num lugar so.
         let session = SharedSession::default();
+        let tokens = Arc::new(TokenSource::new(credentials));
         let authenticator =
-            Arc::new(SpotifyAuthenticator::new(credentials, session.clone()));
+            Arc::new(SpotifyAuthenticator::with_tokens(tokens.clone(), session.clone()));
+        let catalog = Arc::new(SpotifyCatalog::new(session.clone(), tokens));
 
-        Ok(Self { runtime, authenticator, session })
+        Ok(Self { runtime, authenticator, catalog, session })
     }
 
     /// Autenticador, para a aplicacao ligar aos botoes de entrar e sair.
     pub fn authenticator(&self) -> Arc<dyn Authenticator> {
         self.authenticator.clone()
+    }
+
+    /// Catalogo do provedor, para busca e navegacao.
+    ///
+    /// Existe desde a abertura, mesmo sem login: as requisicoes e que falham
+    /// com [`CoreError::NotAuthenticated`] enquanto nao ha sessao. Assim a
+    /// interface guarda uma referencia so, e nao um `Option` que ela teria de
+    /// checar em cada tela.
+    pub fn catalog(&self) -> Arc<dyn Catalog> {
+        self.catalog.clone()
+    }
+
+    /// Biblioteca do usuario. Mesmo objeto do catalogo, outro contrato.
+    pub fn library(&self) -> Arc<dyn Library> {
+        self.catalog.clone()
     }
 
     /// Handle do runtime, para quem precisa agendar trabalho no mesmo executor.
@@ -117,6 +141,26 @@ mod tests {
     fn engine_is_refused_before_login_instead_of_panicking() {
         let backend = backend();
         assert!(matches!(backend.engine(), Err(CoreError::NotAuthenticated)));
+    }
+
+    #[test]
+    fn the_catalog_refuses_work_before_login_instead_of_panicking() {
+        // A interface guarda o catalogo desde a abertura; sem sessao ele
+        // precisa recusar com o erro que a tela sabe traduzir.
+        let backend = backend();
+        let catalog = backend.catalog();
+        let result = backend.block_on(catalog.search("qualquer coisa", Default::default(), 10));
+        assert!(matches!(result, Err(CoreError::NotAuthenticated)));
+    }
+
+    #[test]
+    fn an_empty_query_never_reaches_the_network() {
+        // Buscar por nada nao e erro nem requisicao: e uma lista vazia.
+        let backend = backend();
+        let catalog = backend.catalog();
+        let results =
+            backend.block_on(catalog.search("   ", Default::default(), 10)).expect("sem rede");
+        assert!(results.is_empty());
     }
 
     #[test]

@@ -17,6 +17,7 @@
 // nem pelo modulo gerado. Nosso codigo continua sem `unsafe`.
 #![deny(unsafe_code)]
 
+mod browse;
 mod bundled;
 mod session;
 #[cfg(feature = "snapshot")]

@@ -3,7 +3,7 @@ use std::pin::Pin;
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::CoreResult;
+use crate::error::{CoreError, CoreResult};
 use crate::model::{Album, AlbumId, Artist, ArtistId, Playlist, PlaylistId, Track, TrackId};
 
 /// Future retornada pelos metodos de catalogo.
@@ -114,7 +114,30 @@ pub trait Catalog: Send + Sync + 'static {
     ) -> BoxFuture<'a, CoreResult<Page<Track>>>;
 }
 
+/// Janela de tempo de "mais ouvidos".
+///
+/// Os tres recortes existem porque respondem perguntas diferentes: o que estou
+/// ouvindo agora, o que ouvi neste semestre, e quem eu sou. Um player que so
+/// oferece o ultimo mostra sempre a mesma lista.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TopRange {
+    /// Ultimas semanas.
+    Recent,
+    /// Ultimos meses. E o recorte que muda devagar o bastante para a lista
+    /// fazer sentido e rapido o bastante para nao virar museu.
+    #[default]
+    Medium,
+    /// Todo o historico da conta.
+    AllTime,
+}
+
 /// Biblioteca do usuario (o que ele salvou), separada do catalogo publico.
+///
+/// Os metodos com implementacao padrao existem porque nem todo provedor sabe
+/// responde-los: um diretorio de arquivos locais nao tem "mais ouvidos". O
+/// padrao recusa com [`CoreError::Unsupported`], que a interface ja sabe
+/// tratar, em vez de obrigar todo backend futuro a escrever um `unimplemented`.
 pub trait Library: Send + Sync + 'static {
     fn name(&self) -> &'static str;
 
@@ -141,6 +164,45 @@ pub trait Library: Send + Sync + 'static {
         offset: u32,
         limit: u32,
     ) -> BoxFuture<'a, CoreResult<Page<Artist>>>;
+
+    /// Faixas mais ouvidas pelo usuario no recorte pedido.
+    fn top_tracks<'a>(
+        &'a self,
+        _range: TopRange,
+        _offset: u32,
+        _limit: u32,
+    ) -> BoxFuture<'a, CoreResult<Page<Track>>> {
+        Box::pin(async { Err(CoreError::Unsupported("faixas mais ouvidas")) })
+    }
+
+    /// Artistas mais ouvidos pelo usuario no recorte pedido.
+    fn top_artists<'a>(
+        &'a self,
+        _range: TopRange,
+        _offset: u32,
+        _limit: u32,
+    ) -> BoxFuture<'a, CoreResult<Page<Artist>>> {
+        Box::pin(async { Err(CoreError::Unsupported("artistas mais ouvidos")) })
+    }
+
+    /// Playlists que o provedor monta para este usuario.
+    ///
+    /// Diferente de [`Library::saved_playlists`]: aqui nao esta o que o usuario
+    /// guardou, e sim o que o provedor montou olhando para ele. Nenhum provedor
+    /// e obrigado a ter isso, e um que nao tem responde vazio pelo padrao.
+    fn made_for_you<'a>(&'a self, _limit: u32) -> BoxFuture<'a, CoreResult<Page<Playlist>>> {
+        Box::pin(async { Err(CoreError::Unsupported("playlists feitas para o usuario")) })
+    }
+
+    /// Historico recente, da mais nova para a mais antiga.
+    ///
+    /// Sem deslocamento de proposito: o historico anda enquanto o usuario ouve,
+    /// e paginar por posicao sobre uma lista que se move devolve faixa repetida
+    /// e faixa pulada. Quem quiser mais fundo precisa de cursor, e nenhum
+    /// provedor precisou disso ainda.
+    fn recently_played<'a>(&'a self, _limit: u32) -> BoxFuture<'a, CoreResult<Page<Track>>> {
+        Box::pin(async { Err(CoreError::Unsupported("historico recente")) })
+    }
 }
 
 #[cfg(test)]
@@ -160,6 +222,62 @@ mod tests {
 
         let exhausted: Page<i32> = Page { items: vec![], offset: 10, total: None };
         assert!(!exhausted.has_more());
+    }
+
+    #[test]
+    fn a_provider_that_knows_nothing_extra_still_compiles_and_refuses_clearly() {
+        // O ponto dos metodos com padrao: um backend novo nao precisa escrever
+        // nada para eles, e a interface recebe um erro que sabe traduzir em vez
+        // de um panico.
+        struct Minima;
+        impl Library for Minima {
+            fn name(&self) -> &'static str {
+                "minima"
+            }
+            fn saved_playlists(&self, _: u32, _: u32) -> BoxFuture<'_, CoreResult<Page<Playlist>>> {
+                Box::pin(async { Ok(Page::empty()) })
+            }
+            fn saved_albums(&self, _: u32, _: u32) -> BoxFuture<'_, CoreResult<Page<Album>>> {
+                Box::pin(async { Ok(Page::empty()) })
+            }
+            fn saved_tracks(&self, _: u32, _: u32) -> BoxFuture<'_, CoreResult<Page<Track>>> {
+                Box::pin(async { Ok(Page::empty()) })
+            }
+            fn followed_artists(&self, _: u32, _: u32) -> BoxFuture<'_, CoreResult<Page<Artist>>> {
+                Box::pin(async { Ok(Page::empty()) })
+            }
+        }
+
+        let library = Minima;
+        let refused = futures_lite_block_on(library.top_tracks(TopRange::default(), 0, 10));
+        assert!(matches!(refused, Err(CoreError::Unsupported(_))));
+        let refused = futures_lite_block_on(library.recently_played(10));
+        assert!(matches!(refused, Err(CoreError::Unsupported(_))));
+        let refused = futures_lite_block_on(library.made_for_you(10));
+        assert!(matches!(refused, Err(CoreError::Unsupported(_))));
+    }
+
+    /// Executa um future que sabidamente nao espera por nada.
+    ///
+    /// Evita puxar um executor inteiro para o core so por causa deste teste: os
+    /// padroes do trait respondem sem tocar em I/O, entao um `poll` basta. O
+    /// `Waker::noop` da biblioteca padrao existe exatamente para isto, e mantem
+    /// o core sem `unsafe`.
+    fn futures_lite_block_on<T>(future: BoxFuture<'_, T>) -> T {
+        use std::task::{Context, Poll, Waker};
+
+        let mut future = future;
+        match future.as_mut().poll(&mut Context::from_waker(Waker::noop())) {
+            Poll::Ready(value) => value,
+            Poll::Pending => panic!("o padrao do trait nao deveria esperar por nada"),
+        }
+    }
+
+    #[test]
+    fn top_range_defaults_to_the_middle_window() {
+        // O recorte curto muda todo dia e o longo nunca muda; o do meio e o
+        // unico que faz a tela parecer viva sem parecer aleatoria.
+        assert_eq!(TopRange::default(), TopRange::Medium);
     }
 
     #[test]
