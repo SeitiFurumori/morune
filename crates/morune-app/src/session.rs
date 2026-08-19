@@ -17,6 +17,8 @@ use morune_core::playback::PlaybackEngine;
 use morune_core::{CoreError, CoreResult};
 use morune_spotify::SpotifyBackend;
 
+use crate::browse::Browse;
+
 /// Em que ponto da sessao o aplicativo esta.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum SessionState {
@@ -59,6 +61,9 @@ pub struct Session {
     state: SessionState,
     /// Resultado de uma tentativa em andamento, quando ha uma.
     pending: Option<Receiver<Outcome>>,
+    /// Busca e biblioteca. Existe desde a abertura, junto com o backend: as
+    /// consultas e que recusam trabalho enquanto nao ha sessao.
+    browse: Option<Browse>,
 }
 
 impl std::fmt::Debug for Session {
@@ -77,7 +82,14 @@ impl Session {
     pub fn new(credentials: Arc<dyn morune_core::auth::CredentialStore>) -> Self {
         match SpotifyBackend::new(credentials) {
             Ok(backend) => {
-                Self { backend: Some(backend), state: SessionState::LoggedOut, pending: None }
+                let browse =
+                    Browse::new(backend.catalog(), backend.library(), backend.handle());
+                Self {
+                    backend: Some(backend),
+                    state: SessionState::LoggedOut,
+                    pending: None,
+                    browse: Some(browse),
+                }
             }
             Err(e) => {
                 tracing::error!(error = %e, "backend do Spotify indisponivel");
@@ -85,6 +97,7 @@ impl Session {
                     backend: None,
                     state: SessionState::Failed(format!("Spotify indisponivel: {e}")),
                     pending: None,
+                    browse: None,
                 }
             }
         }
@@ -92,6 +105,11 @@ impl Session {
 
     pub fn state(&self) -> &SessionState {
         &self.state
+    }
+
+    /// Catalogo e biblioteca, quando ha backend.
+    pub fn browse_mut(&mut self) -> Option<&mut Browse> {
+        self.browse.as_mut()
     }
 
     /// `true` enquanto ha uma tentativa em andamento.
@@ -153,6 +171,9 @@ impl Session {
             if let Err(e) = backend.block_on(backend.authenticator().logout()) {
                 tracing::warn!(error = %e, "falha ao encerrar sessao");
             }
+        }
+        if let Some(browse) = &mut self.browse {
+            browse.cancel();
         }
         self.pending = None;
         self.state = SessionState::LoggedOut;

@@ -10,12 +10,13 @@ use std::time::Duration;
 
 use morune_core::playback::{NullEngine, PlaybackEngine, PlayerCommand, PlayerEvent};
 use tokio::sync::broadcast;
-use morune_core::queue::{Queue, RepeatMode};
+use morune_core::queue::{Queue, QueueOrigin, RepeatMode};
 use morune_core::Track;
 use morune_storage::{AppPaths, Config};
 use morune_theme::{loader, ThemeSpec};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
+use crate::browse::{Card, Outcome, Target};
 use crate::session::Session;
 use crate::theme_bridge::{self, UserOverrides};
 use crate::ui;
@@ -55,6 +56,17 @@ pub struct AppState {
     /// Eventos do motor ativo. Trocado junto com o motor.
     player_events: Option<broadcast::Receiver<PlayerEvent>>,
     volume: f32,
+    /// Ultima busca, guardada inteira: ativar uma faixa da lista transforma a
+    /// lista toda em contexto da fila, e nao so a faixa clicada.
+    search_query: String,
+    search_tracks: Vec<Track>,
+    home: Vec<Card>,
+    library: Vec<Card>,
+    /// `true` depois de a tela ter sido pedida ao backend, e nao depois de
+    /// chegar: sem isso, ir e voltar numa tela lenta dispara uma requisicao por
+    /// visita.
+    home_requested: bool,
+    library_requested: bool,
 }
 
 impl std::fmt::Debug for AppState {
@@ -116,6 +128,12 @@ impl AppState {
             engine: Arc::new(NullEngine::new("entre na sua conta para tocar musica")),
             session: Session::new(Arc::from(morune_storage::platform_store())),
             player_events: None,
+            search_query: String::new(),
+            search_tracks: Vec::new(),
+            home: Vec::new(),
+            library: Vec::new(),
+            home_requested: false,
+            library_requested: false,
         }
     }
 
@@ -148,6 +166,19 @@ impl AppState {
                 let _ = engine.send(PlayerCommand::SetVolume(self.volume));
                 self.engine = engine;
             }
+            if self.session.state().is_logged_in() {
+                // A tela aberta na hora do login precisa se preencher sozinha:
+                // o usuario acabou de entrar e nao vai clicar em "Inicio" de
+                // novo so para ver o que ja deveria estar la.
+                self.home_requested = false;
+                self.library_requested = false;
+                self.request_page_data();
+            }
+            changed = true;
+        }
+
+        if let Some(outcome) = self.session.browse_mut().and_then(|b| b.poll()) {
+            self.apply_browse(outcome);
             changed = true;
         }
 
@@ -156,6 +187,72 @@ impl AppState {
         }
 
         changed
+    }
+
+    /// Aplica o que a busca ou a biblioteca trouxeram.
+    fn apply_browse(&mut self, outcome: Outcome) {
+        match outcome {
+            Outcome::Search { query, tracks } => {
+                self.status = if tracks.is_empty() {
+                    format!("Nada encontrado para \"{query}\".")
+                } else {
+                    format!("{} faixas para \"{query}\".", tracks.len())
+                };
+                self.search_query = query;
+                self.search_tracks = tracks;
+            }
+            // Sem mensagem no sucesso: a tela vazia ja se explica sozinha, e
+            // uma linha de status aqui apagaria o "Conectado como ..." que o
+            // usuario acabou de receber.
+            Outcome::Home(cards) => self.home = cards,
+            Outcome::Library(cards) => self.library = cards,
+            Outcome::Context { origin, title, tracks } => {
+                if tracks.is_empty() {
+                    self.status = format!("{title} nao tem nada que o Morune consiga tocar.");
+                    return;
+                }
+                self.status = format!("Tocando {title}.");
+                self.queue.set_context(origin, tracks, Some(0));
+                self.play_current();
+            }
+            Outcome::Failed(message) => {
+                // A tela que falhou pode ser pedida de novo: sem soltar as
+                // marcas, voltar a ela mostraria a lista vazia para sempre.
+                self.home_requested = false;
+                self.library_requested = false;
+                self.status = message;
+            }
+        }
+    }
+
+    /// Pede ao backend o que a tela aberta mostra, se ainda nao pediu.
+    fn request_page_data(&mut self) {
+        if !self.session.state().is_logged_in() {
+            return;
+        }
+
+        let page = self.page;
+        let (home_requested, library_requested) = (self.home_requested, self.library_requested);
+        let Some(browse) = self.session.browse_mut() else { return };
+
+        match page {
+            Page::Home if !home_requested => {
+                browse.load_home();
+                self.home_requested = true;
+            }
+            Page::Library if !library_requested => {
+                browse.load_library();
+                self.library_requested = true;
+            }
+            _ => {}
+        }
+    }
+
+    /// Carrega a faixa selecionada na fila e comeca a tocar.
+    fn play_current(&mut self) {
+        if let Some(track) = self.queue.current().cloned() {
+            self.send(PlayerCommand::Load { track, start_paused: false });
+        }
     }
 
     fn next_player_event(&mut self) -> Option<PlayerEvent> {
@@ -400,6 +497,7 @@ impl AppState {
 
     pub fn navigate(&mut self, page: i32) {
         self.page = Page::from_i32(page);
+        self.request_page_data();
     }
 
     /// Abre uma pagina especifica na inicializacao.
@@ -418,23 +516,60 @@ impl AppState {
         if query.trim().is_empty() {
             return;
         }
-        // A busca real depende do catalogo do provedor, que so existe depois do
-        // login. Sem sessao, dizer isso e melhor que uma lista vazia sem
-        // explicacao.
-        self.status = format!("Busca por \"{query}\" precisa de uma sessao ativa.");
+        // A busca depende do catalogo, que so responde depois do login. Sem
+        // sessao, dizer isso e melhor que uma lista vazia sem explicacao.
+        if !self.session.state().is_logged_in() {
+            self.status = format!("Busca por \"{query}\" precisa de uma sessao ativa.");
+            return;
+        }
+
+        let Some(browse) = self.session.browse_mut() else {
+            self.status = "Backend do Spotify indisponivel nesta maquina.".into();
+            return;
+        };
+        browse.search(query);
+        self.status = format!("Buscando \"{query}\"...");
     }
 
     // ---- reproducao ----
 
-    pub fn play_track(&mut self, id: &str) {
-        let Some(index) = self.queue.tracks().iter().position(|t| t.id.canonical() == id) else {
-            self.status = "Faixa nao esta na fila atual.".into();
+    /// Toca o que a interface ativou: uma faixa, um album, uma playlist ou um
+    /// artista.
+    ///
+    /// Faixa que ja esta em alguma lista aberta toca na hora, sem ida a rede.
+    /// O resto vai ao catalogo, porque so o clique nao diz quais sao as outras
+    /// faixas do album.
+    pub fn play_track(&mut self, tag: &str) {
+        let Some(target) = Target::parse(tag) else {
+            self.status = "Nao reconheci o que voce clicou.".into();
             return;
         };
-        let track = self.queue.jump_to(index).cloned();
-        if let Some(track) = track {
-            self.send(PlayerCommand::Load { track, start_paused: false });
+
+        if let Target::Track(id) = &target {
+            // Na fila: e so pular para ela, mantendo o contexto que ja estava
+            // tocando.
+            if let Some(index) = self.queue.tracks().iter().position(|t| t.id == *id) {
+                self.queue.jump_to(index);
+                self.play_current();
+                return;
+            }
+
+            // Nos resultados da busca: a lista inteira vira o contexto, para
+            // que "proxima" continue pelos resultados e nao pare na primeira.
+            if let Some(index) = self.search_tracks.iter().position(|t| t.id == *id) {
+                let origin = QueueOrigin::Search(self.search_query.clone());
+                self.queue.set_context(origin, self.search_tracks.clone(), Some(index));
+                self.play_current();
+                return;
+            }
         }
+
+        let Some(browse) = self.session.browse_mut() else {
+            self.status = "Entre na sua conta do Spotify para tocar.".into();
+            return;
+        };
+        browse.open(target);
+        self.status = "Carregando...".into();
     }
 
     pub fn toggle_play(&mut self) {
@@ -502,6 +637,14 @@ impl AppState {
         self.player_events = None;
         self.session.logout();
         self.queue.clear();
+        // Busca e biblioteca sao da conta que saiu: deixa-las na tela mostraria
+        // a playlist de alguem que nao esta mais conectado.
+        self.search_query.clear();
+        self.search_tracks.clear();
+        self.home.clear();
+        self.library.clear();
+        self.home_requested = false;
+        self.library_requested = false;
         self.status = "Sessao encerrada.".into();
     }
 
@@ -545,9 +688,9 @@ impl AppState {
         window.set_queue_tracks(track_rows(self.queue.upcoming(200), current));
         window.set_themes(self.theme_items());
         window.set_diagnostics(self.diagnostics());
-        window.set_home_items(ModelRc::new(VecModel::<ui::CardItem>::default()));
-        window.set_library_items(ModelRc::new(VecModel::<ui::CardItem>::default()));
-        window.set_search_tracks(ModelRc::new(VecModel::<ui::TrackRow>::default()));
+        window.set_home_items(card_items(&self.home));
+        window.set_library_items(card_items(&self.library));
+        window.set_search_tracks(track_rows(self.search_tracks.iter().collect(), current));
     }
 
     fn theme_items(&self) -> ModelRc<ui::ThemeItem> {
@@ -589,7 +732,7 @@ fn track_rows(tracks: Vec<&Track>, current: Option<&Track>) -> ModelRc<ui::Track
     let rows: Vec<ui::TrackRow> = tracks
         .into_iter()
         .map(|t| ui::TrackRow {
-            id: t.id.canonical().into(),
+            id: Target::Track(t.id.clone()).tag().into(),
             title: t.name.as_ref().into(),
             artist: t.artists_line().into(),
             album: t.album.as_ref().map(|a| a.name.as_ref()).unwrap_or("").into(),
@@ -599,6 +742,18 @@ fn track_rows(tracks: Vec<&Track>, current: Option<&Track>) -> ModelRc<ui::Track
         })
         .collect();
     ModelRc::new(VecModel::from(rows))
+}
+
+fn card_items(cards: &[Card]) -> ModelRc<ui::CardItem> {
+    let items: Vec<ui::CardItem> = cards
+        .iter()
+        .map(|c| ui::CardItem {
+            id: c.tag.as_str().into(),
+            title: c.title.as_str().into(),
+            subtitle: c.subtitle.as_str().into(),
+        })
+        .collect();
+    ModelRc::new(VecModel::from(items))
 }
 
 /// Formata uma duracao como `m:ss`, ou `h:mm:ss` quando passa de uma hora.

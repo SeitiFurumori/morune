@@ -6,6 +6,47 @@ Versionamento semantico.
 ## [Nao lancado]
 
 ### Adicionado
+
+**Backend de Spotify (`morune-spotify`)**
+- Crate nova, implementando os contratos de `morune-core` sobre a librespot 0.8.
+  A interface continua guardando `Arc<dyn PlaybackEngine>`, `Arc<dyn Catalog>` e
+  `Arc<dyn Authenticator>`: nenhuma tela sabe que o provedor e o Spotify.
+- **Login OAuth com PKCE**, sem client secret e sem campo de senha. O usuario
+  entra no site do Spotify, no navegador dele, e o Morune so ve o codigo que
+  volta. O refresh token vai para o Gerenciador de Credenciais do Windows.
+- **Fonte unica de token** (`token.rs`): login e catalogo usam o mesmo token e a
+  renovacao acontece num lugar so, sob trava. Um token recusado dentro do prazo
+  -- acontece quando a conta revoga o acesso pelo site -- e renovado e a
+  requisicao repetida, sem a tela pedir login de novo.
+- **Reproducao**: carregar, tocar, pausar, buscar posicao e volume, com o fim de
+  faixa ligado a `Queue::next(false)` -- e o que faz "repetir uma" repetir em
+  vez de pular. A posicao e interpolada por relogio local entre os avisos da
+  librespot, e nao consultada a cada quadro.
+- **Volume com curva cubica**, guardado em inteiro atomico porque o misturador
+  le esse valor na thread de audio, a cada bloco.
+- **Busca e biblioteca** sobre o Web API do Spotify, que e onde elas existem --
+  o protocolo da librespot entrega audio, nao catalogo. O cliente HTTP e o da
+  propria sessao: TLS, proxy e limite de requisicoes ja resolvidos, sem uma
+  segunda pilha de TLS no binario.
+- Traducao de JSON para o modelo do core isolada em `dto.rs`, testavel sem rede:
+  item nulo, faixa sem id e arquivo local da conta somem da lista em vez de
+  derrubarem a pagina inteira, e as capas saem ordenadas da menor para a maior,
+  que e o que `ImageSet::best_for_width` precisa para nao carregar capa grande
+  numa grade.
+
+**Interface**
+- As telas Inicio, Buscar e Biblioteca deixaram de ser vazias: Inicio e
+  Biblioteca listam playlists, albuns salvos e artistas seguidos; a busca
+  devolve faixas.
+- Ativar um card carrega o album, a playlist ou as faixas populares do artista
+  na fila e comeca a tocar. Ativar uma faixa da busca faz a **lista inteira**
+  virar contexto, para que "proxima" continue pelos resultados.
+- Cada pedido de catalogo vira tarefa no runtime do backend e e recolhido no
+  temporizador que ja atende bandeja e reproducao: a thread da interface nao
+  espera rede em nenhum caminho.
+- Sair da conta limpa busca, inicio e biblioteca da tela, junto com a fila.
+
+**Identidade visual, licenciamento e distribuicao**
 - Identidade visual aplicada: simbolo da marca na barra lateral (desenhado como
   caminho vetorial, presente tambem com a barra recolhida), icone do executavel,
   da janela, da barra de tarefas, da bandeja e do instalador.
@@ -34,6 +75,12 @@ Versionamento semantico.
 - Licenca definida: **MIT**, com o texto em [LICENSE](LICENSE). O `Cargo.toml`
   declarava `MIT OR Apache-2.0` sem nenhum arquivo de licenca no repositorio.
 
+### Nao verificado ainda
+Nada do backend de Spotify pode ser declarado funcionando: falta o login
+interativo com uma conta Premium real. O que existe hoje e codigo que compila,
+187 testes passando e clippy limpo com `-D warnings`. Ver
+[docs/HANDOFF.md](docs/HANDOFF.md).
+
 ### Alterado
 - **Criterio de desempenho redefinido.** A meta de "RAM em repouso < 70 MB" saiu:
   numa maquina com 16 GB, 70 ou 90 MB nao muda nada para ninguem. O criterio
@@ -55,9 +102,10 @@ Versionamento semantico.
   detalhamento medido em [PERFORMANCE.md](PERFORMANCE.md).
 
 ### A fazer no proximo ciclo
-- Backend de reproducao `morune-spotify` sobre librespot 0.8.
-- Login OAuth PKCE com token no Gerenciador de Credenciais.
-- Busca, biblioteca e capas ligadas as telas existentes.
+- Login real com conta Premium, que e o unico jeito de verificar o ciclo 2.
+- Capas: download, cache em disco com teto explicito e descarte por LRU.
+- Paginacao das telas: hoje cada secao traz 50 itens e para por ai.
+- Medir de novo CPU e GPU em segundo plano, agora que ha o que tocar.
 
 ## [0.1.0] — 2026-08-18
 

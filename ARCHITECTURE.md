@@ -20,6 +20,7 @@ Isso nao e purismo. E o que torna possivel:
 ```
 morune-app        interface Slint, estado de tela, fiacao
    |  depende de
+morune-spotify    login, reproducao, catalogo e biblioteca sobre librespot
 morune-storage    configuracao, caminhos, cofre de credenciais
 morune-theme      esquema de tema, carregamento, pacotes .musicpack
    |  depende de
@@ -167,11 +168,35 @@ antes da janela aparecer.
 
 ---
 
+## `morune-spotify`
+
+Implementa os quatro contratos do core sem que nenhuma tela saiba disso. O
+contrato foi fechado e testado contra `NullEngine` antes desta crate existir, e
+nao mudou por causa dela — que era o ponto de te-lo escrito primeiro.
+
+| Modulo | Papel |
+|---|---|
+| `token` | fonte unica de token: obtem, guarda no cofre e renova sob trava |
+| `auth` | `Authenticator`: OAuth PKCE, restauracao de sessao, logout |
+| `engine` | `PlaybackEngine` sobre a librespot, em runtime tokio proprio |
+| `webapi` | transporte HTTP autenticado do Web API |
+| `dto` | JSON do Spotify -> modelo do core, sem rede e testavel |
+| `catalog` | `Catalog` e `Library` sobre os dois anteriores |
+| `runtime` | dono do runtime e ponto de entrada da crate |
+
+**Sao dois canais, e nao um por escolha.** O protocolo que a librespot fala
+entrega audio; busca e biblioteca so existem no Web API, que e HTTP comum. Os
+dois usam a mesma `Session` e o mesmo token: duas conexoes gastariam dois slots
+de dispositivo na conta, e o Spotify derrubaria uma delas.
+
+**A interface nunca espera rede.** Comandos de reproducao entram por canal e nao
+devolvem resultado; quem quer saber o que aconteceu assina os eventos. Consultas
+de catalogo viram tarefa no runtime do backend e sao recolhidas no temporizador
+de 100 ms que ja atende bandeja e reproducao.
+
+---
+
 ## O que ainda nao existe
 
-`morune-spotify` esta no plano, nao no disco. O contrato que ela vai
-implementar (`PlaybackEngine`, `Catalog`, `Library`, `Authenticator`) ja esta
-fechado e testado contra `NullEngine`, que e o ponto: a camada dependente so
-comeca depois que o contrato dela para de mudar.
-
-Ver [ROADMAP.md](ROADMAP.md).
+Capas (download e cache), paginacao das telas de conteudo e telas de detalhe de
+album, artista e playlist. Ver [ROADMAP.md](ROADMAP.md).

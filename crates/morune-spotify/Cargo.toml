@@ -18,6 +18,13 @@ tracing = { workspace = true }
 tokio = { workspace = true }
 futures-util = { workspace = true }
 
+# Busca e biblioteca so existem no Web API, que e HTTP comum. O cliente e o da
+# propria sessao da librespot -- estes dois crates entram so pelos tipos de
+# requisicao dele, e ja estao no binario por causa da librespot.
+http = "1"
+bytes = "1"
+
+
 # librespot: reimplementacao aberta do protocolo do Spotify. Os crates entram
 # separados, e nao pelo agregado `librespot`, para nao arrastar a linha de
 # comando e os backends de audio que nao usamos.

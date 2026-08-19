@@ -52,11 +52,19 @@ Ja implementado:
   executavel, na janela, na barra de tarefas, na bandeja e no instalador;
 - **instalador `.exe` unico** com escolha de disco, sem UAC e sem pre-requisitos.
 
+Escrito, compilando e coberto por teste de unidade, mas **ainda nao exercitado
+contra uma conta real** — ver [docs/HANDOFF.md](docs/HANDOFF.md):
+
+- login no Spotify por OAuth com PKCE, sem senha e sem client secret, com o
+  token no Gerenciador de Credenciais;
+- reproducao sobre a librespot, ligada a fila que ja existia;
+- busca, playlists, albuns salvos e artistas seguidos nas telas que ja existiam.
+
 Ainda **nao** implementado — ver [ROADMAP.md](ROADMAP.md):
 
-- reproducao. O backend `librespot` e o proximo ciclo; hoje o aplicativo usa um
-  motor nulo que aceita preferencias e recusa reproducao de forma explicita.
-- busca, biblioteca e capas dependem da sessao e vem junto.
+- capas: nem download nem cache;
+- paginacao das telas de conteudo: cada secao traz 50 itens e para;
+- telas de detalhe de album, artista e playlist.
 
 Nada aqui e declarado funcionando sem medicao ou teste. Onde falta, esta dito.
 

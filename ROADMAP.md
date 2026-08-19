@@ -9,11 +9,11 @@ Arquitetura  [feito]
 │  ├─ Config              [feito]
 │  ├─ Contratos           [feito]
 │  ├─ Fila / shuffle      [feito]
-│  └─ Integracao Spotify  [ciclo 2]
+│  └─ Integracao Spotify  [ciclo 2, escrito, falta verificar]
 ├─ UI
 │  ├─ Componentes         [feito]
 │  ├─ Navegacao           [feito]
-│  └─ Telas de conteudo   [ciclo 2, depende do catalogo]
+│  └─ Telas de conteudo   [ciclo 2, ligadas; faltam capas e paginacao]
 ├─ Customizacao
 │  ├─ Esquema de tema     [feito]
 │  ├─ Carregador          [feito]
@@ -42,27 +42,31 @@ Arquitetura  [feito]
 - instalador `.exe` unico com escolha de disco, sem UAC, com desinstalador
   limpo e verificacao de que o binario roda isolado.
 
-## Ciclo 2 — Reproducao `[proximo]`
+## Ciclo 2 — Reproducao `[em andamento]`
 
 O ciclo que transforma isto num player.
 
-1. **`morune-spotify`**: implementar `Authenticator`, `PlaybackEngine`,
+1. `[escrito]` **`morune-spotify`**: `Authenticator`, `PlaybackEngine`,
    `Catalog` e `Library` sobre librespot 0.8.
-2. **Login OAuth PKCE**, sem client secret, com o token indo direto para o
-   Gerenciador de Credenciais. Restauracao de sessao na abertura.
-3. **Reproducao real**: carregar, tocar, pausar, buscar posicao, volume,
-   avanco automatico ligado a `Queue::next`.
-4. **Busca e biblioteca** ligadas as telas que ja existem.
-5. **Capas**: download, cache em disco com **teto explicito e descarte por
-   LRU**, escolha pelo tamanho de exibicao via `ImageSet::best_for_width`. O
-   teto e obrigatorio; o valor dele e livre.
-6. **Medir o que importa**: CPU e GPU em segundo plano com musica tocando, com
-   um jogo em tela cheia rodando junto. E o criterio de desempenho do produto e
-   nunca foi medido — ver [PERFORMANCE.md](PERFORMANCE.md). RAM entra como teto
-   de crescimento, nao como meta de vitrine.
+2. `[escrito]` **Login OAuth PKCE**, sem client secret, com o token indo direto
+   para o Gerenciador de Credenciais. Restauracao de sessao na abertura.
+3. `[escrito]` **Reproducao real**: carregar, tocar, pausar, buscar posicao,
+   volume, avanco automatico ligado a `Queue::next`.
+4. `[escrito]` **Busca e biblioteca** ligadas as telas que ja existem.
+5. `[aberto]` **Capas**: download, cache em disco com **teto explicito e
+   descarte por LRU**, escolha pelo tamanho de exibicao via
+   `ImageSet::best_for_width`. O teto e obrigatorio; o valor dele e livre.
+6. `[aberto]` **Medir o que importa**: CPU e GPU em segundo plano com musica
+   tocando, com um jogo em tela cheia rodando junto. E o criterio de desempenho
+   do produto e nunca foi medido — ver [PERFORMANCE.md](PERFORMANCE.md). RAM
+   entra como teto de crescimento, nao como meta de vitrine.
+
+`[escrito]` quer dizer: compila, tem teste de unidade e clippy limpo. **Nao**
+quer dizer que funciona — nada passou por uma conta real ainda.
 
 Depende de: conta Premium para teste real. Sem ela nada deste ciclo pode ser
-declarado funcionando.
+declarado funcionando. O roteiro de verificacao esta em
+[docs/HANDOFF.md](docs/HANDOFF.md).
 
 Risco conhecido: librespot 0.8 exige `vergen` fixado em 9.0.x no `Cargo.lock`
 — ver [ADR-0002](docs/adr/0002-toolchain-windows-gnu.md).
