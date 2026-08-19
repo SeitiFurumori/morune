@@ -17,7 +17,9 @@
 
 use std::sync::Arc;
 
-use morune_core::catalog::{BoxFuture, Catalog, Library, Page, SearchKind, SearchResults};
+use morune_core::catalog::{
+    BoxFuture, Catalog, Library, Page, SearchKind, SearchResults, TopRange,
+};
 use morune_core::model::{
     Album, AlbumId, Artist, ArtistId, Playlist, PlaylistId, Provider, Track, TrackId,
 };
@@ -25,8 +27,8 @@ use morune_core::{CoreError, CoreResult};
 
 use crate::auth::SharedSession;
 use crate::dto::{
-    AlbumDto, ArtistDto, FollowedArtistsDto, Paged, PlaylistDto, PlaylistItemDto, SavedAlbumDto,
-    SavedTrackDto, SearchDto, TopTracksDto, TrackDto,
+    AlbumDto, ArtistDto, FollowedArtistsDto, Paged, PlayHistoryDto, PlaylistDto, PlaylistItemDto,
+    SavedAlbumDto, SavedTrackDto, SearchDto, TopTracksDto, TrackDto,
 };
 use crate::token::TokenSource;
 use crate::webapi::{WebApi, checked_id, escape};
@@ -36,6 +38,11 @@ const MAX_PAGE: u32 = 50;
 
 /// Maximo aceito pelas faixas de uma playlist.
 const MAX_PLAYLIST_PAGE: u32 = 100;
+
+/// Maximo aceito pelo historico recente.
+///
+/// O Spotify guarda 50 e nao entrega mais que isso, mesmo pedindo.
+const MAX_HISTORY: u32 = 50;
 
 /// Teto de requisicoes ao caminhar por cursor.
 ///
@@ -170,6 +177,30 @@ impl SpotifyCatalog {
         Ok(Page { items, offset, total })
     }
 
+    /// Mais ouvidos, de faixa ou de artista, conforme o endpoint.
+    async fn top<T, U, F>(
+        &self,
+        endpoint: &str,
+        range: TopRange,
+        offset: u32,
+        limit: u32,
+        map: F,
+    ) -> CoreResult<Page<U>>
+    where
+        T: serde::de::DeserializeOwned,
+        F: Fn(T) -> Option<U>,
+    {
+        let params = vec![
+            ("time_range", time_range(range).to_string()),
+            ("offset", offset.to_string()),
+            ("limit", clamp(limit, MAX_PAGE).to_string()),
+        ];
+
+        let page: Paged<T> = self.api.get(&path(endpoint, &params)).await?;
+        let total = page.total;
+        Ok(Page { items: page.present().into_iter().filter_map(map).collect(), offset, total })
+    }
+
     async fn saved<T, U, F>(&self, endpoint: &str, offset: u32, limit: u32, map: F) -> CoreResult<Page<U>>
     where
         T: serde::de::DeserializeOwned,
@@ -300,6 +331,54 @@ impl Library for SpotifyCatalog {
     ) -> BoxFuture<'a, CoreResult<Page<Artist>>> {
         Box::pin(self.followed(offset, limit))
     }
+
+    fn top_tracks<'a>(
+        &'a self,
+        range: TopRange,
+        offset: u32,
+        limit: u32,
+    ) -> BoxFuture<'a, CoreResult<Page<Track>>> {
+        Box::pin(self.top("/v1/me/top/tracks", range, offset, limit, TrackDto::into_track))
+    }
+
+    fn top_artists<'a>(
+        &'a self,
+        range: TopRange,
+        offset: u32,
+        limit: u32,
+    ) -> BoxFuture<'a, CoreResult<Page<Artist>>> {
+        Box::pin(self.top("/v1/me/top/artists", range, offset, limit, ArtistDto::into_artist))
+    }
+
+    fn recently_played<'a>(&'a self, limit: u32) -> BoxFuture<'a, CoreResult<Page<Track>>> {
+        Box::pin(async move {
+            let params = vec![("limit", clamp(limit, MAX_HISTORY).to_string())];
+            let page: Paged<PlayHistoryDto> =
+                self.api.get(&path("/v1/me/player/recently-played", &params)).await?;
+
+            // O historico repete: ouvir a mesma faixa tres vezes seguidas rende
+            // tres itens. Como lista para clicar, a repeticao nao ajuda em nada.
+            let mut vistas = std::collections::HashSet::new();
+            let items: Vec<Track> = page
+                .present()
+                .into_iter()
+                .filter_map(|i| i.track?.into_track())
+                .filter(|t| vistas.insert(t.id.clone()))
+                .collect();
+
+            let total = Some(items.len() as u32);
+            Ok(Page { items, offset: 0, total })
+        })
+    }
+}
+
+/// Valor que o Web API usa para cada recorte de "mais ouvidos".
+fn time_range(range: TopRange) -> &'static str {
+    match range {
+        TopRange::Recent => "short_term",
+        TopRange::Medium => "medium_term",
+        TopRange::AllTime => "long_term",
+    }
 }
 
 /// Lista de tipos aceita pelo parametro `type` da busca.
@@ -371,6 +450,13 @@ mod tests {
             path("/v1/tracks/abc", &[("market", String::new()), ("limit", "1".into())]),
             "/v1/tracks/abc?limit=1"
         );
+    }
+
+    #[test]
+    fn every_top_range_maps_to_a_window_the_api_knows() {
+        assert_eq!(time_range(TopRange::Recent), "short_term");
+        assert_eq!(time_range(TopRange::Medium), "medium_term");
+        assert_eq!(time_range(TopRange::AllTime), "long_term");
     }
 
     #[test]

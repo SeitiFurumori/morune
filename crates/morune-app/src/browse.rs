@@ -12,7 +12,7 @@
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
-use morune_core::catalog::{Catalog, Library, SearchKind};
+use morune_core::catalog::{Catalog, Library, SearchKind, TopRange};
 use morune_core::model::{AlbumId, ArtistId, PlaylistId, Track, TrackId};
 use morune_core::queue::QueueOrigin;
 use morune_core::{CoreError, CoreResult};
@@ -25,6 +25,15 @@ const SEARCH_LIMIT: u32 = 50;
 
 /// Quantos itens cada secao de biblioteca traz de uma vez.
 const SECTION_LIMIT: u32 = 50;
+
+/// Quantos cards cabem numa prateleira do Inicio.
+///
+/// Uma fileira, sem rolagem lateral. O Inicio e para bater o olho e escolher;
+/// quem quer a lista inteira vai na Biblioteca.
+const SHELF_CARDS: u32 = 5;
+
+/// Quantas faixas aparecem numa prateleira do Inicio.
+const SHELF_TRACKS: u32 = 6;
 
 /// O que a interface pode ativar com um clique.
 ///
@@ -77,10 +86,23 @@ pub struct Card {
     pub subtitle: String,
 }
 
+/// As prateleiras do Inicio.
+///
+/// Cada uma e independente: a que falhar chega vazia e as outras aparecem do
+/// mesmo jeito. Uma tela inicial que some inteira porque o historico nao
+/// respondeu seria pior do que uma tela inicial menor.
+#[derive(Debug, Default)]
+pub struct Home {
+    pub recent: Vec<Track>,
+    pub liked: Vec<Track>,
+    pub top_artists: Vec<Card>,
+    pub playlists: Vec<Card>,
+}
+
 /// O que um pedido produziu.
 pub enum Outcome {
     Search { query: String, tracks: Vec<Track> },
-    Home(Vec<Card>),
+    Home(Box<Home>),
     Library(Vec<Card>),
     /// Um album, playlist ou artista pronto para virar fila.
     Context { origin: QueueOrigin, title: String, tracks: Vec<Track> },
@@ -130,15 +152,45 @@ impl Browse {
         });
     }
 
-    /// Playlists salvas, que e o que a tela inicial mostra.
+    /// As quatro prateleiras do Inicio, numa tarefa so.
+    ///
+    /// Sequencial e nao paralelo pelo mesmo motivo da biblioteca: sao quatro
+    /// requisicoes numa tela que abre uma vez, e disparar as quatro juntas
+    /// arrisca o limite de requisicoes do Spotify para ganhar milissegundos.
     pub fn load_home(&mut self) {
         let library = self.library.clone();
         self.spawn(move |tx| async move {
-            let outcome = match library.saved_playlists(0, SECTION_LIMIT).await {
-                Ok(page) => Outcome::Home(page.items.iter().map(playlist_card).collect()),
-                Err(e) => Outcome::Failed(describe(&e)),
-            };
-            let _ = tx.send(outcome);
+            let mut home = Home::default();
+            let mut failure = None;
+
+            // Cada prateleira registra o proprio erro e segue. So a falha da
+            // primeira que quebrar vira mensagem, e so quando nada mais veio.
+            match library.recently_played(SHELF_TRACKS).await {
+                Ok(page) => home.recent = page.items,
+                Err(e) => failure = note(failure, &e, "historico recente"),
+            }
+            match library.saved_tracks(0, SHELF_TRACKS).await {
+                Ok(page) => home.liked = page.items,
+                Err(e) => failure = note(failure, &e, "musicas curtidas"),
+            }
+            match library.top_artists(TopRange::default(), 0, SHELF_CARDS).await {
+                Ok(page) => home.top_artists = page.items.iter().map(artist_card).collect(),
+                Err(e) => failure = note(failure, &e, "mais ouvidos"),
+            }
+            match library.saved_playlists(0, SHELF_CARDS).await {
+                Ok(page) => home.playlists = page.items.iter().map(playlist_card).collect(),
+                Err(e) => failure = note(failure, &e, "playlists"),
+            }
+
+            let vazio = home.recent.is_empty()
+                && home.liked.is_empty()
+                && home.top_artists.is_empty()
+                && home.playlists.is_empty();
+
+            let _ = tx.send(match failure {
+                Some(message) if vazio => Outcome::Failed(message),
+                _ => Outcome::Home(Box::new(home)),
+            });
         });
     }
 
@@ -279,6 +331,15 @@ fn artist_card(a: &morune_core::model::Artist) -> Card {
     }
 }
 
+/// Guarda a primeira falha e registra as demais no log.
+///
+/// A tela tem uma linha de status, nao quatro. Mostrar a primeira falha e
+/// honesto; empilhar as quatro so faz o usuario parar de ler.
+fn note(previous: Option<String>, error: &CoreError, secao: &str) -> Option<String> {
+    tracing::debug!(secao, error = %error, "prateleira do inicio nao carregou");
+    previous.or_else(|| Some(describe(error)))
+}
+
 /// Traduz um erro para uma frase que ajuda quem esta olhando a tela.
 fn describe(error: &CoreError) -> String {
     match error {
@@ -391,6 +452,23 @@ mod tests {
 
         artist.genres = vec!["new wave".into()];
         assert_eq!(artist_card(&artist).subtitle, "new wave");
+    }
+
+    #[test]
+    fn only_the_first_failure_reaches_the_status_line() {
+        // Quatro prateleiras podem falhar juntas quando a rede cai. A tela tem
+        // uma linha, e a primeira mensagem ja diz o que houve.
+        let primeira = note(None, &CoreError::Network("timeout".into()), "historico");
+        let depois = note(primeira.clone(), &CoreError::NotFound("x".into()), "curtidas");
+        assert_eq!(depois, primeira);
+        assert!(depois.unwrap().contains("internet"));
+    }
+
+    #[test]
+    fn a_home_with_nothing_in_it_is_detectable() {
+        let home = Home::default();
+        assert!(home.recent.is_empty() && home.liked.is_empty());
+        assert!(home.top_artists.is_empty() && home.playlists.is_empty());
     }
 
     #[test]
