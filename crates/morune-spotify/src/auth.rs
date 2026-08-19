@@ -10,65 +10,27 @@
 //! conseguem guardar segredo -- e um aplicativo de desktop distribuido nao
 //! consegue: qualquer segredo embutido no `.exe` e publico.
 //!
-//! **O token nunca toca o disco em texto.** O refresh token vai direto para o
-//! [`CredentialStore`], que no Windows e o Gerenciador de Credenciais.
+//! **O token nunca toca o disco em texto.** Quem cuida disso e
+//! [`crate::token::TokenSource`]; aqui so se decide quando pedir um.
 
 use std::sync::{Arc, Mutex};
 
 use librespot_core::authentication::Credentials;
 use librespot_core::{Session, SessionConfig};
-use librespot_oauth::{OAuthClient, OAuthClientBuilder, OAuthToken};
+use librespot_oauth::OAuthToken;
 use morune_core::auth::{Authenticator, CredentialStore, UserProfile};
 use morune_core::catalog::BoxFuture;
 use morune_core::{CoreError, CoreResult};
 
 use crate::error::{from_librespot, from_oauth};
-
-/// Client ID publico usado pelos clientes de desktop do Spotify.
-///
-/// Nao e segredo e nao pode ser: um `.exe` distribuido nao guarda segredo
-/// nenhum. E por isso que o fluxo e PKCE, que dispensa client secret.
-const CLIENT_ID: &str = "65b708073fc0480ea92a077233ca87bd";
-
-/// Endereco de retorno do navegador.
-///
-/// Precisa ser fixo porque tem de bater com o que esta registrado no client ID
-/// -- nao da para sortear porta a cada login.
-const REDIRECT_URI: &str = "http://127.0.0.1:5588/login";
-
-/// Permissoes pedidas ao usuario.
-///
-/// A lista e curta de proposito: cada escopo aqui e uma coisa que o Morune
-/// consegue fazer com a conta dele, e a tela de consentimento mostra todas.
-/// Nada de escrita enquanto o aplicativo nao souber escrever.
-const SCOPES: &[&str] = &[
-    "streaming",
-    "user-read-email",
-    "user-read-private",
-    "user-library-read",
-    "playlist-read-private",
-    "playlist-read-collaborative",
-    "user-top-read",
-    "user-read-recently-played",
-];
-
-/// Chave do refresh token no cofre do sistema.
-const REFRESH_KEY: &str = "spotify.refresh_token";
-
-/// Pagina mostrada no navegador quando o login termina.
-const BROWSER_MESSAGE: &str = concat!(
-    "<!doctype html><meta charset=\"utf-8\"><title>Morune</title>",
-    "<body style=\"font-family:system-ui;display:grid;place-items:center;",
-    "height:100vh;margin:0;background:#0b0d12;color:#eceff4\">",
-    "<div style=\"text-align:center\"><h1 style=\"font-weight:600\">Pronto</h1>",
-    "<p>Pode fechar esta aba e voltar para o Morune.</p></div></body>"
-);
+use crate::token::{REDIRECT_URI, TokenSource};
 
 /// Sessao ativa da librespot, compartilhada entre autenticador e motor.
 ///
 /// O motor de reproducao precisa da mesma `Session` que o login criou: abrir
 /// uma segunda conexao gastaria outro slot de dispositivo na conta, e o Spotify
-/// derrubaria uma das duas.
+/// derrubaria uma das duas. O catalogo tambem entra aqui: o cliente HTTP da
+/// sessao ja resolve TLS, proxy e limite de requisicoes.
 #[derive(Clone, Default)]
 pub struct SharedSession(Arc<Mutex<Option<Session>>>);
 
@@ -90,7 +52,7 @@ impl std::fmt::Debug for SharedSession {
 
 /// Autenticador do Spotify.
 pub struct SpotifyAuthenticator {
-    credentials: Arc<dyn CredentialStore>,
+    tokens: Arc<TokenSource>,
     session: SharedSession,
     /// Token do login em andamento, entre `begin_login` e `complete_login`.
     pending: Mutex<Option<OAuthToken>>,
@@ -104,19 +66,15 @@ impl std::fmt::Debug for SpotifyAuthenticator {
 
 impl SpotifyAuthenticator {
     pub fn new(credentials: Arc<dyn CredentialStore>, session: SharedSession) -> Self {
-        Self { credentials, session, pending: Mutex::new(None) }
+        Self::with_tokens(Arc::new(TokenSource::new(credentials)), session)
     }
 
-    fn client() -> CoreResult<OAuthClient> {
-        OAuthClientBuilder::new(CLIENT_ID, REDIRECT_URI, SCOPES.to_vec())
-            .open_in_browser()
-            .with_custom_message(BROWSER_MESSAGE)
-            .build()
-            .map_err(from_oauth)
+    pub(crate) fn with_tokens(tokens: Arc<TokenSource>, session: SharedSession) -> Self {
+        Self { tokens, session, pending: Mutex::new(None) }
     }
 
     /// Abre a sessao da librespot com um token de acesso e devolve o perfil.
-    async fn connect(&self, token: &OAuthToken) -> CoreResult<UserProfile> {
+    async fn connect(&self, token: OAuthToken) -> CoreResult<UserProfile> {
         let session = Session::new(SessionConfig::default(), None);
         session
             .connect(Credentials::with_access_token(&token.access_token), false)
@@ -134,19 +92,12 @@ impl SpotifyAuthenticator {
             can_stream: true,
         };
 
+        // O token so e adotado depois de a conexao dar certo: guardar o segredo
+        // de um login que nao abriu sessao faria a proxima abertura tentar de
+        // novo o que ja se sabe que nao funciona.
+        self.tokens.adopt(token).await;
         self.session.set(Some(session));
         Ok(profile)
-    }
-
-    fn save_refresh_token(&self, token: &OAuthToken) {
-        if token.refresh_token.is_empty() {
-            return;
-        }
-        if let Err(e) = self.credentials.store(REFRESH_KEY, token.refresh_token.as_bytes()) {
-            // Falhar aqui custa um login a mais na proxima abertura, e nada
-            // mais: nao vale derrubar uma sessao que ja esta funcionando.
-            tracing::warn!(error = %e, "nao foi possivel guardar o refresh token");
-        }
     }
 }
 
@@ -157,34 +108,23 @@ impl Authenticator for SpotifyAuthenticator {
 
     fn restore(&self) -> BoxFuture<'_, CoreResult<Option<UserProfile>>> {
         Box::pin(async move {
-            let Some(stored) = self.credentials.load(REFRESH_KEY)? else {
+            let Some(refresh) = self.tokens.stored_refresh()? else {
                 return Ok(None);
             };
-            let refresh = String::from_utf8(stored)
-                .map_err(|_| CoreError::Storage("refresh token corrompido".into()))?;
 
-            // A troca do refresh token e sincrona na librespot e faz I/O de
-            // rede. Sai da thread do runtime para nao segurar o executor.
-            let token = tokio::task::spawn_blocking(move || {
-                Self::client().and_then(|c| c.refresh_token(&refresh).map_err(from_oauth))
-            })
-            .await
-            .map_err(|e| CoreError::InvalidState(e.to_string()))?;
-
-            let token = match token {
+            let token = match self.tokens.exchange(&refresh).await {
                 Ok(token) => token,
                 Err(e) => {
                     // Refresh token revogado ou expirado nao e erro para quem
                     // esta abrindo o aplicativo: e so nao ter sessao. Apagar o
                     // segredo morto evita tentar de novo em toda abertura.
                     tracing::info!(error = %e, "sessao anterior nao pode ser restaurada");
-                    let _ = self.credentials.delete(REFRESH_KEY);
+                    self.tokens.discard_stored();
                     return Ok(None);
                 }
             };
 
-            self.save_refresh_token(&token);
-            self.connect(&token).await.map(Some)
+            self.connect(token).await.map(Some)
         })
     }
 
@@ -200,7 +140,8 @@ impl Authenticator for SpotifyAuthenticator {
             // abrir sozinho. Trocar isto por um fluxo proprio sobre `oauth2`
             // devolveria a URL de verdade; ver docs/HANDOFF.md.
             let token = tokio::task::spawn_blocking(|| {
-                Self::client().and_then(|c| c.get_access_token().map_err(from_oauth))
+                TokenSource::interactive_client()
+                    .and_then(|c| c.get_access_token().map_err(from_oauth))
             })
             .await
             .map_err(|e| CoreError::InvalidState(e.to_string()))??;
@@ -219,16 +160,14 @@ impl Authenticator for SpotifyAuthenticator {
                 .take()
                 .ok_or_else(|| CoreError::InvalidState("nenhum login em andamento".into()))?;
 
-            self.save_refresh_token(&token);
-            self.connect(&token).await
+            self.connect(token).await
         })
     }
 
     fn logout(&self) -> BoxFuture<'_, CoreResult<()>> {
         Box::pin(async move {
             self.session.set(None);
-            self.credentials.delete(REFRESH_KEY)?;
-            Ok(())
+            self.tokens.forget().await
         })
     }
 }
@@ -261,26 +200,10 @@ mod tests {
     #[tokio::test]
     async fn logout_clears_the_stored_secret() {
         let store = Arc::new(MemoryCredentialStore::default());
-        store.store(REFRESH_KEY, b"segredo").unwrap();
+        store.store("spotify.refresh_token", b"segredo").unwrap();
         let auth = SpotifyAuthenticator::new(store.clone(), SharedSession::default());
 
         auth.logout().await.unwrap();
-        assert!(store.load(REFRESH_KEY).unwrap().is_none());
-    }
-
-    #[test]
-    fn oauth_client_builds_with_the_registered_redirect() {
-        // Um erro de digitacao no endereco de retorno so apareceria na hora do
-        // login, depois de abrir o navegador. Aqui aparece no teste.
-        assert!(SpotifyAuthenticator::client().is_ok());
-    }
-
-    #[test]
-    fn scopes_never_ask_for_write_access() {
-        // A tela de consentimento mostra cada escopo. Pedir escrita sem usar
-        // custa confianca do usuario e nao entrega nada.
-        for scope in SCOPES {
-            assert!(!scope.contains("modify"), "escopo de escrita pedido sem uso: {scope}");
-        }
+        assert!(store.load("spotify.refresh_token").unwrap().is_none());
     }
 }

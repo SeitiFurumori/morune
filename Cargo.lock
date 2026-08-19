@@ -3880,7 +3880,9 @@ dependencies = [
 name = "morune-spotify"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "futures-util",
+ "http",
  "librespot-core",
  "librespot-metadata",
  "librespot-oauth",
