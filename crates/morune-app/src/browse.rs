@@ -352,6 +352,7 @@ fn describe(error: &CoreError) -> String {
         CoreError::NotAuthenticated | CoreError::AuthExpired => {
             "Entre na sua conta do Spotify para ver isto.".into()
         }
+        CoreError::AccountPlan(message) => message.clone(),
         CoreError::Network(_) => "Sem conexao com o Spotify. Verifique a internet.".into(),
         CoreError::NotFound(_) => "Isso nao existe mais no Spotify.".into(),
         CoreError::Decode(_) => "O Spotify respondeu de um jeito que o Morune nao entendeu.".into(),

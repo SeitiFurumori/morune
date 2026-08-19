@@ -46,7 +46,7 @@ impl<T> Paged<T> {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub(crate) struct ImageDto {
     pub url: String,
     pub width: Option<u32>,
@@ -156,6 +156,46 @@ pub(crate) struct TopTracksDto {
     #[serde(default = "Vec::new")]
     pub tracks: Vec<Option<TrackDto>>,
 }
+
+/// Resposta de `/v1/me`: quem entrou e o que a conta dele permite.
+#[derive(Debug, Deserialize)]
+pub(crate) struct MeDto {
+    pub id: Option<String>,
+    pub display_name: Option<String>,
+    pub country: Option<String>,
+    /// `premium`, `free` ou `open`. Ausente quando o escopo nao foi concedido.
+    pub product: Option<String>,
+    #[serde(default)]
+    pub images: Vec<ImageDto>,
+}
+
+impl MeDto {
+    /// `true` quando a conta pode receber audio.
+    ///
+    /// Ausencia de `product` conta como pode: o campo depende do escopo
+    /// `user-read-private`, e recusar por falta de informacao trancaria fora
+    /// uma conta que talvez fosse Premium.
+    pub fn can_stream(&self) -> bool {
+        self.product.as_deref().is_none_or(|p| p == "premium")
+    }
+
+    /// Nome do plano para mostrar a quem foi recusado.
+    pub fn plan(&self) -> &str {
+        self.product.as_deref().unwrap_or("desconhecida")
+    }
+
+    /// Avatar, no menor tamanho que sirva para a barra lateral.
+    ///
+    /// Mesma regra da capa, e pelo mesmo motivo: baixar 640 px para desenhar
+    /// 64 e desperdicio de rede e de RAM. A escolha mora no `ImageSet` do core,
+    /// entao existe num lugar so.
+    pub fn avatar(&self) -> Option<String> {
+        images(self.images.clone()).best_for_width(AVATAR_WIDTH).map(|i| i.url.to_string())
+    }
+}
+
+/// Largura de exibicao do avatar na barra lateral.
+const AVATAR_WIDTH: u32 = 64;
 
 /// Resposta de `/v1/tracks?ids=...`, usada para dar nome aos ids que o
 /// protocolo interno entrega.
@@ -504,6 +544,47 @@ mod tests {
         let playlist = dto.into_playlist().unwrap();
         assert_eq!(playlist.tracks.len(), 1);
         assert_eq!(playlist.tracks[0].name.as_ref(), "vale");
+    }
+
+    #[test]
+    fn a_free_account_is_recognised_before_it_can_break_anything() {
+        // Este e o teste que impede o defeito mais grave que o aplicativo ja
+        // teve: a librespot encerra o processo ao ver uma conta que nao e
+        // Premium, sem mensagem nenhuma.
+        let me: MeDto = parse(r#"{"id": "u", "product": "free"}"#);
+        assert!(!me.can_stream());
+        assert_eq!(me.plan(), "free");
+
+        let aberta: MeDto = parse(r#"{"id": "u", "product": "open"}"#);
+        assert!(!aberta.can_stream());
+    }
+
+    #[test]
+    fn a_premium_account_passes() {
+        let me: MeDto = parse(r#"{"id": "u", "product": "premium"}"#);
+        assert!(me.can_stream());
+    }
+
+    #[test]
+    fn an_account_without_the_field_is_given_the_benefit_of_the_doubt() {
+        // `product` depende do escopo. Recusar por falta de informacao
+        // trancaria fora quem talvez pudesse entrar.
+        let me: MeDto = parse(r#"{"id": "u"}"#);
+        assert!(me.can_stream());
+        assert_eq!(me.plan(), "desconhecida");
+    }
+
+    #[test]
+    fn the_avatar_comes_in_the_size_the_sidebar_draws() {
+        let me: MeDto = parse(
+            r#"{"id": "u", "images": [
+                {"url": "grande", "width": 640, "height": 640},
+                {"url": "pequena", "width": 64, "height": 64}
+            ]}"#,
+        );
+        assert_eq!(me.avatar().as_deref(), Some("pequena"));
+        let sem: MeDto = parse(r#"{"id": "u"}"#);
+        assert!(sem.avatar().is_none());
     }
 
     #[test]

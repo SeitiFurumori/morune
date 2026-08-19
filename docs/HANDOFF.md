@@ -133,6 +133,21 @@ interno em 404 ou 403, que e como uma playlist algoritmica se apresenta.
 `format` vazio; as que o Spotify monta trazem `format` preenchido, e as
 editoriais tem dono `spotify`. E o que alimenta a prateleira "Feito para voce".
 
+### A librespot encerra o processo em conta nao-Premium
+
+`check_catalogue`, em `librespot-core`, chama `exit(1)` ao receber o pacote de
+produto se o tipo da conta nao for `premium`. Nao ha erro para tratar nem
+resultado para inspecionar: o aplicativo some da tela.
+
+Isto importa porque o Morune e aberto e qualquer pessoa pode clicar em "Entrar"
+-- e a maioria das contas do Spotify e gratuita. Por isso o login pergunta ao
+`/v1/me` **antes** de entregar a credencial a librespot, e recusa com uma frase
+que explica o motivo. Ver o cabecalho de `crates/morune-spotify/src/auth.rs`.
+
+**Risco que continua de pe:** `set_user_attributes` tambem chama
+`check_catalogue`. Se o Spotify rebaixar o plano no meio de uma sessao ja aberta,
+o processo ainda morre. Nao ha como contornar sem alterar a librespot.
+
 ### Duas incognitas que so o primeiro login resolve
 
 1. **O client ID que usamos e o do cliente oficial de desktop.** Aplicativos com

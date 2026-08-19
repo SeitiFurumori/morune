@@ -52,6 +52,7 @@ global Icons {
     out property <string> queue: "M 3 6 L 15 6 M 3 12 L 15 12 M 3 18 L 11 18 M 17 10 L 17 19 M 17 10 L 21 9 L 21 7 L 17 8";
     out property <string> volume: "M 4 9 L 7 9 L 12 5 L 12 19 L 7 15 L 4 15 Z M 15 9 a 5 5 0 0 1 0 6 M 18 6 a 9 9 0 0 1 0 12";
     out property <string> chevron-left: "M 15 5 L 8 12 L 15 19";
+    out property <string> chevron-right: "M 9 5 L 16 12 L 9 19";
 }
 
 component SectionTitle inherits Text {
@@ -101,16 +102,16 @@ component NavItem inherits Rectangle {
         padding-left: Theme.space-md;
         padding-right: Theme.space-md;
         spacing: Theme.space-md;
-        alignment: Layout.sidebar-labels ? LayoutAlignment.start : LayoutAlignment.center;
+        alignment: Layout.sidebar-labels-shown ? LayoutAlignment.start : LayoutAlignment.center;
 
-        if Layout.sidebar-icons: Icon {
+        if Layout.sidebar-icons-shown: Icon {
             path: root.icon;
             tint: root.active ? Theme.text : Theme.text-muted;
             size: 18px;
             y: (parent.height - self.size) / 2;
         }
 
-        if Layout.sidebar-labels: Text {
+        if Layout.sidebar-labels-shown: Text {
             text: root.label;
             color: root.active ? Theme.text : Theme.text-muted;
             font-size: Theme.size-md;
@@ -288,20 +289,26 @@ component Sidebar inherits Rectangle {
         padding: Theme.space-sm;
         spacing: Theme.space-xs;
 
-        HorizontalLayout {
+        // Cabecalho: a marca e o botao de recolher.
+        //
+        // Sem rotulos a barra fica so com icones, e a marca passa a ser a unica
+        // identificacao visivel do aplicativo -- por isso ela aparece nos dois
+        // estados, e nao so ao lado do nome.
+        //
+        // Recolhida, porem, a largura e a de um icone: marca e botao nao cabem
+        // lado a lado e empilham. Insistir na mesma linha era o que estourava a
+        // caixa.
+        if !Layout.sidebar-collapsed: HorizontalLayout {
             height: 48px;
             padding-left: Theme.space-sm;
             spacing: Theme.space-sm;
-            // Sem rotulos a barra fica so com icones, e a marca passa a ser a
-            // unica identificacao visivel do aplicativo -- por isso ela aparece
-            // nos dois estados, e nao so ao lado do nome.
-            alignment: Layout.sidebar-labels ? start : center;
+            alignment: Layout.sidebar-labels-shown ? start : center;
 
             Logo {
                 y: (parent.height - self.height) / 2;
             }
 
-            if Layout.sidebar-labels: Text {
+            if Layout.sidebar-labels-shown: Text {
                 text: "Morune";
                 color: Theme.text;
                 font-size: Theme.size-lg;
@@ -317,6 +324,33 @@ component Sidebar inherits Rectangle {
                 button-size: 28px;
                 y: (parent.height - self.height) / 2;
                 clicked => { root.toggle-sidebar(); }
+            }
+        }
+
+        if Layout.sidebar-collapsed: VerticalLayout {
+            spacing: Theme.space-xs;
+            alignment: start;
+            // Sem isto o cabecalho fica com a sobra vertical da barra e empurra
+            // a navegacao para o meio da tela. O cabecalho expandido nao
+            // precisa porque tem altura fixa.
+            vertical-stretch: 0;
+
+            HorizontalLayout {
+                alignment: center;
+                Logo { }
+            }
+
+            // Sempre presente quando recolhida, mesmo que o tema desligue
+            // `collapsible`: sem ele nao haveria como voltar, e o usuario
+            // ficaria preso numa barra de icones.
+            HorizontalLayout {
+                alignment: center;
+                IconButton {
+                    path: Icons.chevron-right;
+                    tint: Theme.text-muted;
+                    button-size: 28px;
+                    clicked => { root.toggle-sidebar(); }
+                }
             }
         }
 
@@ -350,12 +384,12 @@ component Sidebar inherits Rectangle {
             clicked => { root.navigate(3); }
         }
 
-        if Layout.sidebar-labels && !root.logged-in: GhostButton {
+        if Layout.sidebar-labels-shown && !root.logged-in: GhostButton {
             label: "Entrar no Spotify";
             clicked => { root.login(); }
         }
 
-        if Layout.sidebar-labels && root.logged-in: Text {
+        if Layout.sidebar-labels-shown && root.logged-in: Text {
             text: root.account-name;
             color: Theme.text-muted;
             font-size: Theme.size-xs;

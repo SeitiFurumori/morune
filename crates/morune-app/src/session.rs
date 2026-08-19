@@ -250,6 +250,9 @@ fn describe(error: &CoreError) -> String {
         CoreError::AuthExpired | CoreError::NotAuthenticated => {
             "O Spotify recusou as credenciais. Entre de novo.".into()
         }
+        // Ja vem pronta do backend, que e quem sabe o nome do plano. Repetir
+        // aqui so faria a frase envelhecer em dois lugares.
+        CoreError::AccountPlan(message) => message.clone(),
         CoreError::Network(_) => "Sem conexao com o Spotify. Verifique a internet.".into(),
         CoreError::Cancelled => "Login cancelado.".into(),
         CoreError::AudioDevice(_) => "Nenhum dispositivo de audio disponivel.".into(),
@@ -340,6 +343,17 @@ mod tests {
         assert!(describe(&CoreError::AuthExpired).contains("Entre de novo"));
         assert!(describe(&CoreError::Network("timeout".into())).contains("internet"));
         assert_eq!(describe(&CoreError::Cancelled), "Login cancelado.");
+    }
+
+    #[test]
+    fn an_account_that_cannot_stream_is_told_why_and_not_asked_to_retry() {
+        // O caso mais comum de quem baixa um player aberto: conta gratuita.
+        // A frase vem do backend inteira, sem "tente de novo" grudado nela.
+        let message = describe(&CoreError::AccountPlan(
+            "O Spotify so entrega musica para contas Premium, e esta e free.".into(),
+        ));
+        assert!(message.contains("Premium"));
+        assert!(!message.contains("Nao foi possivel entrar"));
     }
 
     use std::time::Duration;

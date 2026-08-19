@@ -33,8 +33,16 @@ pub fn from_oauth(error: librespot_oauth::OAuthError) -> CoreError {
     use librespot_oauth::OAuthError;
     match error {
         OAuthError::Recv | OAuthError::AuthCodeListenerTerminated => CoreError::Cancelled,
-        OAuthError::AuthCodeListenerBind { .. }
-        | OAuthError::AuthCodeListenerRead
+        // Porta ocupada nao e falha de rede, e mandar o usuario "verificar a
+        // internet" o deixaria procurando no lugar errado. O endereco de
+        // retorno e fixo -- tem de bater com o registrado no client ID -- entao
+        // a unica saida e liberar a porta.
+        OAuthError::AuthCodeListenerBind { addr, .. } => CoreError::InvalidState(format!(
+            "a porta {addr} precisa estar livre para o login terminar, porque e \
+             nela que o Spotify devolve a autorizacao. Feche o programa que \
+             estiver usando essa porta e tente de novo"
+        )),
+        OAuthError::AuthCodeListenerRead
         | OAuthError::AuthCodeListenerWrite
         | OAuthError::AuthCodeListenerParse => CoreError::Network(error.to_string()),
         other => CoreError::InvalidState(other.to_string()),
