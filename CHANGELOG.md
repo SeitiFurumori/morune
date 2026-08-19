@@ -28,22 +28,53 @@ Versionamento semantico.
   o protocolo da librespot entrega audio, nao catalogo. O cliente HTTP e o da
   propria sessao: TLS, proxy e limite de requisicoes ja resolvidos, sem uma
   segunda pilha de TLS no binario.
+- **Mais ouvidos e historico recente**: `/v1/me/top/tracks`, `/v1/me/top/artists`
+  e `/v1/me/player/recently-played`. Os escopos `user-top-read` e
+  `user-read-recently-played` ja eram pedidos no login e ate agora nao serviam
+  para nada. O historico sai sem repeticao: ouvir a mesma faixa tres vezes rende
+  tres itens no Spotify, e como lista para clicar a repeticao nao ajuda.
+- `Library` no core ganhou `top_tracks`, `top_artists`, `recently_played` e
+  `made_for_you`, todos com implementacao padrao que recusa com `Unsupported`.
+  Um provedor de arquivos locais nao tem "mais ouvidos", e obrigar todo backend
+  futuro a escrever um `unimplemented` seria pior que um padrao honesto.
 - Traducao de JSON para o modelo do core isolada em `dto.rs`, testavel sem rede:
   item nulo, faixa sem id e arquivo local da conta somem da lista em vez de
   derrubarem a pagina inteira, e as capas saem ordenadas da menor para a maior,
   que e o que `ImageSet::best_for_width` precisa para nao carregar capa grande
   numa grade.
 
+**Contorno da mudanca de 2024 no Web API**
+- Em 27/11/2024 o Spotify fechou, para aplicativos novos, `/v1/recommendations`,
+  artistas parecidos, vitrine editorial, caracteristicas de faixa e o acesso as
+  playlists que ele monta para a conta. Ate hoje nao ha substituto oficial.
+- `internal.rs` fala o **protocolo interno** para o que caiu: `get_rootlist` e
+  `get_playlist` da librespot, o mesmo caminho que ja entrega o audio. As duas
+  respostas sao protobuf tipado pela propria librespot, com nome, dono e tamanho
+  decorados junto -- nao ha JSON adivinhado nem endpoint inventado.
+- Abrir uma playlist tenta o Web API e cai para o caminho interno em 404 ou 403,
+  que e como Descobertas da Semana e Radar de Novidades se apresentam. O
+  metadado das faixas volta pelo Web API em lote de 50, porque o protocolo
+  interno entrega URIs e uma requisicao por faixa custaria cem numa playlist de
+  cem.
+- O campo `format` do rootlist separa o que o usuario criou do que o Spotify
+  montou; as editoriais, que nao trazem `format`, aparecem pelo dono `spotify`.
+
 **Interface**
-- As telas Inicio, Buscar e Biblioteca deixaram de ser vazias: Inicio e
-  Biblioteca listam playlists, albuns salvos e artistas seguidos; a busca
-  devolve faixas.
+- **Inicio deixou de ser uma grade e virou cinco prateleiras**: Feito para voce,
+  Tocadas recentemente, Musicas curtidas, Seus mais ouvidos e Suas playlists.
+  Cada uma e independente -- a que falhar chega vazia e as outras aparecem
+  igual, porque uma tela inicial que some inteira por causa de uma fonte seria
+  pior que uma tela inicial menor.
+- Buscar e Biblioteca deixaram de ser vazias: Biblioteca lista playlists, albuns
+  salvos e artistas seguidos; a busca devolve faixas.
 - Ativar um card carrega o album, a playlist ou as faixas populares do artista
   na fila e comeca a tocar. Ativar uma faixa da busca faz a **lista inteira**
   virar contexto, para que "proxima" continue pelos resultados.
 - Cada pedido de catalogo vira tarefa no runtime do backend e e recolhido no
   temporizador que ja atende bandeja e reproducao: a thread da interface nao
   espera rede em nenhum caminho.
+- Qualquer lista de faixas visivel na tela vira contexto da fila ao ser clicada,
+  entao "proxima" continua pela lista em vez de parar na primeira faixa.
 - Sair da conta limpa busca, inicio e biblioteca da tela, junto com a fila.
 
 **Identidade visual, licenciamento e distribuicao**
@@ -78,7 +109,11 @@ Versionamento semantico.
 ### Nao verificado ainda
 Nada do backend de Spotify pode ser declarado funcionando: falta o login
 interativo com uma conta Premium real. O que existe hoje e codigo que compila,
-187 testes passando e clippy limpo com `-D warnings`. Ver
+196 testes passando e clippy limpo com `-D warnings`.
+
+Duas incognitas dependem desse primeiro login: se o client ID do cliente oficial
+escapa da restricao de 2024, e qual campo o rootlist preenche de verdade nas
+playlists algoritmicas. As duas estao descritas em
 [docs/HANDOFF.md](docs/HANDOFF.md).
 
 ### Alterado
@@ -103,8 +138,12 @@ interativo com uma conta Premium real. O que existe hoje e codigo que compila,
 
 ### A fazer no proximo ciclo
 - Login real com conta Premium, que e o unico jeito de verificar o ciclo 2.
+- Radio e autoplay pelo caminho interno (`get_radio_for_track`,
+  `get_apollo_station`). E o que sobra de recomendacao depois de 2024 e resolve
+  o silencio quando a fila acaba. Diferente do rootlist, essas respostas sao
+  JSON sem tipo: o formato precisa ser visto uma vez antes de virar parser.
 - Capas: download, cache em disco com teto explicito e descarte por LRU.
-- Paginacao das telas: hoje cada secao traz 50 itens e para por ai.
+- Paginacao das telas: hoje cada secao traz o que cabe e para por ai.
 - Medir de novo CPU e GPU em segundo plano, agora que ha o que tocar.
 
 ## [0.1.0] — 2026-08-18

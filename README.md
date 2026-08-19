@@ -58,12 +58,20 @@ contra uma conta real** — ver [docs/HANDOFF.md](docs/HANDOFF.md):
 - login no Spotify por OAuth com PKCE, sem senha e sem client secret, com o
   token no Gerenciador de Credenciais;
 - reproducao sobre a librespot, ligada a fila que ja existia;
-- busca, playlists, albuns salvos e artistas seguidos nas telas que ja existiam.
+- busca, e um Inicio com cinco prateleiras — o que o Spotify monta pra voce,
+  tocadas recentemente, musicas curtidas, seus mais ouvidos e suas playlists;
+- biblioteca com playlists, albuns salvos e artistas seguidos.
+
+As playlists que o Spotify monta para a conta — Descobertas da Semana, Radar de
+Novidades — nao sao mais acessiveis pelo Web API desde a
+[mudanca de novembro de 2024](https://developer.spotify.com/blog/2024-11-27-changes-to-the-web-api).
+O Morune as busca pelo mesmo protocolo interno que ja usa para tocar.
 
 Ainda **nao** implementado — ver [ROADMAP.md](ROADMAP.md):
 
+- radio e autoplay quando a fila acaba;
 - capas: nem download nem cache;
-- paginacao das telas de conteudo: cada secao traz 50 itens e para;
+- paginacao das telas de conteudo;
 - telas de detalhe de album, artista e playlist.
 
 Nada aqui e declarado funcionando sem medicao ou teste. Onde falta, esta dito.

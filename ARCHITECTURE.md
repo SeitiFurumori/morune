@@ -181,13 +181,19 @@ nao mudou por causa dela — que era o ponto de te-lo escrito primeiro.
 | `engine` | `PlaybackEngine` sobre a librespot, em runtime tokio proprio |
 | `webapi` | transporte HTTP autenticado do Web API |
 | `dto` | JSON do Spotify -> modelo do core, sem rede e testavel |
-| `catalog` | `Catalog` e `Library` sobre os dois anteriores |
+| `internal` | protocolo interno, para o que o Web API fechou em 2024 |
+| `catalog` | `Catalog` e `Library` sobre os tres anteriores |
 | `runtime` | dono do runtime e ponto de entrada da crate |
 
 **Sao dois canais, e nao um por escolha.** O protocolo que a librespot fala
 entrega audio; busca e biblioteca so existem no Web API, que e HTTP comum. Os
 dois usam a mesma `Session` e o mesmo token: duas conexoes gastariam dois slots
 de dispositivo na conta, e o Spotify derrubaria uma delas.
+
+**E o canal interno faz o que o Web API parou de fazer.** Em 2024 o Spotify
+fechou o acesso as playlists que ele monta para a conta; pelo protocolo que o
+cliente oficial usa elas continuam la. O criterio para usar um caminho ou outro
+nao e preferencia: e onde o dado existe.
 
 **A interface nunca espera rede.** Comandos de reproducao entram por canal e nao
 devolvem resultado; quem quer saber o que aconteceu assina os eventos. Consultas

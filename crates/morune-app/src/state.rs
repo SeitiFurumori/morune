@@ -63,6 +63,7 @@ pub struct AppState {
     search: TrackList,
     liked: TrackList,
     recent: TrackList,
+    home_made_for_you: Vec<Card>,
     home_top_artists: Vec<Card>,
     home_playlists: Vec<Card>,
     library: Vec<Card>,
@@ -135,6 +136,7 @@ impl AppState {
             search: TrackList::default(),
             liked: TrackList::default(),
             recent: TrackList::default(),
+            home_made_for_you: Vec::new(),
             home_top_artists: Vec::new(),
             home_playlists: Vec::new(),
             library: Vec::new(),
@@ -210,7 +212,8 @@ impl AppState {
             // uma linha de status aqui apagaria o "Conectado como ..." que o
             // usuario acabou de receber.
             Outcome::Home(home) => {
-                let Home { recent, liked, top_artists, playlists } = *home;
+                let Home { made_for_you, recent, liked, top_artists, playlists } = *home;
+                self.home_made_for_you = made_for_you;
                 self.recent =
                     TrackList { origin: QueueOrigin::Custom("Tocadas recentemente".into()), tracks: recent };
                 self.liked =
@@ -665,6 +668,7 @@ impl AppState {
         self.search = TrackList::default();
         self.liked = TrackList::default();
         self.recent = TrackList::default();
+        self.home_made_for_you.clear();
         self.home_top_artists.clear();
         self.home_playlists.clear();
         self.library.clear();
@@ -713,6 +717,7 @@ impl AppState {
         window.set_queue_tracks(track_rows(self.queue.upcoming(200), current));
         window.set_themes(self.theme_items());
         window.set_diagnostics(self.diagnostics());
+        window.set_home_made_for_you(card_items(&self.home_made_for_you));
         window.set_home_liked(track_rows(self.liked.tracks.iter().collect(), current));
         window.set_home_recent(track_rows(self.recent.tracks.iter().collect(), current));
         window.set_home_top_artists(card_items(&self.home_top_artists));

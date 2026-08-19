@@ -157,6 +157,14 @@ pub(crate) struct TopTracksDto {
     pub tracks: Vec<Option<TrackDto>>,
 }
 
+/// Resposta de `/v1/tracks?ids=...`, usada para dar nome aos ids que o
+/// protocolo interno entrega.
+#[derive(Debug, Default, Deserialize)]
+pub(crate) struct TracksDto {
+    #[serde(default = "Vec::new")]
+    pub tracks: Vec<Option<TrackDto>>,
+}
+
 /// Item de `/v1/me/player/recently-played`.
 ///
 /// O historico e paginado por cursor e cada item carrega o instante em que a

@@ -21,14 +21,15 @@ use morune_core::catalog::{
     BoxFuture, Catalog, Library, Page, SearchKind, SearchResults, TopRange,
 };
 use morune_core::model::{
-    Album, AlbumId, Artist, ArtistId, Playlist, PlaylistId, Provider, Track, TrackId,
+    Album, AlbumId, Artist, ArtistId, ImageSet, Playlist, PlaylistId, Provider, Track, TrackId,
 };
 use morune_core::{CoreError, CoreResult};
 
 use crate::auth::SharedSession;
+use crate::internal::{Internal, PlaylistSummary};
 use crate::dto::{
     AlbumDto, ArtistDto, FollowedArtistsDto, Paged, PlayHistoryDto, PlaylistDto, PlaylistItemDto,
-    SavedAlbumDto, SavedTrackDto, SearchDto, TopTracksDto, TrackDto,
+    SavedAlbumDto, SavedTrackDto, SearchDto, TopTracksDto, TrackDto, TracksDto,
 };
 use crate::token::TokenSource;
 use crate::webapi::{WebApi, checked_id, escape};
@@ -38,6 +39,9 @@ const MAX_PAGE: u32 = 50;
 
 /// Maximo aceito pelas faixas de uma playlist.
 const MAX_PLAYLIST_PAGE: u32 = 100;
+
+/// Maximo de ids aceito numa requisicao em lote de faixas.
+const MAX_IDS_PER_REQUEST: usize = 50;
 
 /// Maximo aceito pelo historico recente.
 ///
@@ -60,11 +64,69 @@ const MAX_CURSOR_PAGES: u32 = 40;
 #[derive(Debug)]
 pub struct SpotifyCatalog {
     api: WebApi,
+    /// Caminho interno, para o que o Web API deixou de entregar em 2024.
+    internal: Internal,
 }
 
 impl SpotifyCatalog {
     pub(crate) fn new(session: SharedSession, tokens: Arc<TokenSource>) -> Self {
-        Self { api: WebApi::new(session, tokens) }
+        Self {
+            api: WebApi::new(session.clone(), tokens),
+            internal: Internal::new(session),
+        }
+    }
+
+    /// Metadado de varias faixas de uma vez.
+    ///
+    /// O caminho interno entrega ids; nome, artista e duracao vem daqui. Em
+    /// lote porque uma requisicao por faixa custaria cem numa playlist de cem.
+    async fn tracks_by_id(&self, ids: &[String]) -> CoreResult<Vec<Track>> {
+        let mut out = Vec::with_capacity(ids.len());
+
+        for lote in ids.chunks(MAX_IDS_PER_REQUEST) {
+            let mut params = vec![("ids", lote.join(","))];
+            params.extend(self.market());
+
+            let page: TracksDto = self.api.get(&path("/v1/tracks", &params)).await?;
+            out.extend(page.tracks.into_iter().flatten().filter_map(TrackDto::into_track));
+        }
+
+        Ok(out)
+    }
+
+    /// Playlist pelo caminho interno, quando o Web API recusa.
+    ///
+    /// Descobertas da Semana e Radar de Novidades respondem 404 em
+    /// `/v1/playlists/{id}` desde a mudanca de 2024. Pelo protocolo que o
+    /// cliente oficial usa, elas continuam existindo.
+    async fn playlist_from_internal(&self, id: &str) -> CoreResult<Playlist> {
+        let contents = self.internal.playlist(id).await?;
+        let total = contents.track_ids.len() as u32;
+        let tracks = self.tracks_by_id(&contents.track_ids).await?;
+
+        Ok(Playlist {
+            id: PlaylistId::spotify(id),
+            name: Arc::from(contents.name.as_str()),
+            owner: None,
+            description: None,
+            images: Default::default(),
+            total_tracks: Some(total),
+            tracks,
+        })
+    }
+
+    /// Playlists que o Spotify monta para esta conta.
+    async fn spotify_made(&self, limit: u32) -> CoreResult<Page<Playlist>> {
+        let todas = self.internal.rootlist().await?;
+        let items: Vec<Playlist> = todas
+            .iter()
+            .filter(|p| p.made_by_spotify())
+            .take(limit as usize)
+            .map(summary_to_playlist)
+            .collect();
+
+        let total = Some(items.len() as u32);
+        Ok(Page { items, offset: 0, total })
     }
 
     /// Mercado da conta como par de query, ou vazio quando desconhecido.
@@ -265,9 +327,27 @@ impl Catalog for SpotifyCatalog {
             let mut params = vec![];
             params.extend(self.market());
 
-            let dto: PlaylistDto =
-                self.api.get(&path(&format!("/v1/playlists/{id}"), &params)).await?;
-            dto.into_playlist().ok_or_else(|| CoreError::NotFound(format!("playlist {id}")))
+            let pelo_web: CoreResult<PlaylistDto> =
+                self.api.get(&path(&format!("/v1/playlists/{id}"), &params)).await;
+
+            match pelo_web {
+                Ok(dto) => {
+                    if let Some(playlist) = dto.into_playlist() {
+                        return Ok(playlist);
+                    }
+                    // Resposta valida sem id utilizavel: cai para o caminho
+                    // interno pelo mesmo motivo do 404.
+                    self.playlist_from_internal(id).await
+                }
+                // Playlist que o Spotify monta para a conta responde 404 ou 403
+                // no Web API desde 2024. Nao e erro do usuario nem da rede: e a
+                // porta certa sendo a outra.
+                Err(e @ (CoreError::NotFound(_) | CoreError::AuthExpired)) => {
+                    tracing::debug!(playlist = id, error = %e, "playlist recusada pelo Web API; tentando o caminho interno");
+                    self.playlist_from_internal(id).await
+                }
+                Err(e) => Err(e),
+            }
         })
     }
 
@@ -350,6 +430,10 @@ impl Library for SpotifyCatalog {
         Box::pin(self.top("/v1/me/top/artists", range, offset, limit, ArtistDto::into_artist))
     }
 
+    fn made_for_you<'a>(&'a self, limit: u32) -> BoxFuture<'a, CoreResult<Page<Playlist>>> {
+        Box::pin(self.spotify_made(limit))
+    }
+
     fn recently_played<'a>(&'a self, limit: u32) -> BoxFuture<'a, CoreResult<Page<Track>>> {
         Box::pin(async move {
             let params = vec![("limit", clamp(limit, MAX_HISTORY).to_string())];
@@ -418,6 +502,22 @@ fn spotify_id(provider: Provider, id: &str) -> CoreResult<&str> {
         return Err(CoreError::NotFound(format!("{} nao e um recurso do Spotify", provider.as_str())));
     }
     checked_id(id)
+}
+
+/// Converte o resumo do rootlist no modelo do core.
+///
+/// Sem faixas e sem capa: o rootlist descreve a playlist, nao o conteudo dela.
+/// As faixas chegam quando o usuario abre.
+fn summary_to_playlist(summary: &PlaylistSummary) -> Playlist {
+    Playlist {
+        id: summary.id.clone(),
+        name: Arc::from(summary.name.as_str()),
+        owner: Some(summary.owner.as_str()).filter(|o| !o.is_empty()).map(Arc::from),
+        description: None,
+        images: ImageSet::default(),
+        total_tracks: Some(summary.length),
+        tracks: Vec::new(),
+    }
 }
 
 fn map_page<T, U>(page: Option<Paged<T>>, map: impl Fn(T) -> Option<U>) -> Vec<U> {

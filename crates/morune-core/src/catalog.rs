@@ -185,6 +185,15 @@ pub trait Library: Send + Sync + 'static {
         Box::pin(async { Err(CoreError::Unsupported("artistas mais ouvidos")) })
     }
 
+    /// Playlists que o provedor monta para este usuario.
+    ///
+    /// Diferente de [`Library::saved_playlists`]: aqui nao esta o que o usuario
+    /// guardou, e sim o que o provedor montou olhando para ele. Nenhum provedor
+    /// e obrigado a ter isso, e um que nao tem responde vazio pelo padrao.
+    fn made_for_you<'a>(&'a self, _limit: u32) -> BoxFuture<'a, CoreResult<Page<Playlist>>> {
+        Box::pin(async { Err(CoreError::Unsupported("playlists feitas para o usuario")) })
+    }
+
     /// Historico recente, da mais nova para a mais antiga.
     ///
     /// Sem deslocamento de proposito: o historico anda enquanto o usuario ouve,
@@ -243,6 +252,8 @@ mod tests {
         let refused = futures_lite_block_on(library.top_tracks(TopRange::default(), 0, 10));
         assert!(matches!(refused, Err(CoreError::Unsupported(_))));
         let refused = futures_lite_block_on(library.recently_played(10));
+        assert!(matches!(refused, Err(CoreError::Unsupported(_))));
+        let refused = futures_lite_block_on(library.made_for_you(10));
         assert!(matches!(refused, Err(CoreError::Unsupported(_))));
     }
 

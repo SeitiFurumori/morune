@@ -619,6 +619,7 @@ component TrackShelf inherits VerticalLayout {
 }
 
 component HomePage inherits Flickable {
+    in property <[CardItem]> made-for-you;
     in property <[TrackRow]> liked;
     in property <[TrackRow]> recent;
     in property <[CardItem]> top-artists;
@@ -628,8 +629,9 @@ component HomePage inherits Flickable {
 
     // Verdadeiro enquanto nenhuma secao tem conteudo: antes do login, e nos
     // segundos entre entrar e as listas chegarem.
-    property <bool> empty: root.liked.length == 0 && root.recent.length == 0
-        && root.top-artists.length == 0 && root.playlists.length == 0;
+    property <bool> empty: root.made-for-you.length == 0 && root.liked.length == 0
+        && root.recent.length == 0 && root.top-artists.length == 0
+        && root.playlists.length == 0;
 
     viewport-height: sections.preferred-height;
 
@@ -645,6 +647,12 @@ component HomePage inherits Flickable {
         if root.empty && root.logged-in: EmptyState {
             title: "Carregando sua conta";
             hint: "Suas listas aparecem aqui em instantes.";
+        }
+
+        if root.made-for-you.length > 0: CardShelf {
+            title: "Feito para voce";
+            items: root.made-for-you;
+            activated(id) => { root.activated(id); }
         }
 
         if root.recent.length > 0: TrackShelf {
@@ -998,6 +1006,7 @@ export component AppWindow inherits Window {
     in property <bool> logged-in: false;
     in property <string> account-name;
 
+    in property <[CardItem]> home-made-for-you;
     in property <[TrackRow]> home-liked;
     in property <[TrackRow]> home-recent;
     in property <[CardItem]> home-top-artists;
@@ -1118,6 +1127,7 @@ export component AppWindow inherits Window {
                     spacing: Theme.space-md;
 
                     if root.page == 0: HomePage {
+                        made-for-you: root.home-made-for-you;
                         liked: root.home-liked;
                         recent: root.home-recent;
                         top-artists: root.home-top-artists;

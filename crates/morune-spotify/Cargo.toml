@@ -24,6 +24,13 @@ futures-util = { workspace = true }
 http = "1"
 bytes = "1"
 
+# Protocolo interno: o que o Web API deixou de entregar em 2024 -- playlists
+# que o Spotify monta para a conta -- continua de pe pelo caminho que a
+# librespot ja usa para tocar. Os dois crates entram para ler o protobuf de
+# `get_rootlist` e `get_playlist`, e ja estao no binario por causa da librespot.
+librespot-protocol = "0.8"
+protobuf = "3"
+
 
 # librespot: reimplementacao aberta do protocolo do Spotify. Os crates entram
 # separados, e nao pelo agregado `librespot`, para nao arrastar a linha de

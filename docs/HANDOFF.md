@@ -20,7 +20,7 @@ verificado** -- ver o bloqueio logo abaixo.
 | Startup interno | 18 ms |
 | RAM em repouso | 70,6 MB |
 | CPU em repouso | 0,00% |
-| Testes | 187, todos passando |
+| Testes | 196, todos passando |
 | Clippy | limpo com `-D warnings` |
 
 **Verificado:** interface completa, tres temas trocaveis em execucao,
@@ -30,14 +30,16 @@ de disco, identidade visual em todos os lugares que o Windows mostra o
 aplicativo.
 
 **Escrito e coberto por teste de unidade, mas nunca exercitado contra o
-Spotify:** login OAuth PKCE, reproducao sobre a librespot, busca, playlists,
-albuns salvos e artistas seguidos. O `NullEngine` continua sendo o motor ate o
+Spotify:** login OAuth PKCE, reproducao sobre a librespot, busca, e as cinco
+prateleiras do Inicio -- Feito para voce, Tocadas recentemente, Musicas
+curtidas, Seus mais ouvidos e Suas playlists -- alem da Biblioteca com
+playlists, albuns salvos e artistas seguidos. O `NullEngine` continua sendo o motor ate o
 login dar certo -- ele aceita preferencias e recusa reproducao de forma
 explicita, entao a interface nunca fica sem motor.
 
-**O que ainda nao existe:** capas (nem download nem cache), paginacao das telas
-de conteudo (cada secao traz 50 itens e para), e tela propria de album, artista
-ou playlist -- ativar um card toca direto, sem passar por uma tela de detalhe.
+**O que ainda nao existe:** radio e autoplay, capas (nem download nem cache),
+paginacao das telas de conteudo, e tela propria de album, artista ou playlist --
+ativar um card toca direto, sem passar por uma tela de detalhe.
 
 ### O bloqueio
 
@@ -94,10 +96,52 @@ Duas conexoes, uma sessao so:
   que saem busca e biblioteca. Nao e escolha -- o protocolo da librespot nao tem
   busca. O cliente HTTP e o da propria sessao, para nao duplicar a pilha de TLS
   no binario.
+- **`internal.rs`** fala o protocolo interno para o que o Web API deixou de
+  entregar. Ver a secao abaixo.
 - No aplicativo, **`browse.rs`** e a ponte: cada pedido vira tarefa no runtime
   do backend e o resultado e recolhido no temporizador de 100 ms que ja atende
   bandeja e reproducao. Um pedido de cada vez, e o ultimo ganha -- e o
   comportamento certo para uma caixa de busca.
+
+## A mudanca de 2024 no Web API, e o que fazemos a respeito
+
+Em 27/11/2024 o Spotify fechou, para aplicativos novos, uma lista de endpoints
+que inclui exatamente o que um player usa para nao ser so uma caixa de busca:
+
+| Fechado | O que era |
+|---|---|
+| `/v1/recommendations` | recomendacao por semente |
+| `/v1/artists/{id}/related-artists` | artistas parecidos |
+| `/v1/browse/featured-playlists` e categorias | vitrine editorial |
+| `/v1/audio-features` e `/v1/audio-analysis` | caracteristicas da faixa |
+| `/v1/playlists/{id}` para playlists algoritmicas | Descobertas da Semana, Radar de Novidades |
+
+Ate hoje nao ha substituto oficial. O que o Morune faz:
+
+**Nao depende de nada da lista.** As prateleiras do Inicio saem de
+`/v1/me/tracks`, `/v1/me/top/*` e `/v1/me/player/recently-played`, que
+continuam abertos e cujos escopos o login ja pede.
+
+**Para as playlists que o Spotify monta para a conta, usa o caminho interno.**
+`internal.rs` chama `get_rootlist` e `get_playlist` da librespot -- o mesmo
+protocolo que ja entrega o audio. As duas respostas sao protobuf tipado pela
+propria librespot, com nome, dono e tamanho decorados junto, entao nao ha JSON
+adivinhado. Abrir uma playlist tenta o Web API primeiro e cai para o caminho
+interno em 404 ou 403, que e como uma playlist algoritmica se apresenta.
+
+**O `format` separa uma coisa da outra.** Playlist que o usuario criou vem com
+`format` vazio; as que o Spotify monta trazem `format` preenchido, e as
+editoriais tem dono `spotify`. E o que alimenta a prateleira "Feito para voce".
+
+### Duas incognitas que so o primeiro login resolve
+
+1. **O client ID que usamos e o do cliente oficial de desktop.** Aplicativos com
+   acesso estendido anterior a 2024 nao foram afetados. Se esse client ID for
+   tratado assim, os endpoints fechados podem simplesmente responder -- vale
+   testar `/v1/recommendations` uma vez antes de assumir que morreu.
+2. **Se as playlists algoritmicas aparecem no rootlist com `format`
+   preenchido.** O caminho esta escrito e compila; qual campo o servidor
+   preenche de verdade so se ve com uma conta na mao.
 
 ## Como verificar o ciclo 2
 
@@ -108,17 +152,24 @@ Nesta ordem, porque cada passo depende do anterior:
    de status deve dizer "Conectado como ...".
 3. Feche e abra o aplicativo. Tem de reconectar sozinho, sem navegador: e o
    refresh token vindo do cofre.
-4. **Inicio** deve listar suas playlists. **Biblioteca**, playlists, albuns
-   salvos e artistas seguidos.
-5. **Buscar** uma musica e clicar nela: som. Depois "proxima" tem de andar pelos
-   resultados da busca, e nao parar.
-6. Clicar num card de album ou playlist: toca a primeira faixa, e a Fila mostra
+4. **Inicio** deve mostrar cinco prateleiras: Feito para voce, Tocadas
+   recentemente, Musicas curtidas, Seus mais ouvidos e Suas playlists. Uma
+   prateleira vazia nao e defeito da tela: e aquela fonte que nao respondeu, e o
+   log em `MORUNE_LOG=debug` diz qual.
+5. **Abrir Descobertas da Semana** na prateleira "Feito para voce". E o teste do
+   caminho interno: pelo Web API ela responde 404.
+6. **Biblioteca**: playlists, albuns salvos e artistas seguidos.
+7. **Buscar** uma musica e clicar nela: som. Depois "proxima" tem de andar pelos
+   resultados da busca, e nao parar. O mesmo vale para clicar numa faixa de
+   "Musicas curtidas" ou "Tocadas recentemente": a prateleira inteira vira a
+   fila.
+8. Clicar num card de album ou playlist: toca a primeira faixa, e a Fila mostra
    o resto.
-7. Deixar uma faixa acabar sozinha, com repeticao em "uma": tem de repetir, nao
+9. Deixar uma faixa acabar sozinha, com repeticao em "uma": tem de repetir, nao
    pular. E o unico jeito de verificar o `user_advance = false`.
-8. Fechar a janela com "continuar tocando ao fechar" ligado: o som continua e a
-   bandeja mostra a faixa.
-9. **Medir de novo** com `.\tools\measure.ps1` e atualizar
+10. Fechar a janela com "continuar tocando ao fechar" ligado: o som continua e a
+    bandeja mostra a faixa.
+11. **Medir de novo** com `.\tools\measure.ps1` e atualizar
    [PERFORMANCE.md](../PERFORMANCE.md) -- agora com CPU e GPU **tocando**, que e
    o criterio que passou a valer.
 
@@ -127,14 +178,22 @@ disto passou por uma conta real ainda.
 
 ## Depois disso
 
-1. **Capas**: download, cache em disco com teto explicito e descarte por LRU,
+1. **Radio e autoplay.** E o que sobra de "recomendacao" depois de 2024, e o
+   caminho e o interno: `spclient.get_radio_for_track` e `get_apollo_station`,
+   que a librespot ja expoe. Resolve duas coisas de uma vez -- "tocar
+   parecidas" a partir de uma faixa, e o silencio quando a fila acaba.
+   **Atencao:** diferente do rootlist, essas duas respondem JSON sem tipo na
+   librespot. O formato precisa ser visto uma vez com uma conta real antes de
+   escrever o parser, senao vira adivinhacao.
+2. **Capas**: download, cache em disco com teto explicito e descarte por LRU,
    escolha pelo tamanho de exibicao via `ImageSet::best_for_width`. O modelo ja
    carrega as URLs e ja as entrega ordenadas da menor para a maior; falta o
    cache e um lugar na interface para elas -- hoje `CardItem` e `TrackRow` nao
    tem campo de imagem.
-2. **Paginacao**: `Catalog::playlist_tracks` ja e paginado e nao e usado pela
+3. **Paginacao**: `Catalog::playlist_tracks` ja e paginado e nao e usado pela
    interface. Uma playlist de mil faixas hoje chega cortada nas primeiras 100.
-3. **Telas de detalhe** de album, artista e playlist. Hoje ativar um card toca
+   As prateleiras do Inicio tambem param no que cabe numa fileira.
+4. **Telas de detalhe** de album, artista e playlist. Hoje ativar um card toca
    direto, o que resolve ouvir mas nao resolve navegar.
 
 ---
