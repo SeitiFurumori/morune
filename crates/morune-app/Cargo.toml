@@ -1,0 +1,61 @@
+[package]
+name = "morune-app"
+description = "Interface e ponto de entrada do Morune."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "morune"
+path = "src/main.rs"
+
+[features]
+default = ["hot-reload"]
+hot-reload = ["morune-theme/hot-reload"]
+# Captura a propria janela em PNG a partir do renderizador do Slint. Usada pela
+# verificacao visual de temas; fora do build de release para nao carregar um
+# codificador de imagem no binario que o usuario instala.
+snapshot = ["dep:png"]
+
+[dependencies]
+morune-core = { workspace = true }
+morune-theme = { workspace = true }
+morune-storage = { workspace = true }
+morune-spotify = { workspace = true }
+# Apenas pelo tipo do canal de eventos do motor; o runtime e do morune-spotify.
+tokio = { workspace = true }
+
+# Renderizador: femtovg usa OpenGL e nao arrasta Skia (que sozinho passaria do
+# orcamento de tamanho do instalador). O renderizador por software fica como
+# reserva automatica em maquinas sem GPU utilizavel.
+slint = { version = "1.17", default-features = false, features = [
+    "compat-1-2",
+    "backend-winit",
+    "renderer-femtovg",
+    "renderer-software",
+    "std",
+] }
+
+serde = { workspace = true }
+toml = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+# Dialogos nativos de arquivo para importar/exportar .musicpack. No Windows usa
+# as caixas COM do sistema, sem trazer nenhum toolkit adicional.
+rfd = "0.15"
+png = { version = "0.18", optional = true }
+# Icone de bandeja: fechar a janela nao pode encerrar a reproducao, e a bandeja
+# e o unico jeito visivel de voltar ou de sair de verdade.
+tray-icon = "0.21"
+
+[build-dependencies]
+slint-build = "1.17"
+# Decodifica os PNGs da marca em tempo de build, para que o executavel carregue
+# pixels crus e nao um decodificador. Ver `embed_brand_pixels` em build.rs.
+png = "0.18"
+

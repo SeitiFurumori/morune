@@ -1,0 +1,75 @@
+# Paper e o contraponto do tema embutido: claro, quadrado e sem brilho.
+# Serve tambem como prova de que a troca de tema muda mais que cor.
+
+[color]
+background = "#f6f4ef"
+surface = "#efece4"
+surface_raised = "#e6e2d8"
+player_background = "#eae6dc"
+sidebar_background = "#efece4"
+
+text = "#20211f"
+text_muted = "#6b6a63"
+text_on_accent = "#f8f7f4"
+
+accent = "#8c3b2e"
+accent_hover = "#a24a3b"
+
+border = "#00000018"
+hover = "#0000000a"
+selected = "#00000014"
+focus_ring = "#8c3b2e"
+
+success = "#3f6b45"
+warning = "#8a6a1f"
+danger = "#a33a2f"
+
+shadow = "#00000022"
+scrollbar = "#00000026"
+
+[typography]
+family = "Georgia"
+display_family = "Georgia"
+scale = 1.0
+size_xs = 11.0
+size_sm = 13.0
+size_md = 15.0
+size_lg = 19.0
+size_xl = 26.0
+size_display = 38.0
+weight_normal = 400
+weight_medium = 600
+weight_bold = 700
+line_height = 1.5
+letter_spacing = 0.0
+
+[shape]
+radius_sm = 0.0
+radius_md = 0.0
+radius_lg = 0.0
+radius_artwork = 0.0
+radius_avatar = 0.0
+spacing_xs = 4.0
+spacing_sm = 10.0
+spacing_md = 16.0
+spacing_lg = 24.0
+spacing_xl = 40.0
+border_width = 1.0
+progress_thickness = 2.0
+scrollbar_width = 8.0
+
+[motion]
+enabled = true
+speed = 0.7
+duration_fast = 90
+duration_normal = 150
+duration_slow = 220
+easing = "ease-out"
+
+[effects]
+window_opacity = 1.0
+acrylic = false
+shadow_strength = 0.2
+backdrop_blur = 0.0
+artwork_tint = false
+artwork_tint_strength = 0.0

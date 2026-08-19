@@ -1,0 +1,364 @@
+import { Theme, Layout, Brand } from "theme.slint";
+
+// Elementos reutilizaveis. Nenhum deles carrega valor visual proprio: tudo sai
+// de `Theme`, para que um pacote de tema consiga mudar a aparencia inteira sem
+// que nenhuma tela precise ser reescrita.
+
+// Icones sao caminhos vetoriais no espaco 24x24, nao imagens: escalam em
+// qualquer DPI do Windows e recebem a cor do tema sem recolorir bitmap.
+export component Icon {
+    in property <string> path;
+    in property <brush> tint: Theme.text;
+    in property <length> size: 16px;
+    /// `true` para silhuetas cheias (play, pause), `false` para contornos.
+    in property <bool> filled: false;
+
+    width: root.size;
+    height: root.size;
+
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: root.path;
+        fill: root.filled ? root.tint : transparent;
+        stroke: root.filled ? transparent : root.tint;
+        stroke-width: 2px;
+    }
+}
+
+export component PressableArea inherits TouchArea {
+    // Area clicavel com feedback consistente de hover e pressao.
+    in property <bool> enabled-input: true;
+    out property <bool> highlighted: self.has-hover && root.enabled-input;
+    mouse-cursor: root.enabled-input ? MouseCursor.pointer : MouseCursor.default;
+}
+
+export component IconButton inherits Rectangle {
+    in property <string> path;
+    in property <length> button-size: 32px;
+    in property <length> icon-size: 16px;
+    in property <brush> tint: Theme.text;
+    in property <bool> filled: false;
+    in property <bool> active: false;
+    in property <bool> enabled: true;
+    callback clicked();
+
+    width: root.button-size;
+    height: root.button-size;
+    border-radius: root.button-size / 2;
+    background: touch.has-hover && root.enabled ? Theme.hover : transparent;
+    opacity: root.enabled ? 1.0 : 0.4;
+
+    animate background { duration: Theme.motion-fast; }
+
+    Icon {
+        path: root.path;
+        tint: root.active ? Theme.accent : root.tint;
+        size: root.icon-size;
+        filled: root.filled;
+    }
+
+    touch := PressableArea {
+        enabled-input: root.enabled;
+        clicked => {
+            if (root.enabled) { root.clicked(); }
+        }
+    }
+}
+
+export component PrimaryButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> enabled: true;
+    callback clicked();
+
+    height: 34px;
+    min-width: text.preferred-width + Theme.space-lg * 2;
+    border-radius: Theme.radius-md;
+    background: touch.has-hover ? Theme.accent-hover : Theme.accent;
+    opacity: root.enabled ? 1.0 : 0.45;
+
+    animate background { duration: Theme.motion-fast; }
+
+    text := Text {
+        text: root.label;
+        color: Theme.text-on-accent;
+        font-size: Theme.size-md;
+        font-weight: Theme.weight-medium;
+        font-family: Theme.font-family;
+        vertical-alignment: center;
+        horizontal-alignment: center;
+    }
+
+    touch := PressableArea {
+        enabled-input: root.enabled;
+        clicked => {
+            if (root.enabled) { root.clicked(); }
+        }
+    }
+}
+
+export component GhostButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> danger: false;
+    callback clicked();
+
+    height: 32px;
+    min-width: text.preferred-width + Theme.space-md * 2;
+    border-radius: Theme.radius-md;
+    border-width: Theme.border-width;
+    border-color: Theme.border;
+    background: touch.has-hover ? Theme.hover : transparent;
+
+    animate background { duration: Theme.motion-fast; }
+
+    text := Text {
+        text: root.label;
+        color: root.danger ? Theme.danger : Theme.text;
+        font-size: Theme.size-sm;
+        font-family: Theme.font-family;
+        vertical-alignment: center;
+        horizontal-alignment: center;
+    }
+
+    touch := PressableArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+// Interruptor de duas posicoes. Como todo o resto, so tem forma e cor vindas
+// do tema: um tema de cantos retos deixa o interruptor retangular.
+export component Toggle inherits Rectangle {
+    in property <bool> checked;
+    in property <bool> enabled: true;
+    callback toggled(bool);
+
+    width: 40px;
+    height: 22px;
+    border-radius: min(self.height / 2, Theme.radius-md);
+    background: root.checked ? Theme.accent : Theme.border;
+    opacity: root.enabled ? 1.0 : 0.45;
+
+    animate background { duration: Theme.motion-fast; }
+
+    knob := Rectangle {
+        width: parent.height - 6px;
+        height: self.width;
+        border-radius: min(self.width / 2, Theme.radius-sm);
+        y: 3px;
+        x: root.checked ? parent.width - self.width - 3px : 3px;
+        background: root.checked ? Theme.text-on-accent : Theme.text-muted;
+
+        animate x { duration: Theme.motion-fast; easing: ease-in-out; }
+        animate background { duration: Theme.motion-fast; }
+    }
+
+    touch := PressableArea {
+        enabled-input: root.enabled;
+        clicked => {
+            if (root.enabled) { root.toggled(!root.checked); }
+        }
+    }
+}
+
+export component SearchField inherits Rectangle {
+    in-out property <string> text <=> input.text;
+    in property <string> placeholder: "Buscar";
+    callback edited(string);
+    callback accepted(string);
+
+    height: 36px;
+    border-radius: Theme.radius-md;
+    background: Theme.surface;
+    border-width: input.has-focus ? 2px : Theme.border-width;
+    border-color: input.has-focus ? Theme.focus-ring : Theme.border;
+
+    HorizontalLayout {
+        padding-left: Theme.space-md;
+        padding-right: Theme.space-md;
+        spacing: Theme.space-sm;
+
+        Icon {
+            path: "M 10 2 a 8 8 0 1 0 0 16 a 8 8 0 0 0 0 -16 M 16 16 l 6 6";
+            tint: Theme.text-muted;
+            size: 16px;
+            y: (parent.height - self.size) / 2;
+        }
+
+        Rectangle {
+            placeholder := Text {
+                text: root.placeholder;
+                color: Theme.text-muted;
+                font-size: Theme.size-md;
+                font-family: Theme.font-family;
+                vertical-alignment: center;
+                horizontal-alignment: left;
+                visible: input.text == "";
+                width: 100%;
+            }
+
+            input := TextInput {
+                color: Theme.text;
+                font-size: Theme.size-md;
+                font-family: Theme.font-family;
+                vertical-alignment: center;
+                single-line: true;
+                width: 100%;
+                height: 100%;
+                edited => { root.edited(self.text); }
+                accepted => { root.accepted(self.text); }
+            }
+        }
+    }
+}
+
+// Trilha arrastavel usada por progresso e volume.
+export component Slider inherits Rectangle {
+    in property <float> value;          // 0.0 .. 1.0
+    in property <bool> enabled: true;
+    in property <length> thickness: Theme.progress-thickness;
+    callback changed(float);
+    callback committed(float);
+
+    height: max(root.thickness, 16px);
+    // A area de toque e maior que o traco desenhado: uma barra de 4px seria
+    // dificil de acertar com o mouse.
+
+    track := Rectangle {
+        y: (parent.height - root.thickness) / 2;
+        height: root.thickness;
+        width: 100%;
+        border-radius: root.thickness / 2;
+        background: Theme.border;
+
+        fill := Rectangle {
+            x: 0;
+            width: parent.width * clamp(root.value, 0.0, 1.0);
+            height: 100%;
+            border-radius: root.thickness / 2;
+            background: touch.has-hover || touch.pressed ? Theme.accent-hover : Theme.accent;
+            animate background { duration: Theme.motion-fast; }
+        }
+    }
+
+    knob := Rectangle {
+        width: 12px;
+        height: 12px;
+        border-radius: 6px;
+        background: Theme.text;
+        x: track.width * clamp(root.value, 0.0, 1.0) - self.width / 2;
+        y: (parent.height - self.height) / 2;
+        visible: root.enabled && (touch.has-hover || touch.pressed);
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? MouseCursor.pointer : MouseCursor.default;
+        width: 100%;
+        height: 100%;
+
+        moved => {
+            if (self.pressed) {
+                root.changed(clamp(self.mouse-x / root.width, 0.0, 1.0));
+            }
+        }
+        pointer-event(event) => {
+            if (event.button == PointerEventButton.left && event.kind == PointerEventKind.up) {
+                root.committed(clamp(self.mouse-x / root.width, 0.0, 1.0));
+            }
+        }
+    }
+}
+
+// Marcador de capa. Enquanto nao ha download de imagem, desenha um bloco com a
+// inicial do titulo -- deliberadamente estavel para nao causar "pulo" de layout
+// quando a capa real chegar.
+export component Artwork inherits Rectangle {
+    in property <string> seed;
+    in property <length> radius: Theme.radius-artwork;
+
+    border-radius: root.radius;
+    background: Theme.surface-raised;
+    clip: true;
+
+    // Marca discreta enquanto a capa real nao chega. Deliberadamente sem
+    // texto: um titulo cortado no meio chama mais atencao que um bloco neutro,
+    // e trocar o bloco pela capa depois nao muda o layout.
+    Rectangle {
+        width: parent.width * 0.34;
+        height: self.width;
+        border-radius: self.width / 2;
+        background: Theme.border;
+    }
+}
+
+// Simbolo da marca.
+//
+// Reproduz o desenho responsivo de 32 px de
+// assets/brand/morune-logo-system/morune-symbol-32.svg, que e um desenho
+// proprio e nao uma reducao do master de 512 -- por isso os numeros abaixo nao
+// sao os da prancheta grande.
+//
+// Sao tres tracos de espessura diferente, e o Slint so aceita uma espessura por
+// `Path`. Cada traco vira um elemento, e todos precisam enxergar a mesma caixa:
+// o Slint encaixa a viewbox em `tamanho - espessura`, entao um elemento mais
+// grosso encolheria o desenho e as barras laterais sairiam do lugar. A
+// compensacao e dar a cada elemento o tamanho da caixa comum mais a propria
+// espessura, centralizado.
+export component Logo {
+    in property <length> size: 32px;
+    in property <brush> tint: Brand.mark;
+
+    // Espessuras do desenho de 32 px: 3, 2 e 1,5 unidades.
+    property <length> stroke-wave: root.size * 3 / 32;
+    property <length> stroke-bar: root.size * 2 / 32;
+    property <length> stroke-dot: root.size * 1.5 / 32;
+    // Caixa comum, ditada pelo traco mais grosso.
+    property <length> box: root.size - root.stroke-wave;
+
+    width: root.size;
+    height: root.size;
+
+    wave := Path {
+        width: root.box + root.stroke-wave;
+        height: self.width;
+        x: (root.size - self.width) / 2;
+        y: self.x;
+        viewbox-width: 32;
+        viewbox-height: 32;
+        commands: "M10 20.5 C10 15 10 7.25 12 7.25 C14.5 7.25 13.5 24.75 16 24.75 C18.5 24.75 17.5 7.25 20 7.25 C22 7.25 22 15 22 20.5";
+        stroke: root.tint;
+        stroke-width: root.stroke-wave;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+    }
+
+    Path {
+        width: root.box + root.stroke-bar;
+        height: self.width;
+        x: (root.size - self.width) / 2;
+        y: self.x;
+        viewbox-width: 32;
+        viewbox-height: 32;
+        commands: "M6.75 13.5 V18.5 M25.25 13.5 V18.5";
+        stroke: root.tint;
+        stroke-width: root.stroke-bar;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+    }
+
+    Path {
+        width: root.box + root.stroke-dot;
+        height: self.width;
+        x: (root.size - self.width) / 2;
+        y: self.x;
+        viewbox-width: 32;
+        viewbox-height: 32;
+        commands: "M4.25 15.25 V16.75 M27.75 15.25 V16.75";
+        stroke: root.tint;
+        stroke-width: root.stroke-dot;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+    }
+}

@@ -1,0 +1,119 @@
+# Roteiro
+
+Ordenado por dependencia, nao por vontade. Uma camada dependente so comeca
+depois que o contrato dela para de mudar.
+
+```
+Arquitetura  [feito]
+├─ Core
+│  ├─ Config              [feito]
+│  ├─ Contratos           [feito]
+│  ├─ Fila / shuffle      [feito]
+│  └─ Integracao Spotify  [ciclo 2]
+├─ UI
+│  ├─ Componentes         [feito]
+│  ├─ Navegacao           [feito]
+│  └─ Telas de conteudo   [ciclo 2, depende do catalogo]
+├─ Customizacao
+│  ├─ Esquema de tema     [feito]
+│  ├─ Carregador          [feito]
+│  ├─ Import/export       [feito]
+│  └─ Recarga a quente    [ciclo 3, crate pronta, falta ligar]
+└─ Qualidade
+   ├─ Testes              [feito, 133]
+   ├─ Benchmarks          [feito, tools/measure.ps1]
+   ├─ Seguranca           [feito para temas e credenciais]
+   └─ Empacotamento       [feito, instalador NSIS de 3,83 MB]
+```
+
+---
+
+## Ciclo 1 — MVP executavel `[concluido]`
+
+- workspace, contratos do core, fila com testes;
+- motor de customizacao completo com pacotes e validacao de seguranca;
+- interface nativa com todo pixel derivado do tema;
+- tres temas trocaveis em execucao, um deles derivado;
+- configuracao persistente, cofre de credenciais do Windows;
+- medicao real de tamanho, startup e memoria;
+- captura visual por tema;
+- fechar para a bandeja mantendo o aplicativo vivo, com menu de bandeja e
+  verificacao automatizada (`tools/verify-tray.ps1`);
+- instalador `.exe` unico com escolha de disco, sem UAC, com desinstalador
+  limpo e verificacao de que o binario roda isolado.
+
+## Ciclo 2 — Reproducao `[proximo]`
+
+O ciclo que transforma isto num player.
+
+1. **`morune-spotify`**: implementar `Authenticator`, `PlaybackEngine`,
+   `Catalog` e `Library` sobre librespot 0.8.
+2. **Login OAuth PKCE**, sem client secret, com o token indo direto para o
+   Gerenciador de Credenciais. Restauracao de sessao na abertura.
+3. **Reproducao real**: carregar, tocar, pausar, buscar posicao, volume,
+   avanco automatico ligado a `Queue::next`.
+4. **Busca e biblioteca** ligadas as telas que ja existem.
+5. **Capas**: download, cache em disco com **teto explicito e descarte por
+   LRU**, escolha pelo tamanho de exibicao via `ImageSet::best_for_width`. O
+   teto e obrigatorio; o valor dele e livre.
+6. **Medir o que importa**: CPU e GPU em segundo plano com musica tocando, com
+   um jogo em tela cheia rodando junto. E o criterio de desempenho do produto e
+   nunca foi medido — ver [PERFORMANCE.md](PERFORMANCE.md). RAM entra como teto
+   de crescimento, nao como meta de vitrine.
+
+Depende de: conta Premium para teste real. Sem ela nada deste ciclo pode ser
+declarado funcionando.
+
+Risco conhecido: librespot 0.8 exige `vergen` fixado em 9.0.x no `Cargo.lock`
+— ver [ADR-0002](docs/adr/0002-toolchain-windows-gnu.md).
+
+## Ciclo 3 — Developer Mode e customizacao viva
+
+1. **Recarga a quente** ligada a interface: editar `theme.toml` e ver a mudanca
+   sem reabrir. A crate ja tem o observador com agrupamento de eventos.
+2. **Sobreposicao de performance**: quadros por segundo, tempo de quadro, RAM.
+3. **Ids de componente** visiveis, para quem escreve tema saber o que esta
+   ajustando.
+4. **Painel de diagnosticos** com o resultado do `sanitize` do tema atual.
+5. **Icones por tema**, vindos de `assets/`.
+6. **Fontes empacotadas** registradas de verdade (`bundled_font`).
+
+## Ciclo 4 — Produto
+
+1. **Teclas de midia** e integracao com o painel de reproducao do Windows
+   (SMTC), funcionando com a janela sem foco e com o aplicativo na bandeja.
+2. **Minimizar para a bandeja**, alem de fechar. Fica pendente porque o Slint
+   nao expoe o evento de minimizacao da janela; exige alcançar o `HWND` pelo
+   handle nativo, o que so vale a pena junto com as teclas de midia.
+3. **Notificacao de bandeja na primeira vez** que a janela fecha, para quem nao
+   percebeu que o aplicativo continua tocando.
+4. **Mini-player**.
+5. **DPI**: verificar 100%, 125%, 150% e 200%, e monitor secundario com escala
+   diferente.
+6. **Atalhos de teclado** completos e navegacao so por teclado.
+7. **Assinatura de codigo** do instalador. Sem ela o SmartScreen avisa em toda
+   instalacao, o que e o maior atrito restante para um usuario real.
+8. **Atualizacao automatica**, ou pelo menos aviso de versao nova.
+9. **Migrar para MSVC** como alvo de release: binarios menores e alvo com mais
+   rodagem no Windows.
+
+## Ciclo 5 — Extensibilidade
+
+1. **API de plugins**, com o mesmo criterio de seguranca dos temas: capacidade
+   explicita, sem acesso implicito a disco, rede ou credenciais.
+2. **Layout arbitrario** via `slint-interpreter`, atras do Developer Mode e com
+   aviso claro de que sai do formato puramente declarativo.
+3. **Repositorio de temas** da comunidade.
+4. **Outros provedores** de musica, aproveitando que os ids ja carregam
+   provedor e que nenhum contrato assume Spotify.
+
+---
+
+## Fora de escopo
+
+- Linux e macOS. O core e portatil, mas o produto e Windows, e prometer tres
+  plataformas com uma pessoa mantendo e como se perde qualidade nas tres.
+- Baixar musica. Nao e o proposito e complica a relacao com o provedor.
+- Telemetria. Nao ha, e nao vai haver.
+- Editor visual de temas. TOML mais recarga a quente resolve o mesmo problema
+  com uma fracao do custo.

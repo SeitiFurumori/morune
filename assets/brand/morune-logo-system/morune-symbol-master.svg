@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Morune symbol</title>
+  <desc id="desc">Optically corrected symmetrical audio waveform mark.</desc>
+  <defs>
+    <linearGradient id="morune-gradient" x1="112" y1="86" x2="392" y2="426" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8B63F6"/>
+      <stop offset="1" stop-color="#6937EC"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="url(#morune-gradient)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M160 328 C160 240 160 116 192 116 C232 116 216 396 256 396 C296 396 280 116 320 116 C352 116 352 240 352 328" stroke-width="40"/>
+    <path d="M112 216 V296 M400 216 V296" stroke-width="24"/>
+    <path d="M76 244 V268 M436 244 V268" stroke-width="16"/>
+  </g>
+</svg>
