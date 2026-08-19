@@ -88,6 +88,22 @@ export global Layout {
     in-out property <bool> sidebar-labels: true;
     in-out property <bool> sidebar-playlists: true;
 
+    // Rotulos que a barra realmente desenha.
+    //
+    // `sidebar-labels` e escolha do tema; `sidebar-collapsed` e escolha do
+    // usuario, feita em execucao. Quem desenha precisa das duas: recolher a
+    // barra sem calar os rotulos deixa texto de 232 px dentro de uma caixa de
+    // 64 px, que foi exatamente o defeito que isto corrige.
+    out property <bool> sidebar-labels-shown: root.sidebar-labels && !root.sidebar-collapsed;
+
+    // Icones que a barra realmente desenha.
+    //
+    // Recolhida, o icone e a unica coisa que cabe. Um tema que desliga os
+    // icones e a barra recolhida deixariam a navegacao invisivel -- tres linhas
+    // clicaveis e vazias. O estado recolhido manda aqui pelo mesmo motivo que
+    // um tema quebrado nunca impede o aplicativo de abrir.
+    out property <bool> sidebar-icons-shown: root.sidebar-icons || root.sidebar-collapsed;
+
     // 0 = rodape, 1 = topo, 2 = dentro da sidebar
     in-out property <int> player-position: 0;
     in-out property <length> player-height: 88px;

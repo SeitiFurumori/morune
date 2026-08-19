@@ -13,11 +13,16 @@
 //!   SpotifyEngine  ----------- runtime tokio proprio ----> librespot
 //!        ^                                                    |
 //!   SpotifyAuthenticator ---- mesma Session -------------------+
+//!        ^                                                    |
+//!   SpotifyCatalog ------ mesmo token, sobre HTTP ------> Web API
 //! ```
 //!
-//! A [`SharedSession`] e o que amarra os dois: o login abre a conexao e o motor
-//! usa a mesma. Duas conexoes gastariam dois slots de dispositivo na conta, e o
-//! Spotify derrubaria uma delas.
+//! A [`SharedSession`] e o que amarra os tres: o login abre a conexao, o motor
+//! toca por ela e o catalogo usa o cliente HTTP dela. Duas conexoes gastariam
+//! dois slots de dispositivo na conta, e o Spotify derrubaria uma delas.
+//!
+//! A divisao entre os dois canais nao e escolha: o protocolo da librespot
+//! entrega audio, e busca e biblioteca so existem no Web API.
 //!
 //! # Precisa de conta Premium
 //!
@@ -28,10 +33,16 @@
 #![deny(unsafe_code)]
 
 mod auth;
+mod catalog;
+mod dto;
 mod engine;
 mod error;
+mod internal;
 mod runtime;
+mod token;
+mod webapi;
 
 pub use auth::{SharedSession, SpotifyAuthenticator};
+pub use catalog::SpotifyCatalog;
 pub use engine::SpotifyEngine;
 pub use runtime::SpotifyBackend;
