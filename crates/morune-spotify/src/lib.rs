@@ -37,6 +37,7 @@ mod catalog;
 mod dto;
 mod engine;
 mod error;
+mod internal;
 mod runtime;
 mod token;
 mod webapi;

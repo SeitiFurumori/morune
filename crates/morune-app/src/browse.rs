@@ -93,6 +93,7 @@ pub struct Card {
 /// respondeu seria pior do que uma tela inicial menor.
 #[derive(Debug, Default)]
 pub struct Home {
+    pub made_for_you: Vec<Card>,
     pub recent: Vec<Track>,
     pub liked: Vec<Track>,
     pub top_artists: Vec<Card>,
@@ -165,6 +166,10 @@ impl Browse {
 
             // Cada prateleira registra o proprio erro e segue. So a falha da
             // primeira que quebrar vira mensagem, e so quando nada mais veio.
+            match library.made_for_you(SHELF_CARDS).await {
+                Ok(page) => home.made_for_you = page.items.iter().map(playlist_card).collect(),
+                Err(e) => failure = note(failure, &e, "feito para voce"),
+            }
             match library.recently_played(SHELF_TRACKS).await {
                 Ok(page) => home.recent = page.items,
                 Err(e) => failure = note(failure, &e, "historico recente"),
@@ -182,7 +187,8 @@ impl Browse {
                 Err(e) => failure = note(failure, &e, "playlists"),
             }
 
-            let vazio = home.recent.is_empty()
+            let vazio = home.made_for_you.is_empty()
+                && home.recent.is_empty()
                 && home.liked.is_empty()
                 && home.top_artists.is_empty()
                 && home.playlists.is_empty();
@@ -467,8 +473,9 @@ mod tests {
     #[test]
     fn a_home_with_nothing_in_it_is_detectable() {
         let home = Home::default();
-        assert!(home.recent.is_empty() && home.liked.is_empty());
-        assert!(home.top_artists.is_empty() && home.playlists.is_empty());
+        assert!(home.made_for_you.is_empty() && home.recent.is_empty());
+        assert!(home.liked.is_empty() && home.top_artists.is_empty());
+        assert!(home.playlists.is_empty());
     }
 
     #[test]

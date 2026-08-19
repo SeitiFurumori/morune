@@ -52,11 +52,16 @@ O ciclo que transforma isto num player.
    para o Gerenciador de Credenciais. Restauracao de sessao na abertura.
 3. `[escrito]` **Reproducao real**: carregar, tocar, pausar, buscar posicao,
    volume, avanco automatico ligado a `Queue::next`.
-4. `[escrito]` **Busca e biblioteca** ligadas as telas que ja existem.
-5. `[aberto]` **Capas**: download, cache em disco com **teto explicito e
+4. `[escrito]` **Busca e biblioteca** ligadas as telas que ja existem, e um
+   Inicio com cinco prateleiras. As playlists que o Spotify monta para a conta
+   vem pelo protocolo interno, porque o Web API deixou de entrega-las em 2024 —
+   ver [docs/HANDOFF.md](docs/HANDOFF.md).
+5. `[aberto]` **Radio e autoplay** pelo mesmo caminho interno. E o que sobra de
+   recomendacao depois de 2024, e resolve o silencio no fim da fila.
+6. `[aberto]` **Capas**: download, cache em disco com **teto explicito e
    descarte por LRU**, escolha pelo tamanho de exibicao via
    `ImageSet::best_for_width`. O teto e obrigatorio; o valor dele e livre.
-6. `[aberto]` **Medir o que importa**: CPU e GPU em segundo plano com musica
+7. `[aberto]` **Medir o que importa**: CPU e GPU em segundo plano com musica
    tocando, com um jogo em tela cheia rodando junto. E o criterio de desempenho
    do produto e nunca foi medido — ver [PERFORMANCE.md](PERFORMANCE.md). RAM
    entra como teto de crescimento, nao como meta de vitrine.
