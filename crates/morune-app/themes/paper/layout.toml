@@ -1,0 +1,44 @@
+# A composicao muda junto com a cor: barra lateral a direita, player no topo,
+# listas no lugar de grade e densidade compacta.
+
+[window]
+default_width = 1100.0
+default_height = 720.0
+min_width = 720.0
+min_height = 480.0
+custom_titlebar = false
+show_page_title = true
+
+[sidebar]
+position = "right"
+width = 210.0
+collapsed_width = 60.0
+collapsible = true
+start_collapsed = false
+show_icons = false
+show_labels = true
+show_playlists = true
+items = ["home", "search", "library"]
+
+[player]
+position = "top"
+height = 72.0
+show_artwork = true
+artwork_size = 44.0
+show_progress = true
+progress_edge_to_edge = true
+show_volume = true
+show_shuffle_repeat = true
+show_queue_button = true
+show_times = true
+center_controls = false
+
+[content]
+density = "compact"
+view_mode = "list"
+card_width = 140.0
+row_height = 38.0
+max_content_width = 0.0
+show_hero = false
+hero_height = 180.0
+page_size = 100

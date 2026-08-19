@@ -1,0 +1,30 @@
+[package]
+name = "morune-theme"
+description = "Motor de customizacao do Morune: esquema de tema, carregamento seguro e pacotes .musicpack."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = ["packs"]
+# Importacao/exportacao de .musicpack. Sem ela a crate nao depende de zip.
+packs = ["dep:zip"]
+# Observador de sistema de arquivos para recarga a quente.
+hot-reload = ["dep:notify"]
+
+[dependencies]
+serde = { workspace = true }
+toml = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
+notify = { version = "8", optional = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+# Os testes de ponta a ponta montam pacotes maliciosos a mao, sem passar pela
+# nossa exportacao -- que e o unico jeito de exercitar as defesas de verdade.
+zip = { version = "2", default-features = false, features = ["deflate"] }

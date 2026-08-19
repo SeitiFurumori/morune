@@ -1,0 +1,123 @@
+// Tokens de tema.
+//
+// Todos os valores vem do Rust em tempo de execucao (morune-theme). Os valores
+// escritos aqui sao apenas o padrao usado enquanto o tema ainda nao foi
+// aplicado -- e o que garante que a janela tenha aparencia coerente mesmo se o
+// carregamento do tema demorar ou falhar.
+//
+// Nada nesta interface pode usar cor, tamanho ou duracao literal: se um valor
+// nao esta aqui, ele nao e customizavel, e isso e um bug.
+
+export global Theme {
+    // --- cores ---
+    in-out property <brush> background: #0b0d12;
+    in-out property <brush> surface: #12151d;
+    in-out property <brush> surface-raised: #1a1e29;
+    in-out property <brush> player-background: #0f1219;
+    in-out property <brush> sidebar-background: #0d1016;
+
+    in-out property <brush> text: #eceff4;
+    in-out property <brush> text-muted: #939cb0;
+    in-out property <brush> text-on-accent: #080a0e;
+
+    in-out property <brush> accent: #6dd49e;
+    in-out property <brush> accent-hover: #87e4b2;
+
+    in-out property <brush> border: #ffffff14;
+    in-out property <brush> hover: #ffffff0d;
+    in-out property <brush> selected: #ffffff1a;
+    in-out property <brush> focus-ring: #6dd49e;
+
+    in-out property <brush> danger: #e46d6d;
+    in-out property <brush> warning: #e4b35c;
+    in-out property <brush> success: #5cc98a;
+    in-out property <brush> scrollbar: #ffffff24;
+
+    // --- tipografia ---
+    in-out property <string> font-family: "";
+    in-out property <length> size-xs: 11px;
+    in-out property <length> size-sm: 12px;
+    in-out property <length> size-md: 14px;
+    in-out property <length> size-lg: 17px;
+    in-out property <length> size-xl: 22px;
+    in-out property <length> size-display: 32px;
+    in-out property <int> weight-normal: 400;
+    in-out property <int> weight-medium: 500;
+    in-out property <int> weight-bold: 700;
+    in-out property <float> letter-spacing: 0;
+
+    // --- formas ---
+    in-out property <length> radius-sm: 4px;
+    in-out property <length> radius-md: 8px;
+    in-out property <length> radius-lg: 14px;
+    in-out property <length> radius-artwork: 6px;
+    in-out property <length> radius-avatar: 999px;
+
+    in-out property <length> space-xs: 4px;
+    in-out property <length> space-sm: 8px;
+    in-out property <length> space-md: 12px;
+    in-out property <length> space-lg: 20px;
+    in-out property <length> space-xl: 32px;
+
+    in-out property <length> border-width: 1px;
+    in-out property <length> progress-thickness: 4px;
+    in-out property <length> scrollbar-width: 10px;
+
+    // --- movimento ---
+    // Duracoes ja resolvidas no Rust: `enabled = false` chega aqui como 0ms,
+    // entao a interface nao precisa checar se animacao esta ligada.
+    in-out property <duration> motion-fast: 120ms;
+    in-out property <duration> motion-normal: 200ms;
+    in-out property <duration> motion-slow: 320ms;
+
+    // --- efeitos ---
+    in-out property <float> shadow-strength: 0.5;
+    in-out property <bool> artwork-tint: true;
+    in-out property <float> artwork-tint-strength: 0.35;
+}
+
+// Composicao da tela, tambem vinda do tema.
+export global Layout {
+    // 0 = esquerda, 1 = direita, 2 = oculta
+    in-out property <int> sidebar-position: 0;
+    in-out property <length> sidebar-width: 232px;
+    in-out property <length> sidebar-collapsed-width: 64px;
+    in-out property <bool> sidebar-collapsible: true;
+    in-out property <bool> sidebar-collapsed: false;
+    in-out property <bool> sidebar-icons: true;
+    in-out property <bool> sidebar-labels: true;
+    in-out property <bool> sidebar-playlists: true;
+
+    // 0 = rodape, 1 = topo, 2 = dentro da sidebar
+    in-out property <int> player-position: 0;
+    in-out property <length> player-height: 88px;
+    in-out property <bool> player-artwork: true;
+    in-out property <length> player-artwork-size: 56px;
+    in-out property <bool> player-progress: true;
+    in-out property <bool> player-progress-edge: false;
+    in-out property <bool> player-volume: true;
+    in-out property <bool> player-shuffle-repeat: true;
+    in-out property <bool> player-queue-button: true;
+    in-out property <bool> player-times: true;
+    in-out property <bool> player-center-controls: true;
+
+    // 0 = grade, 1 = lista, 2 = compacta
+    in-out property <int> view-mode: 0;
+    in-out property <float> density: 1.0;
+    in-out property <length> card-width: 168px;
+    in-out property <length> row-height: 44px;
+    in-out property <bool> show-hero: true;
+    in-out property <length> hero-height: 240px;
+}
+
+// Cores da marca.
+//
+// Deliberadamente fora de `Theme`: sao identidade, nao aparencia. Um tema pode
+// mudar tudo o que o usuario ve, menos o que identifica o aplicativo -- pela
+// mesma razao que o simbolo tem geometria fixa e proporcoes travadas.
+// Os valores vem de assets/brand/morune-logo-system/SPECIFICATION.md.
+export global Brand {
+    out property <color> violet-light: #8b63f6;
+    out property <color> violet-dark: #6937ec;
+    out property <brush> mark: @linear-gradient(135deg, Brand.violet-light 0%, Brand.violet-dark 100%);
+}

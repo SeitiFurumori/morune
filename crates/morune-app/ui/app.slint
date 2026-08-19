@@ -1,0 +1,1186 @@
+import { Theme, Layout } from "theme.slint";
+import { Icon, IconButton, PrimaryButton, GhostButton, SearchField, Slider, Artwork, PressableArea, Toggle, Logo } from "components.slint";
+
+// O Slint exige que um componente esteja declarado antes de ser usado, entao
+// este arquivo vai do menor para o maior: dados, icones, pecas, paginas e por
+// ultimo a janela.
+
+// Dados que o Rust envia para a interface. Structs achatadas de proposito: a
+// interface nunca navega o modelo de dominio, so exibe o que ja veio pronto.
+export struct TrackRow {
+    id: string,
+    title: string,
+    artist: string,
+    album: string,
+    duration: string,
+    playable: bool,
+    playing: bool,
+}
+
+export struct CardItem {
+    id: string,
+    title: string,
+    subtitle: string,
+}
+
+export struct ThemeItem {
+    id: string,
+    name: string,
+    author: string,
+    builtin: bool,
+    active: bool,
+}
+
+export struct Diagnostic {
+    level: string,
+    field: string,
+    message: string,
+}
+
+global Icons {
+    out property <string> home: "M 3 11 L 12 3 L 21 11 L 21 21 L 14 21 L 14 15 L 10 15 L 10 21 L 3 21 Z";
+    out property <string> search: "M 10 2 a 8 8 0 1 0 0 16 a 8 8 0 0 0 0 -16 M 16 16 L 22 22";
+    out property <string> library: "M 4 3 L 7 3 L 7 21 L 4 21 Z M 10 3 L 13 3 L 13 21 L 10 21 Z M 16 4 L 19 5 L 15 21 L 12 20 Z";
+    out property <string> settings: "M 12 8 a 4 4 0 1 0 0 8 a 4 4 0 0 0 0 -8 M 12 2 L 13 5 L 16 4 L 17 7 L 20 8 L 19 11 L 22 12 L 19 13 L 20 16 L 17 17 L 16 20 L 13 19 L 12 22 L 11 19 L 8 20 L 7 17 L 4 16 L 5 13 L 2 12 L 5 11 L 4 8 L 7 7 L 8 4 L 11 5 Z";
+    out property <string> play: "M 7 4 L 20 12 L 7 20 Z";
+    out property <string> pause: "M 7 4 L 11 4 L 11 20 L 7 20 Z M 13 4 L 17 4 L 17 20 L 13 20 Z";
+    out property <string> next: "M 5 4 L 16 12 L 5 20 Z M 17 4 L 20 4 L 20 20 L 17 20 Z";
+    out property <string> previous: "M 19 4 L 8 12 L 19 20 Z M 4 4 L 7 4 L 7 20 L 4 20 Z";
+    out property <string> shuffle: "M 3 5 L 8 5 L 16 19 L 21 19 M 17 15 L 21 19 L 17 23 M 3 19 L 8 19 L 11 14 M 15 8 L 16 5 L 21 5 M 17 1 L 21 5 L 17 9";
+    out property <string> repeat: "M 4 9 L 4 6 L 17 6 L 17 3 L 21 7 L 17 11 L 17 8 M 20 15 L 20 18 L 7 18 L 7 21 L 3 17 L 7 13 L 7 16";
+    out property <string> repeat-one: "M 4 9 L 4 6 L 17 6 L 17 3 L 21 7 L 17 11 L 17 8 M 20 15 L 20 18 L 7 18 L 7 21 L 3 17 L 7 13 L 7 16 M 11 12 L 12 12 L 12 17";
+    out property <string> queue: "M 3 6 L 15 6 M 3 12 L 15 12 M 3 18 L 11 18 M 17 10 L 17 19 M 17 10 L 21 9 L 21 7 L 17 8";
+    out property <string> volume: "M 4 9 L 7 9 L 12 5 L 12 19 L 7 15 L 4 15 Z M 15 9 a 5 5 0 0 1 0 6 M 18 6 a 9 9 0 0 1 0 12";
+    out property <string> chevron-left: "M 15 5 L 8 12 L 15 19";
+}
+
+component SectionTitle inherits Text {
+    font-size: Theme.size-lg;
+    font-weight: Theme.weight-bold;
+    font-family: Theme.font-family;
+    color: Theme.text;
+}
+
+component EmptyState inherits VerticalLayout {
+    in property <string> title;
+    in property <string> hint;
+
+    alignment: center;
+    spacing: Theme.space-sm;
+
+    Text {
+        text: root.title;
+        color: Theme.text;
+        font-size: Theme.size-lg;
+        font-family: Theme.font-family;
+        horizontal-alignment: center;
+    }
+
+    Text {
+        text: root.hint;
+        color: Theme.text-muted;
+        font-size: Theme.size-md;
+        font-family: Theme.font-family;
+        horizontal-alignment: center;
+        wrap: word-wrap;
+    }
+}
+
+component NavItem inherits Rectangle {
+    in property <string> label;
+    in property <string> icon;
+    in property <bool> active;
+    callback clicked();
+
+    height: 40px;
+    border-radius: Theme.radius-md;
+    background: root.active ? Theme.selected : (touch.has-hover ? Theme.hover : transparent);
+    animate background { duration: Theme.motion-fast; }
+
+    HorizontalLayout {
+        padding-left: Theme.space-md;
+        padding-right: Theme.space-md;
+        spacing: Theme.space-md;
+        alignment: Layout.sidebar-labels ? LayoutAlignment.start : LayoutAlignment.center;
+
+        if Layout.sidebar-icons: Icon {
+            path: root.icon;
+            tint: root.active ? Theme.text : Theme.text-muted;
+            size: 18px;
+            y: (parent.height - self.size) / 2;
+        }
+
+        if Layout.sidebar-labels: Text {
+            text: root.label;
+            color: root.active ? Theme.text : Theme.text-muted;
+            font-size: Theme.size-md;
+            font-weight: root.active ? Theme.weight-medium : Theme.weight-normal;
+            font-family: Theme.font-family;
+            vertical-alignment: center;
+        }
+    }
+
+    touch := PressableArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+component TrackListRow inherits Rectangle {
+    in property <TrackRow> track;
+    in property <int> index;
+    callback activated();
+
+    height: Layout.row-height;
+    border-radius: Theme.radius-sm;
+    background: touch.has-hover ? Theme.hover : transparent;
+    animate background { duration: Theme.motion-fast; }
+
+    HorizontalLayout {
+        padding-left: Theme.space-md;
+        padding-right: Theme.space-md;
+        spacing: Theme.space-md;
+
+        Text {
+            text: root.index + 1;
+            color: root.track.playing ? Theme.accent : Theme.text-muted;
+            font-size: Theme.size-sm;
+            font-family: Theme.font-family;
+            vertical-alignment: center;
+            horizontal-alignment: right;
+            width: 26px;
+        }
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+
+            Text {
+                text: root.track.title;
+                color: root.track.playable
+                    ? (root.track.playing ? Theme.accent : Theme.text)
+                    : Theme.text-muted;
+                font-size: Theme.size-md;
+                font-family: Theme.font-family;
+                overflow: elide;
+            }
+
+            if Layout.view-mode != 2: Text {
+                text: root.track.artist;
+                color: Theme.text-muted;
+                font-size: Theme.size-sm;
+                font-family: Theme.font-family;
+                overflow: elide;
+            }
+        }
+
+        Text {
+            text: root.track.duration;
+            color: Theme.text-muted;
+            font-size: Theme.size-sm;
+            font-family: Theme.font-family;
+            vertical-alignment: center;
+            horizontal-alignment: right;
+            width: 48px;
+        }
+    }
+
+    touch := PressableArea {
+        clicked => { root.activated(); }
+        double-clicked => { root.activated(); }
+    }
+}
+
+component Card inherits Rectangle {
+    in property <CardItem> item;
+    callback activated();
+
+    width: Layout.card-width;
+    height: Layout.card-width + 56px;
+    border-radius: Theme.radius-md;
+    background: touch.has-hover ? Theme.surface-raised : Theme.surface;
+    animate background { duration: Theme.motion-fast; }
+
+    VerticalLayout {
+        padding: Theme.space-sm;
+        spacing: Theme.space-sm;
+
+        Artwork {
+            seed: root.item.title;
+            width: parent.width - Theme.space-sm * 2;
+            height: self.width;
+        }
+
+        Text {
+            text: root.item.title;
+            color: Theme.text;
+            font-size: Theme.size-md;
+            font-weight: Theme.weight-medium;
+            font-family: Theme.font-family;
+            overflow: elide;
+        }
+
+        Text {
+            text: root.item.subtitle;
+            color: Theme.text-muted;
+            font-size: Theme.size-sm;
+            font-family: Theme.font-family;
+            overflow: elide;
+        }
+    }
+
+    touch := PressableArea {
+        clicked => { root.activated(); }
+    }
+}
+
+component CardGrid inherits Flickable {
+    in property <[CardItem]> items;
+    callback activated(string);
+
+    viewport-height: grid.preferred-height;
+
+    grid := VerticalLayout {
+        spacing: Theme.space-md;
+        // Conteudo ancorado no topo do visor: sem isto, poucas linhas ficam
+        // penduradas no meio da area de rolagem.
+        alignment: start;
+        for row-index in ceil(root.items.length / 5): HorizontalLayout {
+            spacing: Theme.space-md;
+            alignment: start;
+            for column in 5: Rectangle {
+                width: Layout.card-width;
+                height: Layout.card-width + 56px;
+                if row-index * 5 + column < root.items.length: Card {
+                    item: root.items[row-index * 5 + column];
+                    activated => { root.activated(root.items[row-index * 5 + column].id); }
+                }
+            }
+        }
+    }
+}
+
+component TrackList inherits Flickable {
+    in property <[TrackRow]> tracks;
+    callback activated(string);
+
+    viewport-height: list.preferred-height;
+
+    list := VerticalLayout {
+        spacing: 2px;
+        alignment: start;
+        for track[i] in root.tracks: TrackListRow {
+            track: track;
+            index: i;
+            activated => { root.activated(track.id); }
+        }
+    }
+}
+
+component Sidebar inherits Rectangle {
+    in property <int> page;
+    in property <bool> logged-in;
+    in property <string> account-name;
+    callback navigate(int);
+    callback toggle-sidebar();
+    callback login();
+
+    VerticalLayout {
+        padding: Theme.space-sm;
+        spacing: Theme.space-xs;
+
+        HorizontalLayout {
+            height: 48px;
+            padding-left: Theme.space-sm;
+            spacing: Theme.space-sm;
+            // Sem rotulos a barra fica so com icones, e a marca passa a ser a
+            // unica identificacao visivel do aplicativo -- por isso ela aparece
+            // nos dois estados, e nao so ao lado do nome.
+            alignment: Layout.sidebar-labels ? start : center;
+
+            Logo {
+                y: (parent.height - self.height) / 2;
+            }
+
+            if Layout.sidebar-labels: Text {
+                text: "Morune";
+                color: Theme.text;
+                font-size: Theme.size-lg;
+                font-weight: Theme.weight-bold;
+                font-family: Theme.font-family;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+            }
+
+            if Layout.sidebar-collapsible: IconButton {
+                path: Icons.chevron-left;
+                tint: Theme.text-muted;
+                button-size: 28px;
+                y: (parent.height - self.height) / 2;
+                clicked => { root.toggle-sidebar(); }
+            }
+        }
+
+        NavItem {
+            label: "Inicio";
+            icon: Icons.home;
+            active: root.page == 0;
+            clicked => { root.navigate(0); }
+        }
+
+        NavItem {
+            label: "Buscar";
+            icon: Icons.search;
+            active: root.page == 1;
+            clicked => { root.navigate(1); }
+        }
+
+        NavItem {
+            label: "Biblioteca";
+            icon: Icons.library;
+            active: root.page == 2;
+            clicked => { root.navigate(2); }
+        }
+
+        Rectangle { vertical-stretch: 1; }
+
+        NavItem {
+            label: "Configuracoes";
+            icon: Icons.settings;
+            active: root.page == 3;
+            clicked => { root.navigate(3); }
+        }
+
+        if Layout.sidebar-labels && !root.logged-in: GhostButton {
+            label: "Entrar no Spotify";
+            clicked => { root.login(); }
+        }
+
+        if Layout.sidebar-labels && root.logged-in: Text {
+            text: root.account-name;
+            color: Theme.text-muted;
+            font-size: Theme.size-xs;
+            font-family: Theme.font-family;
+            overflow: elide;
+        }
+    }
+}
+
+component PlayerBar inherits Rectangle {
+    in property <string> title;
+    in property <string> artist;
+    in property <bool> playing;
+    in property <bool> shuffle;
+    in property <int> repeat;
+    in property <float> progress;
+    in property <string> elapsed;
+    in property <string> total;
+    in property <float> volume;
+    in property <bool> has-track;
+
+    callback toggle-play();
+    callback next();
+    callback previous();
+    callback seek(float);
+    callback set-volume(float);
+    callback toggle-shuffle();
+    callback cycle-repeat();
+    callback open-queue();
+
+    height: Layout.player-height;
+    background: Theme.player-background;
+
+    Rectangle {
+        y: 0;
+        height: Theme.border-width;
+        width: 100%;
+        background: Theme.border;
+    }
+
+    VerticalLayout {
+        padding-left: Layout.player-progress-edge ? 0px : Theme.space-lg;
+        padding-right: Layout.player-progress-edge ? 0px : Theme.space-lg;
+        padding-top: Theme.space-sm;
+        padding-bottom: Theme.space-sm;
+        spacing: Theme.space-xs;
+
+        if Layout.player-progress && Layout.player-progress-edge: Slider {
+            value: root.progress;
+            enabled: root.has-track;
+            thickness: Theme.progress-thickness;
+            committed(v) => { root.seek(v); }
+        }
+
+        HorizontalLayout {
+            spacing: Theme.space-md;
+            padding-left: Layout.player-progress-edge ? Theme.space-lg : 0px;
+            padding-right: Layout.player-progress-edge ? Theme.space-lg : 0px;
+
+            HorizontalLayout {
+                spacing: Theme.space-md;
+                width: 26%;
+
+                if Layout.player-artwork: Artwork {
+                    seed: root.title;
+                    width: Layout.player-artwork-size;
+                    height: Layout.player-artwork-size;
+                    y: (parent.height - self.height) / 2;
+                }
+
+                VerticalLayout {
+                    alignment: center;
+
+                    Text {
+                        text: root.has-track ? root.title : "Nada tocando";
+                        color: Theme.text;
+                        font-size: Theme.size-md;
+                        font-weight: Theme.weight-medium;
+                        font-family: Theme.font-family;
+                        overflow: elide;
+                    }
+
+                    Text {
+                        text: root.artist;
+                        color: Theme.text-muted;
+                        font-size: Theme.size-sm;
+                        font-family: Theme.font-family;
+                        overflow: elide;
+                    }
+                }
+            }
+
+            VerticalLayout {
+                horizontal-stretch: 1;
+                alignment: center;
+                spacing: Theme.space-xs;
+
+                HorizontalLayout {
+                    alignment: Layout.player-center-controls
+                        ? LayoutAlignment.center
+                        : LayoutAlignment.start;
+                    spacing: Theme.space-sm;
+
+                    if Layout.player-shuffle-repeat: IconButton {
+                        path: Icons.shuffle;
+                        active: root.shuffle;
+                        tint: Theme.text-muted;
+                        clicked => { root.toggle-shuffle(); }
+                    }
+
+                    IconButton {
+                        path: Icons.previous;
+                        filled: true;
+                        enabled: root.has-track;
+                        clicked => { root.previous(); }
+                    }
+
+                    Rectangle {
+                        width: 40px;
+                        height: 40px;
+                        border-radius: 20px;
+                        background: Theme.accent;
+                        opacity: root.has-track ? 1.0 : 0.45;
+
+                        Icon {
+                            path: root.playing ? Icons.pause : Icons.play;
+                            tint: Theme.text-on-accent;
+                            filled: true;
+                            size: 18px;
+                        }
+
+                        PressableArea {
+                            enabled-input: root.has-track;
+                            clicked => { root.toggle-play(); }
+                        }
+                    }
+
+                    IconButton {
+                        path: Icons.next;
+                        filled: true;
+                        enabled: root.has-track;
+                        clicked => { root.next(); }
+                    }
+
+                    if Layout.player-shuffle-repeat: IconButton {
+                        path: root.repeat == 2 ? Icons.repeat-one : Icons.repeat;
+                        active: root.repeat != 0;
+                        tint: Theme.text-muted;
+                        clicked => { root.cycle-repeat(); }
+                    }
+                }
+
+                if Layout.player-progress && !Layout.player-progress-edge: HorizontalLayout {
+                    spacing: Theme.space-sm;
+
+                    if Layout.player-times: Text {
+                        text: root.elapsed;
+                        color: Theme.text-muted;
+                        font-size: Theme.size-xs;
+                        font-family: Theme.font-family;
+                        vertical-alignment: center;
+                        width: 40px;
+                        horizontal-alignment: right;
+                    }
+
+                    Slider {
+                        horizontal-stretch: 1;
+                        value: root.progress;
+                        enabled: root.has-track;
+                        committed(v) => { root.seek(v); }
+                    }
+
+                    if Layout.player-times: Text {
+                        text: root.total;
+                        color: Theme.text-muted;
+                        font-size: Theme.size-xs;
+                        font-family: Theme.font-family;
+                        vertical-alignment: center;
+                        width: 40px;
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                width: 26%;
+                alignment: end;
+                spacing: Theme.space-sm;
+
+                if Layout.player-queue-button: IconButton {
+                    path: Icons.queue;
+                    tint: Theme.text-muted;
+                    y: (parent.height - self.height) / 2;
+                    clicked => { root.open-queue(); }
+                }
+
+                if Layout.player-volume: Icon {
+                    path: Icons.volume;
+                    tint: Theme.text-muted;
+                    size: 16px;
+                    y: (parent.height - self.size) / 2;
+                }
+
+                if Layout.player-volume: Slider {
+                    width: 96px;
+                    value: root.volume;
+                    y: (parent.height - self.height) / 2;
+                    changed(v) => { root.set-volume(v); }
+                    committed(v) => { root.set-volume(v); }
+                }
+            }
+        }
+    }
+}
+
+component HomePage inherits VerticalLayout {
+    in property <[CardItem]> items;
+    callback activated(string);
+
+    spacing: Theme.space-md;
+
+    SectionTitle { text: "Inicio"; }
+
+    if root.items.length == 0: EmptyState {
+        title: "Nada por aqui ainda";
+        hint: "Entre na sua conta para ver suas playlists, ou use a busca para encontrar musica.";
+    }
+
+    if root.items.length > 0: CardGrid {
+        vertical-stretch: 1;
+        items: root.items;
+        activated(id) => { root.activated(id); }
+    }
+}
+
+component SearchPage inherits VerticalLayout {
+    in property <[TrackRow]> tracks;
+    callback search(string);
+    callback activated(string);
+
+    spacing: Theme.space-md;
+
+    SearchField {
+        placeholder: "O que voce quer ouvir?";
+        accepted(q) => { root.search(q); }
+    }
+
+    if root.tracks.length == 0: EmptyState {
+        title: "Busque por musica";
+        hint: "Digite o nome de uma faixa, album ou artista e pressione Enter.";
+    }
+
+    if root.tracks.length > 0: TrackList {
+        vertical-stretch: 1;
+        tracks: root.tracks;
+        activated(id) => { root.activated(id); }
+    }
+}
+
+component LibraryPage inherits VerticalLayout {
+    in property <[CardItem]> items;
+    in property <bool> logged-in;
+    callback login();
+    callback activated(string);
+
+    spacing: Theme.space-md;
+
+    SectionTitle { text: "Biblioteca"; }
+
+    if !root.logged-in: EmptyState {
+        title: "Voce ainda nao entrou";
+        hint: "Entre com sua conta Spotify Premium para ver playlists, albuns salvos e artistas seguidos.";
+    }
+
+    if root.logged-in && root.items.length == 0: EmptyState {
+        title: "Biblioteca vazia";
+        hint: "Nada salvo nesta conta ainda.";
+    }
+
+    if root.items.length > 0: CardGrid {
+        vertical-stretch: 1;
+        items: root.items;
+        activated(id) => { root.activated(id); }
+    }
+}
+
+component QueuePage inherits VerticalLayout {
+    in property <[TrackRow]> tracks;
+    callback activated(string);
+
+    spacing: Theme.space-md;
+
+    SectionTitle { text: "Fila"; }
+
+    if root.tracks.length == 0: EmptyState {
+        title: "Fila vazia";
+        hint: "As proximas faixas aparecem aqui quando voce comeca a tocar algo.";
+    }
+
+    if root.tracks.length > 0: TrackList {
+        vertical-stretch: 1;
+        tracks: root.tracks;
+        activated(id) => { root.activated(id); }
+    }
+}
+
+component ThemeRow inherits Rectangle {
+    in property <ThemeItem> item;
+    callback selected();
+    callback export-pack();
+    callback duplicate();
+
+    height: 56px;
+    border-radius: Theme.radius-md;
+    background: root.item.active ? Theme.selected : (touch.has-hover ? Theme.hover : Theme.surface);
+    animate background { duration: Theme.motion-fast; }
+
+    HorizontalLayout {
+        padding-left: Theme.space-md;
+        padding-right: Theme.space-md;
+        spacing: Theme.space-md;
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+
+            Text {
+                text: root.item.name;
+                color: Theme.text;
+                font-size: Theme.size-md;
+                font-weight: root.item.active ? Theme.weight-medium : Theme.weight-normal;
+                font-family: Theme.font-family;
+            }
+
+            Text {
+                text: root.item.builtin
+                    ? "Embutido"
+                    : (root.item.author == "" ? root.item.id : root.item.author);
+                color: Theme.text-muted;
+                font-size: Theme.size-xs;
+                font-family: Theme.font-family;
+            }
+        }
+
+        GhostButton {
+            label: "Duplicar";
+            y: (parent.height - self.height) / 2;
+            clicked => { root.duplicate(); }
+        }
+
+        if !root.item.builtin: GhostButton {
+            label: "Exportar";
+            y: (parent.height - self.height) / 2;
+            clicked => { root.export-pack(); }
+        }
+    }
+
+    touch := PressableArea {
+        clicked => { root.selected(); }
+    }
+}
+
+component SettingRow inherits HorizontalLayout {
+    in property <string> label;
+    in property <string> hint;
+    in property <bool> checked;
+    callback toggled(bool);
+
+    spacing: Theme.space-md;
+    height: 44px;
+
+    VerticalLayout {
+        alignment: center;
+        horizontal-stretch: 1;
+
+        Text {
+            text: root.label;
+            color: Theme.text;
+            font-size: Theme.size-md;
+            font-family: Theme.font-family;
+        }
+
+        Text {
+            text: root.hint;
+            color: Theme.text-muted;
+            font-size: Theme.size-xs;
+            font-family: Theme.font-family;
+            overflow: elide;
+        }
+    }
+
+    Toggle {
+        checked: root.checked;
+        y: (parent.height - self.height) / 2;
+        toggled(v) => { root.toggled(v); }
+    }
+}
+
+component SettingsPage inherits VerticalLayout {
+    in property <[ThemeItem]> themes;
+    in property <[Diagnostic]> diagnostics;
+    in property <bool> dev-mode;
+    in property <bool> logged-in;
+    in property <string> account-name;
+    in property <bool> close-to-tray;
+
+    callback set-close-to-tray(bool);
+    callback select-theme(string);
+    callback import-theme();
+    callback export-theme(string);
+    callback duplicate-theme(string);
+    callback reset-theme();
+    callback open-theme-folder();
+    callback reload-theme();
+    callback login();
+    callback logout();
+
+    spacing: Theme.space-md;
+
+    // Cabecalho e controles ficam num layout proprio com `alignment: start`.
+    //
+    // Sem essa separacao o VerticalLayout externo reparte a altura sobrando
+    // entre todos os filhos, e cada titulo de secao ganha uma faixa vazia de
+    // ~90 px. Com `alignment: start` no bloco fixo e `vertical-stretch: 1` na
+    // lista, a sobra vai toda para a lista, que e quem sabe crescer.
+    VerticalLayout {
+        spacing: Theme.space-md;
+        alignment: start;
+        vertical-stretch: 0;
+
+        SectionTitle { text: "Configuracoes"; }
+
+        HorizontalLayout {
+            spacing: Theme.space-sm;
+            height: 34px;
+
+            Text {
+                text: root.logged-in ? root.account-name : "Nao conectado";
+                color: Theme.text-muted;
+                font-size: Theme.size-md;
+                font-family: Theme.font-family;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+            }
+
+            if !root.logged-in: PrimaryButton {
+                label: "Entrar no Spotify";
+                clicked => { root.login(); }
+            }
+
+            if root.logged-in: GhostButton {
+                label: "Sair";
+                danger: true;
+                clicked => { root.logout(); }
+            }
+        }
+
+        Text {
+            text: "Comportamento";
+            color: Theme.text;
+            font-size: Theme.size-md;
+            font-weight: Theme.weight-bold;
+            font-family: Theme.font-family;
+        }
+
+        SettingRow {
+            label: "Continuar tocando ao fechar";
+            hint: "Fechar a janela esconde o Morune na bandeja em vez de encerrar.";
+            checked: root.close-to-tray;
+            toggled(v) => { root.set-close-to-tray(v); }
+        }
+
+        Text {
+            text: "Temas";
+            color: Theme.text;
+            font-size: Theme.size-md;
+            font-weight: Theme.weight-bold;
+            font-family: Theme.font-family;
+        }
+
+        HorizontalLayout {
+            spacing: Theme.space-sm;
+            height: 34px;
+            alignment: start;
+
+            PrimaryButton {
+                label: "Importar tema";
+                clicked => { root.import-theme(); }
+            }
+
+            GhostButton {
+                label: "Abrir pasta de temas";
+                clicked => { root.open-theme-folder(); }
+            }
+
+            GhostButton {
+                label: "Recarregar";
+                clicked => { root.reload-theme(); }
+            }
+
+            GhostButton {
+                label: "Restaurar padrao";
+                danger: true;
+                clicked => { root.reset-theme(); }
+            }
+        }
+    }
+
+    Flickable {
+        vertical-stretch: 1;
+        viewport-height: theme-list.preferred-height;
+
+        theme-list := VerticalLayout {
+            spacing: Theme.space-xs;
+            // A lista comeca no topo do visor; sem isto ela desce e fica
+            // colada no rodape quando ha poucos temas.
+            alignment: start;
+
+            for item in root.themes: ThemeRow {
+                item: item;
+                selected => { root.select-theme(item.id); }
+                export-pack => { root.export-theme(item.id); }
+                duplicate => { root.duplicate-theme(item.id); }
+            }
+
+            if root.diagnostics.length > 0: Text {
+                text: "Diagnosticos do tema";
+                color: Theme.text;
+                font-size: Theme.size-md;
+                font-weight: Theme.weight-bold;
+                font-family: Theme.font-family;
+            }
+
+            for d in root.diagnostics: Rectangle {
+                height: diag.preferred-height + Theme.space-sm * 2;
+                border-radius: Theme.radius-sm;
+                background: Theme.surface;
+
+                diag := Text {
+                    text: d.field + ": " + d.message;
+                    color: d.level == "error" ? Theme.danger : Theme.warning;
+                    font-size: Theme.size-xs;
+                    font-family: Theme.font-family;
+                    wrap: word-wrap;
+                    x: Theme.space-md;
+                    y: Theme.space-sm;
+                    width: parent.width - Theme.space-md * 2;
+                }
+            }
+        }
+    }
+}
+
+export component AppWindow inherits Window {
+    // --- estado vindo do Rust ---
+    in property <int> page: 0;
+    in property <string> status-message;
+    in property <bool> logged-in: false;
+    in property <string> account-name;
+
+    in property <[CardItem]> home-items;
+    in property <[TrackRow]> search-tracks;
+    in property <[CardItem]> library-items;
+    in property <[TrackRow]> queue-tracks;
+    in property <[ThemeItem]> themes;
+    in property <[Diagnostic]> diagnostics;
+
+    in property <string> now-title;
+    in property <string> now-artist;
+    in property <bool> playing;
+    in property <bool> has-track;
+    in property <float> progress;
+    in property <string> elapsed;
+    in property <string> total;
+    in property <float> volume: 0.7;
+    in property <bool> shuffle;
+    in property <int> repeat;
+
+    in property <bool> dev-mode: false;
+    in property <string> perf-text;
+    in property <bool> close-to-tray: true;
+
+    // --- eventos para o Rust ---
+    callback navigate(int);
+    callback search(string);
+    callback play-track(string);
+    callback toggle-play();
+    callback next-track();
+    callback previous-track();
+    callback seek(float);
+    callback set-volume(float);
+    callback toggle-shuffle();
+    callback cycle-repeat();
+    callback select-theme(string);
+    callback import-theme();
+    callback export-theme(string);
+    callback duplicate-theme(string);
+    callback reset-theme();
+    callback open-theme-folder();
+    callback reload-theme();
+    callback toggle-sidebar();
+    callback set-close-to-tray(bool);
+    callback login();
+    callback logout();
+
+    // Icone da janela e da barra de tarefas. O Slint embute o arquivo no
+    // binario e o decodifica ao abrir; o desenho de 128 px e o maior tamanho
+    // com hinting proprio, e o suficiente para o Windows escalar.
+    //
+    // Nao adianta montar este icone em codigo: o backend so reaplica o icone
+    // quando a chave de cache da imagem muda, e imagens criadas em tempo de
+    // execucao nao tem chave -- a janela ficaria sem icone nenhum.
+    icon: @image-url("../../../assets/brand/morune-logo-system/morune-symbol-128.png");
+
+    title: "Morune";
+    background: Theme.background;
+    default-font-family: Theme.font-family;
+    default-font-size: Theme.size-md;
+    min-width: 720px;
+    min-height: 480px;
+    preferred-width: 1180px;
+    preferred-height: 760px;
+    forward-focus: keys;
+
+    VerticalLayout {
+        if Layout.player-position == 1: PlayerBar {
+            title: root.now-title;
+            artist: root.now-artist;
+            playing: root.playing;
+            has-track: root.has-track;
+            progress: root.progress;
+            elapsed: root.elapsed;
+            total: root.total;
+            volume: root.volume;
+            shuffle: root.shuffle;
+            repeat: root.repeat;
+            toggle-play => { root.toggle-play(); }
+            next => { root.next-track(); }
+            previous => { root.previous-track(); }
+            seek(v) => { root.seek(v); }
+            set-volume(v) => { root.set-volume(v); }
+            toggle-shuffle => { root.toggle-shuffle(); }
+            cycle-repeat => { root.cycle-repeat(); }
+            open-queue => { root.navigate(4); }
+        }
+
+        HorizontalLayout {
+            vertical-stretch: 1;
+
+            if Layout.sidebar-position == 0: Rectangle {
+                width: Layout.sidebar-collapsed
+                    ? Layout.sidebar-collapsed-width
+                    : Layout.sidebar-width;
+                background: Theme.sidebar-background;
+                animate width { duration: Theme.motion-normal; easing: ease-in-out; }
+
+                Sidebar {
+                    width: 100%;
+                    height: 100%;
+                    page: root.page;
+                    logged-in: root.logged-in;
+                    account-name: root.account-name;
+                    navigate(p) => { root.navigate(p); }
+                    toggle-sidebar => { root.toggle-sidebar(); }
+                    login => { root.login(); }
+                }
+            }
+
+            Rectangle {
+                horizontal-stretch: 1;
+                background: Theme.background;
+
+                VerticalLayout {
+                    padding: Theme.space-lg;
+                    spacing: Theme.space-md;
+
+                    if root.page == 0: HomePage {
+                        items: root.home-items;
+                        activated(id) => { root.play-track(id); }
+                    }
+
+                    if root.page == 1: SearchPage {
+                        tracks: root.search-tracks;
+                        search(q) => { root.search(q); }
+                        activated(id) => { root.play-track(id); }
+                    }
+
+                    if root.page == 2: LibraryPage {
+                        items: root.library-items;
+                        logged-in: root.logged-in;
+                        login => { root.login(); }
+                        activated(id) => { root.play-track(id); }
+                    }
+
+                    if root.page == 3: SettingsPage {
+                        themes: root.themes;
+                        diagnostics: root.diagnostics;
+                        dev-mode: root.dev-mode;
+                        logged-in: root.logged-in;
+                        account-name: root.account-name;
+                        close-to-tray: root.close-to-tray;
+                        set-close-to-tray(v) => { root.set-close-to-tray(v); }
+                        select-theme(id) => { root.select-theme(id); }
+                        import-theme => { root.import-theme(); }
+                        export-theme(id) => { root.export-theme(id); }
+                        duplicate-theme(id) => { root.duplicate-theme(id); }
+                        reset-theme => { root.reset-theme(); }
+                        open-theme-folder => { root.open-theme-folder(); }
+                        reload-theme => { root.reload-theme(); }
+                        login => { root.login(); }
+                        logout => { root.logout(); }
+                    }
+
+                    if root.page == 4: QueuePage {
+                        tracks: root.queue-tracks;
+                        activated(id) => { root.play-track(id); }
+                    }
+                }
+
+                if root.status-message != "": Rectangle {
+                    x: parent.width - self.width - Theme.space-lg;
+                    y: parent.height - self.height - Theme.space-lg;
+                    width: min(420px, parent.width - Theme.space-lg * 2);
+                    height: status-text.preferred-height + Theme.space-md * 2;
+                    border-radius: Theme.radius-md;
+                    background: Theme.surface-raised;
+                    border-width: Theme.border-width;
+                    border-color: Theme.border;
+
+                    status-text := Text {
+                        text: root.status-message;
+                        color: Theme.text;
+                        font-size: Theme.size-sm;
+                        font-family: Theme.font-family;
+                        wrap: word-wrap;
+                        width: parent.width - Theme.space-md * 2;
+                        x: Theme.space-md;
+                        y: Theme.space-md;
+                    }
+                }
+
+                if root.dev-mode: Rectangle {
+                    x: Theme.space-md;
+                    y: Theme.space-md;
+                    width: perf.preferred-width + Theme.space-md * 2;
+                    height: perf.preferred-height + Theme.space-sm * 2;
+                    border-radius: Theme.radius-sm;
+                    background: Theme.surface-raised;
+                    opacity: 0.92;
+
+                    perf := Text {
+                        text: root.perf-text;
+                        color: Theme.text-muted;
+                        font-size: Theme.size-xs;
+                        font-family: Theme.font-family;
+                        x: Theme.space-md;
+                        y: Theme.space-sm;
+                    }
+                }
+            }
+
+            if Layout.sidebar-position == 1: Rectangle {
+                width: Layout.sidebar-collapsed
+                    ? Layout.sidebar-collapsed-width
+                    : Layout.sidebar-width;
+                background: Theme.sidebar-background;
+                animate width { duration: Theme.motion-normal; easing: ease-in-out; }
+
+                Sidebar {
+                    width: 100%;
+                    height: 100%;
+                    page: root.page;
+                    logged-in: root.logged-in;
+                    account-name: root.account-name;
+                    navigate(p) => { root.navigate(p); }
+                    toggle-sidebar => { root.toggle-sidebar(); }
+                    login => { root.login(); }
+                }
+            }
+        }
+
+        if Layout.player-position != 1: PlayerBar {
+            title: root.now-title;
+            artist: root.now-artist;
+            playing: root.playing;
+            has-track: root.has-track;
+            progress: root.progress;
+            elapsed: root.elapsed;
+            total: root.total;
+            volume: root.volume;
+            shuffle: root.shuffle;
+            repeat: root.repeat;
+            toggle-play => { root.toggle-play(); }
+            next => { root.next-track(); }
+            previous => { root.previous-track(); }
+            seek(v) => { root.seek(v); }
+            set-volume(v) => { root.set-volume(v); }
+            toggle-shuffle => { root.toggle-shuffle(); }
+            cycle-repeat => { root.cycle-repeat(); }
+            open-queue => { root.navigate(4); }
+        }
+    }
+
+    // Atalhos globais. As teclas de midia sao tratadas no Rust, porque precisam
+    // funcionar com a janela sem foco.
+    keys := FocusScope {
+        width: 0px;
+        height: 0px;
+
+        key-pressed(event) => {
+            if (event.text == " ") {
+                root.toggle-play();
+                return EventResult.accept;
+            }
+            if (event.text == Key.RightArrow && event.modifiers.control) {
+                root.next-track();
+                return EventResult.accept;
+            }
+            if (event.text == Key.LeftArrow && event.modifiers.control) {
+                root.previous-track();
+                return EventResult.accept;
+            }
+            EventResult.reject
+        }
+    }
+}
+
+// Reexportados para que o Rust consiga aplicar o tema em tempo de execucao.
+export { Theme, Layout }

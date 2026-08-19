@@ -1,0 +1,8 @@
+schema_version = 1
+id = "paper"
+name = "Paper"
+version = "1.0.0"
+author = "Morune"
+description = "Tema claro, tipografia serifada, cantos retos e barra lateral a direita."
+license = "MIT"
+appearance = "light"

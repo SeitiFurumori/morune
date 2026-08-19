@@ -1,0 +1,27 @@
+[package]
+name = "morune-spotify"
+description = "Backend de Spotify do Morune: autenticacao, reproducao, catalogo e biblioteca sobre librespot."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+morune-core = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true }
+futures-util = { workspace = true }
+
+# librespot: reimplementacao aberta do protocolo do Spotify. Os crates entram
+# separados, e nao pelo agregado `librespot`, para nao arrastar a linha de
+# comando e os backends de audio que nao usamos.
+librespot-core = "0.8"
+librespot-playback = { version = "0.8", default-features = false, features = ["rodio-backend"] }
+librespot-metadata = "0.8"
+librespot-oauth = "0.8"

@@ -1,0 +1,19 @@
+[package]
+name = "morune-core"
+description = "Contratos e dominio do Morune: modelo, fila, reproducao e catalogo. Sem UI e sem Spotify."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true }
+futures-util = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros", "test-util"] }

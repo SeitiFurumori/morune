@@ -1,0 +1,54 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/morune-core",
+    "crates/morune-theme",
+    "crates/morune-storage",
+    "crates/morune-app",
+    "crates/morune-spotify",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/morune/morune"
+authors = ["Felipe Seiti Furumori"]
+
+[workspace.dependencies]
+morune-core = { path = "crates/morune-core" }
+morune-theme = { path = "crates/morune-theme" }
+morune-storage = { path = "crates/morune-storage" }
+morune-spotify = { path = "crates/morune-spotify" }
+
+thiserror = "2"
+anyhow = "1"
+# "rc" habilita Serialize/Deserialize para Arc<str>, usado nos ids e nomes do
+# modelo: compartilhar a string entre fila, cache e UI evita copiar o mesmo
+# titulo dezenas de vezes numa lista longa.
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = "1"
+toml = "0.9"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
+futures-util = "0.3"
+directories = "6"
+
+# Perfil de desenvolvimento: compilacao rapida, sem sacrificar o runtime das deps.
+[profile.dev]
+opt-level = 0
+debug = 1
+
+[profile.dev.package."*"]
+opt-level = 2
+
+# Perfil de release: otimizado para tamanho + velocidade, alvo do performance budget.
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+incremental = false

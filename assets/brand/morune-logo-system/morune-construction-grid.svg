@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1000" viewBox="0 0 1400 1000">
+  <defs>
+    <pattern id="grid8" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M8 0H0V8" fill="none" stroke="#E9EDE9" stroke-width=".7"/></pattern>
+    <pattern id="grid32" width="32" height="32" patternUnits="userSpaceOnUse"><rect width="32" height="32" fill="url(#grid8)"/><path d="M32 0H0V32" fill="none" stroke="#CAD7CC" stroke-width="1"/></pattern>
+    <linearGradient id="g" x1="160" y1="96" x2="352" y2="416" gradientUnits="userSpaceOnUse"><stop stop-color="#8B63F6"/><stop offset="1" stop-color="#6937EC"/></linearGradient>
+    <marker id="arrow" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M8 0 0 4 8 8" fill="none" stroke="#179C90" stroke-width="1.2"/></marker>
+    <style>.title{font:700 28px Arial,sans-serif;fill:#17151C}.h{font:700 13px Arial,sans-serif;letter-spacing:2px;fill:#2B2731}.p{font:400 13px Arial,sans-serif;fill:#625D69}.num{font:700 13px Arial,sans-serif;fill:#17151C}.guide{fill:none;stroke:#D94B9B;stroke-width:1.15}.axis{fill:none;stroke:#179C90;stroke-width:1.15}.dim{fill:none;stroke:#179C90;stroke-width:1.1;marker-start:url(#arrow);marker-end:url(#arrow)}.dot{fill:#fff;stroke:#D94B9B;stroke-width:1.4}</style>
+  </defs>
+  <rect width="1400" height="1000" fill="#FCFCFA"/>
+  <text x="64" y="62" class="title">MORUNE — ESTUDO GEOMÉTRICO DO SÍMBOLO</text>
+  <text x="64" y="88" class="p">Sistema modular real · u = 8 px no master 512 · pesos 2 : 3 : 5 · vãos laterais constantes de 2u</text>
+  <g transform="translate(64 140)">
+    <text class="h" x="0" y="0">ESCALA MODULAR</text>
+    <rect x="0" y="28" width="230" height="520" fill="white" stroke="#DCE5DD"/>
+    <g fill="none" stroke="#55AA5D" stroke-width="1"><circle cx="104" cy="104" r="52"/><circle cx="72" cy="220" r="32"/><circle cx="156" cy="220" r="20"/><circle cx="52" cy="286" r="12"/><circle cx="90" cy="286" r="8"/><circle cx="116" cy="286" r="4"/></g>
+    <g class="num" text-anchor="middle"><text x="104" y="109">13u</text><text x="72" y="225">8u</text><text x="156" y="225">5u</text><text x="52" y="291">3u</text><text x="90" y="291">2u</text><text x="116" y="291">1u</text></g>
+    <path d="M0 330H230" stroke="#DCE5DD"/>
+    <text x="20" y="366" class="p">Traço principal</text><text x="190" y="366" class="num" text-anchor="end">5u</text>
+    <text x="20" y="400" class="p">Barra média</text><text x="190" y="400" class="num" text-anchor="end">3u</text>
+    <text x="20" y="434" class="p">Ponto externo</text><text x="190" y="434" class="num" text-anchor="end">2u</text>
+    <text x="20" y="468" class="p">Todos os vãos</text><text x="190" y="468" class="num" text-anchor="end">2u</text>
+    <text x="20" y="508" class="p">A proporção 2:3:5 reduz</text><text x="20" y="530" class="p">o peso rumo às extremidades.</text>
+  </g>
+  <g transform="translate(340 132)">
+    <rect width="512" height="512" fill="white" stroke="#DCE5DD"/><rect width="512" height="512" fill="url(#grid32)" opacity=".75"/>
+    <path d="M256 0V512 M0 256H512" class="axis" stroke-dasharray="5 4"/><path d="M160 80V356 M192 80V140 M256 80V424 M320 80V140 M352 80V356" class="guide" stroke-dasharray="5 4" opacity=".75"/>
+    <g class="guide" opacity=".9"><path d="M160 328 160 240 160 116 192 116 232 116 216 396 256 396 296 396 280 116 320 116 352 116 352 240 352 328"/><g><circle cx="160" cy="328" r="4" class="dot"/><circle cx="160" cy="240" r="3" class="dot"/><circle cx="160" cy="116" r="3" class="dot"/><circle cx="192" cy="116" r="4" class="dot"/><circle cx="232" cy="116" r="3" class="dot"/><circle cx="216" cy="396" r="3" class="dot"/><circle cx="256" cy="396" r="4" class="dot"/><circle cx="296" cy="396" r="3" class="dot"/><circle cx="280" cy="116" r="3" class="dot"/><circle cx="320" cy="116" r="4" class="dot"/><circle cx="352" cy="116" r="3" class="dot"/><circle cx="352" cy="240" r="3" class="dot"/><circle cx="352" cy="328" r="4" class="dot"/></g></g>
+    <g fill="none" stroke="#55AA5D" stroke-width="1.1"><circle cx="160" cy="328" r="20"/><circle cx="352" cy="328" r="20"/><circle cx="112" cy="216" r="12"/><circle cx="112" cy="296" r="12"/><circle cx="400" cy="216" r="12"/><circle cx="400" cy="296" r="12"/><circle cx="76" cy="244" r="8"/><circle cx="76" cy="268" r="8"/><circle cx="436" cy="244" r="8"/><circle cx="436" cy="268" r="8"/></g>
+    <g fill="none" stroke="url(#g)" stroke-linecap="round" stroke-linejoin="round"><path d="M160 328 C160 240 160 116 192 116 C232 116 216 396 256 396 C296 396 280 116 320 116 C352 116 352 240 352 328" stroke-width="40"/><path d="M112 216V296 M400 216V296" stroke-width="24"/><path d="M76 244V268 M436 244V268" stroke-width="16"/></g>
+    <g transform="translate(0 454)"><path d="M84 0V20 M100 0V20 M124 0V20 M140 0V20 M372 0V20 M388 0V20 M412 0V20 M428 0V20" class="axis"/><path d="M84 10H100 M124 10H140 M372 10H388 M412 10H428" class="dim"/><g class="num" text-anchor="middle"><text x="92" y="42">2u</text><text x="132" y="42">2u</text><text x="380" y="42">2u</text><text x="420" y="42">2u</text></g></g>
+  </g>
+  <g transform="translate(910 140)">
+    <text class="h" x="0" y="0">COORDENADAS &amp; PROPORÇÕES</text>
+    <text x="0" y="38" class="p">Eixo central</text><text x="340" y="38" class="num" text-anchor="end">x = 256</text><text x="0" y="72" class="p">Centros externos</text><text x="340" y="72" class="num" text-anchor="end">76 / 436</text><text x="0" y="106" class="p">Centros intermediários</text><text x="340" y="106" class="num" text-anchor="end">112 / 400</text><text x="0" y="140" class="p">Terminais da onda</text><text x="340" y="140" class="num" text-anchor="end">160 / 352</text><text x="0" y="174" class="p">Ápices</text><text x="340" y="174" class="num" text-anchor="end">192 / 320</text><text x="0" y="208" class="p">Vale central</text><text x="340" y="208" class="num" text-anchor="end">256</text>
+    <path d="M0 236H340" stroke="#DCE5DD"/><text class="h" x="0" y="276">ESPAÇAMENTO LATERAL</text><text x="0" y="310" class="p">ponto → barra</text><text x="340" y="310" class="num" text-anchor="end">16 px = 2u</text><text x="0" y="344" class="p">barra → onda</text><text x="340" y="344" class="num" text-anchor="end">16 px = 2u</text><text x="0" y="378" class="p">lado esquerdo = lado direito</text><text x="340" y="378" class="num" text-anchor="end">exato</text>
+    <path d="M0 406H340" stroke="#DCE5DD"/><text class="h" x="0" y="446">CORREÇÃO ÓPTICA</text><text x="0" y="480" class="p">O vale mantém maior área negativa para equilibrar</text><text x="0" y="504" class="p">os dois arcos positivos. Tangentes verticais controlam</text><text x="0" y="528" class="p">a continuidade nos ápices e no centro.</text><text x="0" y="568" class="p">Em 32 e 16 px, peso, abertura e posição são</text><text x="0" y="592" class="p">ajustados manualmente à grade de pixels.</text>
+  </g>
+  <g transform="translate(340 700)">
+    <text class="h" x="0" y="0">PROVA DOS VÃOS — AMPLIAÇÃO 2×</text>
+    <g transform="translate(0 32) scale(2)"><path d="M38 20V32" stroke="#7549F2" stroke-width="8" stroke-linecap="round"/><path d="M56 6V46" stroke="#7549F2" stroke-width="12" stroke-linecap="round"/><path d="M80 16V46" stroke="#7549F2" stroke-width="20" stroke-linecap="round"/><path d="M42 54V66 M50 54V66 M62 54V66 M70 54V66" class="axis" vector-effect="non-scaling-stroke"/><path d="M42 60H50 M62 60H70" class="dim" vector-effect="non-scaling-stroke"/><text x="46" y="76" class="num" text-anchor="middle" font-size="7">2u</text><text x="66" y="76" class="num" text-anchor="middle" font-size="7">2u</text></g>
+    <g transform="translate(330 42)"><circle cx="34" cy="34" r="20" fill="none" stroke="#55AA5D"/><path d="M34 34V76" class="axis"/><text x="70" y="30" class="p">raio terminal = ½ do traço</text><text x="70" y="54" class="num">R = 20 px = 2.5u</text></g>
+  </g>
+  <text x="64" y="958" class="p">Construção paramétrica: qualquer alteração de peso recalcula bordas e preserva o vão 2u. Sem círculos decorativos ou proporções inventadas.</text>
+</svg>

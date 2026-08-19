@@ -1,0 +1,52 @@
+# Pulse nao declara layout: com `based_on = "midnight"` ele herda a composicao
+# do tema embutido e muda so cor, forma e movimento. E o caso mais comum de
+# tema derivado, e serve de exemplo minimo para quem for escrever o proprio.
+
+[color]
+background = "#0a0612"
+surface = "#150d24"
+surface_raised = "#1f1434"
+player_background = "#0d0817"
+sidebar_background = "#0d0817"
+
+text = "#f2ecff"
+text_muted = "#a08cc4"
+text_on_accent = "#12061f"
+
+accent = "#c66bff"
+accent_hover = "#d78dff"
+
+border = "#ffffff1f"
+hover = "#ffffff12"
+selected = "#c66bff26"
+focus_ring = "#ffb347"
+
+success = "#5ce0a8"
+warning = "#ffb347"
+danger = "#ff6b8a"
+
+shadow = "#00000099"
+scrollbar = "#ffffff2e"
+
+[shape]
+radius_sm = 8.0
+radius_md = 16.0
+radius_lg = 26.0
+radius_artwork = 16.0
+radius_avatar = 999.0
+spacing_xs = 4.0
+spacing_sm = 8.0
+spacing_md = 14.0
+spacing_lg = 22.0
+spacing_xl = 34.0
+border_width = 1.0
+progress_thickness = 6.0
+scrollbar_width = 12.0
+
+[motion]
+enabled = true
+speed = 0.6
+duration_fast = 100
+duration_normal = 160
+duration_slow = 260
+easing = "ease-out"

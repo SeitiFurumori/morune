@@ -1,0 +1,23 @@
+[package]
+name = "morune-storage"
+description = "Configuracao, caminhos e cofre de credenciais do Morune."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+morune-core = { workspace = true }
+morune-theme = { workspace = true }
+serde = { workspace = true }
+toml = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+directories = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+# Gerenciador de Credenciais do Windows: o segredo fica protegido pelo perfil
+# do usuario e nunca toca um arquivo nosso.
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Security_Credentials"] }
