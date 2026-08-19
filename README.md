@@ -106,6 +106,27 @@ Suas configuracoes e temas ficam sempre em `%APPDATA%\morune`, independente do
 disco escolhido, e **nao** sao apagados ao desinstalar, a menos que voce marque
 essa opcao.
 
+---
+
+## Como entrar na sua conta
+
+Abra **Configuracoes → Entrar no Spotify**. O navegador abre no site do Spotify,
+voce autoriza, e pronto. O Morune nunca ve sua senha: o login e OAuth com PKCE,
+e o unico segredo que chega aqui e um token, guardado no Gerenciador de
+Credenciais do Windows. Nao ha cadastro, nao ha servidor do Morune no meio, e
+nao ha nada para configurar antes.
+
+**Precisa ser Premium.** Nao e escolha do Morune: o Spotify so entrega audio
+para contas Premium, e nenhum cliente aberto contorna isso. Uma conta gratuita e
+recusada no login, com essa explicacao na tela.
+
+**Se o navegador nao abrir sozinho**, o login espera a autorizacao em
+`127.0.0.1:5588`. Essa porta precisa estar livre, porque e nela que o Spotify
+devolve a resposta — o endereco de retorno e fixo e nao pode ser sorteado.
+
+Voce nao precisa registrar nenhum aplicativo no Spotify para usar o Morune, nem
+para compila-lo.
+
 Para gerar o instalador a partir do codigo:
 
 ```bash

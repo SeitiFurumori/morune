@@ -12,6 +12,22 @@
 //!
 //! **O token nunca toca o disco em texto.** Quem cuida disso e
 //! [`crate::token::TokenSource`]; aqui so se decide quando pedir um.
+//!
+//! # Por que o plano da conta e checado antes de conectar
+//!
+//! A librespot **encerra o processo** quando ve uma conta que nao e Premium:
+//! `check_catalogue`, em `librespot-core`, chama `exit(1)` ao receber o pacote
+//! de produto, logo depois da autenticacao. Nao ha erro para tratar, nao ha
+//! resultado para inspecionar -- o aplicativo simplesmente some da tela.
+//!
+//! Este e um aplicativo aberto: quem clicar em "Entrar" pode ter qualquer tipo
+//! de conta, e a maioria das contas do Spotify e gratuita. Deixar como estava
+//! significaria que a primeira experiencia dessas pessoas com o Morune seria a
+//! janela fechando sozinha.
+//!
+//! Por isso o login pergunta primeiro ao `/v1/me` -- por HTTP, com o token
+//! OAuth, sem a librespot no caminho -- e so entrega a conta a ela quando o
+//! plano permite. Quem nao pode entrar recebe uma frase que explica o porque.
 
 use std::sync::{Arc, Mutex};
 
@@ -22,8 +38,10 @@ use morune_core::auth::{Authenticator, CredentialStore, UserProfile};
 use morune_core::catalog::BoxFuture;
 use morune_core::{CoreError, CoreResult};
 
+use crate::dto::MeDto;
 use crate::error::{from_librespot, from_oauth};
 use crate::token::{REDIRECT_URI, TokenSource};
+use crate::webapi::WebApi;
 
 /// Sessao ativa da librespot, compartilhada entre autenticador e motor.
 ///
@@ -54,6 +72,8 @@ impl std::fmt::Debug for SharedSession {
 pub struct SpotifyAuthenticator {
     tokens: Arc<TokenSource>,
     session: SharedSession,
+    /// Fala com o `/v1/me` antes de haver sessao. Ver o cabecalho do modulo.
+    api: WebApi,
     /// Token do login em andamento, entre `begin_login` e `complete_login`.
     pending: Mutex<Option<OAuthToken>>,
 }
@@ -70,32 +90,63 @@ impl SpotifyAuthenticator {
     }
 
     pub(crate) fn with_tokens(tokens: Arc<TokenSource>, session: SharedSession) -> Self {
-        Self { tokens, session, pending: Mutex::new(None) }
+        let api = WebApi::new(session.clone(), tokens.clone());
+        Self { tokens, session, api, pending: Mutex::new(None) }
     }
 
     /// Abre a sessao da librespot com um token de acesso e devolve o perfil.
+    ///
+    /// O plano da conta e checado antes de a librespot ver a credencial. Ver o
+    /// cabecalho do modulo: para uma conta gratuita, a ordem inversa nao
+    /// devolveria erro nenhum -- encerraria o aplicativo.
     async fn connect(&self, token: OAuthToken) -> CoreResult<UserProfile> {
+        // O token precisa estar disponivel para o `/v1/me`, e este e o unico
+        // ponto antes da sessao existir. Se a conta for recusada logo abaixo, o
+        // segredo e esquecido junto.
+        self.tokens.adopt(token.clone()).await;
+
+        let me: MeDto = match self.api.get("/v1/me").await {
+            Ok(me) => me,
+            Err(e) => {
+                self.tokens.forget().await.ok();
+                return Err(e);
+            }
+        };
+
+        if !me.can_stream() {
+            self.tokens.forget().await.ok();
+            return Err(CoreError::AccountPlan(format!(
+                "O Spotify so entrega musica para contas Premium, e esta e {}.                  O Morune nao consegue tocar sem isso.",
+                me.plan()
+            )));
+        }
+
         let session = Session::new(SessionConfig::default(), None);
-        session
-            .connect(Credentials::with_access_token(&token.access_token), false)
-            .await
-            .map_err(from_librespot)?;
+        if let Err(e) = session.connect(Credentials::with_access_token(&token.access_token), false).await
+        {
+            self.tokens.forget().await.ok();
+            return Err(from_librespot(e));
+        }
 
         let data = session.user_data();
         let profile = UserProfile {
-            id: data.canonical_username.clone(),
-            display_name: Some(data.canonical_username.clone()).filter(|s| !s.is_empty()),
-            avatar_url: None,
-            country: Some(data.country.clone()).filter(|s| !s.is_empty()),
-            // `can_stream` decide se a UI oferece reproducao. A librespot so
-            // conecta contas que podem tocar, entao chegar aqui ja e a resposta.
+            id: me.id.clone().unwrap_or_else(|| data.canonical_username.clone()),
+            // O nome que o `/v1/me` devolve e o que a pessoa escolheu mostrar; o
+            // da sessao e o identificador tecnico. Na barra lateral, o primeiro.
+            display_name: me
+                .display_name
+                .clone()
+                .filter(|s| !s.is_empty())
+                .or_else(|| Some(data.canonical_username.clone()).filter(|s| !s.is_empty())),
+            avatar_url: me.avatar(),
+            country: me
+                .country
+                .clone()
+                .filter(|s| !s.is_empty())
+                .or_else(|| Some(data.country.clone()).filter(|s| !s.is_empty())),
             can_stream: true,
         };
 
-        // O token so e adotado depois de a conexao dar certo: guardar o segredo
-        // de um login que nao abriu sessao faria a proxima abertura tentar de
-        // novo o que ja se sabe que nao funciona.
-        self.tokens.adopt(token).await;
         self.session.set(Some(session));
         Ok(profile)
     }

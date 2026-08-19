@@ -6,19 +6,25 @@
 //!
 //! Duas escolhas evitam peso:
 //!
-//! - o cliente HTTP e o **da propria sessao** da librespot. Ele ja resolve TLS,
-//!   proxy, `User-Agent` e limite de requisicoes. Trazer um segundo cliente
-//!   (`reqwest` proprio, por exemplo) duplicaria a pilha de TLS no binario para
-//!   fazer o que este ja faz;
+//! - o cliente HTTP e o **da librespot**, e nao um `reqwest` proprio. Ele ja
+//!   resolve TLS, proxy, `User-Agent` e limite de requisicoes; trazer um
+//!   segundo cliente duplicaria a pilha de TLS no binario para fazer o que este
+//!   ja faz;
 //! - a resposta e desserializada direto para os tipos de
 //!   [`crate::catalog`], sem passar por `serde_json::Value`. Uma playlist de mil
 //!   faixas nao pode virar uma arvore de `Value` antes de virar dado util.
+//!
+//! O cliente e **proprio deste modulo**, e nao o da sessao, por um motivo que
+//! nao e estetico: a primeira requisicao que o Morune faz acontece **antes** de
+//! haver sessao. E a que descobre o plano da conta, e ela precisa de resposta
+//! antes de a librespot ver a conta -- ver [`crate::auth`].
 
 use std::sync::Arc;
 
 use bytes::Bytes;
 use http::header::{ACCEPT, AUTHORIZATION};
 use http::{Method, Request};
+use librespot_core::http_client::HttpClient;
 use morune_core::{CoreError, CoreResult};
 use serde::de::DeserializeOwned;
 
@@ -31,6 +37,8 @@ const BASE: &str = "https://api.spotify.com";
 
 /// Cliente autenticado do Web API.
 pub(crate) struct WebApi {
+    http: HttpClient,
+    /// So para descobrir o mercado da conta. O transporte nao depende dela.
     session: SharedSession,
     tokens: Arc<TokenSource>,
 }
@@ -43,7 +51,7 @@ impl std::fmt::Debug for WebApi {
 
 impl WebApi {
     pub(crate) fn new(session: SharedSession, tokens: Arc<TokenSource>) -> Self {
-        Self { session, tokens }
+        Self { http: HttpClient::new(None), session, tokens }
     }
 
     /// Pais da conta, no formato que o Web API chama de `market`.
@@ -78,7 +86,6 @@ impl WebApi {
     }
 
     async fn send(&self, path: &str) -> CoreResult<Bytes> {
-        let session = self.session.get().ok_or(CoreError::NotAuthenticated)?;
         let bearer = self.tokens.bearer().await?;
 
         let request = Request::builder()
@@ -89,7 +96,7 @@ impl WebApi {
             .body(Bytes::new())
             .map_err(|e| CoreError::InvalidState(format!("requisicao invalida: {e}")))?;
 
-        session.http_client().request_body(request).await.map_err(from_librespot)
+        self.http.request_body(request).await.map_err(from_librespot)
     }
 }
 

@@ -59,6 +59,40 @@ Versionamento semantico.
 - O campo `format` do rootlist separa o que o usuario criou do que o Spotify
   montou; as editoriais, que nao trazem `format`, aparecem pelo dono `spotify`.
 
+**Qualquer pessoa consegue entrar**
+- **Conta nao-Premium deixou de matar o aplicativo.** `check_catalogue`, em
+  `librespot-core`, chama `exit(1)` ao ver uma conta que nao e Premium: sem
+  erro, sem mensagem, a janela sumia. Como a maioria das contas do Spotify e
+  gratuita e qualquer pessoa pode clicar em "Entrar", essa era a primeira
+  experiencia possivel com o Morune. O login agora pergunta ao `/v1/me` antes de
+  entregar a credencial a librespot, e recusa com uma frase que explica o
+  motivo.
+- `CoreError::AccountPlan`, para "o login funcionou mas o plano nao permite" --
+  que nao e o mesmo que credencial recusada, porque entrar de novo nao resolve.
+- **Porta de retorno ocupada deixou de ser reportada como falha de rede.** Quem
+  tivesse a `5588` em uso era mandado "verificar a internet", que e o lugar
+  errado para procurar.
+- O perfil passou a vir do `/v1/me`: nome de exibicao escolhido pela pessoa em
+  vez do identificador tecnico, e avatar, escolhido no menor tamanho que sirva
+  para a barra lateral.
+- README ganhou **Como entrar na sua conta**: nao ha cadastro, nao ha servidor
+  do Morune no meio, e nao e preciso registrar aplicativo nenhum no Spotify para
+  usar nem para compilar.
+
+**Corrigido**
+- **Recolher a barra lateral quebrava o visual.** O botao encolhia a caixa para
+  a largura de icone, mas os rotulos, o nome "Morune" e o botao de entrar
+  seguiam desenhados: eram controlados por `sidebar-labels`, que e escolha do
+  tema e nao muda quando o usuario recolhe. O resultado era texto de 210 px
+  espremido em 60 px. `Layout` ganhou `sidebar-labels-shown`, que so e verdadeiro
+  quando o tema permite **e** a barra nao esta recolhida.
+- Recolhida, a marca e o botao de expandir agora empilham, porque nao cabem lado
+  a lado; e o botao aparece mesmo em tema com `collapsible = false`, senao nao
+  haveria como voltar.
+- Recolhida, os icones passam a ser desenhados mesmo em tema com
+  `show_icons = false`: sem rotulo e sem icone, a navegacao virava tres linhas
+  clicaveis e vazias.
+
 **Interface**
 - **Inicio deixou de ser uma grade e virou cinco prateleiras**: Feito para voce,
   Tocadas recentemente, Musicas curtidas, Seus mais ouvidos e Suas playlists.
@@ -109,7 +143,9 @@ Versionamento semantico.
 ### Nao verificado ainda
 Nada do backend de Spotify pode ser declarado funcionando: falta o login
 interativo com uma conta Premium real. O que existe hoje e codigo que compila,
-196 testes passando e clippy limpo com `-D warnings`.
+204 testes passando e clippy limpo com `-D warnings`. O estado recolhido da
+barra lateral foi verificado por captura de tela, com o defeito reproduzido
+antes da correcao.
 
 Duas incognitas dependem desse primeiro login: se o client ID do cliente oficial
 escapa da restricao de 2024, e qual campo o rootlist preenche de verdade nas
