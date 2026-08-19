@@ -244,12 +244,19 @@ Duas consequencias praticas, e as duas valem para o ciclo 2:
   nenhuma faz sentido sem reproducao real. Ver o criterio em
   [PERFORMANCE.md](../PERFORMANCE.md).
 
+**Publicacao — decidida em 19/08/2026.** O repositorio fica privado ate haver uma
+**v1 pronta**. Nao e indefinicao: e a ordem certa, porque publicar cedo demais
+convida issue e pull request para um aplicativo que ainda nao foi visto tocando
+uma musica sequer. A consequencia esta na entrada seguinte -- assinatura de
+codigo depende de publicar, entao ela tambem espera a v1.
+
 **Assinatura de codigo.** O instalador nao e assinado e o SmartScreen avisa em
 toda instalacao. **Nao e questao de dinheiro:** o SignPath Foundation assina de
 graca projetos open source que se qualifiquem, e o Morune ja cumpre a licenca
 (MIT) e a ausencia de componente proprietario. Falta o que a candidatura exige e
 o projeto ainda nao tem: repositorio publico e uma versao lancada. Ou seja, isto
-depende de publicar, nao de comprar.
+depende de publicar, nao de comprar -- e publicar ficou para a v1, pela decisao
+acima.
 
 O pipeline ja esta pronto para qualquer caminho: `build-installer.ps1` chama
 `tools/sign.ps1` no executavel e no instalador, e basta definir
