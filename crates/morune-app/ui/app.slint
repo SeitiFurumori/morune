@@ -21,6 +21,8 @@ export struct CardItem {
     id: string,
     title: string,
     subtitle: string,
+    // Capa ja em disco. Vazia enquanto o cache nao a entrega.
+    cover: image,
 }
 
 export struct ThemeItem {
@@ -207,6 +209,7 @@ component Card inherits Rectangle {
 
         Artwork {
             seed: root.item.title;
+            source: root.item.cover;
             width: parent.width - Theme.space-sm * 2;
             height: self.width;
         }

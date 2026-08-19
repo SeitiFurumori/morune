@@ -118,6 +118,10 @@ impl AppState {
         queue.set_shuffle(config.playback.shuffle);
         queue.set_repeat(config.playback.repeat);
 
+        // A pasta do cache de capas e lida antes de `paths` ser movido para o
+        // estado.
+        let covers_dir = paths.artwork_cache_dir();
+
         Self {
             volume: config.playback.volume,
             paths,
@@ -131,7 +135,10 @@ impl AppState {
             // preferencias e recusa reproducao, sem que a interface precise
             // tratar "sem motor" em lugar nenhum.
             engine: Arc::new(NullEngine::new("entre na sua conta para tocar musica")),
-            session: Session::new(Arc::from(morune_storage::platform_store())),
+            session: Session::new(
+                Arc::from(morune_storage::platform_store()),
+                covers_dir,
+            ),
             player_events: None,
             search: TrackList::default(),
             liked: TrackList::default(),
@@ -194,6 +201,8 @@ impl AppState {
             changed |= self.apply_player_event(event);
         }
 
+        changed |= self.poll_covers();
+
         changed
     }
 
@@ -220,8 +229,12 @@ impl AppState {
                     TrackList { origin: QueueOrigin::Custom("Musicas curtidas".into()), tracks: liked };
                 self.home_top_artists = top_artists;
                 self.home_playlists = playlists;
+                self.resolve_covers();
             }
-            Outcome::Library(cards) => self.library = cards,
+            Outcome::Library(cards) => {
+                self.library = cards;
+                self.resolve_covers();
+            }
             Outcome::Context { origin, title, tracks } => {
                 if tracks.is_empty() {
                     self.status = format!("{title} nao tem nada que o Morune consiga tocar.");
@@ -239,6 +252,50 @@ impl AppState {
                 self.status = message;
             }
         }
+    }
+
+    /// Resolve a capa de cada cartao visivel.
+    ///
+    /// O que ja esta em disco entra no mesmo quadro em que a lista aparece;
+    /// o resto e pedido e chega depois, por [`AppState::poll_covers`].
+    fn resolve_covers(&mut self) {
+        let Some(browse) = self.session.browse_mut() else { return };
+
+        // Emprestar cada lista separadamente evita mover os cartoes so para
+        // preencher um campo.
+        browse.resolve_covers(&mut self.home_made_for_you);
+        browse.resolve_covers(&mut self.home_top_artists);
+        browse.resolve_covers(&mut self.home_playlists);
+        browse.resolve_covers(&mut self.library);
+    }
+
+    /// Recolhe as capas que terminaram de baixar e liga cada uma ao cartao.
+    ///
+    /// Devolve `true` quando alguma chegou. Roda a cada 100 ms junto com o
+    /// resto, entao o caminho comum -- nenhuma capa pronta -- sai daqui sem
+    /// percorrer lista nenhuma.
+    fn poll_covers(&mut self) -> bool {
+        let Some(browse) = self.session.browse_mut() else { return false };
+
+        let prontas = browse.poll_artwork();
+        if prontas.is_empty() {
+            return false;
+        }
+
+        for ready in prontas {
+            for lista in [
+                &mut self.home_made_for_you,
+                &mut self.home_top_artists,
+                &mut self.home_playlists,
+                &mut self.library,
+            ] {
+                for card in lista.iter_mut().filter(|c| c.cover == ready.url) {
+                    card.cover_path = Some(ready.path.clone());
+                }
+            }
+        }
+
+        true
     }
 
     /// Pede ao backend o que a tela aberta mostra, se ainda nao pediu.
@@ -791,9 +848,30 @@ fn card_items(cards: &[Card]) -> ModelRc<ui::CardItem> {
             id: c.tag.as_str().into(),
             title: c.title.as_str().into(),
             subtitle: c.subtitle.as_str().into(),
+            cover: cover_image(c.cover_path.as_deref()),
         })
         .collect();
     ModelRc::new(VecModel::from(items))
+}
+
+/// Carrega a capa do arquivo, ou devolve uma imagem vazia.
+///
+/// Imagem vazia nao e falta de tratamento: e o que faz o cartao mostrar o
+/// bloco neutro no lugar, sem mudar o layout quando a capa de verdade chegar.
+///
+/// A decodificacao acontece na thread da interface, e e barata o bastante para
+/// isso: sao arquivos de 300 px que o Slint mantem em cache proprio depois do
+/// primeiro carregamento.
+fn cover_image(path: Option<&std::path::Path>) -> slint::Image {
+    let Some(path) = path else { return slint::Image::default() };
+
+    slint::Image::load_from_path(path).unwrap_or_else(|e| {
+        // Arquivo truncado ou formato inesperado: o cartao fica sem capa e o
+        // aplicativo segue. Trocar isto por `expect` derrubaria a tela por
+        // causa de um JPEG ruim.
+        tracing::debug!(path = %path.display(), error = ?e, "capa nao decodificou");
+        slint::Image::default()
+    })
 }
 
 /// Formata uma duracao como `m:ss`, ou `h:mm:ss` quando passa de uma hora.

@@ -79,11 +79,19 @@ impl std::fmt::Debug for Session {
 impl Session {
     /// Sobe o backend. Nao toca a rede: falhar aqui nao pode impedir o
     /// aplicativo de abrir, entao o erro vira estado, nao panico.
-    pub fn new(credentials: Arc<dyn morune_core::auth::CredentialStore>) -> Self {
+    pub fn new(
+        credentials: Arc<dyn morune_core::auth::CredentialStore>,
+        covers_dir: std::path::PathBuf,
+    ) -> Self {
         match SpotifyBackend::new(credentials) {
             Ok(backend) => {
-                let browse =
-                    Browse::new(backend.catalog(), backend.library(), backend.handle());
+                let browse = Browse::new(
+                    backend.catalog(),
+                    backend.library(),
+                    backend.artwork(),
+                    covers_dir,
+                    backend.handle(),
+                );
                 Self {
                     backend: Some(backend),
                     state: SessionState::LoggedOut,
@@ -213,6 +221,10 @@ impl Session {
                 })
             }
             Outcome::Restored(Err(e)) | Outcome::LoggedIn(Err(e)) => {
+                // Sem isto a barra de status diz "verifique a internet" e o
+                // motivo real -- porta ocupada, plano recusado, token negado,
+                // resposta fora do formato -- nao aparece em lugar nenhum.
+                tracing::error!(error = %e, "login no Spotify falhou");
                 let message = describe(&e);
                 self.state = SessionState::Failed(message.clone());
                 Some(SessionChange { message, engine: None })
@@ -266,7 +278,7 @@ mod tests {
     use morune_core::auth::MemoryCredentialStore;
 
     fn session() -> Session {
-        Session::new(Arc::new(MemoryCredentialStore::default()))
+        Session::new(Arc::new(MemoryCredentialStore::default()), std::env::temp_dir())
     }
 
     #[test]
