@@ -125,6 +125,29 @@ impl Session {
         self.pending.is_some()
     }
 
+    /// Reabre a sessao quando ela caiu, sem pedir nada ao usuario.
+    ///
+    /// A conexao com o Spotify nao dura para sempre: ele derruba sessao ociosa,
+    /// e a rede cai sozinha. Sem isto, a partir da queda **tudo** respondia
+    /// `channel closed` ate o usuario reiniciar o aplicativo -- e nada na tela
+    /// dizia que era so reconectar.
+    ///
+    /// Devolve `true` quando comecou uma tentativa. O refresh token esta no
+    /// cofre, entao a volta e silenciosa: sem navegador, sem clique.
+    pub fn reconnect_if_lost(&mut self) -> bool {
+        let Some(backend) = &self.backend else { return false };
+        if self.pending.is_some() || !backend.session_lost() {
+            return false;
+        }
+
+        // Sem descartar a sessao morta, `restore` a encontraria de novo e o
+        // aplicativo ficaria tentando para sempre.
+        backend.forget_lost_session();
+        tracing::info!("sessao do Spotify caiu; reconectando");
+        self.restore();
+        true
+    }
+
     /// Tenta reabrir a ultima sessao, sem interacao.
     ///
     /// Chamado uma vez na abertura. Nada acontece se nao houver segredo

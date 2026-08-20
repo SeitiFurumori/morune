@@ -57,8 +57,31 @@ use crate::token::{REDIRECT_URI, TokenSource};
 pub struct SharedSession(Arc<Mutex<Option<Session>>>);
 
 impl SharedSession {
+    /// A sessao, se houver uma **viva**.
+    ///
+    /// Sessao invalidada nao serve para nada: a librespot fecha os canais e
+    /// toda requisicao passa a responder `channel closed`, que na tela virava
+    /// "estado invalido" sem dizer o que fazer. Devolver `None` faz o erro
+    /// virar [`CoreError::NotAuthenticated`], que a interface ja sabe tratar.
     pub fn get(&self) -> Option<Session> {
-        self.0.lock().unwrap().clone()
+        self.0.lock().unwrap().clone().filter(|s| !s.is_invalid())
+    }
+
+    /// `true` quando havia sessao e ela morreu.
+    ///
+    /// Diferente de nunca ter entrado: aqui houve login, e a conexao caiu -- o
+    /// Spotify derruba sessao ociosa, e a rede cai sozinha. Quem le isto e o
+    /// aplicativo, para reconectar sem pedir nada ao usuario.
+    pub fn is_lost(&self) -> bool {
+        self.0.lock().unwrap().as_ref().is_some_and(|s| s.is_invalid())
+    }
+
+    /// Esquece a sessao morta, para que a proxima tentativa comece limpa.
+    pub fn forget_lost(&self) {
+        let mut guarda = self.0.lock().unwrap();
+        if guarda.as_ref().is_some_and(|s| s.is_invalid()) {
+            *guarda = None;
+        }
     }
 
     fn set(&self, session: Option<Session>) {
