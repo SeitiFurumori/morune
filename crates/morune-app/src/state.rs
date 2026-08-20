@@ -470,13 +470,18 @@ impl AppState {
     /// de tocar a terceira linha, e nao a terceira da lista original que o
     /// filtro escondeu.
     pub fn activate_detail(&mut self, tag: &str) {
-        let Some(index) = self
-            .detail_tracks()
-            .iter()
-            .position(|t| t.id.canonical() == tag || t.id.id.as_ref() == tag)
-        else {
+        // A linha chega com a forma completa -- `track/spotify:<id>` --, e nao
+        // com o id cru: comparar com o id direto nunca casava, e o clique saia
+        // sem tocar nada. Passar pelo `parse` e o que garante que os dois lados
+        // falem a mesma lingua, hoje e quando a forma mudar.
+        let Some(Target::Track(alvo)) = Target::parse(tag) else {
             return;
         };
+
+        let Some(index) = self.detail_tracks().iter().position(|t| t.id == alvo) else {
+            return;
+        };
+
         self.play_detail_from(index);
     }
 

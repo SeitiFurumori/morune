@@ -1,7 +1,8 @@
 # Estado do projeto e proximo passo
 
-Documento de retomada. Escrito em 18/08/2026 ao fim do ciclo 1, e revisto em
-19/08/2026, quando o backend de Spotify ficou de pe.
+Documento de retomada. Escrito em 18/08/2026 ao fim do ciclo 1, revisto em
+19/08/2026 quando o backend de Spotify ficou de pe, e de novo no mesmo dia
+quando ele **precisou ser refeito** -- ver a secao do Web API.
 
 Quem chegar aqui numa sessao nova deve ler este arquivo primeiro, depois
 [ARCHITECTURE.md](../ARCHITECTURE.md) e [ROADMAP.md](../ROADMAP.md).
@@ -10,43 +11,72 @@ Quem chegar aqui numa sessao nova deve ler este arquivo primeiro, depois
 
 ## Onde o projeto esta
 
-Ciclo 1 concluido e verificado. Ciclo 2 **escrito e compilando, ainda nao
-verificado** -- ver o bloqueio logo abaixo.
+Ciclo 1 concluido e verificado. Ciclo 2 **verificado contra uma conta Premium
+real** em 19/08/2026, depois de o Web API do Spotify parar de responder e o
+catalogo inteiro ser reescrito sobre o protocolo interno.
 
 | | |
 |---|---|
 | Instalador | 4,00 MB, `dist/Morune-0.1.0-setup.exe` (medido no ciclo 1) |
-| Executavel | 9,39 MB, `target/release/morune.exe` (medido no ciclo 1) |
-| Startup interno | 18 ms |
-| RAM em repouso | 70,6 MB |
-| CPU em repouso | 0,00% |
-| Testes | 196, todos passando |
+| Executavel | 13,0 MB, `target/release/morune.exe` |
+| Startup interno | 17-18 ms |
+| RAM em repouso | 70,6 MB (medido no ciclo 1) |
+| Testes | 212, todos passando |
 | Clippy | limpo com `-D warnings` |
 
-**Verificado:** interface completa, tres temas trocaveis em execucao,
-import/export `.musicpack`, configuracao persistente, cofre de credenciais do
-Windows, fechar para a bandeja mantendo o processo vivo, instalador com escolha
-de disco, identidade visual em todos os lugares que o Windows mostra o
-aplicativo.
+### Verificado contra a conta real
 
-**Escrito e coberto por teste de unidade, mas nunca exercitado contra o
-Spotify:** login OAuth PKCE, reproducao sobre a librespot, busca, e as cinco
-prateleiras do Inicio -- Feito para voce, Tocadas recentemente, Musicas
-curtidas, Seus mais ouvidos e Suas playlists -- alem da Biblioteca com
-playlists, albuns salvos e artistas seguidos. O `NullEngine` continua sendo o motor ate o
-login dar certo -- ele aceita preferencias e recusa reproducao de forma
-explicita, entao a interface nunca fica sem motor.
+Login OAuth PKCE com reconexao pelo cofre; reproducao com som saindo; busca;
+playlists, curtidas e artistas seguidos; capas; abrir uma playlist, filtrar,
+ordenar e tocar a faixa escolhida.
 
-**O que ainda nao existe:** radio e autoplay, capas (nem download nem cache),
-paginacao das telas de conteudo, e tela propria de album, artista ou playlist --
-ativar um card toca direto, sem passar por uma tela de detalhe.
+### O que existe agora e nao existia
 
-### O bloqueio
+**Log em arquivo.** O build de release e `windows_subsystem = "windows"` e roda
+sem console: tudo que o `tracing` escrevia em `stdout` era descartado em
+silencio. Agora vai para `%APPDATA%\morune\Morune\data\morune.log`, com teto
+de 4 MB e rotacao. **E o primeiro lugar a olhar quando algo falhar.**
 
-O login e interativo e exige uma conta Premium. Nenhuma linha do ciclo 2 pode
-ser declarada funcionando antes de o Felipe entrar com a conta dele e ouvir som
-sair. O roteiro minimo de verificacao esta em
-[Como verificar o ciclo 2](#como-verificar-o-ciclo-2).
+**Copia da librespot em `vendor/`.** Um metodo alterado, para que conta
+gratuita nao encerre o processo. Ver [vendor/README.md](../vendor/README.md).
+
+**Catalogo sobre o protocolo interno.** `webapi.rs` e `dto.rs` deixaram de
+existir. Busca vai pelo `pathfinder`; playlists, metadado, colecao, capas e
+radio vao pela `spclient` e pelo mercury.
+
+**Capas**, com cache em disco de teto explicito e descarte por LRU.
+
+**Playlists na barra lateral**, com filtro, porque o `rootlist` *e* a barra
+lateral do Spotify. Musicas curtidas em primeiro.
+
+**Tela de detalhe.** Ativar um card abre a lista em vez de tocar direto, com
+filtro e ordenacao.
+
+### Tres defeitos que so a conta real revelou, e que valem como aviso
+
+Os tres tinham a mesma forma: o codigo estava certo isoladamente, e a ligacao
+entre duas pontas e que estava errada. Nenhum apareceria em teste de unidade
+escrito depois do fato -- todos apareceram na tela.
+
+1. **A extensao do arquivo de cache.** O decodificador do Slint escolhe o
+   formato pelo nome, nao pelo conteudo: capas gravadas como `.img` eram JPEG
+   validos que nunca abriam. Hoje a extensao sai da assinatura dos bytes.
+2. **A ordem do `extended-metadata`.** A resposta nao volta na ordem pedida, e
+   o pedido sai em lotes de 50. Acumular na ordem de chegada embaralhava
+   qualquer playlist e desfazia a ordenacao por data das curtidas.
+3. **A forma textual do alvo.** A lista manda `track/spotify:<id>` e o codigo
+   comparava com o id cru: o clique nao achava a faixa e nada acontecia, sem
+   erro nenhum. Ha teste de ida e volta agora.
+
+### O que ainda nao existe
+
+- **radio e autoplay** -- o silencio quando a fila acaba;
+- **albuns salvos, mais ouvidos e tocadas recentemente** -- sem caminho
+  conhecido, recusam com `Unsupported` e a interface esconde a secao;
+- **discografia e faixas populares** na tela do artista;
+- **aviso de corte** na tela de detalhe, que carrega ate 200 faixas;
+- **capa em `TrackRow`** -- so cartoes, lateral e barra de reproducao tem;
+- **escrita na conta** -- o Morune so le: nao curte, nao reordena, nao remove.
 
 ---
 
@@ -75,29 +105,30 @@ cargo update -p vergen --precise 9.0.6
 
 ## Como o backend de Spotify esta montado
 
-Duas conexoes, uma sessao so:
+Tudo sai de **uma sessao da librespot**. O Web API saiu do desenho.
 
 ```text
-  morune-app                       morune-spotify
-  ----------                       --------------
-  Session   -- login/logout -->    SpotifyAuthenticator ---+
-  Browse    -- busca/lista -->     SpotifyCatalog ------+  |  mesma
-  AppState  -- comandos ---->      SpotifyEngine -----+ |  |  Session
-                                                      v v  v
-                                          librespot (audio) + Web API (catalogo)
+  morune-app                    morune-spotify           de onde vem
+  ----------                    --------------           -----------
+  Session  -- login -------->   SpotifyAuthenticator  \
+  Browse   -- busca -------->   Pathfinder            |   api-partner
+           -- listas ------->   Internal              |   spclient + mercury
+           -- capas -------->   SpotifyArtwork        |   i.scdn / pickasso
+  AppState -- comandos ---->    SpotifyEngine         /   audio
+                                       |
+                                  SharedSession
 ```
 
-- **`token.rs`** e a fonte unica de token. Login e catalogo pedem token ao mesmo
-  lugar, a renovacao acontece sob trava, e o refresh token mora no Gerenciador
-  de Credenciais. Sem isso, o catalogo renovaria por conta propria e a conta
-  acumularia tokens vivos.
+- **`token.rs`** guarda o token do OAuth e o refresh no Gerenciador de
+  Credenciais. So o **login** usa: depois que a sessao existe, tudo mais e
+  assinado pelos tokens que a propria librespot renova (`login5` e o client
+  token).
 - **`engine.rs`** fala o protocolo da librespot: e de la que sai o audio.
-- **`catalog.rs` + `webapi.rs` + `dto.rs`** falam o Web API por HTTP: e de la
-  que saem busca e biblioteca. Nao e escolha -- o protocolo da librespot nao tem
-  busca. O cliente HTTP e o da propria sessao, para nao duplicar a pilha de TLS
-  no binario.
-- **`internal.rs`** fala o protocolo interno para o que o Web API deixou de
-  entregar. Ver a secao abaixo.
+- **`pathfinder.rs` + `graphql.rs`** falam o `api-partner` por GraphQL: e de
+  la que sai a **busca**, e so ela. Traz divida -- ver abaixo.
+- **`internal.rs`** e o resto: playlists, metadado em lote, colecao, capas,
+  album, artista. Protobuf tipado pela propria librespot.
+- **`artwork.rs`** baixa capa; quem guarda e o aplicativo, com teto e LRU.
 - No aplicativo, **`browse.rs`** e a ponte: cada pedido vira tarefa no runtime
   do backend e o resultado e recolhido no temporizador de 100 ms que ja atende
   bandeja e reproducao. Um pedido de cada vez, e o ultimo ganha -- e o
@@ -230,69 +261,109 @@ que explica o motivo. Ver o cabecalho de `crates/morune-spotify/src/auth.rs`.
 `check_catalogue`. Se o Spotify rebaixar o plano no meio de uma sessao ja aberta,
 o processo ainda morre. Nao ha como contornar sem alterar a librespot.
 
-### Duas incognitas que so o primeiro login resolve
+### Duas incognitas -- respondidas em 19/08/2026
 
-1. **O client ID que usamos e o do cliente oficial de desktop.** Aplicativos com
-   acesso estendido anterior a 2024 nao foram afetados. Se esse client ID for
-   tratado assim, os endpoints fechados podem simplesmente responder -- vale
-   testar `/v1/recommendations` uma vez antes de assumir que morreu.
-2. **Se as playlists algoritmicas aparecem no rootlist com `format`
-   preenchido.** O caminho esta escrito e compila; qual campo o servidor
-   preenche de verdade so se ve com uma conta na mao.
+1. **O client ID do cliente oficial de desktop nao tem acesso estendido.** Ele
+   serve ao protocolo interno e leva 429 em qualquer caminho do Web API. Nao
+   ha o que testar de novo.
+2. **As playlists algoritmicas aparecem sim com `format` preenchido**, e o
+   valor e util: `daily-mix`, `discover-weekly`, `blend`, `topic-mix`,
+   `inspiredby-mix`, `artist-mix-reader`, `wrapped-*`, `all-time-top-songs-*`,
+   `editorial`, `artistsets`. E o que alimenta a classificacao do Inicio --
+   ver `PlaylistSummary::kind`.
 
-## Como verificar o ciclo 2
+## Roteiro de verificacao
 
-Nesta ordem, porque cada passo depende do anterior:
+Feito em 19/08/2026 contra uma conta Premium real. Repetir depois de mexer no
+backend -- nesta ordem, porque cada passo depende do anterior.
 
-1. `. .\tools\env.ps1` e `cargo run --release`.
+1. `. .	oolsenv.ps1` e `cargo run --release`.
 2. Configuracoes -> **Entrar no Spotify**. O navegador abre; autorize. A barra
    de status deve dizer "Conectado como ...".
-3. Feche e abra o aplicativo. Tem de reconectar sozinho, sem navegador: e o
-   refresh token vindo do cofre.
-4. **Inicio** deve mostrar cinco prateleiras: Feito para voce, Tocadas
-   recentemente, Musicas curtidas, Seus mais ouvidos e Suas playlists. Uma
-   prateleira vazia nao e defeito da tela: e aquela fonte que nao respondeu, e o
-   log em `MORUNE_LOG=debug` diz qual.
-5. **Abrir Descobertas da Semana** na prateleira "Feito para voce". E o teste do
-   caminho interno: pelo Web API ela responde 404.
-6. **Biblioteca**: playlists, albuns salvos e artistas seguidos.
-7. **Buscar** uma musica e clicar nela: som. Depois "proxima" tem de andar pelos
-   resultados da busca, e nao parar. O mesmo vale para clicar numa faixa de
-   "Musicas curtidas" ou "Tocadas recentemente": a prateleira inteira vira a
-   fila.
-8. Clicar num card de album ou playlist: toca a primeira faixa, e a Fila mostra
-   o resto.
-9. Deixar uma faixa acabar sozinha, com repeticao em "uma": tem de repetir, nao
-   pular. E o unico jeito de verificar o `user_advance = false`.
-10. Fechar a janela com "continuar tocando ao fechar" ligado: o som continua e a
-    bandeja mostra a faixa.
-11. **Medir de novo** com `.\tools\measure.ps1` e atualizar
-   [PERFORMANCE.md](../PERFORMANCE.md) -- agora com CPU e GPU **tocando**, que e
-   o criterio que passou a valer.
+3. Feche e abra. Tem de reconectar sozinho, sem navegador: e o refresh token
+   vindo do cofre.
+4. **Barra lateral**: Musicas curtidas em primeiro, depois as playlists na
+   ordem do Spotify. Digitar no filtro esconde o que nao combina.
+5. **Inicio**: Musicas curtidas, Feito para voce, Estacoes recomendadas, Seus
+   mais ouvidos. Prateleira vazia nao e defeito da tela -- e aquela fonte que
+   nao respondeu, e `MORUNE_LOG=debug` diz qual.
+6. **Abrir Descobertas da Semana**. E o teste do caminho interno: pelo Web API
+   ela responde 404.
+7. **Buscar** uma musica: e o unico teste do pathfinder. Se a busca vier vazia
+   sem erro, o primeiro suspeito e o hash da consulta persistida.
+8. **Abrir uma playlist**: capa, nome, lista. Clicar numa faixa toca **aquela**
+   faixa. Filtrar e clicar tem de tocar a faixa filtrada, e nao a da mesma
+   posicao na lista sem filtro.
+9. **Curtidas**: a primeira tem de ser a mais recente. Foi o defeito mais
+   discreto de todos -- a lista parecia certa, so estava desatualizada.
+10. **Capas**: parte das playlists mostra imagem, o resto mostra a marca. A
+    faixa tocando tem capa na barra de baixo.
+11. Deixar uma faixa acabar sozinha, com repeticao em "uma": tem de repetir,
+    nao pular. E o unico jeito de verificar o `user_advance = false`.
+12. Fechar a janela com "continuar tocando ao fechar" ligado: o som continua e
+    a bandeja mostra a faixa.
+13. **Medir de novo** com `.	oolsmeasure.ps1` e atualizar
+    [PERFORMANCE.md](../PERFORMANCE.md) -- agora com CPU e GPU **tocando**, que
+    e o criterio que passou a valer. **Ainda nao foi feito.**
 
-O que falhar aqui e trabalho do proximo ciclo, nao defeito de projeto: nada
-disto passou por uma conta real ainda.
+---
 
-## Depois disso
+## O proximo passo: radio e autoplay
 
-1. **Radio e autoplay.** E o que sobra de "recomendacao" depois de 2024, e o
-   caminho e o interno: `spclient.get_radio_for_track` e `get_apollo_station`,
-   que a librespot ja expoe. Resolve duas coisas de uma vez -- "tocar
-   parecidas" a partir de uma faixa, e o silencio quando a fila acaba.
-   **Atencao:** diferente do rootlist, essas duas respondem JSON sem tipo na
-   librespot. O formato precisa ser visto uma vez com uma conta real antes de
-   escrever o parser, senao vira adivinhacao.
-2. **Capas**: download, cache em disco com teto explicito e descarte por LRU,
-   escolha pelo tamanho de exibicao via `ImageSet::best_for_width`. O modelo ja
-   carrega as URLs e ja as entrega ordenadas da menor para a maior; falta o
-   cache e um lugar na interface para elas -- hoje `CardItem` e `TrackRow` nao
-   tem campo de imagem.
-3. **Paginacao**: `Catalog::playlist_tracks` ja e paginado e nao e usado pela
-   interface. Uma playlist de mil faixas hoje chega cortada nas primeiras 100.
-   As prateleiras do Inicio tambem param no que cabe numa fileira.
-4. **Telas de detalhe** de album, artista e playlist. Hoje ativar um card toca
-   direto, o que resolve ouvir mas nao resolve navegar.
+**E o unico item do ciclo 2 que ficou por fazer, e o mais visivel:** quando a
+fila acaba, o som simplesmente para. Nenhum player faz isso.
 
+Resolve duas coisas de uma vez -- "tocar parecidas" a partir de uma faixa, e o
+silencio no fim da fila -- e e o que sobrou de "recomendacao" depois de 2024.
+
+### O caminho ja esta medido
+
+`spclient.get_radio_for_track` **responde**. Na sonda de 19/08/2026 devolveu:
+
+```json
+{"total": 1, "mediaItems": [{"uri": "spotify:playlist:37i9dQZF1E8JoTa1qkl0zw"}]}
+```
+
+Ou seja: nao devolve faixas, devolve **a URI de uma playlist**. O caminho
+completo e `get_radio_for_track` -> `Internal::playlist` -> `Internal::tracks`,
+e as duas ultimas ja existem e ja estao verificadas.
+
+`get_apollo_station` ainda nao foi sondada.
+
+### O que decidir antes de escrever
+
+1. **Quando dispara.** Automatico ao acabar a fila, ou so por acao explicita
+   ("tocar parecidas")? O Spotify faz automatico e da para desligar. Se for
+   automatico, precisa de chave na configuracao -- ninguem gosta de musica que
+   comeca sozinha sem ter pedido.
+2. **De que semente.** A ultima faixa tocada e o obvio, mas uma playlist inteira
+   tem contexto melhor. A resposta muda o que se passa para `get_radio_for_track`.
+3. **Se entra na fila ou vira contexto novo.** Empurrar na fila atual mantem o
+   historico; trocar o contexto e mais parecido com o que o Spotify faz.
+
+### Armadilha
+
+Diferente do rootlist e do metadado, o radio responde **JSON sem tipo** na
+librespot. O formato acima foi visto uma vez, numa conta, numa faixa. Antes de
+escrever parser, vale sondar de novo com faixas de generos diferentes: um
+campo que aparece so as vezes vira `Option`, e um que muda de forma vira
+defeito em producao.
+
+## Depois do radio
+
+1. **Aviso de corte na tela de detalhe.** Ela carrega ate 200 faixas e nao diz
+   quando cortou. Nas 723 curtidas, o usuario ve 200 e nao sabe.
+2. **Capa em `TrackRow`.** Cartoes, lateral e barra de reproducao ja tem; as
+   linhas de faixa nao.
+3. **Discografia e faixas populares** na tela do artista. O protobuf do artista
+   traz os grupos de album como referencia; montar a lista exige um pedido de
+   metadado por album, e isso ainda nao foi medido.
+4. **Tirar playlists da Biblioteca.** Depois que elas foram para a lateral, a
+   Biblioteca ficou redundante nessa parte -- ela deveria sobrar para album e
+   artista.
+5. **Albuns salvos, mais ouvidos e tocadas recentemente.** Sem caminho
+   conhecido. Talvez existam como operacoes do pathfinder, mas cada uma traria
+   a mesma divida de hash da busca. Nao fazer tambem e resposta.
 ---
 
 ## Decisoes que dependem do Felipe
@@ -319,8 +390,10 @@ Spotify. Os 70,6 MB ficam aceitos como estao.
 
 Duas consequencias praticas, e as duas valem para o ciclo 2:
 
-- o cache de capas nasce com **teto explicito e descarte por LRU**. O que nao
-  pode e crescer sem limite; o valor do teto e livre;
+- o cache de capas nasce com **teto explicito e descarte por LRU**. Feito em
+  19/08/2026: 48 MB, em `crates/morune-app/src/artwork.rs`. O valor era livre e
+  esta escolhido -- cabem cerca de 1.500 capas de 300 px, que e uma biblioteca
+  grande navegada inteira sem baixar duas vezes;
 - as metricas que passam a mandar sao **CPU e GPU em segundo plano** e a
   ausencia de travamento da interface. Nenhuma delas foi medida ainda, porque
   nenhuma faz sentido sem reproducao real. Ver o criterio em
@@ -350,6 +423,19 @@ instalador. Opcoes, precos e requisitos em [assinatura.md](assinatura.md).
 
 ## Divida tecnica conhecida
 
+- **O hash da consulta persistida do pathfinder.** E a divida mais provavel de
+  cobrar: ele acompanha a versao do player web do Spotify e muda sem aviso.
+  Quando mudar, a busca para de responder e o resto continua funcionando --
+  isso e de proposito. Fica em `HASH_BUSCA`, em `pathfinder.rs`.
+- **A copia da librespot em `vendor/`.** Toda atualizacao dela exige refazer a
+  alteracao a mao. Se o projeto original trocar o `exit(1)` por erro -- o
+  proprio codigo tem um `TODO` dizendo que deveria --, a copia some.
+- **A colecao e lida com protobuf sem esquema publicado.** `collection_items`
+  le campo a campo o que a sonda mostrou. Nao ha `.proto` para conferir: se o
+  Spotify mudar a numeracao dos campos, a leitura devolve lista vazia em vez
+  de erro.
+- **A tela de detalhe carrega ate 200 faixas e nao avisa quando corta.** Numa
+  colecao de 723, o usuario ve 200 e nao tem como saber.
 - **~1 s de inicializacao grafica** no ciclo completo do processo. Nao
   investigado. Vale medir quanto e criacao do contexto OpenGL no driver Radeon
   e quanto e o backend winit, antes de tentar otimizar qualquer coisa.

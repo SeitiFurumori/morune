@@ -586,6 +586,36 @@ fn describe(error: &CoreError) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A forma textual e o unico contrato entre a interface e o Rust: a lista
+    /// manda o que o `tag` produziu, e o clique volta com a mesma string. Se as
+    /// duas pontas divergirem, o clique nao acha a faixa e nada acontece -- que
+    /// e exatamente o defeito que a tela de detalhe teve: comparar o texto
+    /// recebido com o id cru nunca casava.
+    #[test]
+    fn what_the_list_sends_is_what_parse_understands() {
+        let id = TrackId::spotify("2JiDi0qAXsPwhPqA2qaKGt");
+        let enviado = Target::Track(id.clone()).tag();
+
+        assert_eq!(enviado, "track/spotify:2JiDi0qAXsPwhPqA2qaKGt");
+        assert_eq!(Target::parse(&enviado), Some(Target::Track(id)));
+    }
+
+    #[test]
+    fn every_target_survives_the_round_trip() {
+        // Cada alvo da tela passa pelo mesmo caminho. Um que nao volte inteiro
+        // vira um clique que nao faz nada, sem erro nenhum na tela.
+        for alvo in [
+            Target::Track(TrackId::spotify("abc")),
+            Target::Album(AlbumId::spotify("def")),
+            Target::Playlist(PlaylistId::spotify("ghi")),
+            Target::Artist(ArtistId::spotify("jkl")),
+            Target::Liked,
+        ] {
+            assert_eq!(Target::parse(&alvo.tag()), Some(alvo));
+        }
+    }
+
     use std::sync::Arc;
     use std::time::Duration;
 
