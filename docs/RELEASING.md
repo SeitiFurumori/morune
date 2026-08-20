@@ -23,7 +23,7 @@ recente.
 O workflow faz, nesta ordem:
 
 1. valida a tag contra a versao do workspace;
-2. instala o Rust 1.85 e o NSIS num runner Windows limpo;
+2. instala o Rust 1.92 e o NSIS num runner Windows limpo;
 3. executa os testes de core, Spotify e aplicativo;
 4. compila em release com o alvo MSVC;
 5. verifica se o executavel abre sem DLLs externas;
