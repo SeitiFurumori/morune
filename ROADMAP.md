@@ -20,7 +20,7 @@ Arquitetura  [feito]
 │  ├─ Import/export       [feito]
 │  └─ Recarga a quente    [ciclo 3, crate pronta, falta ligar]
 └─ Qualidade
-   ├─ Testes              [feito, 222]
+   ├─ Testes              [feito, 224]
    ├─ Benchmarks          [feito, tools/measure.ps1]
    ├─ Seguranca           [feito para temas e credenciais]
    └─ Empacotamento       [feito, instalador NSIS de 3,83 MB]
@@ -67,7 +67,9 @@ O ciclo que transforma isto num player.
    ao Windows, foco e teclado nos controles customizados, estados vazios com
    proxima acao e grades adaptativas. Evidencias e pendencias em
    [UX_AUDIT.md](UX_AUDIT.md).
-8. `[aberto]` **Medir o que importa**: CPU e GPU em segundo plano com musica
+8. `[verificado]` **Fila gerenciavel**: insercoes manuais separadas do contexto,
+   com tocar a seguir, adicionar ao fim, mover, remover e limpar.
+9. `[aberto]` **Medir o que importa**: CPU e GPU em segundo plano com musica
    tocando, com um jogo em tela cheia rodando junto. E o criterio de desempenho
    do produto e nunca foi medido — ver [PERFORMANCE.md](PERFORMANCE.md). RAM
    entra como teto de crescimento, nao como meta de vitrine.

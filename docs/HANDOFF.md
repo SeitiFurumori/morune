@@ -18,10 +18,10 @@ catalogo inteiro ser reescrito sobre o protocolo interno.
 | | |
 |---|---|
 | Instalador | 5,31 MB, `dist/Morune-0.1.0-setup.exe` |
-| Executavel | 13,62 MiB, `target/release/morune.exe` |
+| Executavel | 13,78 MiB, `target/release/morune.exe` |
 | Startup interno | 19 ms (mediana de 10 execucoes) |
 | RAM em repouso | 78,8 MB de working set medio; pico 79,5 MB |
-| Testes | 222 no total; dois exigem uma sessao de logon do Windows para o cofre |
+| Testes | 224 no total; dois exigem uma sessao de logon do Windows para o cofre |
 | Clippy | limpo com `-D warnings` |
 
 ### Verificado contra a conta real
@@ -297,11 +297,14 @@ backend -- nesta ordem, porque cada passo depende do anterior.
 11. **Favoritos do Morune**: adicionar pelo coracao de uma linha, conferir o
     estado preenchido no player e a faixa em Biblioteca; remover pelo mesmo
     controle. Nenhuma curtida do Spotify deve mudar.
-12. Deixar uma faixa acabar sozinha, com repeticao em "uma": tem de repetir,
+12. **Fila manual**: usar “Tocar a seguir” e “Adicionar ao fim” em duas faixas;
+    abrir Fila, mover, remover e limpar. A secao da lista atual nao deve ganhar
+    controles de edicao.
+13. Deixar uma faixa acabar sozinha, com repeticao em "uma": tem de repetir,
     nao pular. E o unico jeito de verificar o `user_advance = false`.
-13. Fechar a janela com "continuar tocando ao fechar" ligado: o som continua e
+14. Fechar a janela com "continuar tocando ao fechar" ligado: o som continua e
     a bandeja mostra a faixa.
-14. **Medir de novo** com `.\tools\measure.ps1` e atualizar
+15. **Medir de novo** com `.\tools\measure.ps1` e atualizar
     [PERFORMANCE.md](../PERFORMANCE.md) -- agora com CPU e GPU **tocando**, que
     e o criterio que passou a valer. **Ainda nao foi feito.**
 

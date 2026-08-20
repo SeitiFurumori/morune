@@ -59,6 +59,10 @@ global Icons {
     out property <string> chevron-right: "M 9 5 L 16 12 L 9 19";
     out property <string> close: "M 5 5 L 19 19 M 19 5 L 5 19";
     out property <string> heart: "M 12 21 C 10 18 4 15 4 9 C 4 5 9 3 12 7 C 15 3 20 5 20 9 C 20 15 14 18 12 21 Z";
+    out property <string> queue-add: "M 3 6 L 14 6 M 3 12 L 14 12 M 3 18 L 10 18 M 18 13 L 18 21 M 14 17 L 22 17";
+    out property <string> queue-next: "M 3 6 L 14 6 M 3 12 L 14 12 M 3 18 L 10 18 M 18 12 L 18 21 M 14 16 L 18 12 L 22 16";
+    out property <string> chevron-up: "M 5 15 L 12 8 L 19 15";
+    out property <string> chevron-down: "M 5 9 L 12 16 L 19 9";
 }
 
 component SectionTitle inherits Text {
@@ -147,6 +151,18 @@ component TrackListRow inherits Rectangle {
     in property <int> index;
     callback activated();
     callback favorite-toggled();
+    in property <bool> queue-actions: true;
+    in property <bool> queue-management: false;
+    in property <bool> can-move-up: false;
+    in property <bool> can-move-down: false;
+    callback play-next();
+    callback enqueue();
+    callback remove-queued();
+    callback move-up();
+    callback move-down();
+    private property <length> actions-width: 32px
+        + (root.queue-actions ? 64px + Theme.space-md * 2 : 0px)
+        + (root.queue-management ? 96px + Theme.space-md * 3 : 0px);
 
     height: Layout.row-height;
     border-radius: Theme.radius-sm;
@@ -198,7 +214,7 @@ component TrackListRow inherits Rectangle {
             }
         }
 
-        Rectangle { width: 32px; }
+        Rectangle { width: root.actions-width; }
 
         Text {
             text: root.track.duration;
@@ -218,7 +234,7 @@ component TrackListRow inherits Rectangle {
     }
 
     // Declarado depois da area da linha para receber o clique primeiro.
-    IconButton {
+    favorite-button := IconButton {
         x: root.width - Theme.space-md - 48px - Theme.space-md - self.width;
         y: (root.height - self.height) / 2;
         label: root.track.favorite
@@ -230,6 +246,53 @@ component TrackListRow inherits Rectangle {
         checkable: true;
         tint: Theme.text-muted;
         clicked => { root.favorite-toggled(); }
+    }
+
+    if root.queue-actions: IconButton {
+        x: favorite-button.x - Theme.space-md - self.width;
+        y: favorite-button.y;
+        label: "Adicionar " + root.track.title + " ao fim da fila";
+        path: Icons.queue-add;
+        tint: Theme.text-muted;
+        clicked => { root.enqueue(); }
+    }
+
+    if root.queue-actions: IconButton {
+        x: favorite-button.x - Theme.space-md * 2 - self.width * 2;
+        y: favorite-button.y;
+        label: "Tocar " + root.track.title + " a seguir";
+        path: Icons.queue-next;
+        tint: Theme.text-muted;
+        clicked => { root.play-next(); }
+    }
+
+    if root.queue-management: IconButton {
+        x: favorite-button.x - Theme.space-md - self.width;
+        y: favorite-button.y;
+        label: "Remover " + root.track.title + " da fila";
+        path: Icons.close;
+        tint: Theme.text-muted;
+        clicked => { root.remove-queued(); }
+    }
+
+    if root.queue-management: IconButton {
+        x: favorite-button.x - Theme.space-md * 2 - self.width * 2;
+        y: favorite-button.y;
+        label: "Mover " + root.track.title + " para baixo";
+        path: Icons.chevron-down;
+        enabled: root.can-move-down;
+        tint: Theme.text-muted;
+        clicked => { root.move-down(); }
+    }
+
+    if root.queue-management: IconButton {
+        x: favorite-button.x - Theme.space-md * 3 - self.width * 3;
+        y: favorite-button.y;
+        label: "Mover " + root.track.title + " para cima";
+        path: Icons.chevron-up;
+        enabled: root.can-move-up;
+        tint: Theme.text-muted;
+        clicked => { root.move-up(); }
     }
 }
 
@@ -306,6 +369,12 @@ component TrackList inherits Flickable {
     in property <[TrackRow]> tracks;
     callback activated(string);
     callback favorite-toggled(string);
+    in property <bool> queue-actions: true;
+    in property <bool> queue-management: false;
+    callback play-next(string);
+    callback enqueue(string);
+    callback remove-queued(int);
+    callback move-queued(int, int);
 
     viewport-height: list.preferred-height;
 
@@ -315,8 +384,17 @@ component TrackList inherits Flickable {
         for track[i] in root.tracks: TrackListRow {
             track: track;
             index: i;
+            queue-actions: root.queue-actions;
+            queue-management: root.queue-management;
+            can-move-up: i > 0;
+            can-move-down: i + 1 < root.tracks.length;
             activated => { root.activated(track.id); }
             favorite-toggled => { root.favorite-toggled(track.id); }
+            play-next => { root.play-next(track.id); }
+            enqueue => { root.enqueue(track.id); }
+            remove-queued => { root.remove-queued(i); }
+            move-up => { root.move-queued(i, i - 1); }
+            move-down => { root.move-queued(i, i + 1); }
         }
     }
 }
@@ -824,6 +902,9 @@ component TrackShelf inherits VerticalLayout {
     in property <[TrackRow]> tracks;
     callback activated(string);
     callback favorite-toggled(string);
+    callback play-next(string);
+    callback enqueue(string);
+    in property <bool> queue-actions: true;
 
     spacing: Theme.space-sm;
     vertical-stretch: 0;
@@ -836,8 +917,11 @@ component TrackShelf inherits VerticalLayout {
         for track[i] in root.tracks: TrackListRow {
             track: track;
             index: i;
+            queue-actions: root.queue-actions;
             activated => { root.activated(track.id); }
             favorite-toggled => { root.favorite-toggled(track.id); }
+            play-next => { root.play-next(track.id); }
+            enqueue => { root.enqueue(track.id); }
         }
     }
 }
@@ -851,6 +935,8 @@ component HomePage inherits Flickable {
     in property <int> grid-columns: 5;
     callback activated(string);
     callback favorite-toggled(string);
+    callback play-next(string);
+    callback enqueue(string);
     callback login();
 
     // Verdadeiro enquanto nenhuma secao tem conteudo: antes do login, e nos
@@ -881,6 +967,8 @@ component HomePage inherits Flickable {
             tracks: root.liked;
             activated(id) => { root.activated(id); }
             favorite-toggled(id) => { root.favorite-toggled(id); }
+            play-next(id) => { root.play-next(id); }
+            enqueue(id) => { root.enqueue(id); }
         }
 
         if root.made-for-you.length > 0: CardShelf {
@@ -915,6 +1003,8 @@ component SearchPage inherits VerticalLayout {
     callback search(string);
     callback activated(string);
     callback favorite-toggled(string);
+    callback play-next(string);
+    callback enqueue(string);
 
     spacing: Theme.space-md;
 
@@ -951,6 +1041,8 @@ component SearchPage inherits VerticalLayout {
                 tracks: root.tracks;
                 activated(id) => { root.activated(id); }
                 favorite-toggled(id) => { root.favorite-toggled(id); }
+                play-next(id) => { root.play-next(id); }
+                enqueue(id) => { root.enqueue(id); }
             }
 
             if root.items.length > 0: VerticalLayout {
@@ -974,6 +1066,8 @@ component LibraryPage inherits Flickable {
     callback login();
     callback activated(string);
     callback favorite-toggled(string);
+    callback play-next(string);
+    callback enqueue(string);
     callback explore();
 
     viewport-height: content.preferred-height;
@@ -1003,6 +1097,8 @@ component LibraryPage inherits Flickable {
             tracks: root.favorites;
             activated(id) => { root.activated(id); }
             favorite-toggled(id) => { root.favorite-toggled(id); }
+            play-next(id) => { root.play-next(id); }
+            enqueue(id) => { root.enqueue(id); }
         }
 
         if root.items.length > 0: VerticalLayout {
@@ -1108,6 +1204,8 @@ component DetailPage inherits VerticalLayout {
     callback sort-by(int);
     callback activated(string);
     callback favorite-toggled(string);
+    callback play-next(string);
+    callback enqueue(string);
 
     spacing: Theme.space-md;
 
@@ -1267,31 +1365,87 @@ component DetailPage inherits VerticalLayout {
         tracks: root.tracks;
         activated(id) => { root.activated(id); }
         favorite-toggled(id) => { root.favorite-toggled(id); }
+        play-next(id) => { root.play-next(id); }
+        enqueue(id) => { root.enqueue(id); }
     }
 }
 
-component QueuePage inherits VerticalLayout {
+component ManagedQueueShelf inherits VerticalLayout {
     in property <[TrackRow]> tracks;
-    callback activated(string);
+    callback activated(int);
     callback favorite-toggled(string);
-    callback explore();
+    callback remove-queued(int);
+    callback move-queued(int, int);
+    callback clear();
 
-    spacing: Theme.space-md;
+    spacing: Theme.space-sm;
+    vertical-stretch: 0;
 
-    SectionTitle { text: "Fila"; }
-
-    if root.tracks.length == 0: EmptyState {
-        title: "Fila vazia";
-        hint: "As proximas faixas aparecem aqui quando voce comeca a tocar algo.";
-        action-label: "Buscar musica";
-        action => { root.explore(); }
+    HorizontalLayout {
+        SectionTitle { text: "Tocara a seguir"; horizontal-stretch: 1; }
+        GhostButton {
+            label: "Limpar";
+            clicked => { root.clear(); }
+        }
     }
 
-    if root.tracks.length > 0: TrackList {
-        vertical-stretch: 1;
-        tracks: root.tracks;
-        activated(id) => { root.activated(id); }
-        favorite-toggled(id) => { root.favorite-toggled(id); }
+    for track[i] in root.tracks: TrackListRow {
+        track: track;
+        index: i;
+        queue-actions: false;
+        queue-management: true;
+        can-move-up: i > 0;
+        can-move-down: i + 1 < root.tracks.length;
+        activated => { root.activated(i); }
+        favorite-toggled => { root.favorite-toggled(track.id); }
+        remove-queued => { root.remove-queued(i); }
+        move-up => { root.move-queued(i, i - 1); }
+        move-down => { root.move-queued(i, i + 1); }
+    }
+}
+
+component QueuePage inherits Flickable {
+    in property <[TrackRow]> manual-tracks;
+    in property <[TrackRow]> context-tracks;
+    callback activated(string);
+    callback activate-manual(int);
+    callback favorite-toggled(string);
+    callback remove-queued(int);
+    callback move-queued(int, int);
+    callback clear();
+    callback explore();
+
+    viewport-height: content.preferred-height;
+
+    content := VerticalLayout {
+        spacing: Theme.space-lg;
+        alignment: start;
+
+        SectionTitle { text: "Fila"; }
+
+        if root.manual-tracks.length == 0 && root.context-tracks.length == 0: EmptyState {
+            title: "Fila vazia";
+            hint: "Use os controles de uma faixa para toca-la a seguir ou adicionar ao fim.";
+            action-label: "Buscar musica";
+            action => { root.explore(); }
+        }
+
+        if root.manual-tracks.length > 0: ManagedQueueShelf {
+            tracks: root.manual-tracks;
+            activated(i) => { root.activate-manual(i); }
+            favorite-toggled(id) => { root.favorite-toggled(id); }
+            remove-queued(i) => { root.remove-queued(i); }
+            move-queued(from, to) => { root.move-queued(from, to); }
+            clear => { root.clear(); }
+        }
+
+        if root.context-tracks.length > 0: TrackShelf {
+            title: root.manual-tracks.length > 0 ? "Depois, da lista atual" : "Da lista atual";
+            tracks: root.context-tracks;
+            queue-actions: false;
+            activated(id) => { root.activated(id); }
+            favorite-toggled(id) => { root.favorite-toggled(id); }
+        }
     }
 }
 
@@ -1617,7 +1771,8 @@ export component AppWindow inherits Window {
     in property <bool> searching;
     in property <[CardItem]> library-items;
     in property <[TrackRow]> library-favorites;
-    in property <[TrackRow]> queue-tracks;
+    in property <[TrackRow]> queue-manual-tracks;
+    in property <[TrackRow]> queue-context-tracks;
     in property <[ThemeItem]> themes;
     in property <[Diagnostic]> diagnostics;
 
@@ -1678,6 +1833,12 @@ export component AppWindow inherits Window {
     callback toggle-shuffle();
     callback cycle-repeat();
     callback toggle-favorite(string);
+    callback queue-play-next(string);
+    callback queue-enqueue(string);
+    callback queue-remove(int);
+    callback queue-play-manual(int);
+    callback queue-move(int, int);
+    callback queue-clear();
     callback select-theme(string);
     callback import-theme();
     callback export-theme(string);
@@ -1785,6 +1946,8 @@ export component AppWindow inherits Window {
                         login => { root.login(); }
                         activated(id) => { root.play-track(id); }
                         favorite-toggled(id) => { root.toggle-favorite(id); }
+                        play-next(id) => { root.queue-play-next(id); }
+                        enqueue(id) => { root.queue-enqueue(id); }
                     }
 
                     if root.page == 1: SearchPage {
@@ -1796,6 +1959,8 @@ export component AppWindow inherits Window {
                         search(q) => { root.search(q); }
                         activated(id) => { root.play-track(id); }
                         favorite-toggled(id) => { root.toggle-favorite(id); }
+                        play-next(id) => { root.queue-play-next(id); }
+                        enqueue(id) => { root.queue-enqueue(id); }
                     }
 
                     if root.page == 2: LibraryPage {
@@ -1807,6 +1972,8 @@ export component AppWindow inherits Window {
                         explore => { root.navigate(1); }
                         activated(id) => { root.play-track(id); }
                         favorite-toggled(id) => { root.toggle-favorite(id); }
+                        play-next(id) => { root.queue-play-next(id); }
+                        enqueue(id) => { root.queue-enqueue(id); }
                     }
 
                     if root.page == 3: SettingsPage {
@@ -1848,13 +2015,20 @@ export component AppWindow inherits Window {
                         sort-by(c) => { root.detail-sort-by(c); }
                         activated(id) => { root.detail-activate(id); }
                         favorite-toggled(id) => { root.toggle-favorite(id); }
+                        play-next(id) => { root.queue-play-next(id); }
+                        enqueue(id) => { root.queue-enqueue(id); }
                     }
 
                     if root.page == 4: QueuePage {
-                        tracks: root.queue-tracks;
+                        manual-tracks: root.queue-manual-tracks;
+                        context-tracks: root.queue-context-tracks;
                         explore => { root.navigate(1); }
                         activated(id) => { root.play-track(id); }
                         favorite-toggled(id) => { root.toggle-favorite(id); }
+                        activate-manual(i) => { root.queue-play-manual(i); }
+                        remove-queued(i) => { root.queue-remove(i); }
+                        move-queued(from, to) => { root.queue-move(from, to); }
+                        clear => { root.queue-clear(); }
                     }
                 }
 

@@ -43,7 +43,7 @@ Limites desta rodada: não houve teste humano com Narrador, monitor secundário 
 |---|---:|---:|---:|
 | P0 — bloqueia uso | 0 | 0 | 0 |
 | P1 — crítico | 4 | 4 | 0 |
-| P2 — fricção relevante | 10 | 6 | 4 |
+| P2 — fricção relevante | 10 | 7 | 3 |
 | P3 — refinamento | 7 | 3 | 4 |
 | P4 — cosmético | 2 | 1 | 1 |
 
@@ -123,13 +123,14 @@ Limites desta rodada: não houve teste humano com Narrador, monitor secundário 
 **Pendente.** Tooltips visuais e alvos maiores em modos de layout muito densos.  
 **Justificativa.** A operação assistiva está clara; a descoberta visual ainda pode melhorar.
 
-### P2 — Fila não pode ser gerenciada — pendente
+### P2 — Fila não podia ser gerenciada — corrigido
 
 **Problema.** A fila permite escolher uma faixa, mas não remover, reordenar, limpar, tocar a seguir ou adicionar ao fim.  
 **Impacto.** O usuário enxerga estado sem ter controle sobre ele.  
 **Princípios.** Controle e liberdade, modelo mental, recuperação de erro.  
-**Solução recomendada.** Menu contextual por faixa, remoção, reordenação por teclado/arraste, Limpar e ações “Tocar a seguir”/“Adicionar ao fim”.  
-**Justificativa.** Uma fila madura é uma ferramenta de decisão, não apenas uma lista de leitura.
+**Solução.** Ações “Tocar a seguir” e “Adicionar ao fim” nas linhas; fila dividida entre inserções manuais e continuação da lista atual; mover para cima/baixo, remover e limpar somente onde há controle real. Todos os alvos têm nome e estado acessíveis.
+
+**Justificativa.** A fila virou ferramenta de decisão sem sugerir que a ordem original de álbum ou playlist foi editada. Separar as camadas reduz erro e explica por que alguns itens são gerenciáveis.
 
 ### P2 — Customização não tem preview nem desfazer — pendente
 
@@ -165,7 +166,7 @@ Limites desta rodada: não houve teste humano com Narrador, monitor secundário 
 
 1. **Visibilidade do estado:** player persistente e estados de reprodução são bons; busca ganhou loading/empty/result; toast ganhou dispensa.  
 2. **Sistema e mundo real:** terminologia musical é natural; busca agora corresponde ao texto.  
-3. **Controle e liberdade:** voltar, troca de tema e favoritos locais estão cobertos; editar fila segue como lacuna.
+3. **Controle e liberdade:** voltar, troca de tema, favoritos locais e fila manual estão cobertos; a ordem do contexto permanece protegida.
 4. **Consistência e padrões:** tokens e iconografia são fortes; componentes agora compartilham foco e semântica.  
 5. **Prevenção de erros:** camadas de clique de tema corrigidas; importação ainda precisa preview.  
 6. **Reconhecimento:** sidebar e player são reconhecíveis; ícones críticos agora têm nome acessível, mas ainda precisam tooltip visual.  
@@ -176,7 +177,7 @@ Limites desta rodada: não houve teste humano com Narrador, monitor secundário 
 
 ## Comparação com padrões maduros
 
-- **Spotify e Apple Music:** reforçam busca ampla, favorito próximo da faixa e fila editável. O MORU•NE atende busca e favorito, mas mantém o dado no próprio produto; fila editável ainda falta.
+- **Spotify e Apple Music:** reforçam busca ampla, favorito próximo da faixa e fila editável. O MORU•NE atende os três, mantendo favoritos no próprio produto e distinguindo fila manual de contexto.
 - **YouTube Music:** mantém player e fila como continuidade da navegação e oferece atalhos no desktop. O player persistente do MORU•NE está alinhado; falta referência de atalhos e mini-player.
 - **Windows 11:** exige Tab lógico, foco visível, Enter/Espaço e nomes para controles customizados. A árvore AccessKit agora segue esse modelo.
 - **Discord:** torna `Ctrl+,`, voltar e navegação por teclado padrões descobríveis. O MORU•NE implementa parte do vocabulário, mas ainda precisa uma folha de atalhos.
@@ -197,6 +198,7 @@ Referências: [atalhos do Spotify](https://support.spotify.com/uk/article/keyboa
 | Switch só no pequeno alvo | Linha inteira acionável, sem duplicar foco |
 | Player icon-only para tecnologia assistiva | Ações e estados anunciados por nome |
 | Biblioteca dependia do que a conta externa salvou | Favoritos locais, persistentes e independentes do provedor |
+| Fila era apenas uma lista de leitura | Inserções manuais reordenáveis, removíveis e separadas do contexto |
 
 ## Pontos fortes preservados
 
@@ -212,11 +214,10 @@ Referências: [atalhos do Spotify](https://support.spotify.com/uk/article/keyboa
 
 ## Próximos passos priorizados
 
-1. Implementar gestão completa de fila (P2).
-2. Adicionar preview/desfazer para temas e importação (P2).
-3. Implementar mini-player e indicação de dispositivo de saída (P2).
-4. Criar referência de atalhos e tooltips visuais (P3).
-5. Fazer teste humano com Narrador, teclado-only e 200% de escala em monitor secundário.
-6. Testar rede lenta/offline, nomes extremos, CJK/RTL e listas extensas.
+1. Adicionar preview/desfazer para temas e importação (P2).
+2. Implementar mini-player e indicação de dispositivo de saída (P2).
+3. Criar referência de atalhos e tooltips visuais (P3).
+4. Fazer teste humano com Narrador, teclado-only e 200% de escala em monitor secundário.
+5. Testar rede lenta/offline, nomes extremos, CJK/RTL e listas extensas.
 
 O critério de aceite permanece: um usuário novo deve chegar de abertura a busca e reprodução sem precisar aprender a arquitetura do aplicativo.

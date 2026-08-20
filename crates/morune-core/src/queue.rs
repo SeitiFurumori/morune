@@ -172,31 +172,40 @@ impl Queue {
         self.user_queue.iter()
     }
 
+    pub fn user_queue_len(&self) -> usize {
+        self.user_queue.len()
+    }
+
+    /// Proximas faixas vindas somente do contexto atual, sem as insercoes
+    /// manuais. A interface usa isto para explicar o que o usuario controla.
+    pub fn upcoming_context(&self, max: usize) -> Vec<&Track> {
+        let Some(pos) = self.position else {
+            return self
+                .order
+                .iter()
+                .filter_map(|&i| self.context.get(i))
+                .take(max)
+                .collect();
+        };
+
+        let tail = self.order.iter().skip(pos + 1);
+        if self.repeat == RepeatMode::All {
+            tail.chain(self.order.iter().take(pos + 1))
+                .filter_map(|&i| self.context.get(i))
+                .take(max)
+                .collect()
+        } else {
+            tail.filter_map(|&i| self.context.get(i)).take(max).collect()
+        }
+    }
+
     /// Proximas faixas na ordem em que serao tocadas, sem alterar estado.
     pub fn upcoming(&self, max: usize) -> Vec<&Track> {
         let mut out: Vec<&Track> = self.user_queue.iter().take(max).collect();
         if out.len() >= max {
             return out;
         }
-        let remaining = max - out.len();
-
-        let Some(pos) = self.position else {
-            out.extend(
-                self.order
-                    .iter()
-                    .filter_map(|&i| self.context.get(i))
-                    .take(remaining),
-            );
-            return out;
-        };
-
-        let tail = self.order.iter().skip(pos + 1);
-        if self.repeat == RepeatMode::All {
-            let wrapped = tail.chain(self.order.iter().take(pos + 1));
-            out.extend(wrapped.filter_map(|&i| self.context.get(i)).take(remaining));
-        } else {
-            out.extend(tail.filter_map(|&i| self.context.get(i)).take(remaining));
-        }
+        out.extend(self.upcoming_context(max - out.len()));
         out
     }
 
@@ -285,6 +294,23 @@ impl Queue {
 
     pub fn remove_from_user_queue(&mut self, index: usize) -> Option<Track> {
         self.user_queue.remove(index)
+    }
+
+    pub fn clear_user_queue(&mut self) {
+        self.user_queue.clear();
+    }
+
+    /// Move uma insercao manual sem alterar a ordem do album ou playlist que
+    /// esta tocando por baixo dela.
+    pub fn move_user_queue(&mut self, from: usize, to: usize) -> bool {
+        if from >= self.user_queue.len() || to >= self.user_queue.len() || from == to {
+            return false;
+        }
+        let Some(track) = self.user_queue.remove(from) else {
+            return false;
+        };
+        self.user_queue.insert(to, track);
+        true
     }
 
     pub fn set_repeat(&mut self, mode: RepeatMode) {
@@ -557,6 +583,32 @@ mod tests {
         q.enqueue(track(99));
         let up: Vec<&str> = q.upcoming(3).iter().map(|t| t.name.as_ref()).collect();
         assert_eq!(up, vec!["Track 99", "Track 1", "Track 2"]);
+    }
+
+    #[test]
+    fn context_preview_excludes_manual_queue() {
+        let mut q = q(5);
+        q.enqueue(track(99));
+        let context: Vec<&str> = q
+            .upcoming_context(2)
+            .iter()
+            .map(|track| track.name.as_ref())
+            .collect();
+        assert_eq!(context, vec!["Track 1", "Track 2"]);
+    }
+
+    #[test]
+    fn manual_queue_can_be_reordered_removed_and_cleared() {
+        let mut q = q(3);
+        q.enqueue(track(50));
+        q.enqueue(track(60));
+        q.enqueue(track(70));
+
+        assert!(q.move_user_queue(2, 0));
+        assert_eq!(q.user_queue().next().unwrap().name.as_ref(), "Track 70");
+        assert_eq!(q.remove_from_user_queue(1).unwrap().name.as_ref(), "Track 50");
+        q.clear_user_queue();
+        assert_eq!(q.user_queue_len(), 0);
     }
 
     #[test]
