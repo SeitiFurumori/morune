@@ -40,8 +40,10 @@ if (-not (Test-Path $exe)) { Write-Error "Binario nao encontrado: $exe" }
 
 # --- o binario precisa rodar sozinho ---
 # Copia para uma pasta isolada e executa com PATH reduzido ao Windows. Se
-# faltasse qualquer DLL de runtime (MinGW, por exemplo), o processo morreria
-# aqui em vez de morrer na maquina de quem instalou.
+# faltasse qualquer DLL de runtime (MinGW, por exemplo), o loader encerraria o
+# processo antes de ele conseguir gravar o comprovante. O modo de verificacao
+# nao abre a janela: runners de CI executam como servico e nao possuem uma area
+# de trabalho interativa, portanto abrir UI ali produziria um falso negativo.
 Write-Host "verificando se o executavel roda sem dependencias externas..." -ForegroundColor DarkGray
 $stage = Join-Path $env:TEMP "morune-isolation-check"
 Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
@@ -51,17 +53,15 @@ Copy-Item $exe $stage
 $saved = $env:PATH
 try {
     $env:PATH = "$env:SystemRoot\system32;$env:SystemRoot"
-    $env:MORUNE_EXIT_AFTER_STARTUP = "1"
-    $env:MORUNE_STARTUP_FILE = "$stage\startup.txt"
+    $env:MORUNE_BINARY_CHECK_FILE = "$stage\binary-check.txt"
     $p = Start-Process -FilePath "$stage\morune.exe" -Wait -PassThru
-    if ($p.ExitCode -ne 0 -or -not (Test-Path "$stage\startup.txt")) {
-        Write-Error "O executavel nao roda isolado (codigo $($p.ExitCode)). Faltam DLLs de runtime no pacote."
+    if ($p.ExitCode -ne 0 -or -not (Test-Path "$stage\binary-check.txt")) {
+        Write-Error "O executavel nao carrega isolado (codigo $($p.ExitCode)). Verifique as DLLs de runtime do pacote."
     }
-    Write-Host ("  ok -- " + (Get-Content "$stage\startup.txt")) -ForegroundColor Green
+    Write-Host ("  ok -- " + (Get-Content "$stage\binary-check.txt")) -ForegroundColor Green
 } finally {
     $env:PATH = $saved
-    Remove-Item Env:\MORUNE_EXIT_AFTER_STARTUP -ErrorAction SilentlyContinue
-    Remove-Item Env:\MORUNE_STARTUP_FILE -ErrorAction SilentlyContinue
+    Remove-Item Env:\MORUNE_BINARY_CHECK_FILE -ErrorAction SilentlyContinue
     Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
 }
 
