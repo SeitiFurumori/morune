@@ -56,6 +56,11 @@ impl AppPaths {
         self.config_dir.join("config.toml")
     }
 
+    /// Biblioteca que pertence ao Morune, nao a um provedor externo.
+    pub fn favorites_file(&self) -> PathBuf {
+        self.data_dir.join("favorites.toml")
+    }
+
     /// Pasta de temas do usuario. Aberta pelo menu "abrir pasta do tema".
     pub fn themes_dir(&self) -> PathBuf {
         self.config_dir.join("themes")
@@ -113,6 +118,13 @@ mod tests {
     fn cache_is_separate_from_config() {
         let p = AppPaths::discover();
         assert_ne!(p.config_dir(), p.cache_dir());
+    }
+
+    #[test]
+    fn favorites_are_user_data_not_discardable_cache() {
+        let p = AppPaths::portable(Path::new("D:/morune"));
+        assert!(p.favorites_file().starts_with(p.data_dir()));
+        assert!(!p.favorites_file().starts_with(p.cache_dir()));
     }
 
     #[test]

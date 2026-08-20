@@ -55,12 +55,10 @@ fn main() -> anyhow::Result<()> {
     state.apply_initial_window_size(&window);
     #[cfg(feature = "snapshot")]
     if let (Ok(width), Ok(height)) = (
-        std::env::var("MORUNE_SNAPSHOT_WIDTH").and_then(|v| {
-            v.parse::<f32>().map_err(|_| std::env::VarError::NotPresent)
-        }),
-        std::env::var("MORUNE_SNAPSHOT_HEIGHT").and_then(|v| {
-            v.parse::<f32>().map_err(|_| std::env::VarError::NotPresent)
-        }),
+        std::env::var("MORUNE_SNAPSHOT_WIDTH")
+            .and_then(|v| v.parse::<f32>().map_err(|_| std::env::VarError::NotPresent)),
+        std::env::var("MORUNE_SNAPSHOT_HEIGHT")
+            .and_then(|v| v.parse::<f32>().map_err(|_| std::env::VarError::NotPresent)),
     ) {
         window
             .window()
@@ -432,6 +430,11 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
 
     on!(on_play_track, |w, s, id: slint::SharedString| {
         s.play_track(id.as_str());
+        s.push_to_ui(&w);
+    });
+
+    on!(on_toggle_favorite, |w, s, id: slint::SharedString| {
+        s.toggle_favorite(id.as_str());
         s.push_to_ui(&w);
     });
 

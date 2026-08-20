@@ -12,7 +12,7 @@ use std::time::Duration;
 use morune_core::playback::{NullEngine, PlaybackEngine, PlayerCommand, PlayerEvent};
 use morune_core::queue::{Queue, QueueOrigin, RepeatMode};
 use morune_core::Track;
-use morune_storage::{AppPaths, Config};
+use morune_storage::{AppPaths, Config, Favorites};
 use morune_theme::{loader, ThemeSpec};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use tokio::sync::broadcast;
@@ -100,6 +100,9 @@ pub struct AppState {
     home_retrospectives: Vec<Card>,
     home_playlists: Vec<Card>,
     library: Vec<Card>,
+    /// Biblioteca local do Morune. Continua existindo entre contas e nao
+    /// depende de permissao de escrita em nenhum provedor.
+    favorites: Favorites,
     /// Texto do filtro da barra lateral.
     ///
     /// Filtrar acontece aqui e nao no backend: as 86 playlists da conta ja
@@ -186,6 +189,7 @@ impl AppState {
         // A pasta do cache de capas e lida antes de `paths` ser movido para o
         // estado.
         let covers_dir = paths.artwork_cache_dir();
+        let favorites = Favorites::load(&paths.favorites_file());
 
         Self {
             volume: config.playback.volume,
@@ -212,6 +216,7 @@ impl AppState {
             home_retrospectives: Vec::new(),
             home_playlists: Vec::new(),
             library: Vec::new(),
+            favorites,
             playlist_filter: String::new(),
             detail: None,
             detail_filter: String::new(),
@@ -310,7 +315,11 @@ impl AppState {
     /// Aplica o que a busca ou a biblioteca trouxeram.
     fn apply_browse(&mut self, outcome: Outcome) {
         match outcome {
-            Outcome::Search { query, tracks, cards } => {
+            Outcome::Search {
+                query,
+                tracks,
+                cards,
+            } => {
                 self.searching = false;
                 let total = tracks.len() + cards.len();
                 self.status = if total == 0 {
@@ -704,6 +713,7 @@ impl AppState {
             .tracks
             .iter()
             .chain(self.liked.tracks.iter())
+            .chain(self.favorites.tracks().iter())
             .chain(self.detail.iter().flat_map(|detail| detail.tracks.iter()))
             .chain(self.queue.tracks().iter())
             .filter_map(track_cover_url)
@@ -755,9 +765,21 @@ impl AppState {
         &self,
         id: &morune_core::model::TrackId,
     ) -> Option<(QueueOrigin, Vec<Track>, usize)> {
-        [&self.search, &self.liked].into_iter().find_map(|list| {
+        let provider_list = [&self.search, &self.liked].into_iter().find_map(|list| {
             let index = list.tracks.iter().position(|t| t.id == *id)?;
             Some((list.origin.clone(), list.tracks.clone(), index))
+        });
+        provider_list.or_else(|| {
+            let index = self
+                .favorites
+                .tracks()
+                .iter()
+                .position(|track| track.id == *id)?;
+            Some((
+                QueueOrigin::Custom("Favoritos no Morune".into()),
+                self.favorites.tracks().to_vec(),
+                index,
+            ))
         })
     }
 
@@ -1091,6 +1113,49 @@ impl AppState {
         self.status.clear();
     }
 
+    /// Guarda ou remove uma faixa da biblioteca local.
+    ///
+    /// A interface envia o mesmo id canonico usado para tocar. O retrato
+    /// completo e salvo para que nome, artista e capa continuem visiveis sem
+    /// depender de rede na proxima abertura.
+    pub fn toggle_favorite(&mut self, tag: &str) {
+        let Some(Target::Track(id)) = Target::parse(tag) else {
+            self.status = "Nao reconheci a faixa que voce quer favoritar.".into();
+            return;
+        };
+        let Some(track) = self.find_track(&id) else {
+            self.status = "Essa faixa nao esta mais disponivel nesta tela.".into();
+            return;
+        };
+
+        let previous = self.favorites.clone();
+        let saved = self.favorites.toggle(track.clone());
+        if let Err(error) = self.favorites.save(&self.paths.favorites_file()) {
+            self.favorites = previous;
+            self.status = format!("Nao consegui atualizar seus favoritos: {error}");
+            return;
+        }
+
+        self.status = if saved {
+            format!("{} foi adicionada aos favoritos do Morune.", track.name)
+        } else {
+            format!("{} foi removida dos favoritos do Morune.", track.name)
+        };
+        self.resolve_track_covers();
+    }
+
+    fn find_track(&self, id: &morune_core::TrackId) -> Option<Track> {
+        self.queue
+            .tracks()
+            .iter()
+            .chain(self.search.tracks.iter())
+            .chain(self.liked.tracks.iter())
+            .chain(self.favorites.tracks().iter())
+            .chain(self.detail.iter().flat_map(|detail| detail.tracks.iter()))
+            .find(|track| track.id == *id)
+            .cloned()
+    }
+
     // ---- reproducao ----
 
     /// Toca o que a interface ativou: uma faixa, um album, uma playlist ou um
@@ -1258,6 +1323,7 @@ impl AppState {
                 self.detail_tracks(),
                 current,
                 &self.track_covers,
+                &self.favorites,
             ));
             window.set_detail_sort(self.detail_sort as i32);
             window.set_detail_descending(self.detail_desc);
@@ -1285,11 +1351,19 @@ impl AppState {
         });
         window.set_now_title(current.map(|t| t.name.as_ref()).unwrap_or("").into());
         window.set_now_artist(current.map(|t| t.artists_line()).unwrap_or_default().into());
+        window.set_now_id(
+            current
+                .map(|track| Target::Track(track.id.clone()).tag())
+                .unwrap_or_default()
+                .into(),
+        );
+        window.set_now_favorite(current.is_some_and(|track| self.favorites.contains(track)));
 
         window.set_queue_tracks(track_rows(
             self.queue.upcoming(200),
             current,
             &self.track_covers,
+            &self.favorites,
         ));
         window.set_themes(self.theme_items());
         window.set_diagnostics(self.diagnostics());
@@ -1298,15 +1372,23 @@ impl AppState {
             self.liked.tracks.iter().collect(),
             current,
             &self.track_covers,
+            &self.favorites,
         ));
         window.set_home_stations(card_items(&self.home_stations));
         window.set_home_retrospectives(card_items(&self.home_retrospectives));
         window.set_library_items(card_items(&self.library));
+        window.set_library_favorites(track_rows(
+            self.favorites.tracks().iter().collect(),
+            current,
+            &self.track_covers,
+            &self.favorites,
+        ));
         window.set_search_items(card_items(&self.search_cards));
         window.set_search_tracks(track_rows(
             self.search.tracks.iter().collect(),
             current,
             &self.track_covers,
+            &self.favorites,
         ));
     }
 
@@ -1349,6 +1431,7 @@ fn track_rows(
     tracks: Vec<&Track>,
     current: Option<&Track>,
     covers: &HashMap<String, std::path::PathBuf>,
+    favorites: &Favorites,
 ) -> ModelRc<ui::TrackRow> {
     let rows: Vec<ui::TrackRow> = tracks
         .into_iter()
@@ -1371,6 +1454,7 @@ fn track_rows(
             duration: format_time(t.duration).into(),
             playable: t.playable,
             playing: current.is_some_and(|c| c.id == t.id),
+            favorite: favorites.contains(t),
         })
         .collect();
     ModelRc::new(VecModel::from(rows))

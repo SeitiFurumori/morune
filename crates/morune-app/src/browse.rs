@@ -17,7 +17,7 @@ use crate::artwork::{ArtworkCache, Ready};
 use std::sync::mpsc::{Receiver, TryRecvError};
 
 use morune_core::catalog::{Artwork, Catalog, Library, SearchKind};
-use morune_core::model::{AlbumId, ArtistId, PlaylistId, PlaylistKind, Track, TrackId};
+use morune_core::model::{AlbumId, ArtistId, PlaylistId, PlaylistKind, Provider, Track, TrackId};
 use morune_core::queue::QueueOrigin;
 use morune_core::{CoreError, CoreResult};
 
@@ -92,14 +92,19 @@ impl Target {
 
         let (kind, id) = tag.split_once('/').unwrap_or(("track", tag));
         let (provider, id) = id.split_once(':')?;
-        if provider != "spotify" || id.is_empty() {
+        let provider = match provider {
+            "spotify" => Provider::Spotify,
+            "local" => Provider::Local,
+            _ => return None,
+        };
+        if id.is_empty() {
             return None;
         }
         Some(match kind {
-            "album" => Target::Album(AlbumId::spotify(id)),
-            "playlist" => Target::Playlist(PlaylistId::spotify(id)),
-            "artist" => Target::Artist(ArtistId::spotify(id)),
-            _ => Target::Track(TrackId::spotify(id)),
+            "album" => Target::Album(AlbumId::new(provider, id)),
+            "playlist" => Target::Playlist(PlaylistId::new(provider, id)),
+            "artist" => Target::Artist(ArtistId::new(provider, id)),
+            _ => Target::Track(TrackId::new(provider, id)),
         })
     }
 }
@@ -337,10 +342,7 @@ impl Browse {
         let catalog = self.catalog.clone();
         let query = query.trim().to_string();
         self.spawn(move |tx| async move {
-            let outcome = match catalog
-                .search(&query, SearchKind::All, SEARCH_LIMIT)
-                .await
-            {
+            let outcome = match catalog.search(&query, SearchKind::All, SEARCH_LIMIT).await {
                 Ok(results) => {
                     let mut cards = Vec::with_capacity(
                         results.albums.len() + results.artists.len() + results.playlists.len(),
@@ -755,6 +757,7 @@ mod tests {
             Target::Album(AlbumId::spotify("6eUW0wxWtzkFdaEFsTJto6")),
             Target::Playlist(PlaylistId::spotify("37i9dQZF1DXcBWIGoYBM5M")),
             Target::Artist(ArtistId::spotify("0gxyHStUsqpMadRV0Di1Qt")),
+            Target::Track(TrackId::local("D:/Musica/faixa.flac")),
         ] {
             assert_eq!(Target::parse(&target.tag()), Some(target));
         }
@@ -776,7 +779,7 @@ mod tests {
         assert_eq!(Target::parse(""), None);
         assert_eq!(Target::parse("album/"), None);
         assert_eq!(Target::parse("album/spotify:"), None);
-        assert_eq!(Target::parse("album/local:musica.flac"), None);
+        assert_eq!(Target::parse("album/desconhecido:musica.flac"), None);
     }
 
     fn playlist(

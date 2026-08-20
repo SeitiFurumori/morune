@@ -20,7 +20,7 @@ Arquitetura  [feito]
 │  ├─ Import/export       [feito]
 │  └─ Recarga a quente    [ciclo 3, crate pronta, falta ligar]
 └─ Qualidade
-   ├─ Testes              [feito, 217]
+   ├─ Testes              [feito, 222]
    ├─ Benchmarks          [feito, tools/measure.ps1]
    ├─ Seguranca           [feito para temas e credenciais]
    └─ Empacotamento       [feito, instalador NSIS de 3,83 MB]
@@ -54,7 +54,8 @@ O ciclo que transforma isto num player.
    volume, avanco automatico ligado a `Queue::next`.
 4. `[verificado]` **Busca e biblioteca** ligadas as telas que ja existem, e um
    Inicio com cinco prateleiras. A busca cobre faixas, albuns, artistas e
-   playlists. As playlists que o Spotify monta para a conta
+   playlists. Favoritos ficam numa biblioteca local independente do provedor,
+   com a conta Spotify mantida em modo somente leitura. As playlists que o Spotify monta para a conta
    vem pelo protocolo interno, porque o Web API deixou de entrega-las em 2024 —
    ver [docs/HANDOFF.md](docs/HANDOFF.md).
 5. `[escrito]` **Radio e autoplay configuravel** pelo caminho interno, anexando

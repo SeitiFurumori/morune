@@ -8,6 +8,10 @@ Cor, tipografia, forma, movimento e a propria composicao da tela vem de um
 pacote de tema declarativo que pode ser importado, exportado e editado sem
 recompilar nada.
 
+Premissa de produto: **Your music. Your way.** A experiencia basica permanece
+simples; liberdade e profundidade aparecem quando o usuario decide procura-las.
+Dados centrais, como favoritos, pertencem ao Morune e nao a um unico provedor.
+
 Sem Electron. Sem Chromium. Sem WebView.
 
 ---
@@ -20,13 +24,13 @@ maquina (AMD Ryzen 5 8500G, Windows 11 26200, Radeon 740M):
 | | |
 |---|---|
 | Instalador `.exe` | **5,31 MB** |
-| Executavel de release | **13,49 MiB** |
+| Executavel de release | **13,62 MiB** |
 | Startup ate o laco de eventos | **19 ms** (mediana de 10 execucoes) |
 | Ciclo completo do processo | **509 ms** (mediana; inclui criar contexto OpenGL e encerrar) |
 | Working set em repouso | **78,8 MB** (media), pico 79,5 MB |
 | CPU em repouso | **0,14%** de um nucleo |
 | CPU na bandeja, janela oculta | **0,00%** de um nucleo |
-| Testes | 217, `clippy -D warnings` limpo |
+| Testes | 222, `clippy -D warnings` limpo |
 
 O criterio de desempenho do Morune nao e "usar pouca RAM" — e **nao atrapalhar
 quem esta jogando**. O que manda e CPU e GPU em segundo plano e a interface
@@ -43,6 +47,8 @@ Ja implementado:
 - tres temas com aparencia e **composicao** diferentes, trocaveis em execucao;
 - configuracao persistente com gravacao atomica e recuperacao de arquivo
   corrompido;
+- favoritos locais e independentes do provedor, com gravacao recuperavel,
+  rollback em falha e acesso pelo player, pelas listas e pela Biblioteca;
 - cofre de credenciais no Gerenciador de Credenciais do Windows;
 - fila com shuffle, repeticao, historico real e "tocar a seguir", coberta por
   testes;
@@ -64,6 +70,7 @@ Verificado contra uma conta Spotify Premium real em 19/08/2026 — ver
 - reproducao sobre a librespot, ligada a fila que ja existia;
 - busca por faixas, albuns, artistas e playlists; musicas curtidas e artistas
   seguidos;
+- favoritos do Morune persistidos sem pedir permissao de escrita na conta;
 - capas com cache LRU de 48 MB;
 - playlists na barra lateral e telas de detalhe com filtro e ordenacao.
 
