@@ -21,6 +21,7 @@
 //! nao foi afetado pela mudanca. Um pedido por faixa custaria cem requisicoes
 //! numa playlist de cem.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use librespot_core::{SpotifyId, SpotifyUri};
@@ -36,7 +37,7 @@ use librespot_protocol::metadata::Track as TrackMessage;
 use librespot_protocol::metadata::image::Size as ImageSize;
 use librespot_protocol::playlist4_external::ListAttributes as ListAttributesMessage;
 use librespot_protocol::playlist4_external::SelectedListContent as SelectedListContentMessage;
-use morune_core::model::{ImageRef, ImageSet, PlaylistId};
+use morune_core::model::{ImageRef, ImageSet, PlaylistId, PlaylistKind};
 use morune_core::{CoreError, CoreResult};
 use protobuf::{EnumOrUnknown, Message};
 
@@ -92,13 +93,41 @@ pub(crate) struct PlaylistSummary {
 }
 
 impl PlaylistSummary {
-    /// `true` quando a playlist foi montada pelo Spotify para esta conta.
+    /// Classifica a playlist pelo `format` que o rootlist declara.
     ///
-    /// Duas evidencias, porque nenhuma sozinha cobre tudo: o `format`, que as
-    /// playlists algoritmicas carregam, e o dono `spotify`, que as editoriais
-    /// carregam.
-    pub fn made_by_spotify(&self) -> bool {
-        !self.format.is_empty() || self.owner.eq_ignore_ascii_case("spotify")
+    /// Os valores abaixo foram lidos da resposta real de uma conta, e nao
+    /// deduzidos do nome -- "Grupo Revelacao Radio" e "Mix 2Pac" acabam no
+    /// mesmo lugar sem que ninguem precise procurar a palavra "Radio", e uma
+    /// conta noutro idioma se comporta igual.
+    ///
+    /// | `format` | vira |
+    /// |---|---|
+    /// | vazio | [`PlaylistKind::Personal`] |
+    /// | `daily-mix`, `discover-weekly`, `blend` | [`PlaylistKind::MadeForYou`] |
+    /// | `topic-mix`, `inspiredby-mix`, `artist-mix-reader` | [`PlaylistKind::Station`] |
+    /// | `wrapped-*`, `all-time-top-songs-*` | [`PlaylistKind::Retrospective`] |
+    /// | `editorial`, `artistsets`, e o resto | [`PlaylistKind::Editorial`] |
+    ///
+    /// Formato desconhecido cai em `Editorial` de proposito: e a categoria que
+    /// o Inicio nao mostra, entao um valor novo do Spotify aparece na barra
+    /// lateral em vez de entrar numa prateleira onde nao pertence.
+    pub fn kind(&self) -> PlaylistKind {
+        if self.format.is_empty() {
+            // Sem `format` e dono `spotify` acontece nas seguidas de vitrine.
+            return if self.owner.eq_ignore_ascii_case("spotify") {
+                PlaylistKind::Editorial
+            } else {
+                PlaylistKind::Personal
+            };
+        }
+
+        match self.format.as_str() {
+            "daily-mix" | "discover-weekly" | "blend" => PlaylistKind::MadeForYou,
+            "topic-mix" | "inspiredby-mix" | "artist-mix-reader" => PlaylistKind::Station,
+            outro if outro.starts_with("wrapped-") => PlaylistKind::Retrospective,
+            outro if outro.starts_with("all-time-top-songs") => PlaylistKind::Retrospective,
+            _ => PlaylistKind::Editorial,
+        }
     }
 }
 
@@ -282,7 +311,9 @@ impl Internal {
         }
 
         let session = self.session.get().ok_or(CoreError::NotAuthenticated)?;
-        let mut out = Vec::with_capacity(ids.len());
+        // Mesmo motivo de [`Internal::tracks`]: a resposta nao respeita a ordem
+        // do pedido.
+        let mut por_id: HashMap<String, ArtistMeta> = HashMap::with_capacity(ids.len());
 
         for lote in ids.chunks(METADATA_BATCH) {
             let mut pedido = BatchedEntityRequest::new();
@@ -309,13 +340,13 @@ impl Internal {
                         continue;
                     };
                     if let Some(artista) = ArtistMeta::from_message(&message) {
-                        out.push(artista);
+                        por_id.insert(artista.id.clone(), artista);
                     }
                 }
             }
         }
 
-        Ok(out)
+        Ok(ids.iter().filter_map(|id| por_id.remove(id)).collect())
     }
 
     /// Metadado de varias faixas numa requisicao so.
@@ -333,7 +364,11 @@ impl Internal {
         }
 
         let session = self.session.get().ok_or(CoreError::NotAuthenticated)?;
-        let mut out = Vec::with_capacity(ids.len());
+        // Guardadas por id, e nao numa lista: a resposta **nao volta na ordem
+        // pedida**, e o pedido sai em lotes de 50. Acumular na ordem de chegada
+        // embaralhava a playlist inteira, e nas curtidas desfazia a ordenacao
+        // por data que o passo anterior tinha acabado de fazer.
+        let mut por_id: HashMap<String, TrackMeta> = HashMap::with_capacity(ids.len());
 
         for lote in ids.chunks(METADATA_BATCH) {
             let mut pedido = BatchedEntityRequest::new();
@@ -360,13 +395,15 @@ impl Internal {
                         continue;
                     };
                     if let Some(faixa) = TrackMeta::from_message(&message) {
-                        out.push(faixa);
+                        por_id.insert(faixa.id.clone(), faixa);
                     }
                 }
             }
         }
 
-        Ok(out)
+        // De volta a ordem pedida. Faixa que o servidor nao devolveu some da
+        // lista, em vez de deixar um buraco ou empurrar as seguintes.
+        Ok(ids.iter().filter_map(|id| por_id.remove(id)).collect())
     }
 }
 
@@ -833,6 +870,44 @@ mod tests {
     }
 
     #[test]
+    fn the_requested_order_survives_a_response_that_ignores_it() {
+        // O `extended-metadata` responde na ordem que quer, e o pedido sai em
+        // lotes. Acumular na ordem de chegada embaralhava a playlist e desfazia
+        // a ordenacao por data das curtidas -- e o defeito que a tela mostrava
+        // como "minhas curtidas vieram fora de ordem".
+        //
+        // Aqui o reordenamento e exercitado sem rede: sao os mesmos indexOf que
+        // `tracks` faz depois de receber tudo.
+        let pedidos = ["aaa".to_string(), "bbb".to_string(), "ccc".to_string()];
+
+        let mut chegaram: HashMap<String, &str> = HashMap::new();
+        chegaram.insert("ccc".into(), "terceira");
+        chegaram.insert("aaa".into(), "primeira");
+        chegaram.insert("bbb".into(), "segunda");
+
+        let ordenadas: Vec<&str> =
+            pedidos.iter().filter_map(|id| chegaram.remove(id)).collect();
+
+        assert_eq!(ordenadas, vec!["primeira", "segunda", "terceira"]);
+    }
+
+    #[test]
+    fn a_track_the_server_did_not_return_just_disappears() {
+        // Buraco na resposta nao pode empurrar as seguintes nem virar linha
+        // vazia: o item some e a lista continua na ordem.
+        let pedidos = ["aaa".to_string(), "sumida".to_string(), "ccc".to_string()];
+
+        let mut chegaram: HashMap<String, &str> = HashMap::new();
+        chegaram.insert("aaa".into(), "primeira");
+        chegaram.insert("ccc".into(), "terceira");
+
+        let ordenadas: Vec<&str> =
+            pedidos.iter().filter_map(|id| chegaram.remove(id)).collect();
+
+        assert_eq!(ordenadas, vec!["primeira", "terceira"]);
+    }
+
+    #[test]
     fn the_collection_comes_out_newest_first() {
         // A resposta do servidor nao vem ordenada: na conta de teste as datas
         // alternavam entre 2022 e 2025 sem padrao, e pegar as primeiras 50
@@ -883,20 +958,44 @@ mod tests {
     }
 
     #[test]
-    fn an_algorithmic_playlist_is_recognised_by_its_format() {
-        assert!(summary("felipe", "discover-weekly").made_by_spotify());
+    fn every_format_the_account_really_returns_is_classified() {
+        // Os valores vieram da resposta real de uma conta -- ver o cabecalho de
+        // `kind`. Sao eles que decidem o que o Inicio mostra.
+        let caso = |formato: &str| summary("spotify", formato).kind();
+
+        assert_eq!(caso("daily-mix"), PlaylistKind::MadeForYou);
+        assert_eq!(caso("discover-weekly"), PlaylistKind::MadeForYou);
+        assert_eq!(caso("blend"), PlaylistKind::MadeForYou);
+
+        assert_eq!(caso("topic-mix"), PlaylistKind::Station);
+        assert_eq!(caso("inspiredby-mix"), PlaylistKind::Station);
+        assert_eq!(caso("artist-mix-reader"), PlaylistKind::Station);
+
+        assert_eq!(caso("wrapped-2025-top100"), PlaylistKind::Retrospective);
+        assert_eq!(caso("all-time-top-songs-20-years"), PlaylistKind::Retrospective);
     }
 
     #[test]
-    fn an_editorial_playlist_is_recognised_by_its_owner() {
-        // As editoriais nao trazem `format`, mas pertencem ao proprio Spotify.
-        assert!(summary("spotify", "").made_by_spotify());
-        assert!(summary("Spotify", "").made_by_spotify());
+    fn the_showcase_kinds_are_kept_out_of_the_home() {
+        // "This Is <artista>" e as vitrines de genero sao iguais para todo
+        // mundo: nao sao feitas para esta conta e nao entram no Inicio.
+        assert_eq!(summary("spotify", "artistsets").kind(), PlaylistKind::Editorial);
+        assert_eq!(summary("spotify", "editorial").kind(), PlaylistKind::Editorial);
     }
 
     #[test]
-    fn a_playlist_the_user_made_is_not_confused_with_one_the_spotify_made() {
-        assert!(!summary("felipe", "").made_by_spotify());
+    fn a_format_nobody_has_seen_yet_stays_out_of_the_home() {
+        // O Spotify inventa formato novo sem avisar. Cair em `Editorial` faz o
+        // desconhecido aparecer na barra lateral, e nao numa prateleira onde
+        // talvez nao pertenca.
+        assert_eq!(summary("spotify", "formato-que-ainda-nao-existe").kind(), PlaylistKind::Editorial);
+    }
+
+    #[test]
+    fn a_playlist_the_user_made_is_personal() {
+        assert_eq!(summary("seititm", "").kind(), PlaylistKind::Personal);
+        // Vitrine seguida pelo usuario vem sem `format`, mas com dono `spotify`.
+        assert_eq!(summary("spotify", "").kind(), PlaylistKind::Editorial);
     }
     #[test]
     fn a_folder_marker_no_longer_takes_the_whole_rootlist_down() {

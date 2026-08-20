@@ -271,41 +271,6 @@ export component Slider inherits Rectangle {
     }
 }
 
-// Marcador de capa. Enquanto nao ha download de imagem, desenha um bloco com a
-// inicial do titulo -- deliberadamente estavel para nao causar "pulo" de layout
-// quando a capa real chegar.
-export component Artwork inherits Rectangle {
-    in property <string> seed;
-    in property <length> radius: Theme.radius-artwork;
-    // Capa de verdade. Vazia enquanto ela nao chega do cache, e o bloco neutro
-    // abaixo ocupa o lugar sem mudar o layout quando ela chegar.
-    in property <image> source;
-
-    border-radius: root.radius;
-    background: Theme.surface-raised;
-    clip: true;
-
-    // Marca discreta enquanto a capa real nao chega. Deliberadamente sem
-    // texto: um titulo cortado no meio chama mais atencao que um bloco neutro,
-    // e trocar o bloco pela capa depois nao muda o layout.
-    Rectangle {
-        visible: root.source.width == 0;
-        width: parent.width * 0.34;
-        height: self.width;
-        border-radius: self.width / 2;
-        background: Theme.border;
-    }
-
-    Image {
-        source: root.source;
-        width: 100%;
-        height: 100%;
-        // A capa e quadrada e a caixa tambem; `fill` evita a borda de fundo
-        // aparecer por arredondamento de um pixel.
-        image-fit: fill;
-    }
-}
-
 // Simbolo da marca.
 //
 // Reproduz o desenho responsivo de 32 px de
@@ -375,3 +340,44 @@ export component Logo {
         stroke-line-join: round;
     }
 }
+
+// Marcador de capa. Enquanto nao ha download de imagem, desenha um bloco com a
+// inicial do titulo -- deliberadamente estavel para nao causar "pulo" de layout
+// quando a capa real chegar.
+export component Artwork inherits Rectangle {
+    in property <string> seed;
+    in property <length> radius: Theme.radius-artwork;
+    // Capa de verdade. Vazia enquanto ela nao chega do cache, e o bloco neutro
+    // abaixo ocupa o lugar sem mudar o layout quando ela chegar.
+    in property <image> source;
+
+    border-radius: root.radius;
+    background: Theme.surface-raised;
+    clip: true;
+
+    // Sem capa, a marca do Morune.
+    //
+    // Boa parte das playlists nao tem imagem nenhuma na resposta do Spotify --
+    // o mosaico que o cliente oficial desenha e montado por ele a partir das
+    // faixas. Um bloco neutro nesses casos parecia carregamento eterno; a
+    // marca diz "nao ha capa" em vez de "ainda nao chegou".
+    //
+    // Discreta de proposito: numa grade de vinte cartoes sem capa, a marca em
+    // cor cheia viraria vinte logos disputando atencao com os titulos.
+    if root.source.width == 0: Logo {
+        size: parent.width * 0.42;
+        tint: Theme.border;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+    }
+
+    Image {
+        source: root.source;
+        width: 100%;
+        height: 100%;
+        // A capa e quadrada e a caixa tambem; `fill` evita a borda de fundo
+        // aparecer por arredondamento de um pixel.
+        image-fit: fill;
+    }
+}
+

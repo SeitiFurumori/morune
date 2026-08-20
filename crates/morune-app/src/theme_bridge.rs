@@ -141,6 +141,8 @@ fn apply_layout(l: &UiLayout<'_>, s: &ThemeSpec, over: UserOverrides) {
     l.set_sidebar_icons(lay.sidebar.show_icons);
     l.set_sidebar_labels(lay.sidebar.show_labels);
     l.set_sidebar_playlists(lay.sidebar.show_playlists);
+    l.set_sidebar_playlist_height(lay.sidebar.playlist_height);
+    l.set_detail_cover_size(lay.detail.cover_size);
 
     l.set_player_position(match lay.player.position {
         PlayerPosition::Bottom => 0,

@@ -16,8 +16,8 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use crate::artwork::{ArtworkCache, Ready};
 use std::sync::mpsc::{Receiver, TryRecvError};
 
-use morune_core::catalog::{Artwork, Catalog, Library, SearchKind, TopRange};
-use morune_core::model::{AlbumId, ArtistId, PlaylistId, Track, TrackId};
+use morune_core::catalog::{Artwork, Catalog, Library, SearchKind};
+use morune_core::model::{AlbumId, ArtistId, PlaylistId, PlaylistKind, Track, TrackId};
 use morune_core::queue::QueueOrigin;
 use morune_core::{CoreError, CoreResult};
 
@@ -30,14 +30,25 @@ const SEARCH_LIMIT: u32 = 50;
 /// Quantos itens cada secao de biblioteca traz de uma vez.
 const SECTION_LIMIT: u32 = 50;
 
-/// Quantos cards cabem numa prateleira do Inicio.
-///
-/// Uma fileira, sem rolagem lateral. O Inicio e para bater o olho e escolher;
-/// quem quer a lista inteira vai na Biblioteca.
-const SHELF_CARDS: u32 = 5;
-
 /// Quantas faixas aparecem numa prateleira do Inicio.
 const SHELF_TRACKS: u32 = 6;
+
+/// Titulo da lista de curtidas, num lugar so.
+///
+/// Aparece na barra lateral, na prateleira do Inicio e como origem da fila.
+/// Escrito tres vezes, envelheceria em tres lugares.
+pub const LIKED_TITLE: &str = "Musicas curtidas";
+
+/// Quantas faixas a tela de detalhe carrega.
+///
+/// Filtrar e ordenar so sao honestos sobre o que esta carregado, entao o teto
+/// e alto: uma playlist normal cabe inteira. Acima disso a tela diz quantas
+/// mostrou, em vez de fingir que a lista acabou.
+///
+/// Nao e um limite do protocolo: o caminho interno entrega a lista de ids
+/// completa numa requisicao, e o custo esta no metadado, que vem em lotes de
+/// 50. Subir isto e trocar tempo de abertura por lista maior.
+const DETAIL_TRACKS: u32 = 200;
 
 /// O que a interface pode ativar com um clique.
 ///
@@ -50,6 +61,12 @@ pub enum Target {
     Album(AlbumId),
     Playlist(PlaylistId),
     Artist(ArtistId),
+    /// Musicas curtidas.
+    ///
+    /// Nao tem id porque nao e uma playlist: e a colecao da conta, e o
+    /// Spotify a trata como coisa a parte. Aqui ela ganha um alvo proprio
+    /// para poder ser ativada como qualquer outra lista.
+    Liked,
 }
 
 impl Target {
@@ -60,6 +77,7 @@ impl Target {
             Target::Album(id) => format!("album/{id}"),
             Target::Playlist(id) => format!("playlist/{id}"),
             Target::Artist(id) => format!("artist/{id}"),
+            Target::Liked => "liked".into(),
         }
     }
 
@@ -68,6 +86,10 @@ impl Target {
     /// Um id sem tipo e lido como faixa: e o que a fila usava antes de haver
     /// catalogo, e continuar aceitando evita quebrar cache antigo.
     pub fn parse(tag: &str) -> Option<Self> {
+        if tag == "liked" {
+            return Some(Target::Liked);
+        }
+
         let (kind, id) = tag.split_once('/').unwrap_or(("track", tag));
         let (provider, id) = id.split_once(':')?;
         if provider != "spotify" || id.is_empty() {
@@ -104,11 +126,37 @@ pub struct Card {
 /// respondeu seria pior do que uma tela inicial menor.
 #[derive(Debug, Default)]
 pub struct Home {
+    /// Geradas para esta conta: Daily Mix, Discover Weekly, Blend.
     pub made_for_you: Vec<Card>,
-    pub recent: Vec<Track>,
+    /// Fluxo continuo em torno de uma semente: os Mix de tema e de artista.
+    pub stations: Vec<Card>,
+    /// Retrospectivas: Your Top Songs de cada ano, e a de todos os tempos.
+    pub retrospectives: Vec<Card>,
     pub liked: Vec<Track>,
-    pub top_artists: Vec<Card>,
+    /// Todas as playlists da conta, para a barra lateral.
+    ///
+    /// Nao e prateleira: o `rootlist` e a navegacao do usuario, e vive na
+    /// lateral. Vem no mesmo pacote porque sai da mesma requisicao.
     pub playlists: Vec<Card>,
+}
+
+/// Uma lista aberta na tela de detalhe.
+///
+/// Carrega as faixas **inteiras**, e nao so as visiveis: filtrar e ordenar
+/// precisam ver tudo, e uma lista que so ordena o pedaco carregado mente para
+/// quem olha. O teto de quantas vem esta em [`DETAIL_TRACKS`].
+#[derive(Debug, Clone)]
+pub struct Detail {
+    /// O que abriu esta tela, para o botao de voltar e para a fila.
+    pub origin: QueueOrigin,
+    pub title: String,
+    /// Dono e tamanho, ou artistas do album.
+    pub subtitle: String,
+    /// Que tipo de coisa e: "Playlist", "Album", "Artista".
+    pub kind: String,
+    pub cover: String,
+    pub cover_path: Option<std::path::PathBuf>,
+    pub tracks: Vec<Track>,
 }
 
 /// O que um pedido produziu.
@@ -117,7 +165,12 @@ pub enum Outcome {
     Home(Box<Home>),
     Library(Vec<Card>),
     /// Um album, playlist ou artista pronto para virar fila.
+    ///
+    /// Continua existindo para o que se toca sem abrir: uma faixa avulsa da
+    /// busca, ou a lista inteira acionada pelo botao de tocar.
     Context { origin: QueueOrigin, title: String, tracks: Vec<Track> },
+    /// Uma lista aberta para ser lida antes de tocada.
+    Detail(Box<Detail>),
     Failed(String),
 }
 
@@ -235,39 +288,54 @@ impl Browse {
     /// Sequencial e nao paralelo pelo mesmo motivo da biblioteca: sao quatro
     /// requisicoes numa tela que abre uma vez, e disparar as quatro juntas
     /// arrisca o limite de requisicoes do Spotify para ganhar milissegundos.
+    /// Carrega o Inicio e a lista da barra lateral.
+    ///
+    /// Duas requisicoes, nao cinco: as playlists saem todas de um `rootlist`
+    /// so, e a classificacao separa o que vai para cada prateleira. As que
+    /// morreram com o Web API -- historico recente e artistas mais ouvidos --
+    /// nao sao nem pedidas.
     pub fn load_home(&mut self) {
         let library = self.library.clone();
         self.spawn(move |tx| async move {
             let mut home = Home::default();
             let mut failure = None;
 
-            // Cada prateleira registra o proprio erro e segue. So a falha da
-            // primeira que quebrar vira mensagem, e so quando nada mais veio.
-            match library.made_for_you(SHELF_CARDS).await {
-                Ok(page) => home.made_for_you = page.items.iter().map(playlist_card).collect(),
-                Err(e) => failure = note(failure, &e, "feito para voce"),
+            match library.made_for_you(ROOTLIST_LIMIT).await {
+                Ok(page) => {
+                    for playlist in &page.items {
+                        let card = playlist_card(playlist);
+                        match playlist.kind {
+                            PlaylistKind::MadeForYou => home.made_for_you.push(card),
+                            PlaylistKind::Station => home.stations.push(card),
+                            PlaylistKind::Retrospective => home.retrospectives.push(card),
+                            // Vitrine nao entra em prateleira nenhuma: e igual
+                            // para todo mundo, e o Inicio e sobre esta conta.
+                            PlaylistKind::Editorial => {}
+                            PlaylistKind::Personal => {}
+                        }
+
+                        // A lateral mostra o que o usuario navega: o que ele
+                        // criou, seguiu, e as vitrines que ele escolheu seguir.
+                        if matches!(
+                            playlist.kind,
+                            PlaylistKind::Personal | PlaylistKind::Editorial
+                        ) {
+                            home.playlists.push(playlist_card(playlist));
+                        }
+                    }
+                }
+                Err(e) => failure = note(failure, &e, "playlists"),
             }
-            match library.recently_played(SHELF_TRACKS).await {
-                Ok(page) => home.recent = page.items,
-                Err(e) => failure = note(failure, &e, "historico recente"),
-            }
+
             match library.saved_tracks(0, SHELF_TRACKS).await {
                 Ok(page) => home.liked = page.items,
                 Err(e) => failure = note(failure, &e, "musicas curtidas"),
             }
-            match library.top_artists(TopRange::default(), 0, SHELF_CARDS).await {
-                Ok(page) => home.top_artists = page.items.iter().map(artist_card).collect(),
-                Err(e) => failure = note(failure, &e, "mais ouvidos"),
-            }
-            match library.saved_playlists(0, SHELF_CARDS).await {
-                Ok(page) => home.playlists = page.items.iter().map(playlist_card).collect(),
-                Err(e) => failure = note(failure, &e, "playlists"),
-            }
 
             let vazio = home.made_for_you.is_empty()
-                && home.recent.is_empty()
+                && home.stations.is_empty()
+                && home.retrospectives.is_empty()
                 && home.liked.is_empty()
-                && home.top_artists.is_empty()
                 && home.playlists.is_empty();
 
             let _ = tx.send(match failure {
@@ -276,7 +344,6 @@ impl Browse {
             });
         });
     }
-
     /// Playlists, albuns salvos e artistas seguidos, nesta ordem.
     ///
     /// As tres requisicoes sao sequenciais e nao paralelas: a biblioteca abre
@@ -314,8 +381,9 @@ impl Browse {
     /// Carrega o que foi ativado numa grade e devolve as faixas dele.
     pub fn open(&mut self, target: Target) {
         let catalog = self.catalog.clone();
+        let library = self.library.clone();
         self.spawn(move |tx| async move {
-            let _ = tx.send(match resolve(catalog, target).await {
+            let _ = tx.send(match resolve(catalog, library, target).await {
                 Ok(outcome) => outcome,
                 Err(e) => Outcome::Failed(describe(&e)),
             });
@@ -349,7 +417,11 @@ impl Browse {
     }
 }
 
-async fn resolve(catalog: Arc<dyn Catalog>, target: Target) -> CoreResult<Outcome> {
+async fn resolve(
+    catalog: Arc<dyn Catalog>,
+    library: Arc<dyn Library>,
+    target: Target,
+) -> CoreResult<Outcome> {
     Ok(match target {
         // Uma faixa avulsa vira uma fila de uma faixa so. Quem ativou uma faixa
         // de uma lista nao passa por aqui: a lista inteira ja e o contexto.
@@ -360,27 +432,62 @@ async fn resolve(catalog: Arc<dyn Catalog>, target: Target) -> CoreResult<Outcom
         }
         Target::Album(id) => {
             let album = catalog.album(&id).await?;
-            Outcome::Context {
+            Outcome::Detail(Box::new(Detail {
                 origin: QueueOrigin::Album(album.id.canonical()),
                 title: album.name.to_string(),
+                subtitle: album
+                    .artists
+                    .iter()
+                    .map(|a| a.name.as_ref())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                kind: "Album".into(),
+                cover: cover(&album.images),
+                cover_path: None,
                 tracks: album.tracks,
-            }
+            }))
         }
         Target::Playlist(id) => {
             let playlist = catalog.playlist(&id).await?;
-            Outcome::Context {
+            Outcome::Detail(Box::new(Detail {
                 origin: QueueOrigin::Playlist(playlist.id.canonical()),
                 title: playlist.name.to_string(),
+                subtitle: match playlist.owner.as_deref() {
+                    Some(dono) => format!("{dono} — {} faixas", playlist.tracks.len()),
+                    None => format!("{} faixas", playlist.tracks.len()),
+                },
+                kind: "Playlist".into(),
+                cover: cover(&playlist.images),
+                cover_path: None,
                 tracks: playlist.tracks,
-            }
+            }))
+        }
+        // Diferente das outras, esta nao vem do catalogo: curtidas sao da
+        // conta, e quem responde por elas e a biblioteca.
+        Target::Liked => {
+            let page = library.saved_tracks(0, DETAIL_TRACKS).await?;
+            let total = page.total.unwrap_or(page.items.len() as u32);
+            Outcome::Detail(Box::new(Detail {
+                origin: QueueOrigin::Custom(LIKED_TITLE.into()),
+                title: LIKED_TITLE.into(),
+                subtitle: format!("{total} faixas"),
+                kind: "Colecao".into(),
+                cover: String::new(),
+                cover_path: None,
+                tracks: page.items,
+            }))
         }
         Target::Artist(id) => {
             let artist = catalog.artist(&id).await?;
-            Outcome::Context {
+            Outcome::Detail(Box::new(Detail {
                 origin: QueueOrigin::Artist(artist.id.canonical()),
                 title: artist.name.to_string(),
+                subtitle: String::new(),
+                kind: "Artista".into(),
+                cover: cover(&artist.images),
+                cover_path: None,
                 tracks: artist.top_tracks,
-            }
+            }))
         }
     })
 }
@@ -437,6 +544,12 @@ fn artist_card(a: &morune_core::model::Artist) -> Card {
 /// escolher uma imagem borrada. Telas de alta densidade desenham maior, e a
 /// diferenca nao se ve num quadrado pequeno.
 const CARD_ARTWORK_WIDTH: u32 = 300;
+
+/// Quantas playlists o rootlist entrega de uma vez.
+///
+/// Nao e teto de prateleira: e a lista inteira da conta, porque a barra
+/// lateral mostra todas e o filtro precisa ver todas para filtrar.
+const ROOTLIST_LIMIT: u32 = 200;
 
 /// Guarda a primeira falha e registra as demais no log.
 ///
@@ -512,6 +625,7 @@ mod tests {
     fn playlist(name: &str, owner: Option<&str>, total: Option<u32>) -> morune_core::model::Playlist {
         morune_core::model::Playlist {
             id: PlaylistId::spotify("37i9"),
+            kind: PlaylistKind::default(),
             name: name.into(),
             owner: owner.map(Arc::from),
             description: None,
@@ -584,8 +698,8 @@ mod tests {
     #[test]
     fn a_home_with_nothing_in_it_is_detectable() {
         let home = Home::default();
-        assert!(home.made_for_you.is_empty() && home.recent.is_empty());
-        assert!(home.liked.is_empty() && home.top_artists.is_empty());
+        assert!(home.made_for_you.is_empty() && home.stations.is_empty());
+        assert!(home.retrospectives.is_empty() && home.liked.is_empty());
         assert!(home.playlists.is_empty());
     }
 

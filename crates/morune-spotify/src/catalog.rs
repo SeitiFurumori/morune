@@ -21,6 +21,7 @@ use morune_core::catalog::{
     BoxFuture, Catalog, Library, Page, SearchKind, SearchResults, TopRange,
 };
 use morune_core::model::{
+    PlaylistKind,
     Album, AlbumId, Artist, ArtistId, Playlist, PlaylistId, Provider, Track, TrackId,
 };
 use morune_core::{CoreError, CoreResult};
@@ -85,6 +86,7 @@ impl SpotifyCatalog {
 
         Ok(Playlist {
             id: PlaylistId::spotify(id),
+            kind: PlaylistKind::Personal,
             name: Arc::from(contents.name.as_str()),
             owner: None,
             description: None,
@@ -94,17 +96,19 @@ impl SpotifyCatalog {
         })
     }
 
-    /// Playlists que o Spotify monta para esta conta.
-    async fn spotify_made(&self, limit: u32) -> CoreResult<Page<Playlist>> {
+    /// Todas as playlists da conta, ja classificadas.
+    ///
+    /// Uma requisicao so, e a tela decide o que fazer com cada tipo: as pessoais
+    /// vao para a barra lateral, as geradas para o Inicio, e as de vitrine nao
+    /// aparecem em prateleira nenhuma. Separar isso em tres chamadas custaria
+    /// tres rootlists identicos.
+    async fn all_playlists(&self, limit: u32) -> CoreResult<Page<Playlist>> {
         let todas = self.internal.rootlist().await?;
-        let items: Vec<Playlist> = todas
-            .iter()
-            .filter(|p| p.made_by_spotify())
-            .take(limit as usize)
-            .map(summary_to_playlist)
-            .collect();
+        let total = Some(todas.len() as u32);
 
-        let total = Some(items.len() as u32);
+        let items: Vec<Playlist> =
+            todas.iter().take(limit as usize).map(summary_to_playlist).collect();
+
         Ok(Page { items, offset: 0, total })
     }
 
@@ -328,8 +332,13 @@ impl Library for SpotifyCatalog {
         Box::pin(async { Err(CoreError::Unsupported(SEM_CAMINHO)) })
     }
 
+    /// Todas as playlists, classificadas. Ver [`SpotifyCatalog::all_playlists`].
+    ///
+    /// O nome do contrato envelheceu: hoje isto devolve tudo, e a tela e que
+    /// escolhe. Trocar o nome mexeria no contrato do core por causa de um
+    /// detalhe de quem chama.
     fn made_for_you<'a>(&'a self, limit: u32) -> BoxFuture<'a, CoreResult<Page<Playlist>>> {
-        Box::pin(self.spotify_made(limit))
+        Box::pin(self.all_playlists(limit))
     }
 
     /// Tocadas recentemente -- **sem caminho conhecido**.
@@ -429,6 +438,7 @@ fn meta_to_track(meta: TrackMeta) -> Track {
 fn summary_to_playlist(summary: &PlaylistSummary) -> Playlist {
     Playlist {
         id: summary.id.clone(),
+        kind: summary.kind(),
         name: Arc::from(summary.name.as_str()),
         owner: Some(summary.owner.as_str()).filter(|o| !o.is_empty()).map(Arc::from),
         description: None,
