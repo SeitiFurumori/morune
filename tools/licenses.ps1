@@ -59,7 +59,7 @@ Write-Host ("dependencias distribuidas: {0}" -f $third.Count) -ForegroundColor D
 # O texto vem do pacote baixado, nao de um modelo: o que a licenca exige
 # preservar e o aviso de copyright de cada autor, e ele so existe no arquivo
 # real. Um modelo generico de MIT nao substitui nenhum deles.
-$wanted = "^(LICEN[CS]E|COPYING|COPYRIGHT|NOTICE|UNLICENSE)"
+$wanted = "^(LICEN[CS]E|COPYING|COPYRIGHT|NOTICE|UNLICENSE|(A?GPL|LGPL|MPL)(-|\.|$)|.*-(A?GPL|LGPL|MPL)(-|\.|$))"
 
 function Get-LicenseFiles($package) {
     $dir = Split-Path -Parent $package.manifest_path
@@ -78,7 +78,9 @@ $entries = @()
 foreach ($p in $third) {
     $refs = @()
     foreach ($file in Get-LicenseFiles $p) {
-        $body = (Get-Content $file.FullName -Raw).Replace("`r`n", "`n").TrimEnd()
+        $body = (Get-Content $file.FullName -Raw).Replace("`r`n", "`n")
+        $body = (($body -split "`n") | ForEach-Object { $_.TrimEnd() }) -join "`n"
+        $body = $body.TrimEnd()
         if (-not $body) { continue }
         if (-not $texts.Contains($body)) {
             $texts[$body] = [pscustomobject]@{ Number = $texts.Count + 1; Users = @() }
@@ -104,6 +106,8 @@ $rule = "=" * 78
 [void]$sb.AppendLine()
 [void]$sb.AppendLine("O Slint aparece abaixo com tres licencas alternativas. O Morune o usa sob a")
 [void]$sb.AppendLine("LicenseRef-Slint-Royalty-free-2.0, nao sob a GPL. Ver docs/adr/0005.")
+[void]$sb.AppendLine("priority-queue 2.7.0 e usado sob MPL-2.0, nao sob LGPL. O codigo-fonte")
+[void]$sb.AppendLine("exato esta em https://crates.io/crates/priority-queue/2.7.0. Ver docs/adr/0006.")
 [void]$sb.AppendLine()
 [void]$sb.AppendLine(("Gerado por tools/licenses.ps1 em {0}, para o alvo {1}." -f (Get-Date -Format "dd/MM/yyyy"), $Target))
 [void]$sb.AppendLine(("{0} dependencias, {1} textos de licenca distintos." -f $entries.Count, $texts.Count))
@@ -158,6 +162,8 @@ $revisadas = @{
     "i-slint-common" = $true; "i-slint-compiler" = $true; "i-slint-core-macros" = $true
     "i-slint-backend-selector" = $true; "i-slint-backend-winit" = $true
     "i-slint-renderer-femtovg" = $true; "i-slint-renderer-software" = $true
+    # Dependencia da librespot, usada sem modificacao sob MPL-2.0. Ver ADR-0006.
+    "priority-queue" = $true
 }
 
 $contagiosas = $entries | Where-Object {

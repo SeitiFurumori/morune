@@ -30,24 +30,24 @@ teto explicito para nao crescer sem limite, nao com meta de vitrine.
 
 | Metrica | Meta | Medido | Situacao |
 |---|---|---|---|
-| CPU em repouso, janela visivel | ~0% | **0,00%** | cumprido |
+| CPU em repouso, janela visivel | ~0% | **0,14%** | cumprido |
 | CPU na bandeja, janela oculta | ~0% | **0,00%** | cumprido |
 | GPU na bandeja | sem redesenho | — | nao medido |
 | Interferencia com jogo em tela cheia | imperceptivel | — | nao medido |
-| Resposta da interface | sem travar, nunca | — | sem backend para exercitar |
-| CPU em reproducao | < 2% | — | sem backend ainda |
-| Startup ate o laco de eventos | < 1 s | **18 ms** | folgado |
-| Ciclo completo do processo | < 1 s | **1,01 s** | no limite |
-| RAM em repouso | teto, nao vitrine | **70,6 MB** | aceito |
-| RAM em reproducao com capas | crescimento limitado por LRU | — | cache nao existe |
-| Tamanho do instalador | < 40 MB | **4,00 MB** | folgado |
-| Tamanho do executavel | — | **9,39 MB** | — |
+| Resposta da interface | sem travar, nunca | — | exige sessao real prolongada |
+| CPU em reproducao | < 2% | — | exige reproducao real |
+| Startup ate o laco de eventos | < 1 s | **19 ms** | folgado |
+| Ciclo completo do processo | < 1 s | **509 ms** | cumprido |
+| RAM em repouso | teto, nao vitrine | **78,8 MB** | aceito |
+| RAM em reproducao com capas | crescimento limitado | — | cache em disco limitado; RAM nao medida |
+| Tamanho do instalador | < 40 MB | **5,31 MB** | folgado |
+| Tamanho do executavel | — | **13,28 MB** | — |
 | Dependencia de Chromium | nenhuma | nenhuma | cumprido |
 
-As tres linhas sem numero e com meta qualitativa sao as mais importantes da
-tabela, e sao justamente as que ainda nao foram medidas. Enquanto nao houver
-reproducao real, nao ha como medir nenhuma delas com honestidade.
-## Medicao de 18/08/2026
+As linhas sem numero dependem de uma sessao Premium real, com musica tocando e
+um jogo em tela cheia. O teste sintetico nao substitui esse cenario.
+
+## Medicao de 19/08/2026
 
 
 Maquina: AMD Ryzen 5 8500G, 16 GB RAM, Radeon 740M (grafico integrado),
@@ -56,20 +56,20 @@ Windows 11 Pro build 26200. Binario de release, perfil `opt-level = "z"`,
 
 ```
 executavel   : target\release\morune.exe
-tamanho      : 9,39 MB
-instalador   : 4,00 MB
+tamanho      : 13,28 MB
+instalador   : 5,31 MB
 
-startup interno          : primeiro 21,0 | mediana 18,0 | min 17,0 | max 30,0 ms
-startup processo inteiro : primeiro 1054,7 | mediana 1018,9 | min 1012,7 | max 1054,7 ms
+startup interno          : primeiro 18,0 | mediana 19,0 | min 17,0 | max 21,0 ms
+startup processo inteiro : primeiro 722,4 | mediana 508,7 | min 387,3 | max 722,4 ms
 
-working set    : media  70,6 MB | pico  71,3 MB
-memoria privada: media  74,2 MB | pico  74,9 MB
-cpu em repouso : 0,00% de um nucleo
+working set    : media  78,8 MB | pico  79,5 MB
+memoria privada: media  76,1 MB | pico  76,8 MB
+cpu em repouso : 0,14% de um nucleo
 ```
 
 ### O que cada numero significa
 
-**Startup interno (18 ms).** Do inicio de `main` ate o laco de eventos do Slint
+**Startup interno (19 ms).** Do inicio de `main` ate o laco de eventos do Slint
 executar sua primeira tarefa. Cobre log, caminhos, configuracao, carregamento e
 validacao do tema, criacao da janela, aplicacao de todos os tokens e criacao do
 icone de bandeja. E o custo do **nosso** codigo.
@@ -80,17 +80,17 @@ decodificacao do PNG de 128 px que vira o icone da janela. Todos pagos uma vez.
 Ficam registrados aqui em vez de sumidos numa media: uma regressao pequena em
 valor absoluto precisa ser visivel para nao virar habito.
 
-**Instalador (4,00 MB).** LZMA sobre um binario de 9,39 MB, 57% de compressao.
+**Instalador (5,31 MB).** LZMA sobre um binario de 13,28 MB, 60% de compressao.
 Um unico `.exe`, sem runtime nem redistribuivel para instalar antes — verificado
 executando o binario sozinho numa pasta vazia com `PATH` reduzido a
 `%SystemRoot%\system32`. Carrega tambem `LICENSE` e os 622 KB de
-`THIRD-PARTY-LICENSES.txt`, que custam 0,04 MB depois de comprimidos.
+`THIRD-PARTY-LICENSES.txt` (929 KB antes da compressao).
 
-**Ciclo completo do processo (1,01 s).** Medido de fora com `Start-Process
+**Ciclo completo do processo (509 ms de mediana).** Medido de fora com `Start-Process
 -Wait`: criacao do processo pelo Windows, carga do binario, inicializacao do
 backend grafico, criacao do contexto OpenGL, primeiro quadro e encerramento
-completo. E a cota honesta, e a diferenca de ~1 s em relacao ao numero interno
-esta quase toda em contexto grafico e teardown, nao em logica nossa.
+completo. E a cota honesta; a diferenca em relacao ao numero interno esta em
+grande parte no contexto grafico e no teardown, nao na logica do Morune.
 
 Os dois numeros aparecem porque so o primeiro seria autoelogio e so o segundo
 esconderia onde esta o custo.
@@ -100,11 +100,11 @@ esconderia onde esta o custo.
 > `Start-Process -Wait` e le o tempo interno de um arquivo, ja que o binario de
 > release nao tem stdout.
 
-**Working set em repouso (70,6 MB).** Media de 8 amostras de 1 s, comecando 2 s
+**Working set em repouso (78,8 MB).** Media de 12 amostras de 1 s, comecando 2 s
 depois de abrir, com a janela visivel e ociosa. Inclui o driver OpenGL e o
 atlas de fontes do renderizador FemtoVG.
 
-Esta exatamente na meta, sem folga. Um valor de 129 MB apareceu numa medicao
+Continua pequeno diante do teto pratico do produto. Um valor de 129 MB apareceu numa medicao
 anterior com binario de depuracao — a diferenca entre os perfis e grande o
 bastante para que medir em `debug` nao signifique nada.
 
@@ -161,23 +161,23 @@ da mudanca, nao porque alguem desconfiou.
 ## Riscos conhecidos
 
 **Interferencia com jogo nunca foi medida.** E a metrica mais importante da
-pagina e a unica sem nenhum dado. CPU em repouso 0,00% e um bom sinal, mas nao
+pagina e a unica sem nenhum dado. CPU em repouso 0,14% e um bom sinal, mas nao
 prova o que interessa: se o Morune acorda a GPU em segundo plano, quanto custa o
 primeiro quadro depois de horas na bandeja, e se algo dele aparece no tempo de
 quadro de um jogo em tela cheia. So faz sentido medir com reproducao real
-tocando — hoje nao ha o que tocar.
+tocando em uma sessao real.
 
-**RAM cresce sem teto assim que houver capas.** 70,6 MB em repouso e aceito: a
-meta deixou de ser um numero de vitrine. O que nao pode acontecer e o cache de
-capas crescer sem limite, entao ele precisa nascer com teto explicito e descarte
-por LRU — a decisao e o teto, nao o total.
+**RAM durante navegacao com muitas capas nao foi medida.** O cache em disco ja
+tem teto explicito de 48 MB e descarte dos arquivos mais antigos. Falta medir
+o cache de imagens do renderizador durante uma sessao longa para confirmar que
+o working set tambem estabiliza.
 
-**~1 s de inicializacao grafica.** Nao foi investigado ainda. Vale medir quanto
+**~0,5 s de ciclo grafico.** Nao foi investigado ainda. Vale medir quanto
 disso e criacao do contexto OpenGL no driver Radeon e quanto e o backend winit,
 antes de tentar otimizar.
 
-**Reproducao nao foi medida.** O orcamento de 120 MB e uma meta, nao um
-resultado. So faz sentido medir com librespot real tocando.
+**Reproducao nao foi medida neste ciclo.** A meta de CPU e um criterio, nao um
+resultado. So faz sentido medi-la com librespot real tocando.
 
 ## Como reproduzir
 

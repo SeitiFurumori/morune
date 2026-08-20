@@ -179,21 +179,21 @@ nao mudou por causa dela — que era o ponto de te-lo escrito primeiro.
 | `token` | fonte unica de token: obtem, guarda no cofre e renova sob trava |
 | `auth` | `Authenticator`: OAuth PKCE, restauracao de sessao, logout |
 | `engine` | `PlaybackEngine` sobre a librespot, em runtime tokio proprio |
-| `webapi` | transporte HTTP autenticado do Web API |
-| `dto` | JSON do Spotify -> modelo do core, sem rede e testavel |
-| `internal` | protocolo interno, para o que o Web API fechou em 2024 |
-| `catalog` | `Catalog` e `Library` sobre os tres anteriores |
+| `pathfinder` + `graphql` | busca por consulta persistida do player web |
+| `internal` | playlists, colecao, metadado, artista e radio pelo protocolo interno |
+| `artwork` | download validado de capas |
+| `catalog` | `Catalog` e `Library` sobre os caminhos anteriores |
 | `runtime` | dono do runtime e ponto de entrada da crate |
 
-**Sao dois canais, e nao um por escolha.** O protocolo que a librespot fala
-entrega audio; busca e biblioteca so existem no Web API, que e HTTP comum. Os
-dois usam a mesma `Session` e o mesmo token: duas conexoes gastariam dois slots
-de dispositivo na conta, e o Spotify derrubaria uma delas.
+**Tudo nasce de uma sessao da librespot.** Audio e catalogo interno usam a
+sessao diretamente; apenas a busca passa pelo `api-partner`/Pathfinder, assinada
+pelos tokens que essa mesma sessao mantem. O Web API publico saiu do desenho
+depois de responder 429 para qualquer token medido.
 
-**E o canal interno faz o que o Web API parou de fazer.** Em 2024 o Spotify
-fechou o acesso as playlists que ele monta para a conta; pelo protocolo que o
-cliente oficial usa elas continuam la. O criterio para usar um caminho ou outro
-nao e preferencia: e onde o dado existe.
+**O canal interno faz o que o Web API parou de fazer.** Playlists, curtidas,
+artistas seguidos, capas, detalhes e radio continuam disponiveis pelo protocolo
+do cliente oficial. O criterio para usar um caminho ou outro e onde o dado foi
+medido, nao preferencia de implementacao.
 
 **A interface nunca espera rede.** Comandos de reproducao entram por canal e nao
 devolvem resultado; quem quer saber o que aconteceu assina os eventos. Consultas
@@ -204,5 +204,6 @@ de 100 ms que ja atende bandeja e reproducao.
 
 ## O que ainda nao existe
 
-Capas (download e cache), paginacao das telas de conteudo e telas de detalhe de
-album, artista e playlist. Ver [ROADMAP.md](ROADMAP.md).
+Albuns salvos, historico recente e estatisticas de mais ouvidos nao possuem um
+caminho estavel conhecido. Escrita na conta tambem esta fora do escopo atual.
+Ver [ROADMAP.md](ROADMAP.md).

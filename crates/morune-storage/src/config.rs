@@ -45,7 +45,11 @@ pub struct AppearanceConfig {
 
 impl Default for AppearanceConfig {
     fn default() -> Self {
-        Self { theme: "midnight".into(), font_scale_override: 0.0, reduce_motion: false }
+        Self {
+            theme: "midnight".into(),
+            font_scale_override: 0.0,
+            reduce_motion: false,
+        }
     }
 }
 
@@ -56,6 +60,8 @@ pub struct PlaybackConfig {
     pub volume: f32,
     pub shuffle: bool,
     pub repeat: RepeatMode,
+    /// Continua com uma estacao baseada na ultima faixa quando o contexto acaba.
+    pub autoplay: bool,
     /// Normalizacao de volume entre faixas.
     pub normalize: bool,
     /// Qualidade pedida ao backend de streaming, em kbps. Valores aceitos
@@ -73,6 +79,7 @@ impl Default for PlaybackConfig {
             volume: 0.7,
             shuffle: false,
             repeat: RepeatMode::Off,
+            autoplay: true,
             normalize: true,
             bitrate: 160,
             audio_cache_mb: 1024,
@@ -98,7 +105,12 @@ pub struct WindowConfig {
 
 impl Default for WindowConfig {
     fn default() -> Self {
-        Self { width: 0.0, height: 0.0, maximized: false, close_to_tray: true }
+        Self {
+            width: 0.0,
+            height: 0.0,
+            maximized: false,
+            close_to_tray: true,
+        }
     }
 }
 
@@ -172,7 +184,11 @@ impl Config {
 
     fn migrate(&mut self) {
         if self.version < CONFIG_VERSION {
-            tracing::info!(from = self.version, to = CONFIG_VERSION, "migrando configuracao");
+            tracing::info!(
+                from = self.version,
+                to = CONFIG_VERSION,
+                "migrando configuracao"
+            );
             self.version = CONFIG_VERSION;
         }
     }
@@ -243,7 +259,10 @@ mod tests {
 
         let c = Config::load(&path);
         assert_eq!(c, Config::default());
-        assert!(path.with_extension("toml.bak").is_file(), "backup nao foi criado");
+        assert!(
+            path.with_extension("toml.bak").is_file(),
+            "backup nao foi criado"
+        );
 
         let _ = fs::remove_file(&path);
         let _ = fs::remove_file(path.with_extension("toml.bak"));

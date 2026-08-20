@@ -12,6 +12,7 @@ export struct TrackRow {
     title: string,
     artist: string,
     album: string,
+    cover: image,
     duration: string,
     playable: bool,
     playing: bool,
@@ -151,6 +152,13 @@ component TrackListRow inherits Rectangle {
             vertical-alignment: center;
             horizontal-alignment: right;
             width: 26px;
+        }
+
+        Artwork {
+            source: root.track.cover;
+            seed: root.track.title;
+            width: Layout.row-height - Theme.space-sm;
+            height: self.width;
         }
 
         VerticalLayout {
@@ -718,6 +726,34 @@ component CardShelf inherits VerticalLayout {
     }
 }
 
+// Discografias podem ter dezenas de albuns. A faixa horizontal mantem as
+// capas legiveis sem empurrar as musicas populares para fora da tela.
+component ScrollableCardShelf inherits VerticalLayout {
+    in property <string> title;
+    in property <[CardItem]> items;
+    callback activated(string);
+
+    spacing: Theme.space-sm;
+    vertical-stretch: 0;
+
+    SectionTitle { text: root.title; }
+
+    Flickable {
+        height: cards.preferred-height;
+        viewport-width: cards.preferred-width;
+        viewport-height: self.height;
+
+        cards := HorizontalLayout {
+            spacing: Theme.space-md;
+            alignment: start;
+            for item in root.items: Card {
+                item: item;
+                activated => { root.activated(item.id); }
+            }
+        }
+    }
+}
+
 // Uma secao do Inicio feita de faixas, para o que se ouve e nao se navega.
 component TrackShelf inherits VerticalLayout {
     in property <string> title;
@@ -831,7 +867,7 @@ component LibraryPage inherits VerticalLayout {
 
     if !root.logged-in: EmptyState {
         title: "Voce ainda nao entrou";
-        hint: "Entre com sua conta Spotify Premium para ver playlists, albuns salvos e artistas seguidos.";
+        hint: "Entre com sua conta Spotify Premium para ver albuns salvos e artistas seguidos.";
     }
 
     if root.logged-in && root.items.length == 0: EmptyState {
@@ -895,9 +931,12 @@ component DetailPage inherits VerticalLayout {
     in property <string> kind;
     in property <image> cover;
     in property <[TrackRow]> tracks;
+    in property <[CardItem]> items;
     in property <int> sort;
     in property <bool> descending;
     in property <bool> filtered;
+    in property <bool> truncated;
+    in property <int> loaded-count;
 
     callback back();
     callback play();
@@ -977,6 +1016,31 @@ component DetailPage inherits VerticalLayout {
         edited(q) => { root.filter(q); }
     }
 
+    if root.truncated: Rectangle {
+        vertical-stretch: 0;
+        height: Theme.space-xl + Theme.space-md;
+        border-radius: Theme.radius-sm;
+        background: Theme.hover;
+
+        Text {
+            x: Theme.space-md;
+            width: parent.width - Theme.space-md * 2;
+            height: parent.height;
+            text: "Mostrando as primeiras " + root.loaded-count + " faixas. Filtrar e ordenar afetam somente este recorte.";
+            color: Theme.text-muted;
+            font-size: Theme.size-sm;
+            font-family: Theme.font-family;
+            vertical-alignment: center;
+            wrap: word-wrap;
+        }
+    }
+
+    if root.items.length > 0: ScrollableCardShelf {
+        title: "Discografia";
+        items: root.items;
+        activated(id) => { root.activated(id); }
+    }
+
     HorizontalLayout {
         spacing: Theme.space-xs;
         alignment: start;
@@ -1027,6 +1091,10 @@ component DetailPage inherits VerticalLayout {
     if root.tracks.length == 0 && root.filtered: EmptyState {
         title: "Nada com esse texto";
         hint: "Nenhuma faixa desta lista combina com o que voce digitou.";
+    }
+
+    if root.kind == "Artista" && root.tracks.length > 0: SectionTitle {
+        text: "Faixas populares";
     }
 
     if root.tracks.length > 0: TrackList {
@@ -1155,8 +1223,10 @@ component SettingsPage inherits VerticalLayout {
     in property <bool> logged-in;
     in property <string> account-name;
     in property <bool> close-to-tray;
+    in property <bool> autoplay;
 
     callback set-close-to-tray(bool);
+    callback set-autoplay(bool);
     callback select-theme(string);
     callback import-theme();
     callback export-theme(string);
@@ -1213,6 +1283,13 @@ component SettingsPage inherits VerticalLayout {
             font-size: Theme.size-md;
             font-weight: Theme.weight-bold;
             font-family: Theme.font-family;
+        }
+
+        SettingRow {
+            label: "Continuar com radio";
+            hint: "Quando a fila acabar, toca uma estacao baseada na ultima faixa.";
+            checked: root.autoplay;
+            toggled(v) => { root.set-autoplay(v); }
         }
 
         SettingRow {
@@ -1328,9 +1405,12 @@ export component AppWindow inherits Window {
     in property <string> detail-kind;
     in property <image> detail-cover;
     in property <[TrackRow]> detail-tracks;
+    in property <[CardItem]> detail-items;
     in property <int> detail-sort;
     in property <bool> detail-descending;
     in property <bool> detail-filtered;
+    in property <bool> detail-truncated;
+    in property <int> detail-loaded-count;
     in property <string> now-artist;
     in property <bool> playing;
     in property <bool> has-track;
@@ -1344,6 +1424,7 @@ export component AppWindow inherits Window {
     in property <bool> dev-mode: false;
     in property <string> perf-text;
     in property <bool> close-to-tray: true;
+    in property <bool> autoplay: true;
 
     // --- eventos para o Rust ---
     callback navigate(int);
@@ -1371,6 +1452,7 @@ export component AppWindow inherits Window {
     callback detail-sort-by(int);
     callback detail-activate(string);
     callback set-close-to-tray(bool);
+    callback set-autoplay(bool);
     callback login();
     callback logout();
 
@@ -1478,7 +1560,9 @@ export component AppWindow inherits Window {
                         logged-in: root.logged-in;
                         account-name: root.account-name;
                         close-to-tray: root.close-to-tray;
+                        autoplay: root.autoplay;
                         set-close-to-tray(v) => { root.set-close-to-tray(v); }
+                        set-autoplay(v) => { root.set-autoplay(v); }
                         select-theme(id) => { root.select-theme(id); }
                         import-theme => { root.import-theme(); }
                         export-theme(id) => { root.export-theme(id); }
@@ -1496,9 +1580,12 @@ export component AppWindow inherits Window {
                         kind: root.detail-kind;
                         cover: root.detail-cover;
                         tracks: root.detail-tracks;
+                        items: root.detail-items;
                         sort: root.detail-sort;
                         descending: root.detail-descending;
                         filtered: root.detail-filtered;
+                        truncated: root.detail-truncated;
+                        loaded-count: root.detail-loaded-count;
                         back => { root.detail-back(); }
                         play => { root.detail-play(); }
                         filter(q) => { root.detail-filter(q); }

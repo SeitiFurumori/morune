@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<![CDATA[<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#e8e5ee;font-family:"Segoe UI Variable Text","Segoe UI","Source Sans 3",system-ui,sans-serif}
+a{color:#5b2fb3;text-decoration:none}a:hover{color:#7b2fd6}
+.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}
+.dv-tid{font:600 10px ui-monospace,"JetBrains Mono",monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}
+.dv-tname{font:600 13px/1.2 system-ui,sans-serif;color:#1a1a1a}
+.dv-opts{display:flex;flex-wrap:wrap;gap:36px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}
+.dv-oid{font:600 10.5px ui-monospace,"JetBrains Mono",monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11.5px/1.3 system-ui,sans-serif;color:rgba(0,0,0,.55);max-width:720px}
+.dv-card{max-width:100%;background:#fff;border:1px solid rgba(0,0,0,.1);border-radius:8px;overflow:hidden}
+.dv-opt:target .dv-oid{background:#7b2fd6;color:#fff}
+.dv-next{margin:22px 0 0;font:12px/1.6 system-ui,sans-serif;color:rgba(0,0,0,.5)}
+</style>
+</helmet>
+
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Morune — refino visual do tema Pulse (tudo em tokens, zero sombra, zero blur)</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1a">
+<div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Início — hierarquia de tipo em 4 níveis, prateleiras com respiro de 32px, cartões com moldura de 1px em vez de sombra. Sidebar 248px.</div>
+<div class="dv-card">
+<div style="--bg:#0a0612;--surf1:#150d24;--surf2:#1f1434;--chrome:#0d0817;--text:#f2ecff;--muted:rgba(242,236,255,.60);--faint:rgba(242,236,255,.38);--line:rgba(242,236,255,.08);--line-strong:rgba(242,236,255,.14);--accent:#c66bff;--accent-soft:rgba(198,107,255,.13);--r1:6px;--r2:10px;--r3:14px;width:1280px;height:1350px;background:var(--bg);color:var(--text);display:flex;flex-direction:column;overflow:hidden;font-size:14px">
+
+  <div style="height:36px;flex:none;background:var(--chrome);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding-left:16px">
+    <div style="font:500 11.5px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.09em;color:var(--faint);text-transform:uppercase">Morune</div>
+    <div style="display:flex">
+      <div style="width:44px;height:36px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px">—</div>
+      <div style="width:44px;height:36px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px">▢</div>
+      <div style="width:44px;height:36px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px">✕</div>
+    </div>
+  </div>
+
+  <div style="flex:1;display:flex;min-height:0">
+
+    <div style="width:248px;flex:none;background:var(--chrome);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0">
+      <div style="padding:20px 20px 16px;display:flex;align-items:center;gap:11px">
+        <div style="display:flex;align-items:flex-end;gap:3px;height:20px">
+          <div style="width:3px;height:11px;background:var(--accent);border-radius:2px"></div>
+          <div style="width:5px;height:20px;background:var(--accent);border-radius:2px"></div>
+          <div style="width:2px;height:7px;background:var(--accent);border-radius:2px;opacity:.6"></div>
+        </div>
+        <div style="font:600 16px/1 'Segoe UI Variable Display','Source Sans 3',system-ui,sans-serif;letter-spacing:-.01em">Morune</div>
+        <div style="margin-left:auto;color:var(--faint);font-size:13px">«</div>
+      </div>
+
+      <div style="padding:0 12px;display:flex;flex-direction:column;gap:2px">
+        <div style="display:flex;align-items:center;gap:12px;height:38px;padding:0 12px;border-radius:var(--r1);background:var(--accent-soft);color:var(--text);font-weight:600;font-size:14px;position:relative">
+          <div style="position:absolute;left:0;top:9px;bottom:9px;width:2px;background:var(--accent);border-radius:2px"></div>
+          <div style="width:16px;height:16px;border:1.5px solid currentColor;border-radius:3px;opacity:.9"></div>Início
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;height:38px;padding:0 12px;border-radius:var(--r1);color:var(--muted);font-size:14px">
+          <div style="width:16px;height:16px;border:1.5px solid currentColor;border-radius:50%"></div>Buscar
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;height:38px;padding:0 12px;border-radius:var(--r1);color:var(--muted);font-size:14px">
+          <div style="width:16px;height:16px;border-left:1.5px solid currentColor;border-right:1.5px solid currentColor"></div>Biblioteca
+        </div>
+      </div>
+
+      <div style="margin:22px 12px 10px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:0 12px">
+          <div style="font:600 10.5px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)">Playlists</div>
+          <div style="font-size:11px;color:var(--faint)">24</div>
+        </div>
+        <div style="height:32px;border:1px solid var(--line-strong);border-radius:var(--r1);background:var(--surf1);display:flex;align-items:center;gap:8px;padding:0 10px">
+          <div style="width:11px;height:11px;border:1.4px solid var(--faint);border-radius:50%"></div>
+          <div style="font-size:12.5px;color:var(--faint)">Filtrar playlists</div>
+        </div>
+      </div>
+
+      <div style="flex:1;overflow:hidden;padding:0 12px 8px;display:flex;flex-direction:column;gap:1px">
+        <div style="display:flex;align-items:center;gap:12px;height:52px;padding:0 12px;border-radius:var(--r1);background:var(--surf1)">
+          <div style="width:40px;height:40px;flex:none;border-radius:var(--r1);background:linear-gradient(135deg,var(--accent),#6b2fb3);display:flex;align-items:center;justify-content:center">
+            <div style="width:9px;height:9px;background:#fff;border-radius:1px;opacity:.85;transform:rotate(45deg)"></div>
+          </div>
+          <div style="min-width:0"><div style="font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Músicas curtidas</div><div style="font-size:11.5px;color:var(--faint);margin-top:2px">1.284 faixas</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;height:52px;padding:0 12px;border-radius:var(--r1)">
+          <div style="width:40px;height:40px;flex:none;border-radius:var(--r1);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 5px,var(--surf1) 5px 10px)"></div>
+          <div style="min-width:0"><div style="font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Foco profundo</div><div style="font-size:11.5px;color:var(--faint);margin-top:2px">86 faixas</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;height:52px;padding:0 12px;border-radius:var(--r1)">
+          <div style="width:40px;height:40px;flex:none;border-radius:var(--r1);border:1px dashed var(--line-strong);display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:12px">
+            <div style="width:2px;height:8px;background:var(--faint);border-radius:1px"></div>
+            <div style="width:3px;height:14px;background:var(--accent);border-radius:1px"></div>
+            <div style="width:2px;height:5px;background:var(--faint);border-radius:1px"></div>
+          </div>
+          <div style="min-width:0"><div style="font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Sem capa — símbolo</div><div style="font-size:11.5px;color:var(--faint);margin-top:2px">12 faixas</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;height:52px;padding:0 12px;border-radius:var(--r1)">
+          <div style="width:40px;height:40px;flex:none;border-radius:var(--r1);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 5px,var(--surf1) 5px 10px)"></div>
+          <div style="min-width:0"><div style="font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Madrugada lenta</div><div style="font-size:11.5px;color:var(--faint);margin-top:2px">41 faixas</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;height:52px;padding:0 12px;border-radius:var(--r1)">
+          <div style="width:40px;height:40px;flex:none;border-radius:var(--r1);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 5px,var(--surf1) 5px 10px)"></div>
+          <div style="min-width:0"><div style="font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Guitarras de 1997</div><div style="font-size:11.5px;color:var(--faint);margin-top:2px">63 faixas</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;height:52px;padding:0 12px;border-radius:var(--r1)">
+          <div style="width:40px;height:40px;flex:none;border-radius:var(--r1);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 5px,var(--surf1) 5px 10px)"></div>
+          <div style="min-width:0"><div style="font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Corrida — 170 bpm</div><div style="font-size:11.5px;color:var(--faint);margin-top:2px">28 faixas</div></div>
+        </div>
+      </div>
+
+      <div style="flex:none;border-top:1px solid var(--line);padding:10px 12px;display:flex;flex-direction:column;gap:2px">
+        <div style="display:flex;align-items:center;gap:12px;height:36px;padding:0 12px;border-radius:var(--r1);color:var(--muted);font-size:13.5px">
+          <div style="width:14px;height:14px;border:1.5px solid currentColor;border-radius:50%"></div>Configurações
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;height:36px;padding:0 12px;border-radius:var(--r1);font-size:13.5px">
+          <div style="width:22px;height:22px;border-radius:50%;background:var(--surf2);border:1px solid var(--line-strong);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted);font-weight:600">L</div>
+          <span style="color:var(--muted)">lucas.tv</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)">
+      <div style="padding:34px 40px 0;display:flex;align-items:flex-end;justify-content:space-between">
+        <div>
+          <div style="font:500 11px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)">Boa noite</div>
+          <div style="font:600 30px/1.1 'Segoe UI Variable Display','Source Sans 3',system-ui,sans-serif;letter-spacing:-.02em;margin-top:10px">Início</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;border:1px solid var(--line-strong);border-radius:999px;font-size:12px;color:var(--muted)">
+          <div style="width:6px;height:6px;border-radius:50%;background:var(--accent)"></div>Spotify conectado
+        </div>
+      </div>
+
+      <div style="flex:1;overflow:hidden;padding:30px 40px 8px;display:flex;flex-direction:column;gap:30px">
+
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between">
+            <div style="font:600 17px/1.2 'Segoe UI Variable Display','Source Sans 3',system-ui,sans-serif;letter-spacing:-.01em">Músicas curtidas</div>
+            <div style="font-size:12px;color:var(--faint)">Ver todas</div>
+          </div>
+          <div style="border:1px solid var(--line);border-radius:var(--r2);background:var(--surf1);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:14px;height:46px;padding:0 14px;border-bottom:1px solid var(--line)">
+              <sc-if value="{{ trackNumbers }}" hint-placeholder-val="{{ true }}"><div style="width:18px;text-align:right;font:500 12px/1 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">1</div></sc-if>
+              <sc-if value="{{ showTrackArt }}" hint-placeholder-val="{{ true }}"><div style="width:30px;height:30px;flex:none;border-radius:var(--r1);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 5px,var(--surf1) 5px 10px)"></div></sc-if>
+              <div style="flex:1;min-width:0;display:flex;align-items:baseline;gap:10px"><span style="font-weight:600;font-size:13.5px">Ceremony</span><span style="font-size:12.5px;color:var(--muted)">New Order</span></div>
+              <div style="font:400 12.5px/1 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">4:34</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;height:46px;padding:0 14px;border-bottom:1px solid var(--line);background:var(--accent-soft)">
+              <sc-if value="{{ trackNumbers }}" hint-placeholder-val="{{ true }}"><div style="width:18px;text-align:right;display:flex;align-items:flex-end;justify-content:flex-end;gap:2px;height:12px">
+                <div style="width:2px;height:6px;background:var(--accent)"></div><div style="width:2px;height:11px;background:var(--accent)"></div><div style="width:2px;height:8px;background:var(--accent)"></div>
+              </div></sc-if>
+              <sc-if value="{{ showTrackArt }}" hint-placeholder-val="{{ true }}"><div style="width:30px;height:30px;flex:none;border-radius:var(--r1);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 5px,var(--surf1) 5px 10px)"></div></sc-if>
+              <div style="flex:1;min-width:0;display:flex;align-items:baseline;gap:10px"><span style="font-weight:600;font-size:13.5px;color:var(--accent)">Age of Consent</span><span style="font-size:12.5px;color:var(--muted)">New Order</span></div>
+              <div style="font:400 12.5px/1 'JetBrains Mono',ui-monospace,monospace;color:var(--accent)">5:15</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;height:46px;padding:0 14px;border-bottom:1px solid var(--line)">
+              <sc-if value="{{ trackNumbers }}" hint-placeholder-val="{{ true }}"><div style="width:18px;text-align:right;font:500 12px/1 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">3</div></sc-if>
+              <sc-if value="{{ showTrackArt }}" hint-placeholder-val="{{ true }}"><div style="width:30px;height:30px;flex:none;border-radius:var(--r1);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 5px,var(--surf1) 5px 10px)"></div></sc-if>
+              <div style="flex:1;min-width:0;display:flex;align-items:baseline;gap:10px"><span style="font-weight:600;font-size:13.5px">Bizarre Love Triangle</span><span style="font-size:12.5px;color:var(--muted)">New Order</span></div>
+              <div style="font:400 12.5px/1 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">4:22</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between">
+            <div style="font:600 17px/1.2 'Segoe UI Variable Display','Source Sans 3',system-ui,sans-serif;letter-spacing:-.01em">Feito para você</div>
+            <div style="font-size:12px;color:var(--faint)">Ver tudo</div>
+          </div>
+          <div style="display:flex;gap:16px">
+            <div style="width:158px;display:flex;flex-direction:column;gap:11px">
+              <div style="aspect-ratio:1;border-radius:var(--r2);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 8px,var(--surf1) 8px 16px)"></div>
+              <div style="min-height:40px"><div style="font-weight:600;font-size:13.5px">Daily Mix 1</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Slowdive, Ride, Lush</div></div>
+            </div>
+            <div style="width:158px;display:flex;flex-direction:column;gap:11px">
+              <div style="aspect-ratio:1;border-radius:var(--r2);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 8px,var(--surf1) 8px 16px)"></div>
+              <div style="min-height:40px"><div style="font-weight:600;font-size:13.5px">Daily Mix 2</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Boards of Canada, Aphex</div></div>
+            </div>
+            <div style="width:158px;display:flex;flex-direction:column;gap:11px">
+              <div style="aspect-ratio:1;border-radius:var(--r2);border:1px dashed var(--line-strong);display:flex;align-items:flex-end;justify-content:center;gap:5px;padding-bottom:56px">
+                <div style="width:5px;height:22px;background:var(--faint);border-radius:2px"></div>
+                <div style="width:9px;height:40px;background:var(--accent);border-radius:2px"></div>
+                <div style="width:4px;height:14px;background:var(--faint);border-radius:2px"></div>
+              </div>
+              <div style="min-height:40px"><div style="font-weight:600;font-size:13.5px">Descobertas da semana</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Sem capa — símbolo</div></div>
+            </div>
+            <div style="width:158px;display:flex;flex-direction:column;gap:11px">
+              <div style="aspect-ratio:1;border-radius:var(--r2);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 8px,var(--surf1) 8px 16px)"></div>
+              <div style="min-height:40px"><div style="font-weight:600;font-size:13.5px">Radar de novidades</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Atualizado sexta</div></div>
+            </div>
+            <div style="width:158px;display:flex;flex-direction:column;gap:11px">
+              <div style="aspect-ratio:1;border-radius:var(--r2);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 8px,var(--surf1) 8px 16px)"></div>
+              <div style="min-height:40px"><div style="font-weight:600;font-size:13.5px">Repeat Rewind</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Você ouviu 40×</div></div>
+            </div>
+            <div style="width:158px;opacity:.45;display:flex;flex-direction:column;gap:11px">
+              <div style="aspect-ratio:1;border-radius:var(--r2);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 8px,var(--surf1) 8px 16px)"></div>
+              <div style="min-height:40px"><div style="font-weight:600;font-size:13.5px">Mix noturno</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Ambient</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between">
+            <div style="font:600 17px/1.2 'Segoe UI Variable Display','Source Sans 3',system-ui,sans-serif;letter-spacing:-.01em">Estações recomendadas</div>
+            <div style="font-size:12px;color:var(--faint)">Ver tudo</div>
+          </div>
+          <div style="display:flex;gap:16px">
+            <div style="width:158px;display:flex;flex-direction:column;gap:11px"><div style="aspect-ratio:1;border-radius:var(--r2);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 8px,var(--surf1) 8px 16px)"></div><div style="min-height:40px"><div style="font-weight:600;font-size:13.5px">Estação Shoegaze</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Rádio</div></div></div>
+            <div style="width:158px;display:flex;flex-direction:column;gap:11px"><div style="aspect-ratio:1;border-radius:var(--r2);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 8px,var(--surf1) 8px 16px)"></div><div style="min-height:40px"><div style="font-weight:600;font-size:13.5px">Estação Krautrock</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Rádio</div></div></div>
+            <div style="width:158px;display:flex;flex-direction:column;gap:11px"><div style="aspect-ratio:1;border-radius:var(--r2);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 8px,var(--surf1) 8px 16px)"></div><div style="min-height:40px"><div style="font-weight:600;font-size:13.5px">Estação Dub</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Rádio</div></div></div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between">
+            <div style="font:600 17px/1.2 'Segoe UI Variable Display','Source Sans 3',system-ui,sans-serif;letter-spacing:-.01em">Seus mais ouvidos</div>
+            <div style="font-size:12px;color:var(--faint)">Ver tudo</div>
+          </div>
+          <div style="display:flex;gap:16px">
+            <div style="width:158px;display:flex;flex-direction:column;gap:11px"><div style="aspect-ratio:1;border-radius:var(--r2);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 8px,var(--surf1) 8px 16px)"></div><div style="min-height:40px"><div style="font-weight:600;font-size:13.5px">Slowdive</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Artista · 412 plays</div></div></div>
+            <div style="width:158px;display:flex;flex-direction:column;gap:11px"><div style="aspect-ratio:1;border-radius:var(--r2);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 8px,var(--surf1) 8px 16px)"></div><div style="min-height:40px"><div style="font-weight:600;font-size:13.5px">Boards of Canada</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Artista · 388 plays</div></div></div>
+            <div style="width:158px;display:flex;flex-direction:column;gap:11px"><div style="aspect-ratio:1;border-radius:var(--r2);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 8px,var(--surf1) 8px 16px)"></div><div style="min-height:40px"><div style="font-weight:600;font-size:13.5px">Substrata</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Álbum · Biosphere</div></div></div>
+            <div style="width:158px;display:flex;flex-direction:column;gap:11px"><div style="aspect-ratio:1;border-radius:var(--r2);border:1px dashed var(--line-strong);display:flex;align-items:flex-end;justify-content:center;gap:5px;padding-bottom:56px"><div style="width:5px;height:22px;background:var(--faint);border-radius:2px"></div><div style="width:9px;height:40px;background:var(--accent);border-radius:2px"></div><div style="width:4px;height:14px;background:var(--faint);border-radius:2px"></div></div><div style="min-height:40px"><div style="font-weight:600;font-size:13.5px">Madrugada lenta</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Playlist · sem capa</div></div></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div style="flex:none;height:78px;background:var(--chrome);border-top:1px solid var(--line);display:flex;flex-direction:column">
+    <div style="height:2px;background:var(--line);position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:31%;background:var(--accent)"></div></div>
+    <div style="flex:1;display:flex;align-items:center;padding:0 20px;gap:20px">
+      <div style="width:280px;display:flex;align-items:center;gap:12px;min-width:0">
+        <div style="width:48px;height:48px;flex:none;border-radius:var(--r1);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 5px,var(--surf1) 5px 10px)"></div>
+        <div style="min-width:0"><div style="font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Age of Consent</div><div style="font-size:12px;color:var(--muted);margin-top:2px">New Order · Power, Corruption &amp; Lies</div></div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+        <div style="display:flex;align-items:center;gap:20px">
+          <div style="width:14px;height:12px;border-top:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted)"></div>
+          <div style="width:0;height:0;border-right:8px solid var(--muted);border-top:6px solid transparent;border-bottom:6px solid transparent"></div>
+          <div style="width:36px;height:36px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center">
+            <div style="display:flex;gap:3px"><div style="width:3.5px;height:13px;background:var(--chrome)"></div><div style="width:3.5px;height:13px;background:var(--chrome)"></div></div>
+          </div>
+          <div style="width:0;height:0;border-left:8px solid var(--muted);border-top:6px solid transparent;border-bottom:6px solid transparent"></div>
+          <div style="width:13px;height:13px;border:1.5px solid var(--accent);border-radius:50%;border-top-color:transparent"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;width:100%;max-width:420px">
+          <div style="font:400 11.5px/1 'JetBrains Mono',ui-monospace,monospace;color:var(--faint);width:34px;text-align:right">1:36</div>
+          <div style="flex:1;height:3px;border-radius:2px;background:var(--line-strong);position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:31%;background:var(--text);border-radius:2px"></div></div>
+          <div style="font:400 11.5px/1 'JetBrains Mono',ui-monospace,monospace;color:var(--faint);width:34px">5:15</div>
+        </div>
+      </div>
+      <div style="width:280px;display:flex;align-items:center;justify-content:flex-end;gap:16px">
+        <div style="display:flex;flex-direction:column;gap:2.5px"><div style="width:14px;height:1.5px;background:var(--muted)"></div><div style="width:14px;height:1.5px;background:var(--muted)"></div><div style="width:9px;height:1.5px;background:var(--muted)"></div></div>
+        <div style="display:flex;align-items:center;gap:9px">
+          <div style="width:0;height:0;border-right:9px solid var(--muted);border-top:7px solid transparent;border-bottom:7px solid transparent"></div>
+          <div style="width:76px;height:3px;border-radius:2px;background:var(--line-strong);position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:62%;background:var(--text);border-radius:2px"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="1b">
+<div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Playlist aberta — cabeçalho de 160px com meta em régua monoespaçada, chips de ordenação com seta de direção, lista com colunas fixas e linha zebrada só por borda.</div>
+<div class="dv-card">
+<div style="--bg:#0a0612;--surf1:#150d24;--surf2:#1f1434;--chrome:#0d0817;--text:#f2ecff;--muted:rgba(242,236,255,.60);--faint:rgba(242,236,255,.38);--line:rgba(242,236,255,.08);--line-strong:rgba(242,236,255,.14);--accent:#c66bff;--accent-soft:rgba(198,107,255,.13);--r1:6px;--r2:10px;width:900px;height:760px;background:var(--bg);color:var(--text);display:flex;flex-direction:column;overflow:hidden;font-size:14px">
+  <div style="flex:none;padding:22px 34px 0;display:flex;align-items:center;gap:14px">
+    <div style="width:30px;height:30px;border-radius:var(--r1);border:1px solid var(--line-strong);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px">‹</div>
+    <div style="font:500 11px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)">Biblioteca / Playlist</div>
+  </div>
+
+  <div style="flex:none;padding:26px 34px 24px;display:flex;gap:26px;align-items:flex-end">
+    <div style="width:160px;height:160px;flex:none;border-radius:var(--r2);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 10px,var(--surf1) 10px 20px);display:flex;align-items:flex-end;padding:8px">
+      <div style="font:400 9.5px/1 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">cover 160</div>
+    </div>
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:14px">
+      <div style="font:500 11px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)">Playlist</div>
+      <div style="font:700 42px/1.05 'Segoe UI Variable Display','Source Sans 3',system-ui,sans-serif;letter-spacing:-.03em">Foco profundo</div>
+      <div style="display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--muted)">
+        <span style="font-weight:600;color:var(--text)">lucas.tv</span>
+        <span style="width:3px;height:3px;border-radius:50%;background:var(--faint)"></span>
+        <span>86 faixas</span>
+        <span style="width:3px;height:3px;border-radius:50%;background:var(--faint)"></span>
+        <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11.5px">5 h 12 min</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:4px">
+        <div style="height:38px;padding:0 22px;border-radius:999px;background:var(--accent);color:#1a0a2a;font-weight:700;font-size:13.5px;display:flex;align-items:center;gap:9px">
+          <div style="width:0;height:0;border-left:8px solid currentColor;border-top:6px solid transparent;border-bottom:6px solid transparent"></div>Tocar
+        </div>
+        <div style="height:38px;width:38px;border-radius:999px;border:1px solid var(--line-strong);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:15px">⤨</div>
+        <div style="height:38px;width:38px;border-radius:999px;border:1px solid var(--line-strong);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:15px">···</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex:none;padding:0 34px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <div style="height:32px;flex:none;width:210px;border:1px solid var(--line-strong);border-radius:var(--r1);background:var(--surf1);display:flex;align-items:center;gap:8px;padding:0 10px">
+      <div style="width:11px;height:11px;border:1.4px solid var(--faint);border-radius:50%"></div>
+      <div style="font-size:12.5px;color:var(--faint)">Filtrar faixas</div>
+    </div>
+    <div style="width:1px;height:20px;background:var(--line-strong);margin:0 4px"></div>
+    <div style="height:28px;padding:0 12px;border-radius:999px;background:var(--accent-soft);border:1px solid var(--accent);color:var(--accent);font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:7px">Ordem da lista <span style="font-size:10px">▲</span></div>
+    <div style="height:28px;padding:0 12px;border-radius:999px;border:1px solid var(--line-strong);color:var(--muted);font-size:12.5px;display:flex;align-items:center">Título</div>
+    <div style="height:28px;padding:0 12px;border-radius:999px;border:1px solid var(--line-strong);color:var(--muted);font-size:12.5px;display:flex;align-items:center">Artista</div>
+    <div style="height:28px;padding:0 12px;border-radius:999px;border:1px solid var(--line-strong);color:var(--muted);font-size:12.5px;display:flex;align-items:center">Álbum</div>
+    <div style="height:28px;padding:0 12px;border-radius:999px;border:1px solid var(--line-strong);color:var(--muted);font-size:12.5px;display:flex;align-items:center">Duração</div>
+  </div>
+
+  <div style="flex:1;min-height:0;overflow:hidden;padding:0 34px 20px">
+    <div style="display:flex;align-items:center;gap:16px;height:30px;padding:0 12px;border-bottom:1px solid var(--line-strong);font:500 10.5px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)">
+      <div style="width:22px;text-align:right">#</div><div style="flex:1">Título</div><div style="width:170px">Álbum</div><div style="width:44px;text-align:right">Dur.</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;height:52px;padding:0 12px;border-bottom:1px solid var(--line)">
+      <div style="width:22px;text-align:right;font:500 12.5px/1 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">1</div>
+      <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px">Roygbiv</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Boards of Canada</div></div>
+      <div style="width:170px;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Music Has the Right…</div>
+      <div style="width:44px;text-align:right;font:400 12.5px/1 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">2:31</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;height:52px;padding:0 12px;border-bottom:1px solid var(--line);background:var(--surf1)">
+      <div style="width:22px;text-align:right;font:500 12.5px/1 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">2</div>
+      <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px">Everything You Do Is a Balloon</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Boards of Canada</div></div>
+      <div style="width:170px;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Hi Scores</div>
+      <div style="width:44px;text-align:right;font:400 12.5px/1 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">7:04</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;height:52px;padding:0 12px;border-bottom:1px solid var(--line)">
+      <div style="width:22px;text-align:right;font:500 12.5px/1 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">3</div>
+      <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px">Xtal</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Aphex Twin</div></div>
+      <div style="width:170px;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Selected Ambient Works</div>
+      <div style="width:44px;text-align:right;font:400 12.5px/1 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">4:51</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;height:52px;padding:0 12px;border-bottom:1px solid var(--line);background:var(--surf1)">
+      <div style="width:22px;text-align:right;display:flex;align-items:flex-end;justify-content:flex-end;gap:2px;height:13px"><div style="width:2px;height:6px;background:var(--accent)"></div><div style="width:2px;height:12px;background:var(--accent)"></div><div style="width:2px;height:9px;background:var(--accent)"></div></div>
+      <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px;color:var(--accent)">Alberto Balsalm</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Aphex Twin</div></div>
+      <div style="width:170px;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">…I Care Because You Do</div>
+      <div style="width:44px;text-align:right;font:400 12.5px/1 'JetBrains Mono',ui-monospace,monospace;color:var(--accent)">5:20</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;height:52px;padding:0 12px;border-bottom:1px solid var(--line)">
+      <div style="width:22px;text-align:right;font:500 12.5px/1 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">5</div>
+      <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px">Untitled 3</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Artista desconhecido</div></div>
+      <div style="width:170px;font-size:12.5px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
+      <div style="width:44px;text-align:right;font:400 12.5px/1 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">3:12</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;height:52px;padding:0 12px;border-bottom:1px solid var(--line);background:var(--surf1)">
+      <div style="width:22px;text-align:right;font:500 12.5px/1 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">6</div>
+      <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px">Substrata</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Biosphere</div></div>
+      <div style="width:170px;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Substrata</div>
+      <div style="width:44px;text-align:right;font:400 12.5px/1 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">6:02</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;height:52px;padding:0 12px;border-bottom:1px solid var(--line)">
+      <div style="width:22px;text-align:right;font:500 12.5px/1 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">7</div>
+      <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px">Kobresia</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Biosphere</div></div>
+      <div style="width:170px;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Substrata</div>
+      <div style="width:44px;text-align:right;font:400 12.5px/1 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">5:45</div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="1c">
+<div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Peças soltas — sidebar recolhida (64px), cartão sem capa, linha de lista sem imagem, e o mesmo sistema no tema Paper. Prova que nada depende da paleta escura.</div>
+<div class="dv-card" style="width:900px;background:#fbf9fd;padding:24px;display:flex;flex-direction:column;gap:24px">
+
+  <div style="display:flex;gap:20px;align-items:flex-start">
+    <div style="--chrome:#0d0817;--surf1:#150d24;--surf2:#1f1434;--text:#f2ecff;--muted:rgba(242,236,255,.6);--faint:rgba(242,236,255,.38);--line:rgba(242,236,255,.08);--line-strong:rgba(242,236,255,.14);--accent:#c66bff;--accent-soft:rgba(198,107,255,.13);--r1:6px;width:64px;height:420px;background:var(--chrome);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:18px 0 12px;gap:16px;flex:none">
+      <div style="display:flex;align-items:flex-end;gap:3px;height:20px">
+        <div style="width:3px;height:11px;background:var(--accent);border-radius:2px"></div>
+        <div style="width:5px;height:20px;background:var(--accent);border-radius:2px"></div>
+        <div style="width:2px;height:7px;background:var(--accent);border-radius:2px;opacity:.6"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:center">
+        <div style="width:40px;height:36px;border-radius:var(--r1);background:var(--accent-soft);display:flex;align-items:center;justify-content:center"><div style="width:16px;height:16px;border:1.5px solid var(--accent);border-radius:3px"></div></div>
+        <div style="width:40px;height:36px;display:flex;align-items:center;justify-content:center"><div style="width:16px;height:16px;border:1.5px solid var(--faint);border-radius:50%"></div></div>
+        <div style="width:40px;height:36px;display:flex;align-items:center;justify-content:center"><div style="width:16px;height:16px;border-left:1.5px solid var(--faint);border-right:1.5px solid var(--faint)"></div></div>
+      </div>
+      <div style="width:28px;height:1px;background:var(--line-strong)"></div>
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:center">
+        <div style="width:40px;height:40px;border-radius:var(--r1);background:linear-gradient(135deg,var(--accent),#6b2fb3)"></div>
+        <div style="width:40px;height:40px;border-radius:var(--r1);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 5px,var(--surf1) 5px 10px)"></div>
+        <div style="width:40px;height:40px;border-radius:var(--r1);border:1px dashed var(--line-strong);display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:12px">
+          <div style="width:2px;height:8px;background:var(--faint);border-radius:1px"></div><div style="width:3px;height:14px;background:var(--accent);border-radius:1px"></div><div style="width:2px;height:5px;background:var(--faint);border-radius:1px"></div>
+        </div>
+        <div style="width:40px;height:40px;border-radius:var(--r1);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 5px,var(--surf1) 5px 10px)"></div>
+      </div>
+      <div style="margin-top:auto;display:flex;flex-direction:column;gap:10px;align-items:center">
+        <div style="width:16px;height:16px;border:1.5px solid var(--faint);border-radius:50%"></div>
+        <div style="width:24px;height:24px;border-radius:50%;background:var(--surf2);border:1px solid var(--line-strong);display:flex;align-items:center;justify-content:center;font:600 10px system-ui;color:var(--muted)">L</div>
+      </div>
+    </div>
+
+    <div style="flex:1;display:flex;flex-direction:column;gap:14px">
+      <div style="font:600 12px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:rgba(0,0,0,.4)">Cartões: com capa / sem capa / lista sem imagem</div>
+      <div style="--bg:#0a0612;--surf1:#150d24;--surf2:#1f1434;--text:#f2ecff;--muted:rgba(242,236,255,.6);--faint:rgba(242,236,255,.38);--line:rgba(242,236,255,.08);--line-strong:rgba(242,236,255,.14);--accent:#c66bff;--accent-soft:rgba(198,107,255,.13);--r1:6px;--r2:10px;background:var(--bg);border-radius:12px;padding:22px;display:flex;gap:20px;color:var(--text)">
+        <div style="width:150px;display:flex;flex-direction:column;gap:11px">
+          <div style="aspect-ratio:1;border-radius:var(--r2);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 8px,var(--surf1) 8px 16px)"></div>
+          <div style="min-height:40px"><div style="font-weight:600;font-size:13.5px">Com capa</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Título + subtítulo</div></div>
+        </div>
+        <div style="width:150px;display:flex;flex-direction:column;gap:11px">
+          <div style="aspect-ratio:1;border-radius:var(--r2);border:1px dashed var(--line-strong);display:flex;align-items:center;justify-content:center;gap:6px">
+            <div style="width:6px;height:26px;background:var(--faint);border-radius:3px"></div>
+            <div style="width:11px;height:48px;background:var(--accent);border-radius:3px"></div>
+            <div style="width:5px;height:17px;background:var(--faint);border-radius:3px"></div>
+          </div>
+          <div style="min-height:40px"><div style="font-weight:600;font-size:13.5px">Sem capa</div><div style="font-size:12px;color:var(--muted);margin-top:3px">Símbolo da marca</div></div>
+        </div>
+        <div style="flex:1;min-width:0;border:1px solid var(--line);border-radius:var(--r2);background:var(--surf1);overflow:hidden;align-self:flex-start">
+          <div style="display:flex;align-items:center;gap:14px;height:44px;padding:0 14px;border-bottom:1px solid var(--line)">
+            <div style="width:18px;text-align:right;font:500 12px 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">1</div>
+            <div style="flex:1;min-width:0"><span style="font-weight:600;font-size:13.5px">Faixa sem arte</span><span style="font-size:12.5px;color:var(--muted);margin-left:10px">Artista</span></div>
+            <div style="font:400 12.5px 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">3:04</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;height:44px;padding:0 14px;border-bottom:1px solid var(--line)">
+            <div style="width:18px;text-align:right;font:500 12px 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">2</div>
+            <div style="flex:1;min-width:0"><span style="font-weight:600;font-size:13.5px">Outra faixa</span><span style="font-size:12.5px;color:var(--muted);margin-left:10px">Artista</span></div>
+            <div style="font:400 12.5px 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">2:48</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;height:44px;padding:0 14px">
+            <div style="width:18px;text-align:right;font:500 12px 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">3</div>
+            <div style="flex:1;min-width:0"><span style="font-weight:600;font-size:13.5px">Só texto, alinhado</span><span style="font-size:12.5px;color:var(--muted);margin-left:10px">Artista</span></div>
+            <div style="font:400 12.5px 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">5:31</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="font:600 12px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:rgba(0,0,0,.4);margin-top:6px">Tema Paper — mesmos tokens, valores trocados</div>
+      <div style="--bg:#faf8fc;--surf1:#f2eef8;--surf2:#e6e0f0;--chrome:#ffffff;--text:#1a1226;--muted:rgba(26,18,38,.62);--faint:rgba(26,18,38,.42);--line:rgba(26,18,38,.09);--line-strong:rgba(26,18,38,.16);--accent:#7b2fd6;--accent-soft:rgba(123,47,214,.10);--r1:6px;--r2:10px;background:var(--bg);border:1px solid var(--line-strong);border-radius:12px;padding:22px;display:flex;flex-direction:column;gap:18px;color:var(--text)">
+        <div style="display:flex;align-items:baseline;justify-content:space-between">
+          <div style="font:600 17px/1.2 'Segoe UI Variable Display','Source Sans 3',system-ui,sans-serif;letter-spacing:-.01em">Seus mais ouvidos</div>
+          <div style="font-size:12px;color:var(--faint)">Ver tudo</div>
+        </div>
+        <div style="display:flex;gap:16px">
+          <div style="width:132px;display:flex;flex-direction:column;gap:10px"><div style="aspect-ratio:1;border-radius:var(--r2);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 8px,var(--surf1) 8px 16px)"></div><div><div style="font-weight:600;font-size:13px">Slowdive</div><div style="font-size:11.5px;color:var(--muted);margin-top:3px">Artista</div></div></div>
+          <div style="width:132px;display:flex;flex-direction:column;gap:10px"><div style="aspect-ratio:1;border-radius:var(--r2);border:1px dashed var(--line-strong);display:flex;align-items:center;justify-content:center;gap:5px"><div style="width:5px;height:22px;background:var(--faint);border-radius:2px"></div><div style="width:9px;height:40px;background:var(--accent);border-radius:2px"></div><div style="width:4px;height:14px;background:var(--faint);border-radius:2px"></div></div><div><div style="font-weight:600;font-size:13px">Sem capa</div><div style="font-size:11.5px;color:var(--muted);margin-top:3px">Playlist</div></div></div>
+          <div style="width:132px;display:flex;flex-direction:column;gap:10px"><div style="aspect-ratio:1;border-radius:var(--r2);border:1px solid var(--line);background:repeating-linear-gradient(135deg,var(--surf2) 0 8px,var(--surf1) 8px 16px)"></div><div><div style="font-weight:600;font-size:13px">Ride</div><div style="font-size:11.5px;color:var(--muted);margin-top:3px">Artista</div></div></div>
+          <div style="flex:1;min-width:0;border:1px solid var(--line);border-radius:var(--r2);background:var(--chrome);align-self:flex-start;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:12px;height:44px;padding:0 14px;border-bottom:1px solid var(--line)"><div style="width:16px;font:500 12px 'JetBrains Mono',ui-monospace,monospace;color:var(--faint);text-align:right">1</div><div style="flex:1;font-weight:600;font-size:13.5px">Souvlaki Space Station</div><div style="font:400 12.5px 'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">5:57</div></div>
+            <div style="display:flex;align-items:center;gap:12px;height:44px;padding:0 14px;background:var(--accent-soft)"><div style="width:16px;text-align:right;display:flex;justify-content:flex-end;align-items:flex-end;gap:2px;height:12px"><div style="width:2px;height:6px;background:var(--accent)"></div><div style="width:2px;height:11px;background:var(--accent)"></div><div style="width:2px;height:8px;background:var(--accent)"></div></div><div style="flex:1;font-weight:600;font-size:13.5px;color:var(--accent)">Alison</div><div style="font:400 12.5px 'JetBrains Mono',ui-monospace,monospace;color:var(--accent)">3:51</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <div style="font:600 12px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:rgba(0,0,0,.4)">Barra de reprodução — progresso fino no topo, controles em três zonas fixas</div>
+    <div style="--chrome:#0d0817;--surf1:#150d24;--surf2:#1f1434;--text:#f2ecff;--muted:rgba(242,236,255,.6);--faint:rgba(242,236,255,.38);--line:rgba(242,236,255,.08);--line-strong:rgba(242,236,255,.14);--accent:#c66bff;--r1:6px;background:var(--chrome);border:1px solid var(--line-strong);border-radius:10px;overflow:hidden;color:var(--text)">
+      <div style="height:2px;background:var(--line-strong);position:relative"><div style="position:absolute;inset:0 auto 0 0;width:44%;background:var(--accent)"></div></div>
+      <div style="height:74px;display:flex;align-items:center;padding:0 18px;gap:20px">
+        <div style="width:250px;display:flex;align-items:center;gap:12px;min-width:0">
+          <div style="width:46px;height:46px;flex:none;border-radius:var(--r1);border:1px dashed var(--line-strong);display:flex;align-items:flex-end;justify-content:center;gap:2px;padding-bottom:14px"><div style="width:2px;height:9px;background:var(--faint);border-radius:1px"></div><div style="width:3px;height:16px;background:var(--accent);border-radius:1px"></div><div style="width:2px;height:6px;background:var(--faint);border-radius:1px"></div></div>
+          <div style="min-width:0"><div style="font-weight:600;font-size:13.5px">Faixa sem arte</div><div style="font-size:12px;color:var(--muted);margin-top:2px">Artista desconhecido</div></div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+          <div style="display:flex;align-items:center;gap:20px">
+            <div style="width:14px;height:12px;border-top:1.5px solid var(--accent);border-bottom:1.5px solid var(--accent)"></div>
+            <div style="width:0;height:0;border-right:8px solid var(--muted);border-top:6px solid transparent;border-bottom:6px solid transparent"></div>
+            <div style="width:36px;height:36px;border-radius:50%;border:1.5px solid var(--text);display:flex;align-items:center;justify-content:center"><div style="width:0;height:0;border-left:10px solid var(--text);border-top:7px solid transparent;border-bottom:7px solid transparent;margin-left:3px"></div></div>
+            <div style="width:0;height:0;border-left:8px solid var(--muted);border-top:6px solid transparent;border-bottom:6px solid transparent"></div>
+            <div style="width:13px;height:13px;border:1.5px solid var(--muted);border-radius:50%;border-top-color:transparent"></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;width:100%;max-width:380px">
+            <div style="font:400 11.5px 'JetBrains Mono',ui-monospace,monospace;color:var(--faint);width:34px;text-align:right">1:22</div>
+            <div style="flex:1;height:3px;border-radius:2px;background:var(--line-strong);position:relative"><div style="position:absolute;inset:0 auto 0 0;width:44%;background:var(--text);border-radius:2px"></div></div>
+            <div style="font:400 11.5px 'JetBrains Mono',ui-monospace,monospace;color:var(--faint);width:34px">3:04</div>
+          </div>
+        </div>
+        <div style="width:250px;display:flex;align-items:center;justify-content:flex-end;gap:16px">
+          <div style="display:flex;align-items:center;gap:7px;height:26px;padding:0 10px;border:1px solid var(--line-strong);border-radius:999px;font-size:11.5px;color:var(--muted)">Fila <span style="font-family:'JetBrains Mono',ui-monospace,monospace;color:var(--faint)">12</span></div>
+          <div style="display:flex;align-items:center;gap:9px">
+            <div style="width:0;height:0;border-right:9px solid var(--muted);border-top:7px solid transparent;border-bottom:7px solid transparent"></div>
+            <div style="width:76px;height:3px;border-radius:2px;background:var(--line-strong);position:relative"><div style="position:absolute;inset:0 auto 0 0;width:62%;background:var(--text);border-radius:2px"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Peça em seguida: "densidade mais compacta em <a class="dv-oid" href="#1a">1a</a>" · "cabeçalho de playlist sem o botão redondo" · "uma direção mais tipográfica, sem cartões quadrados"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showTrackArt&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Listas&quot;},&quot;trackNumbers&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Listas&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      showTrackArt: this.props.showTrackArt ?? true,
+      trackNumbers: this.props.trackNumbers ?? true
+    };
+  }
+}
+</script>
+</body>
+</html>

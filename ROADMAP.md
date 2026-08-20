@@ -9,18 +9,18 @@ Arquitetura  [feito]
 │  ├─ Config              [feito]
 │  ├─ Contratos           [feito]
 │  ├─ Fila / shuffle      [feito]
-│  └─ Integracao Spotify  [ciclo 2, escrito, falta verificar]
+│  └─ Integracao Spotify  [ciclo 2, verificada]
 ├─ UI
 │  ├─ Componentes         [feito]
 │  ├─ Navegacao           [feito]
-│  └─ Telas de conteudo   [ciclo 2, ligadas; faltam capas e paginacao]
+│  └─ Telas de conteudo   [ciclo 2, ligadas e com detalhe]
 ├─ Customizacao
 │  ├─ Esquema de tema     [feito]
 │  ├─ Carregador          [feito]
 │  ├─ Import/export       [feito]
 │  └─ Recarga a quente    [ciclo 3, crate pronta, falta ligar]
 └─ Qualidade
-   ├─ Testes              [feito, 133]
+   ├─ Testes              [feito, 217]
    ├─ Benchmarks          [feito, tools/measure.ps1]
    ├─ Seguranca           [feito para temas e credenciais]
    └─ Empacotamento       [feito, instalador NSIS de 3,83 MB]
@@ -42,36 +42,35 @@ Arquitetura  [feito]
 - instalador `.exe` unico com escolha de disco, sem UAC, com desinstalador
   limpo e verificacao de que o binario roda isolado.
 
-## Ciclo 2 — Reproducao `[em andamento]`
+## Ciclo 2 — Reproducao `[concluido; falta reverificacao final]`
 
 O ciclo que transforma isto num player.
 
-1. `[escrito]` **`morune-spotify`**: `Authenticator`, `PlaybackEngine`,
+1. `[verificado]` **`morune-spotify`**: `Authenticator`, `PlaybackEngine`,
    `Catalog` e `Library` sobre librespot 0.8.
-2. `[escrito]` **Login OAuth PKCE**, sem client secret, com o token indo direto
+2. `[verificado]` **Login OAuth PKCE**, sem client secret, com o token indo direto
    para o Gerenciador de Credenciais. Restauracao de sessao na abertura.
-3. `[escrito]` **Reproducao real**: carregar, tocar, pausar, buscar posicao,
+3. `[verificado]` **Reproducao real**: carregar, tocar, pausar, buscar posicao,
    volume, avanco automatico ligado a `Queue::next`.
-4. `[escrito]` **Busca e biblioteca** ligadas as telas que ja existem, e um
+4. `[verificado]` **Busca e biblioteca** ligadas as telas que ja existem, e um
    Inicio com cinco prateleiras. As playlists que o Spotify monta para a conta
    vem pelo protocolo interno, porque o Web API deixou de entrega-las em 2024 —
    ver [docs/HANDOFF.md](docs/HANDOFF.md).
-5. `[aberto]` **Radio e autoplay** pelo mesmo caminho interno. E o que sobra de
-   recomendacao depois de 2024, e resolve o silencio no fim da fila.
-6. `[aberto]` **Capas**: download, cache em disco com **teto explicito e
-   descarte por LRU**, escolha pelo tamanho de exibicao via
-   `ImageSet::best_for_width`. O teto e obrigatorio; o valor dele e livre.
+5. `[escrito]` **Radio e autoplay configuravel** pelo caminho interno, anexando
+   recomendacoes ao contexto sem apagar historico nem repetir faixas. Falta a
+   rodada final contra a conta real.
+6. `[verificado]` **Capas**: download, cache em disco de 48 MB com descarte por
+   LRU e escolha pelo tamanho de exibicao via `ImageSet::best_for_width`.
 7. `[aberto]` **Medir o que importa**: CPU e GPU em segundo plano com musica
    tocando, com um jogo em tela cheia rodando junto. E o criterio de desempenho
    do produto e nunca foi medido — ver [PERFORMANCE.md](PERFORMANCE.md). RAM
    entra como teto de crescimento, nao como meta de vitrine.
 
-`[escrito]` quer dizer: compila, tem teste de unidade e clippy limpo. **Nao**
-quer dizer que funciona — nada passou por uma conta real ainda.
+`[escrito]` quer dizer: compila, tem teste de unidade e clippy limpo, mas o
+recurso novo ainda nao passou pela conta real. O restante do ciclo foi
+verificado em 19/08/2026.
 
-Depende de: conta Premium para teste real. Sem ela nada deste ciclo pode ser
-declarado funcionando. O roteiro de verificacao esta em
-[docs/HANDOFF.md](docs/HANDOFF.md).
+O roteiro de reverificacao esta em [docs/HANDOFF.md](docs/HANDOFF.md).
 
 Risco conhecido: librespot 0.8 exige `vergen` fixado em 9.0.x no `Cargo.lock`
 — ver [ADR-0002](docs/adr/0002-toolchain-windows-gnu.md).

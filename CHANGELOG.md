@@ -7,6 +7,19 @@ Versionamento semantico.
 
 ### Adicionado
 
+**Radio, detalhes e acabamento do ciclo 2**
+- Autoplay configuravel, ligado por padrao: ao fim da fila, a ultima faixa vira
+  semente de radio e as recomendacoes sao anexadas sem apagar o historico ou
+  repetir faixas ja presentes.
+- Parser tolerante para a resposta JSON de `get_radio_for_track`, com falha
+  isolada da busca e da navegacao.
+- Capas pequenas nas linhas de faixa, reutilizando o cache LRU de 48 MB.
+- Aviso explicito quando uma lista foi limitada as primeiras 200 faixas.
+- Tela de artista com faixas populares por pais e discografia vindas do
+  protobuf tipado; abrir um album navega para seu detalhe.
+- Playlists removidas da Biblioteca, pois a fonte canonica delas agora e a
+  barra lateral.
+
 **Backend de Spotify (`morune-spotify`)**
 - Crate nova, implementando os contratos de `morune-core` sobre a librespot 0.8.
   A interface continua guardando `Arc<dyn PlaybackEngine>`, `Arc<dyn Catalog>` e
@@ -24,24 +37,20 @@ Versionamento semantico.
   librespot, e nao consultada a cada quadro.
 - **Volume com curva cubica**, guardado em inteiro atomico porque o misturador
   le esse valor na thread de audio, a cada bloco.
-- **Busca e biblioteca** sobre o Web API do Spotify, que e onde elas existem --
-  o protocolo da librespot entrega audio, nao catalogo. O cliente HTTP e o da
-  propria sessao: TLS, proxy e limite de requisicoes ja resolvidos, sem uma
-  segunda pilha de TLS no binario.
-- **Mais ouvidos e historico recente**: `/v1/me/top/tracks`, `/v1/me/top/artists`
-  e `/v1/me/player/recently-played`. Os escopos `user-top-read` e
-  `user-read-recently-played` ja eram pedidos no login e ate agora nao serviam
-  para nada. O historico sai sem repeticao: ouvir a mesma faixa tres vezes rende
-  tres itens no Spotify, e como lista para clicar a repeticao nao ajuda.
+- **Busca** pelo `pathfinder` e **biblioteca** pelo protocolo interno da sessao
+  (`spclient`/mercury), depois que o Web API passou a devolver 403 ate para os
+  endpoints basicos. Playlists, curtidas, artistas seguidos e capas continuam
+  disponiveis sem manter uma segunda pilha de TLS no binario.
+- **Mais ouvidos e historico recente** permanecem `Unsupported`: as sondas dos
+  caminhos internos candidatos nao encontraram um equivalente estavel. A tela
+  degrada sem erro e usa as fontes de biblioteca que foram verificadas.
 - `Library` no core ganhou `top_tracks`, `top_artists`, `recently_played` e
   `made_for_you`, todos com implementacao padrao que recusa com `Unsupported`.
   Um provedor de arquivos locais nao tem "mais ouvidos", e obrigar todo backend
   futuro a escrever um `unimplemented` seria pior que um padrao honesto.
-- Traducao de JSON para o modelo do core isolada em `dto.rs`, testavel sem rede:
-  item nulo, faixa sem id e arquivo local da conta somem da lista em vez de
-  derrubarem a pagina inteira, e as capas saem ordenadas da menor para a maior,
-  que e o que `ImageSet::best_for_width` precisa para nao carregar capa grande
-  numa grade.
+- Traducao do GraphQL do `pathfinder` isolada em `graphql.rs`, testavel sem
+  rede: item nulo, faixa sem id e arquivo local somem da lista em vez de
+  derrubarem a pagina inteira, e as capas saem ordenadas da menor para a maior.
 
 **Contorno da mudanca de 2024 no Web API**
 - Em 27/11/2024 o Spotify fechou, para aplicativos novos, `/v1/recommendations`,
@@ -140,16 +149,11 @@ Versionamento semantico.
 - Licenca definida: **MIT**, com o texto em [LICENSE](LICENSE). O `Cargo.toml`
   declarava `MIT OR Apache-2.0` sem nenhum arquivo de licenca no repositorio.
 
-### Nao verificado ainda
-Nada do backend de Spotify pode ser declarado funcionando: falta o login
-interativo com uma conta Premium real. O que existe hoje e codigo que compila,
-204 testes passando e clippy limpo com `-D warnings`. O estado recolhido da
-barra lateral foi verificado por captura de tela, com o defeito reproduzido
-antes da correcao.
-
-Duas incognitas dependem desse primeiro login: se o client ID do cliente oficial
-escapa da restricao de 2024, e qual campo o rootlist preenche de verdade nas
-playlists algoritmicas. As duas estao descritas em
+### Verificacao
+Login, reconexao, reproducao, busca, playlists, curtidas, artistas seguidos,
+capas e telas de detalhe foram verificados contra uma conta Premium real em
+19/08/2026. Radio/autoplay, capas nas linhas e a tela completa de artista foram
+implementados depois dessa rodada e aguardam a reverificacao final descrita em
 [docs/HANDOFF.md](docs/HANDOFF.md).
 
 ### Alterado
@@ -172,15 +176,10 @@ playlists algoritmicas. As duas estao descritas em
 - Binario de 9,15 MB para 9,39 MB e instalador de 3,83 MB para 4,00 MB, com o
   detalhamento medido em [PERFORMANCE.md](PERFORMANCE.md).
 
-### A fazer no proximo ciclo
-- Login real com conta Premium, que e o unico jeito de verificar o ciclo 2.
-- Radio e autoplay pelo caminho interno (`get_radio_for_track`,
-  `get_apollo_station`). E o que sobra de recomendacao depois de 2024 e resolve
-  o silencio quando a fila acaba. Diferente do rootlist, essas respostas sao
-  JSON sem tipo: o formato precisa ser visto uma vez antes de virar parser.
-- Capas: download, cache em disco com teto explicito e descarte por LRU.
-- Paginacao das telas: hoje cada secao traz o que cabe e para por ai.
-- Medir de novo CPU e GPU em segundo plano, agora que ha o que tocar.
+### A fazer antes da v1
+- Reverificar radio/autoplay e artista contra a conta Premium.
+- Medir CPU e GPU em segundo plano com musica tocando e um jogo em tela cheia.
+- Instalar o pacote final numa conta limpa do Windows.
 
 ## [0.1.0] — 2026-08-18
 

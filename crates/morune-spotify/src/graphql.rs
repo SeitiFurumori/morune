@@ -1,8 +1,7 @@
 //! Formato das respostas do `pathfinder` e a traducao para o modelo do core.
 //!
-//! Fica separado do [`crate::pathfinder`] pelo mesmo motivo que [`crate::dto`]
-//! fica separado do catalogo: a traducao e a parte que erra, e e a unica
-//! testavel sem rede. Aqui dentro nao ha requisicao nenhuma.
+//! Fica separado do [`crate::pathfinder`] porque a traducao e a parte que erra,
+//! e e a unica testavel sem rede. Aqui dentro nao ha requisicao nenhuma.
 //!
 //! **Nada aqui foi adivinhado.** Os tipos foram escritos contra a resposta real
 //! gravada pela sonda em `bench-out/sonda/busca.json` -- ver

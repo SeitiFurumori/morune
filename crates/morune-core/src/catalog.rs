@@ -24,11 +24,19 @@ pub struct Page<T> {
 impl<T> Page<T> {
     pub fn new(items: Vec<T>) -> Self {
         let total = Some(items.len() as u32);
-        Self { items, offset: 0, total }
+        Self {
+            items,
+            offset: 0,
+            total,
+        }
     }
 
     pub fn empty() -> Self {
-        Self { items: Vec::new(), offset: 0, total: Some(0) }
+        Self {
+            items: Vec::new(),
+            offset: 0,
+            total: Some(0),
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -38,9 +46,11 @@ impl<T> Page<T> {
     /// `true` quando existe pelo menos mais uma pagina depois desta.
     pub fn has_more(&self) -> bool {
         match self.total {
-            Some(total) => self.offset + self.items.len() as u32 > 0
-                && self.offset + self.items.len() as u32 <= total
-                && (self.offset + self.items.len() as u32) < total,
+            Some(total) => {
+                self.offset + self.items.len() as u32 > 0
+                    && self.offset + self.items.len() as u32 <= total
+                    && (self.offset + self.items.len() as u32) < total
+            }
             None => !self.items.is_empty(),
         }
     }
@@ -112,8 +122,19 @@ pub trait Catalog: Send + Sync + 'static {
         offset: u32,
         limit: u32,
     ) -> BoxFuture<'a, CoreResult<Page<Track>>>;
-}
 
+    /// Sequencia recomendada a partir de uma faixa.
+    ///
+    /// O padrao explicito permite que provedores sem radio continuem
+    /// implementando o contrato sem fingir uma lista vazia.
+    fn radio<'a>(
+        &'a self,
+        _seed: &'a TrackId,
+        _limit: u32,
+    ) -> BoxFuture<'a, CoreResult<Page<Track>>> {
+        Box::pin(async { Err(CoreError::Unsupported("radio por faixa")) })
+    }
+}
 
 /// Busca os bytes de uma capa.
 ///
@@ -229,16 +250,32 @@ mod tests {
 
     #[test]
     fn page_reports_more_only_when_items_remain() {
-        let full = Page { items: vec![1, 2, 3], offset: 0, total: Some(10) };
+        let full = Page {
+            items: vec![1, 2, 3],
+            offset: 0,
+            total: Some(10),
+        };
         assert!(full.has_more());
 
-        let last = Page { items: vec![1, 2, 3], offset: 7, total: Some(10) };
+        let last = Page {
+            items: vec![1, 2, 3],
+            offset: 7,
+            total: Some(10),
+        };
         assert!(!last.has_more());
 
-        let unknown_total = Page { items: vec![1], offset: 0, total: None };
+        let unknown_total = Page {
+            items: vec![1],
+            offset: 0,
+            total: None,
+        };
         assert!(unknown_total.has_more());
 
-        let exhausted: Page<i32> = Page { items: vec![], offset: 10, total: None };
+        let exhausted: Page<i32> = Page {
+            items: vec![],
+            offset: 10,
+            total: None,
+        };
         assert!(!exhausted.has_more());
     }
 
@@ -285,7 +322,10 @@ mod tests {
         use std::task::{Context, Poll, Waker};
 
         let mut future = future;
-        match future.as_mut().poll(&mut Context::from_waker(Waker::noop())) {
+        match future
+            .as_mut()
+            .poll(&mut Context::from_waker(Waker::noop()))
+        {
             Poll::Ready(value) => value,
             Poll::Pending => panic!("o padrao do trait nao deveria esperar por nada"),
         }

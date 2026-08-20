@@ -48,7 +48,11 @@ struct Xorshift64(u64);
 
 impl Xorshift64 {
     fn new(seed: u64) -> Self {
-        Self(if seed == 0 { 0x9E37_79B9_7F4A_7C15 } else { seed })
+        Self(if seed == 0 {
+            0x9E37_79B9_7F4A_7C15
+        } else {
+            seed
+        })
     }
 
     fn next_u64(&mut self) -> u64 {
@@ -177,7 +181,12 @@ impl Queue {
         let remaining = max - out.len();
 
         let Some(pos) = self.position else {
-            out.extend(self.order.iter().filter_map(|&i| self.context.get(i)).take(remaining));
+            out.extend(
+                self.order
+                    .iter()
+                    .filter_map(|&i| self.context.get(i))
+                    .take(remaining),
+            );
             return out;
         };
 
@@ -235,6 +244,45 @@ impl Queue {
         self.user_queue.push_back(track);
     }
 
+    /// Acrescenta uma continuacao ao contexto e seleciona a primeira faixa nova.
+    ///
+    /// Usado pelo autoplay depois que o contexto terminou. Preserva historico,
+    /// fila manual e origem, e remove repeticoes para que uma estacao que inclua
+    /// a propria semente nao crie um ciclo curto.
+    pub fn append_and_select(&mut self, tracks: Vec<Track>) -> Option<&Track> {
+        let mut novos = Vec::new();
+        for track in tracks {
+            if !self.context.iter().any(|existing| existing.id == track.id)
+                && !novos.iter().any(|existing: &Track| existing.id == track.id)
+            {
+                novos.push(track);
+            }
+        }
+        if novos.is_empty() {
+            return None;
+        }
+
+        let first_context_index = self.context.len();
+        let mut appended_order: Vec<usize> =
+            (first_context_index..first_context_index + novos.len()).collect();
+        self.context.extend(novos);
+
+        if self.shuffle && appended_order.len() > 1 {
+            let mut rng =
+                Xorshift64::new(self.seed ^ (self.context.len() as u64).wrapping_mul(0x9E37));
+            self.seed = self.seed.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            for i in (1..appended_order.len()).rev() {
+                let j = rng.below((i + 1) as u64) as usize;
+                appended_order.swap(i, j);
+            }
+        }
+
+        let first_order_position = self.order.len();
+        self.order.extend(appended_order);
+        self.position = Some(first_order_position);
+        self.current()
+    }
+
     pub fn remove_from_user_queue(&mut self, index: usize) -> Option<Track> {
         self.user_queue.remove(index)
     }
@@ -253,7 +301,11 @@ impl Queue {
 
         if on {
             self.reshuffle_keeping(current_index);
-            self.position = if self.context.is_empty() { None } else { Some(0) };
+            self.position = if self.context.is_empty() {
+                None
+            } else {
+                Some(0)
+            };
         } else {
             self.order = (0..self.context.len()).collect();
             self.position = current_index;
@@ -288,7 +340,11 @@ impl Queue {
             // atual, para que "anterior"/"proximo" continuem coerentes depois.
             let context_index = self.context.len();
             self.context.push(track);
-            let insert_at = self.position.map(|p| p + 1).unwrap_or(0).min(self.order.len());
+            let insert_at = self
+                .position
+                .map(|p| p + 1)
+                .unwrap_or(0)
+                .min(self.order.len());
             self.order.insert(insert_at, context_index);
             self.position = Some(insert_at);
             return self.current();
@@ -381,7 +437,11 @@ mod tests {
 
     fn q(n: usize) -> Queue {
         let mut q = Queue::with_seed(42);
-        q.set_context(QueueOrigin::Custom("test".into()), (0..n).map(track).collect(), Some(0));
+        q.set_context(
+            QueueOrigin::Custom("test".into()),
+            (0..n).map(track).collect(),
+            Some(0),
+        );
         q
     }
 
@@ -510,6 +570,28 @@ mod tests {
     }
 
     #[test]
+    fn autoplay_appends_without_erasing_history_or_repeating_tracks() {
+        let mut queue = q(2);
+        queue.next(false);
+        assert!(queue.next(false).is_none());
+
+        let current = queue
+            .append_and_select(vec![track(1), track(2), track(2), track(3)])
+            .expect("ha recomendacoes novas");
+        assert_eq!(current.name.as_ref(), "Track 2");
+        assert_eq!(queue.len(), 4);
+        assert_eq!(queue.previous().unwrap().name.as_ref(), "Track 1");
+    }
+
+    #[test]
+    fn autoplay_with_only_duplicates_keeps_the_queue_stopped() {
+        let mut queue = q(1);
+        assert!(queue.next(false).is_none());
+        assert!(queue.append_and_select(vec![track(0)]).is_none());
+        assert!(queue.current().is_none());
+    }
+
+    #[test]
     fn empty_queue_is_inert() {
         let mut q = Queue::with_seed(1);
         assert!(q.is_empty());
@@ -539,7 +621,10 @@ mod tests {
             counts[rng.below(5) as usize] += 1;
         }
         for c in counts {
-            assert!((9_000..11_000).contains(&c), "distribuicao enviesada: {counts:?}");
+            assert!(
+                (9_000..11_000).contains(&c),
+                "distribuicao enviesada: {counts:?}"
+            );
         }
     }
 
