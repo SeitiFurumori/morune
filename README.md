@@ -261,6 +261,7 @@ Pasta de temas do usuario:
 | [THEMING.md](THEMING.md) | formato de tema e referencia de campos |
 | [SECURITY.md](SECURITY.md) | modelo de ameaca, credenciais, validacao de pacotes |
 | [docs/assinatura.md](docs/assinatura.md) | por que o SmartScreen avisa, o que custa assinar |
+| [docs/RELEASING.md](docs/RELEASING.md) | como uma tag gera e publica o instalador pelo GitHub Actions |
 | [PERFORMANCE.md](PERFORMANCE.md) | orcamento, metodo de medicao e numeros reais |
 | [ROADMAP.md](ROADMAP.md) | o que vem, em que ordem e por que |
 | [CHANGELOG.md](CHANGELOG.md) | historico de versoes |

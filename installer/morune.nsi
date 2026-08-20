@@ -65,7 +65,7 @@ InstallDirRegKey HKCU "${REG_APP}" "InstallDir"
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${APP_EXE}"
 !define MUI_FINISHPAGE_RUN_TEXT "Abrir o ${APP_NAME} agora"
 !define MUI_FINISHPAGE_LINK "Documentacao e codigo-fonte"
-!define MUI_FINISHPAGE_LINK_LOCATION "https://github.com/morune/morune"
+!define MUI_FINISHPAGE_LINK_LOCATION "https://github.com/SeitiFurumori/morune"
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_COMPONENTS

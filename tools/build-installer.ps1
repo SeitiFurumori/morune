@@ -9,7 +9,8 @@
 
 param(
     [string]$Version = "0.1.0",
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [string]$LicenseTarget = "x86_64-pc-windows-gnu"
 )
 
 $ErrorActionPreference = "Stop"
@@ -72,7 +73,7 @@ $licenses = Join-Path $root "THIRD-PARTY-LICENSES.txt"
 $lock = Join-Path $root "Cargo.lock"
 if (-not (Test-Path $licenses) -or (Get-Item $licenses).LastWriteTime -lt (Get-Item $lock).LastWriteTime) {
     Write-Host "atualizando os avisos de licenca das dependencias..." -ForegroundColor DarkGray
-    & (Join-Path $PSScriptRoot "licenses.ps1")
+    & (Join-Path $PSScriptRoot "licenses.ps1") -Target $LicenseTarget
     if ($LASTEXITCODE -ne 0) { Write-Error "geracao dos avisos de licenca falhou" }
 }
 
