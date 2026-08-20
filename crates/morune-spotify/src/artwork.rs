@@ -18,17 +18,23 @@ use morune_core::{CoreError, CoreResult};
 use crate::auth::SharedSession;
 use crate::error::from_librespot;
 
-/// Hosts de onde capa e aceita.
+/// De onde capa e aceita.
 ///
 /// A URL vem de resposta do servidor, e nao de entrada do usuario -- mas uma
 /// resposta adulterada nao pode fazer o Morune buscar arquivo em qualquer
 /// lugar da internet.
 ///
-/// Sao dois porque o Spotify usa dois: capa de album e de artista vem do
-/// primeiro; capa gerada de playlist, do segundo. A barra no fim e o que
-/// impede um dominio como `i.scdn.co.exemplo.invalido` de passar.
-const HOSTS_PERMITIDOS: [&str; 2] =
-    ["https://i.scdn.co/", "https://pickasso.spotifycdn.com/"];
+/// Listar host a host nao funcionou: o Spotify usa varios subdominios de
+/// `spotifycdn.com`, um por tipo de imagem, e cada um so aparece quando a
+/// conta tem aquele tipo de playlist. Ate agora vieram `pickasso` (capa
+/// gerada), `blend-playlist-covers` e `wrapped-images` -- e nao ha razao para
+/// crer que a lista acabou.
+///
+/// Entao a regra e por dominio: `i.scdn.co` exato, ou qualquer subdominio de
+/// `spotifycdn.com`. Ver [`host_permitido`] para o que impede
+/// `spotifycdn.com.exemplo.invalido` de passar.
+const DOMINIO_CDN: &str = "spotifycdn.com";
+const HOST_IMAGENS: &str = "i.scdn.co";
 
 /// Teto de bytes por capa.
 ///
@@ -57,7 +63,7 @@ impl SpotifyArtwork {
 impl Artwork for SpotifyArtwork {
     fn fetch<'a>(&'a self, url: &'a str) -> BoxFuture<'a, CoreResult<Vec<u8>>> {
         Box::pin(async move {
-            if !HOSTS_PERMITIDOS.iter().any(|host| url.starts_with(host)) {
+            if !host_permitido(url) {
                 return Err(CoreError::NotFound(
                     "capa fora dos hosts de imagem do Spotify".into(),
                 ));
@@ -88,25 +94,49 @@ impl Artwork for SpotifyArtwork {
     }
 }
 
+/// `true` quando a URL aponta para um host de imagem do Spotify.
+///
+/// So `https`, e o host e comparado inteiro -- nao por prefixo. Comparar por
+/// prefixo deixaria `spotifycdn.com.exemplo.invalido` passar, que e
+/// exatamente o truque que a checagem existe para barrar.
+fn host_permitido(url: &str) -> bool {
+    let Some(resto) = url.strip_prefix("https://") else {
+        return false;
+    };
+    let host = resto.split('/').next().unwrap_or_default();
+
+    host == HOST_IMAGENS
+        || host.strip_suffix(DOMINIO_CDN).is_some_and(|prefixo| prefixo.ends_with('.'))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn aceita(url: &str) -> bool {
-        HOSTS_PERMITIDOS.iter().any(|host| url.starts_with(host))
+        host_permitido(url)
+    }
+    #[test]
+    fn every_spotify_image_host_the_account_returned_is_accepted() {
+        // Todos vistos numa conta real. Listar host a host quebrava a cada tipo
+        // novo de playlist.
+        assert!(aceita("https://i.scdn.co/image/ab67"));
+        assert!(aceita("https://pickasso.spotifycdn.com/image/ab67c0de/dt/v1/img"));
+        assert!(aceita("https://blend-playlist-covers.spotifycdn.com/group-blends-v1/x.jpg"));
+        assert!(aceita("https://wrapped-images.spotifycdn.com/image/yts-2023/x.jpg"));
     }
 
     #[test]
-    fn only_the_spotify_image_hosts_are_accepted() {
-        // Uma URL vinda de resposta adulterada nao pode virar download de
-        // qualquer coisa. O corte acontece antes de haver requisicao.
-        assert!(aceita("https://i.scdn.co/image/ab67"));
-        // Capa gerada de playlist mora noutro host, e o rootlist entrega a URL
-        // pronta apontando para ele.
-        assert!(aceita("https://pickasso.spotifycdn.com/image/ab67c0de/dt/v1/img"));
-        assert!(!aceita("https://exemplo.invalido/x.jpg"));
-        // Prefixo parecido nao passa: o `/` no fim e o que separa o host.
+    fn a_lookalike_domain_never_passes() {
+        // O truque classico: colocar o dominio esperado como prefixo de outro.
+        // Comparar o host inteiro e o que barra.
         assert!(!aceita("https://i.scdn.co.exemplo.invalido/x"));
+        assert!(!aceita("https://spotifycdn.com.exemplo.invalido/x"));
+        assert!(!aceita("https://exemplo.invalido/spotifycdn.com/x"));
+        assert!(!aceita("https://exemplo.invalido/x.jpg"));
+        // `spotifycdn.com` sem subdominio tambem nao: o Spotify sempre usa um.
+        assert!(!aceita("https://spotifycdn.com/x"));
+        // Sem TLS nao passa.
         assert!(!aceita("http://i.scdn.co/image/ab67"));
     }
 }
