@@ -352,6 +352,14 @@ impl AppState {
                     origin: QueueOrigin::Custom("Musicas curtidas".into()),
                     tracks: liked,
                 };
+                #[cfg(feature = "snapshot")]
+                if std::env::var_os("MORUNE_SNAPSHOT_QUEUE_DEMO").is_some()
+                    && self.liked.tracks.len() >= 2
+                {
+                    self.queue.play_next(self.liked.tracks[0].clone());
+                    self.queue.enqueue(self.liked.tracks[1].clone());
+                    self.page = Page::Queue;
+                }
                 self.home_stations = stations;
                 self.home_retrospectives = retrospectives;
                 self.home_playlists = playlists;
@@ -1156,6 +1164,95 @@ impl AppState {
             .cloned()
     }
 
+    pub fn queue_play_next(&mut self, tag: &str) {
+        let Some(track) = self.track_from_tag(tag) else {
+            return;
+        };
+        if self.queue.current().is_none() {
+            self.queue.set_context(
+                QueueOrigin::Custom("Fila manual".into()),
+                vec![track.clone()],
+                Some(0),
+            );
+            self.play_current();
+            self.status = format!("Tocando {}.", track.name);
+        } else {
+            self.queue.play_next(track.clone());
+            self.status = format!("{} tocara a seguir.", track.name);
+        }
+        self.resolve_track_covers();
+    }
+
+    pub fn queue_enqueue(&mut self, tag: &str) {
+        let Some(track) = self.track_from_tag(tag) else {
+            return;
+        };
+        self.queue.enqueue(track.clone());
+        self.status = format!("{} foi adicionada ao fim da fila.", track.name);
+        self.resolve_track_covers();
+    }
+
+    pub fn queue_remove(&mut self, index: i32) {
+        let Some(track) = usize::try_from(index)
+            .ok()
+            .and_then(|index| self.queue.remove_from_user_queue(index))
+        else {
+            self.status = "Essa faixa ja nao esta mais na fila.".into();
+            return;
+        };
+        self.status = format!("{} foi removida da fila.", track.name);
+    }
+
+    pub fn queue_play_manual(&mut self, index: i32) {
+        let Some(track) = usize::try_from(index)
+            .ok()
+            .and_then(|index| self.queue.remove_from_user_queue(index))
+        else {
+            self.status = "Essa faixa ja nao esta mais na fila.".into();
+            return;
+        };
+        self.queue.play_next(track.clone());
+        if let Some(next) = self.queue.next(true).cloned() {
+            self.send(PlayerCommand::Load {
+                track: next,
+                start_paused: false,
+            });
+            self.status = format!("Tocando {}.", track.name);
+        }
+    }
+
+    pub fn queue_move(&mut self, from: i32, to: i32) {
+        let moved = usize::try_from(from)
+            .ok()
+            .zip(usize::try_from(to).ok())
+            .is_some_and(|(from, to)| self.queue.move_user_queue(from, to));
+        if !moved {
+            self.status = "Nao foi possivel mover essa faixa na fila.".into();
+        }
+    }
+
+    pub fn queue_clear(&mut self) {
+        let count = self.queue.user_queue_len();
+        self.queue.clear_user_queue();
+        self.status = if count == 0 {
+            "A fila manual ja estava vazia.".into()
+        } else {
+            format!("Fila manual limpa: {count} faixas removidas.")
+        };
+    }
+
+    fn track_from_tag(&mut self, tag: &str) -> Option<Track> {
+        let Some(Target::Track(id)) = Target::parse(tag) else {
+            self.status = "Nao reconheci a faixa escolhida.".into();
+            return None;
+        };
+        let track = self.find_track(&id);
+        if track.is_none() {
+            self.status = "Essa faixa nao esta mais disponivel nesta tela.".into();
+        }
+        track
+    }
+
     // ---- reproducao ----
 
     /// Toca o que a interface ativou: uma faixa, um album, uma playlist ou um
@@ -1359,8 +1456,14 @@ impl AppState {
         );
         window.set_now_favorite(current.is_some_and(|track| self.favorites.contains(track)));
 
-        window.set_queue_tracks(track_rows(
-            self.queue.upcoming(200),
+        window.set_queue_manual_tracks(track_rows(
+            self.queue.user_queue().take(200).collect(),
+            current,
+            &self.track_covers,
+            &self.favorites,
+        ));
+        window.set_queue_context_tracks(track_rows(
+            self.queue.upcoming_context(200),
             current,
             &self.track_covers,
             &self.favorites,

@@ -438,6 +438,40 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
         s.push_to_ui(&w);
     });
 
+    on!(on_queue_play_next, |w, s, id: slint::SharedString| {
+        s.queue_play_next(id.as_str());
+        s.push_to_ui(&w);
+    });
+
+    on!(on_queue_enqueue, |w, s, id: slint::SharedString| {
+        s.queue_enqueue(id.as_str());
+        s.push_to_ui(&w);
+    });
+
+    on!(on_queue_remove, |w, s, index: i32| {
+        s.queue_remove(index);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_queue_play_manual, |w, s, index: i32| {
+        s.queue_play_manual(index);
+        s.push_to_ui(&w);
+    });
+
+    let weak = window.as_weak();
+    let state_for_move = state.clone();
+    window.on_queue_move(move |from, to| {
+        let Some(window) = weak.upgrade() else { return };
+        let mut state = state_for_move.borrow_mut();
+        state.queue_move(from, to);
+        state.push_to_ui(&window);
+    });
+
+    on!(on_queue_clear, |w, s| {
+        s.queue_clear();
+        s.push_to_ui(&w);
+    });
+
     on!(on_toggle_play, |w, s| {
         s.toggle_play();
         s.push_to_ui(&w);

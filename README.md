@@ -24,13 +24,13 @@ maquina (AMD Ryzen 5 8500G, Windows 11 26200, Radeon 740M):
 | | |
 |---|---|
 | Instalador `.exe` | **5,31 MB** |
-| Executavel de release | **13,62 MiB** |
+| Executavel de release | **13,78 MiB** |
 | Startup ate o laco de eventos | **19 ms** (mediana de 10 execucoes) |
 | Ciclo completo do processo | **509 ms** (mediana; inclui criar contexto OpenGL e encerrar) |
 | Working set em repouso | **78,8 MB** (media), pico 79,5 MB |
 | CPU em repouso | **0,14%** de um nucleo |
 | CPU na bandeja, janela oculta | **0,00%** de um nucleo |
-| Testes | 222, `clippy -D warnings` limpo |
+| Testes | 224, `clippy -D warnings` limpo |
 
 O criterio de desempenho do Morune nao e "usar pouca RAM" — e **nao atrapalhar
 quem esta jogando**. O que manda e CPU e GPU em segundo plano e a interface
@@ -50,8 +50,8 @@ Ja implementado:
 - favoritos locais e independentes do provedor, com gravacao recuperavel,
   rollback em falha e acesso pelo player, pelas listas e pela Biblioteca;
 - cofre de credenciais no Gerenciador de Credenciais do Windows;
-- fila com shuffle, repeticao, historico real e "tocar a seguir", coberta por
-  testes;
+- fila com shuffle, repeticao, historico real, tocar a seguir, adicionar ao fim,
+  reordenar, remover e limpar, coberta por testes;
 - **fechar continua rodando**: a janela some para a bandeja e o aplicativo segue
   vivo, como no Discord. Verificado por script, nao so afirmado;
 - **identidade visual propria**: o simbolo da marca aparece na barra lateral, no

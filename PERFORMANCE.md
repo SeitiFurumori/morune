@@ -41,11 +41,12 @@ teto explicito para nao crescer sem limite, nao com meta de vitrine.
 | RAM em repouso | teto, nao vitrine | **78,8 MB** | aceito |
 | RAM em reproducao com capas | crescimento limitado | — | cache em disco limitado; RAM nao medida |
 | Tamanho do instalador | < 40 MB | **5,31 MB** | folgado |
-| Tamanho do executavel | — | **13,62 MiB** | — |
+| Tamanho do executavel | — | **13,78 MiB** | — |
 | Dependencia de Chromium | nenhuma | nenhuma | cumprido |
 
 O executavel foi remedido em 20/08/2026 depois de habilitar AccessKit; cresceu
-0,21 MiB. A biblioteca local de favoritos acrescentou 0,13 MiB. O tamanho do
+0,21 MiB. A biblioteca local de favoritos acrescentou 0,13 MiB e a gestao da
+fila, 0,16 MiB. O tamanho do
 instalador acima ainda e o ultimo pacote gerado e deve
 ser atualizado na proxima rodada de empacotamento.
 
@@ -61,7 +62,7 @@ Windows 11 Pro build 26200. Binario de release, perfil `opt-level = "z"`,
 
 ```
 executavel   : target\release\morune.exe
-tamanho      : 13,62 MiB
+tamanho      : 13,78 MiB
 instalador   : 5,31 MB
 
 startup interno          : primeiro 18,0 | mediana 19,0 | min 17,0 | max 21,0 ms
