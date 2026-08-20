@@ -170,6 +170,17 @@ impl Browse {
     ///
     /// O que ja estiver em cache entra no primeiro quadro; o resto chega
     /// depois por [`Browse::poll_artwork`].
+    /// Resolve uma capa avulsa, pedindo-a se ainda nao estiver em disco.
+    ///
+    /// Usado pela faixa tocando, que nao e um cartao de nenhuma tela.
+    pub fn cover(&mut self, url: &str) -> Option<std::path::PathBuf> {
+        if let Some(path) = self.covers.cached(url) {
+            return Some(path);
+        }
+        self.covers.request(url, &self.artwork, &self.handle, self.art_tx.clone());
+        None
+    }
+
     pub fn resolve_covers(&mut self, cards: &mut [Card]) {
         for card in cards {
             if card.cover.is_empty() {

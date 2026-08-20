@@ -21,7 +21,7 @@ use morune_core::catalog::{
     BoxFuture, Catalog, Library, Page, SearchKind, SearchResults, TopRange,
 };
 use morune_core::model::{
-    Album, AlbumId, Artist, ArtistId, ImageSet, Playlist, PlaylistId, Provider, Track, TrackId,
+    Album, AlbumId, Artist, ArtistId, Playlist, PlaylistId, Provider, Track, TrackId,
 };
 use morune_core::{CoreError, CoreResult};
 
@@ -432,7 +432,7 @@ fn summary_to_playlist(summary: &PlaylistSummary) -> Playlist {
         name: Arc::from(summary.name.as_str()),
         owner: Some(summary.owner.as_str()).filter(|o| !o.is_empty()).map(Arc::from),
         description: None,
-        images: ImageSet::default(),
+        images: summary.images.clone(),
         total_tracks: Some(summary.length),
         tracks: Vec::new(),
     }

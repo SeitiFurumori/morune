@@ -18,12 +18,17 @@ use morune_core::{CoreError, CoreResult};
 use crate::auth::SharedSession;
 use crate::error::from_librespot;
 
-/// Unico host de onde capa e aceita.
+/// Hosts de onde capa e aceita.
 ///
 /// A URL vem de resposta do servidor, e nao de entrada do usuario -- mas uma
 /// resposta adulterada nao pode fazer o Morune buscar arquivo em qualquer
 /// lugar da internet.
-const HOST_PERMITIDO: &str = "https://i.scdn.co/";
+///
+/// Sao dois porque o Spotify usa dois: capa de album e de artista vem do
+/// primeiro; capa gerada de playlist, do segundo. A barra no fim e o que
+/// impede um dominio como `i.scdn.co.exemplo.invalido` de passar.
+const HOSTS_PERMITIDOS: [&str; 2] =
+    ["https://i.scdn.co/", "https://pickasso.spotifycdn.com/"];
 
 /// Teto de bytes por capa.
 ///
@@ -52,8 +57,10 @@ impl SpotifyArtwork {
 impl Artwork for SpotifyArtwork {
     fn fetch<'a>(&'a self, url: &'a str) -> BoxFuture<'a, CoreResult<Vec<u8>>> {
         Box::pin(async move {
-            if !url.starts_with(HOST_PERMITIDO) {
-                return Err(CoreError::NotFound(format!("capa fora de {HOST_PERMITIDO}")));
+            if !HOSTS_PERMITIDOS.iter().any(|host| url.starts_with(host)) {
+                return Err(CoreError::NotFound(
+                    "capa fora dos hosts de imagem do Spotify".into(),
+                ));
             }
 
             let session = self.session.get().ok_or(CoreError::NotAuthenticated)?;
@@ -85,13 +92,21 @@ impl Artwork for SpotifyArtwork {
 mod tests {
     use super::*;
 
+    fn aceita(url: &str) -> bool {
+        HOSTS_PERMITIDOS.iter().any(|host| url.starts_with(host))
+    }
+
     #[test]
-    fn only_the_spotify_cdn_is_accepted() {
+    fn only_the_spotify_image_hosts_are_accepted() {
         // Uma URL vinda de resposta adulterada nao pode virar download de
         // qualquer coisa. O corte acontece antes de haver requisicao.
-        assert!("https://i.scdn.co/image/ab67".starts_with(HOST_PERMITIDO));
-        assert!(!"https://exemplo.invalido/x.jpg".starts_with(HOST_PERMITIDO));
+        assert!(aceita("https://i.scdn.co/image/ab67"));
+        // Capa gerada de playlist mora noutro host, e o rootlist entrega a URL
+        // pronta apontando para ele.
+        assert!(aceita("https://pickasso.spotifycdn.com/image/ab67c0de/dt/v1/img"));
+        assert!(!aceita("https://exemplo.invalido/x.jpg"));
         // Prefixo parecido nao passa: o `/` no fim e o que separa o host.
-        assert!(!"https://i.scdn.co.exemplo.invalido/x".starts_with(HOST_PERMITIDO));
+        assert!(!aceita("https://i.scdn.co.exemplo.invalido/x"));
+        assert!(!aceita("http://i.scdn.co/image/ab67"));
     }
 }
