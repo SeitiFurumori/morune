@@ -36,6 +36,7 @@ slint = { version = "1.17", default-features = false, features = [
     "backend-winit",
     "renderer-femtovg",
     "renderer-software",
+    "accessibility",
     "std",
 ] }
 
@@ -58,4 +59,3 @@ slint-build = "1.17"
 # Decodifica os PNGs da marca em tempo de build, para que o executavel carregue
 # pixels crus e nao um decodificador. Ver `embed_brand_pixels` em build.rs.
 png = "0.18"
-

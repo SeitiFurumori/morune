@@ -91,6 +91,9 @@ pub struct AppState {
     /// clicada. Sem isso, clicar numa faixa da busca tocaria uma faixa so e o
     /// botao de proxima nao teria para onde ir.
     search: TrackList,
+    search_cards: Vec<Card>,
+    search_query: String,
+    searching: bool,
     liked: TrackList,
     home_made_for_you: Vec<Card>,
     home_stations: Vec<Card>,
@@ -200,6 +203,9 @@ impl AppState {
             session: Session::new(Arc::from(morune_storage::platform_store()), covers_dir),
             player_events: None,
             search: TrackList::default(),
+            search_cards: Vec::new(),
+            search_query: String::new(),
+            searching: false,
             liked: TrackList::default(),
             home_made_for_you: Vec::new(),
             home_stations: Vec::new(),
@@ -304,16 +310,21 @@ impl AppState {
     /// Aplica o que a busca ou a biblioteca trouxeram.
     fn apply_browse(&mut self, outcome: Outcome) {
         match outcome {
-            Outcome::Search { query, tracks } => {
-                self.status = if tracks.is_empty() {
+            Outcome::Search { query, tracks, cards } => {
+                self.searching = false;
+                let total = tracks.len() + cards.len();
+                self.status = if total == 0 {
                     format!("Nada encontrado para \"{query}\".")
                 } else {
-                    format!("{} faixas para \"{query}\".", tracks.len())
+                    format!("{total} resultados para \"{query}\".")
                 };
+                self.search_query = query.clone();
                 self.search = TrackList {
                     origin: QueueOrigin::Search(query),
                     tracks,
                 };
+                self.search_cards = cards;
+                self.resolve_covers();
             }
             // Sem mensagem no sucesso: a tela vazia ja se explica sozinha, e
             // uma linha de status aqui apagaria o "Conectado como ..." que o
@@ -379,6 +390,7 @@ impl AppState {
                 // marcas, voltar a ela mostraria a lista vazia para sempre.
                 self.home_requested = false;
                 self.library_requested = false;
+                self.searching = false;
                 self.status = message;
             }
         }
@@ -592,6 +604,7 @@ impl AppState {
         browse.resolve_covers(&mut self.home_retrospectives);
         browse.resolve_covers(&mut self.home_playlists);
         browse.resolve_covers(&mut self.library);
+        browse.resolve_covers(&mut self.search_cards);
     }
 
     /// Pede a capa da faixa que esta tocando, se ela mudou.
@@ -663,6 +676,7 @@ impl AppState {
                 &mut self.home_retrospectives,
                 &mut self.home_playlists,
                 &mut self.library,
+                &mut self.search_cards,
             ] {
                 for card in lista.iter_mut().filter(|c| c.cover == ready.url) {
                     card.cover_path = Some(ready.path.clone());
@@ -1065,8 +1079,16 @@ impl AppState {
             self.status = "Backend do Spotify indisponivel nesta maquina.".into();
             return;
         };
+        self.search_query = query.trim().to_string();
+        self.searching = true;
+        self.search = TrackList::default();
+        self.search_cards.clear();
         browse.search(query);
         self.status = format!("Buscando \"{query}\"...");
+    }
+
+    pub fn clear_status(&mut self) {
+        self.status.clear();
     }
 
     // ---- reproducao ----
@@ -1191,6 +1213,10 @@ impl AppState {
         self.home_retrospectives.clear();
         self.home_playlists.clear();
         self.library.clear();
+        self.search = TrackList::default();
+        self.search_cards.clear();
+        self.search_query.clear();
+        self.searching = false;
         self.home_requested = false;
         self.library_requested = false;
         self.status = "Sessao encerrada.".into();
@@ -1214,6 +1240,8 @@ impl AppState {
         window.set_dev_mode(self.config.developer.enabled);
         window.set_close_to_tray(self.config.window.close_to_tray);
         window.set_autoplay(self.config.playback.autoplay);
+        window.set_search_query(self.search_query.as_str().into());
+        window.set_searching(self.searching);
 
         let snapshot = self.engine.snapshot();
         let current = self.queue.current();
@@ -1274,6 +1302,7 @@ impl AppState {
         window.set_home_stations(card_items(&self.home_stations));
         window.set_home_retrospectives(card_items(&self.home_retrospectives));
         window.set_library_items(card_items(&self.library));
+        window.set_search_items(card_items(&self.search_cards));
         window.set_search_tracks(track_rows(
             self.search.tracks.iter().collect(),
             current,

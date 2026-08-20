@@ -56,6 +56,7 @@ global Icons {
     out property <string> volume: "M 4 9 L 7 9 L 12 5 L 12 19 L 7 15 L 4 15 Z M 15 9 a 5 5 0 0 1 0 6 M 18 6 a 9 9 0 0 1 0 12";
     out property <string> chevron-left: "M 15 5 L 8 12 L 15 19";
     out property <string> chevron-right: "M 9 5 L 16 12 L 9 19";
+    out property <string> close: "M 5 5 L 19 19 M 19 5 L 5 19";
 }
 
 component SectionTitle inherits Text {
@@ -68,6 +69,8 @@ component SectionTitle inherits Text {
 component EmptyState inherits VerticalLayout {
     in property <string> title;
     in property <string> hint;
+    in property <string> action-label;
+    callback action();
 
     alignment: center;
     spacing: Theme.space-sm;
@@ -87,6 +90,11 @@ component EmptyState inherits VerticalLayout {
         font-family: Theme.font-family;
         horizontal-alignment: center;
         wrap: word-wrap;
+    }
+
+    if root.action-label != "": PrimaryButton {
+        label: root.action-label;
+        clicked => { root.action(); }
     }
 }
 
@@ -125,6 +133,9 @@ component NavItem inherits Rectangle {
     }
 
     touch := PressableArea {
+        accessible-label: root.label;
+        accessible-checkable: true;
+        accessible-checked: root.active;
         clicked => { root.clicked(); }
     }
 }
@@ -196,6 +207,7 @@ component TrackListRow inherits Rectangle {
     }
 
     touch := PressableArea {
+        accessible-label: "Tocar " + root.track.title + " de " + root.track.artist;
         clicked => { root.activated(); }
         double-clicked => { root.activated(); }
     }
@@ -241,33 +253,46 @@ component Card inherits Rectangle {
     }
 
     touch := PressableArea {
+        accessible-label: "Abrir " + root.item.title;
         clicked => { root.activated(); }
+    }
+}
+
+component CardCollection inherits Rectangle {
+    in property <[CardItem]> items;
+    in property <int> columns: 5;
+    callback activated(string);
+    height: collection.preferred-height;
+
+    collection := VerticalLayout {
+        spacing: Theme.space-md;
+        alignment: start;
+        for row-index in ceil(root.items.length / root.columns): HorizontalLayout {
+            spacing: Theme.space-md;
+            alignment: start;
+            for column in root.columns: Rectangle {
+                width: Layout.card-width;
+                height: Layout.card-width + 56px;
+                if row-index * root.columns + column < root.items.length: Card {
+                    item: root.items[row-index * root.columns + column];
+                    activated => { root.activated(root.items[row-index * root.columns + column].id); }
+                }
+            }
+        }
     }
 }
 
 component CardGrid inherits Flickable {
     in property <[CardItem]> items;
+    in property <int> columns: 5;
     callback activated(string);
 
     viewport-height: grid.preferred-height;
 
-    grid := VerticalLayout {
-        spacing: Theme.space-md;
-        // Conteudo ancorado no topo do visor: sem isto, poucas linhas ficam
-        // penduradas no meio da area de rolagem.
-        alignment: start;
-        for row-index in ceil(root.items.length / 5): HorizontalLayout {
-            spacing: Theme.space-md;
-            alignment: start;
-            for column in 5: Rectangle {
-                width: Layout.card-width;
-                height: Layout.card-width + 56px;
-                if row-index * 5 + column < root.items.length: Card {
-                    item: root.items[row-index * 5 + column];
-                    activated => { root.activated(root.items[row-index * 5 + column].id); }
-                }
-            }
-        }
+    grid := CardCollection {
+        items: root.items;
+        columns: root.columns;
+        activated(id) => { root.activated(id); }
     }
 }
 
@@ -329,6 +354,7 @@ component PlaylistNavItem inherits Rectangle {
     }
 
     touch := PressableArea {
+        accessible-label: "Abrir playlist " + root.item.title;
         clicked => { root.activated(); }
     }
 }
@@ -378,6 +404,7 @@ component Sidebar inherits Rectangle {
             }
 
             if Layout.sidebar-collapsible: IconButton {
+                label: "Recolher barra lateral";
                 path: Icons.chevron-left;
                 tint: Theme.text-muted;
                 button-size: 28px;
@@ -405,6 +432,7 @@ component Sidebar inherits Rectangle {
             HorizontalLayout {
                 alignment: center;
                 IconButton {
+                    label: "Expandir barra lateral";
                     path: Icons.chevron-right;
                     tint: Theme.text-muted;
                     button-size: 28px;
@@ -533,6 +561,7 @@ component PlayerBar inherits Rectangle {
         spacing: Theme.space-xs;
 
         if Layout.player-progress && Layout.player-progress-edge: Slider {
+            label: "Progresso da faixa";
             value: root.progress;
             enabled: root.has-track;
             thickness: Theme.progress-thickness;
@@ -590,13 +619,16 @@ component PlayerBar inherits Rectangle {
                     spacing: Theme.space-sm;
 
                     if Layout.player-shuffle-repeat: IconButton {
+                        label: root.shuffle ? "Desligar modo aleatorio" : "Ligar modo aleatorio";
                         path: Icons.shuffle;
                         active: root.shuffle;
+                        checkable: true;
                         tint: Theme.text-muted;
                         clicked => { root.toggle-shuffle(); }
                     }
 
                     IconButton {
+                        label: "Faixa anterior";
                         path: Icons.previous;
                         filled: true;
                         enabled: root.has-track;
@@ -619,11 +651,14 @@ component PlayerBar inherits Rectangle {
 
                         PressableArea {
                             enabled-input: root.has-track;
+                            accessible-label: root.playing ? "Pausar" : "Reproduzir";
+                            focus-radius: 20px;
                             clicked => { root.toggle-play(); }
                         }
                     }
 
                     IconButton {
+                        label: "Proxima faixa";
                         path: Icons.next;
                         filled: true;
                         enabled: root.has-track;
@@ -631,8 +666,12 @@ component PlayerBar inherits Rectangle {
                     }
 
                     if Layout.player-shuffle-repeat: IconButton {
+                        label: root.repeat == 0
+                            ? "Ligar repeticao da fila"
+                            : (root.repeat == 1 ? "Repetir esta faixa" : "Desligar repeticao");
                         path: root.repeat == 2 ? Icons.repeat-one : Icons.repeat;
                         active: root.repeat != 0;
+                        checkable: true;
                         tint: Theme.text-muted;
                         clicked => { root.cycle-repeat(); }
                     }
@@ -652,6 +691,7 @@ component PlayerBar inherits Rectangle {
                     }
 
                     Slider {
+                        label: "Progresso da faixa";
                         horizontal-stretch: 1;
                         value: root.progress;
                         enabled: root.has-track;
@@ -675,6 +715,7 @@ component PlayerBar inherits Rectangle {
                 spacing: Theme.space-sm;
 
                 if Layout.player-queue-button: IconButton {
+                    label: "Abrir fila";
                     path: Icons.queue;
                     tint: Theme.text-muted;
                     y: (parent.height - self.height) / 2;
@@ -689,6 +730,7 @@ component PlayerBar inherits Rectangle {
                 }
 
                 if Layout.player-volume: Slider {
+                    label: "Volume";
                     width: 96px;
                     value: root.volume;
                     y: (parent.height - self.height) / 2;
@@ -708,6 +750,7 @@ component PlayerBar inherits Rectangle {
 component CardShelf inherits VerticalLayout {
     in property <string> title;
     in property <[CardItem]> items;
+    in property <int> columns: 5;
     callback activated(string);
 
     spacing: Theme.space-sm;
@@ -715,14 +758,10 @@ component CardShelf inherits VerticalLayout {
 
     SectionTitle { text: root.title; }
 
-    HorizontalLayout {
-        spacing: Theme.space-md;
-        alignment: start;
-
-        for item in root.items: Card {
-            item: item;
-            activated => { root.activated(item.id); }
-        }
+    CardCollection {
+        items: root.items;
+        columns: root.columns;
+        activated(id) => { root.activated(id); }
     }
 }
 
@@ -782,7 +821,9 @@ component HomePage inherits Flickable {
     in property <[CardItem]> retrospectives;
     in property <[TrackRow]> liked;
     in property <bool> logged-in;
+    in property <int> grid-columns: 5;
     callback activated(string);
+    callback login();
 
     // Verdadeiro enquanto nenhuma secao tem conteudo: antes do login, e nos
     // segundos entre entrar e as listas chegarem.
@@ -798,6 +839,8 @@ component HomePage inherits Flickable {
         if root.empty && !root.logged-in: EmptyState {
             title: "Nada por aqui ainda";
             hint: "Entre na sua conta para ver suas musicas curtidas, o que voce mais ouve e suas playlists.";
+            action-label: "Entrar no Spotify";
+            action => { root.login(); }
         }
 
         if root.empty && root.logged-in: EmptyState {
@@ -814,18 +857,21 @@ component HomePage inherits Flickable {
         if root.made-for-you.length > 0: CardShelf {
             title: "Feito para voce";
             items: root.made-for-you;
+            columns: root.grid-columns;
             activated(id) => { root.activated(id); }
         }
 
         if root.stations.length > 0: CardShelf {
             title: "Estacoes recomendadas";
             items: root.stations;
+            columns: root.grid-columns;
             activated(id) => { root.activated(id); }
         }
 
         if root.retrospectives.length > 0: CardShelf {
             title: "Seus mais ouvidos";
             items: root.retrospectives;
+            columns: root.grid-columns;
             activated(id) => { root.activated(id); }
         }
     }
@@ -833,6 +879,10 @@ component HomePage inherits Flickable {
 
 component SearchPage inherits VerticalLayout {
     in property <[TrackRow]> tracks;
+    in property <[CardItem]> items;
+    in property <string> query;
+    in property <bool> searching;
+    in property <int> grid-columns: 5;
     callback search(string);
     callback activated(string);
 
@@ -843,23 +893,55 @@ component SearchPage inherits VerticalLayout {
         accepted(q) => { root.search(q); }
     }
 
-    if root.tracks.length == 0: EmptyState {
-        title: "Busque por musica";
-        hint: "Digite o nome de uma faixa, album ou artista e pressione Enter.";
+    if root.searching: EmptyState {
+        title: "Buscando";
+        hint: "Procurando faixas, albuns, artistas e playlists para voce.";
     }
 
-    if root.tracks.length > 0: TrackList {
+    if !root.searching && root.tracks.length == 0 && root.items.length == 0 && root.query == "": EmptyState {
+        title: "Busque por musica";
+        hint: "Digite uma faixa, album, artista ou playlist e pressione Enter.";
+    }
+
+    if !root.searching && root.tracks.length == 0 && root.items.length == 0 && root.query != "": EmptyState {
+        title: "Nenhum resultado";
+        hint: "Tente outro termo ou confira a escrita de \"" + root.query + "\".";
+    }
+
+    if !root.searching && (root.tracks.length > 0 || root.items.length > 0): Flickable {
         vertical-stretch: 1;
-        tracks: root.tracks;
-        activated(id) => { root.activated(id); }
+        viewport-height: results.preferred-height;
+
+        results := VerticalLayout {
+            spacing: Theme.space-lg;
+            alignment: start;
+
+            if root.tracks.length > 0: TrackShelf {
+                title: "Faixas";
+                tracks: root.tracks;
+                activated(id) => { root.activated(id); }
+            }
+
+            if root.items.length > 0: VerticalLayout {
+                spacing: Theme.space-sm;
+                SectionTitle { text: "Albuns, artistas e playlists"; }
+                CardCollection {
+                    items: root.items;
+                    columns: root.grid-columns;
+                    activated(id) => { root.activated(id); }
+                }
+            }
+        }
     }
 }
 
 component LibraryPage inherits VerticalLayout {
     in property <[CardItem]> items;
     in property <bool> logged-in;
+    in property <int> grid-columns: 5;
     callback login();
     callback activated(string);
+    callback explore();
 
     spacing: Theme.space-md;
 
@@ -868,16 +950,21 @@ component LibraryPage inherits VerticalLayout {
     if !root.logged-in: EmptyState {
         title: "Voce ainda nao entrou";
         hint: "Entre com sua conta Spotify Premium para ver albuns salvos e artistas seguidos.";
+        action-label: "Entrar no Spotify";
+        action => { root.login(); }
     }
 
     if root.logged-in && root.items.length == 0: EmptyState {
         title: "Biblioteca vazia";
-        hint: "Nada salvo nesta conta ainda.";
+        hint: "Albuns salvos e artistas seguidos aparecem aqui.";
+        action-label: "Explorar musicas";
+        action => { root.explore(); }
     }
 
     if root.items.length > 0: CardGrid {
         vertical-stretch: 1;
         items: root.items;
+        columns: root.grid-columns;
         activated(id) => { root.activated(id); }
     }
 }
@@ -916,6 +1003,9 @@ component SortChip inherits Rectangle {
     }
 
     toque := PressableArea {
+        accessible-label: "Ordenar por " + root.label;
+        accessible-checkable: true;
+        accessible-checked: root.active;
         clicked => { root.clicked(); }
     }
 }
@@ -1107,6 +1197,7 @@ component DetailPage inherits VerticalLayout {
 component QueuePage inherits VerticalLayout {
     in property <[TrackRow]> tracks;
     callback activated(string);
+    callback explore();
 
     spacing: Theme.space-md;
 
@@ -1115,6 +1206,8 @@ component QueuePage inherits VerticalLayout {
     if root.tracks.length == 0: EmptyState {
         title: "Fila vazia";
         hint: "As proximas faixas aparecem aqui quando voce comeca a tocar algo.";
+        action-label: "Buscar musica";
+        action => { root.explore(); }
     }
 
     if root.tracks.length > 0: TrackList {
@@ -1134,6 +1227,18 @@ component ThemeRow inherits Rectangle {
     border-radius: Theme.radius-md;
     background: root.item.active ? Theme.selected : (touch.has-hover ? Theme.hover : Theme.surface);
     animate background { duration: Theme.motion-fast; }
+
+    // Fica atras do conteudo: os botoes Duplicar e Exportar continuam com
+    // alvos independentes, em vez de o clique ser roubado pela linha inteira.
+    touch := PressableArea {
+        accessible-label: root.item.active
+            ? "Tema " + root.item.name + ", ativo"
+            : "Usar tema " + root.item.name;
+        accessible-checkable: true;
+        accessible-checked: root.item.active;
+        focus-radius: Theme.radius-md;
+        clicked => { root.selected(); }
+    }
 
     HorizontalLayout {
         padding-left: Theme.space-md;
@@ -1162,6 +1267,15 @@ component ThemeRow inherits Rectangle {
             }
         }
 
+        if root.item.active: Text {
+            text: "Ativo";
+            color: Theme.accent;
+            font-size: Theme.size-sm;
+            font-weight: Theme.weight-medium;
+            font-family: Theme.font-family;
+            vertical-alignment: center;
+        }
+
         GhostButton {
             label: "Duplicar";
             y: (parent.height - self.height) / 2;
@@ -1174,45 +1288,55 @@ component ThemeRow inherits Rectangle {
             clicked => { root.export-pack(); }
         }
     }
-
-    touch := PressableArea {
-        clicked => { root.selected(); }
-    }
 }
 
-component SettingRow inherits HorizontalLayout {
+component SettingRow inherits Rectangle {
     in property <string> label;
     in property <string> hint;
     in property <bool> checked;
     callback toggled(bool);
 
-    spacing: Theme.space-md;
     height: 44px;
 
-    VerticalLayout {
-        alignment: center;
-        horizontal-stretch: 1;
-
-        Text {
-            text: root.label;
-            color: Theme.text;
-            font-size: Theme.size-md;
-            font-family: Theme.font-family;
-        }
-
-        Text {
-            text: root.hint;
-            color: Theme.text-muted;
-            font-size: Theme.size-xs;
-            font-family: Theme.font-family;
-            overflow: elide;
-        }
+    touch := PressableArea {
+        accessible-role: switch;
+        accessible-label: root.label;
+        accessible-description: root.hint;
+        accessible-checkable: true;
+        accessible-checked: root.checked;
+        clicked => { root.toggled(!root.checked); }
     }
 
-    Toggle {
-        checked: root.checked;
-        y: (parent.height - self.height) / 2;
-        toggled(v) => { root.toggled(v); }
+    HorizontalLayout {
+        spacing: Theme.space-md;
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+
+            Text {
+                text: root.label;
+                color: Theme.text;
+                font-size: Theme.size-md;
+                font-family: Theme.font-family;
+            }
+
+            Text {
+                text: root.hint;
+                color: Theme.text-muted;
+                font-size: Theme.size-xs;
+                font-family: Theme.font-family;
+                overflow: elide;
+            }
+        }
+
+        Toggle {
+            label: root.label;
+            checked: root.checked;
+            interactive: false;
+            y: (parent.height - self.height) / 2;
+            toggled(v) => { root.toggled(v); }
+        }
     }
 }
 
@@ -1307,30 +1431,48 @@ component SettingsPage inherits VerticalLayout {
             font-family: Theme.font-family;
         }
 
-        HorizontalLayout {
+        Text {
+            text: "A troca e imediata. Voce pode voltar ao tema padrao a qualquer momento.";
+            color: Theme.text-muted;
+            font-size: Theme.size-xs;
+            font-family: Theme.font-family;
+        }
+
+        VerticalLayout {
             spacing: Theme.space-sm;
-            height: 34px;
+            height: 76px;
             alignment: start;
 
-            PrimaryButton {
-                label: "Importar tema";
-                clicked => { root.import-theme(); }
+            HorizontalLayout {
+                spacing: Theme.space-sm;
+                height: 34px;
+                alignment: start;
+
+                PrimaryButton {
+                    label: "Importar tema";
+                    clicked => { root.import-theme(); }
+                }
+
+                GhostButton {
+                    label: "Abrir pasta de temas";
+                    clicked => { root.open-theme-folder(); }
+                }
             }
 
-            GhostButton {
-                label: "Abrir pasta de temas";
-                clicked => { root.open-theme-folder(); }
-            }
+            HorizontalLayout {
+                spacing: Theme.space-sm;
+                height: 34px;
+                alignment: start;
 
-            GhostButton {
-                label: "Recarregar";
-                clicked => { root.reload-theme(); }
-            }
+                GhostButton {
+                    label: "Recarregar temas";
+                    clicked => { root.reload-theme(); }
+                }
 
-            GhostButton {
-                label: "Restaurar padrao";
-                danger: true;
-                clicked => { root.reset-theme(); }
+                GhostButton {
+                    label: "Usar tema padrao";
+                    clicked => { root.reset-theme(); }
+                }
             }
         }
     }
@@ -1392,6 +1534,9 @@ export component AppWindow inherits Window {
     in property <[CardItem]> home-retrospectives;
     in property <[TrackRow]> home-liked;
     in property <[TrackRow]> search-tracks;
+    in property <[CardItem]> search-items;
+    in property <string> search-query;
+    in property <bool> searching;
     in property <[CardItem]> library-items;
     in property <[TrackRow]> queue-tracks;
     in property <[ThemeItem]> themes;
@@ -1425,6 +1570,20 @@ export component AppWindow inherits Window {
     in property <string> perf-text;
     in property <bool> close-to-tray: true;
     in property <bool> autoplay: true;
+    property <int> grid-columns: 5;
+    private property <bool> sidebar-is-collapsed: Layout.sidebar-collapsed;
+    changed width => {
+        root.grid-columns = max(1, floor((root.width
+            - (Layout.sidebar-collapsed ? Layout.sidebar-collapsed-width : Layout.sidebar-width)
+            - Theme.space-lg * 2 + Theme.space-md)
+            / (Layout.card-width + Theme.space-md)));
+    }
+    changed sidebar-is-collapsed => {
+        root.grid-columns = max(1, floor((root.width
+            - (Layout.sidebar-collapsed ? Layout.sidebar-collapsed-width : Layout.sidebar-width)
+            - Theme.space-lg * 2 + Theme.space-md)
+            / (Layout.card-width + Theme.space-md)));
+    }
 
     // --- eventos para o Rust ---
     callback navigate(int);
@@ -1455,6 +1614,7 @@ export component AppWindow inherits Window {
     callback set-autoplay(bool);
     callback login();
     callback logout();
+    callback dismiss-status();
 
     // Icone da janela e da barra de tarefas. O Slint embute o arquivo no
     // binario e o decodifica ao abrir; o desenho de 128 px e o maior tamanho
@@ -1537,11 +1697,17 @@ export component AppWindow inherits Window {
                         retrospectives: root.home-retrospectives;
                         liked: root.home-liked;
                         logged-in: root.logged-in;
+                        grid-columns: root.grid-columns;
+                        login => { root.login(); }
                         activated(id) => { root.play-track(id); }
                     }
 
                     if root.page == 1: SearchPage {
                         tracks: root.search-tracks;
+                        items: root.search-items;
+                        query: root.search-query;
+                        searching: root.searching;
+                        grid-columns: root.grid-columns;
                         search(q) => { root.search(q); }
                         activated(id) => { root.play-track(id); }
                     }
@@ -1549,7 +1715,9 @@ export component AppWindow inherits Window {
                     if root.page == 2: LibraryPage {
                         items: root.library-items;
                         logged-in: root.logged-in;
+                        grid-columns: root.grid-columns;
                         login => { root.login(); }
+                        explore => { root.navigate(1); }
                         activated(id) => { root.play-track(id); }
                     }
 
@@ -1595,6 +1763,7 @@ export component AppWindow inherits Window {
 
                     if root.page == 4: QueuePage {
                         tracks: root.queue-tracks;
+                        explore => { root.navigate(1); }
                         activated(id) => { root.play-track(id); }
                     }
                 }
@@ -1603,7 +1772,7 @@ export component AppWindow inherits Window {
                     x: parent.width - self.width - Theme.space-lg;
                     y: parent.height - self.height - Theme.space-lg;
                     width: min(420px, parent.width - Theme.space-lg * 2);
-                    height: status-text.preferred-height + Theme.space-md * 2;
+                    height: max(40px, status-text.preferred-height + Theme.space-md * 2);
                     border-radius: Theme.radius-md;
                     background: Theme.surface-raised;
                     border-width: Theme.border-width;
@@ -1615,9 +1784,19 @@ export component AppWindow inherits Window {
                         font-size: Theme.size-sm;
                         font-family: Theme.font-family;
                         wrap: word-wrap;
-                        width: parent.width - Theme.space-md * 2;
+                        width: parent.width - Theme.space-md * 2 - 32px;
                         x: Theme.space-md;
                         y: Theme.space-md;
+                    }
+
+                    IconButton {
+                        label: "Dispensar mensagem";
+                        path: Icons.close;
+                        tint: Theme.text-muted;
+                        button-size: 28px;
+                        x: parent.width - self.width - Theme.space-sm;
+                        y: (parent.height - self.height) / 2;
+                        clicked => { root.dismiss-status(); }
                     }
                 }
 
@@ -1694,6 +1873,19 @@ export component AppWindow inherits Window {
         height: 0px;
 
         key-pressed(event) => {
+            if (event.text == Key.K && event.modifiers.control) {
+                root.navigate(1);
+                return EventResult.accept;
+            }
+            if (event.text == Key.Comma && event.modifiers.control) {
+                root.navigate(3);
+                return EventResult.accept;
+            }
+            if (root.page == 5 && (event.text == Key.Escape
+                    || (event.text == Key.LeftArrow && event.modifiers.alt))) {
+                root.detail-back();
+                return EventResult.accept;
+            }
             if (event.text == " ") {
                 root.toggle-play();
                 return EventResult.accept;
