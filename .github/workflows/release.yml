@@ -1,0 +1,135 @@
+name: Publicar instalador
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: Testar, empacotar e publicar
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    env:
+      CARGO_TERM_COLOR: always
+
+    steps:
+      - name: Baixar o codigo
+        uses: actions/checkout@v4
+
+      - name: Validar a tag e a versao
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ($tag -notmatch '^v(?<version>\d+\.\d+\.\d+)(?:-[0-9A-Za-z.-]+)?$') {
+            throw "Tag invalida: $tag. Use v0.1.0 ou v0.1.0-alpha.1."
+          }
+          $version = $Matches.version
+
+          $manifest = Get-Content Cargo.toml -Raw
+          if ($manifest -notmatch '(?ms)\[workspace\.package\].*?^version\s*=\s*"(?<version>[^"]+)"') {
+            throw "Nao foi possivel ler workspace.package.version do Cargo.toml."
+          }
+          if ($Matches.version -ne $version) {
+            throw "A tag $tag nao corresponde a versao $($Matches.version) do Cargo.toml."
+          }
+
+          "MORUNE_VERSION=$version" >> $env:GITHUB_ENV
+          "MORUNE_TAG=$tag" >> $env:GITHUB_ENV
+          "MORUNE_PRERELEASE=$($tag.Contains('-').ToString().ToLowerInvariant())" >> $env:GITHUB_ENV
+
+      - name: Preparar Rust 1.85 para Windows
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.85.0-x86_64-pc-windows-msvc --profile minimal
+          rustup default 1.85.0-x86_64-pc-windows-msvc
+          rustc --version --verbose
+
+      - name: Restaurar cache do Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: windows-msvc-release-${{ hashFiles('Cargo.lock') }}
+          restore-keys: windows-msvc-release-
+
+      - name: Instalar NSIS
+        shell: pwsh
+        run: choco install nsis --yes --no-progress
+
+      - name: Executar testes automatizados
+        shell: pwsh
+        run: cargo test --locked -p morune-core -p morune-spotify -p morune-app
+
+      - name: Compilar o executavel
+        shell: pwsh
+        run: cargo build --locked --release -p morune-app
+
+      - name: Gerar e verificar o instalador
+        shell: pwsh
+        run: |
+          .\tools\build-installer.ps1 `
+            -Version $env:MORUNE_VERSION `
+            -SkipBuild `
+            -LicenseTarget x86_64-pc-windows-msvc
+
+      - name: Guardar artefatos do build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Morune-Windows-${{ github.ref_name }}
+          path: |
+            dist/Morune-*-setup.exe
+            dist/Morune-*-setup.exe.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Escrever notas da release
+        shell: pwsh
+        run: |
+          @"
+          Primeira distribuicao de teste do MORU•NE para Windows.
+
+          **Antes de instalar**
+
+          - requer Windows 10 ou 11 de 64 bits;
+          - a reproducao pelo Spotify requer uma conta Premium;
+          - este build ainda nao possui assinatura digital, portanto o Windows SmartScreen pode mostrar "Editor desconhecido";
+          - confira o arquivo `.sha256` publicado ao lado do instalador se quiser validar o download.
+
+          Este instalador foi compilado automaticamente pelo GitHub Actions a partir do commit `${{ github.sha }}`.
+
+          <a href="https://slint.dev"><img alt="Made with Slint" src="https://github.com/slint-ui/slint/raw/master/logo/MadeWithSlint-logo-light.svg" width="140"></a>
+          "@ | Set-Content release-notes.md -Encoding utf8
+
+      - name: Criar a release do GitHub
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = @(
+            "dist/Morune-$env:MORUNE_VERSION-setup.exe",
+            "dist/Morune-$env:MORUNE_VERSION-setup.exe.sha256"
+          )
+          $arguments = @(
+            "release", "create", $env:MORUNE_TAG
+          ) + $assets + @(
+            "--verify-tag",
+            "--title", "MORU•NE $env:MORUNE_TAG",
+            "--notes-file", "release-notes.md"
+          )
+          if ($env:MORUNE_PRERELEASE -eq "true") {
+            $arguments += "--prerelease"
+          } else {
+            $arguments += "--latest"
+          }
+          gh @arguments
