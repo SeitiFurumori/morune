@@ -53,7 +53,8 @@ O ciclo que transforma isto num player.
 3. `[verificado]` **Reproducao real**: carregar, tocar, pausar, buscar posicao,
    volume, avanco automatico ligado a `Queue::next`.
 4. `[verificado]` **Busca e biblioteca** ligadas as telas que ja existem, e um
-   Inicio com cinco prateleiras. As playlists que o Spotify monta para a conta
+   Inicio com cinco prateleiras. A busca cobre faixas, albuns, artistas e
+   playlists. As playlists que o Spotify monta para a conta
    vem pelo protocolo interno, porque o Web API deixou de entrega-las em 2024 —
    ver [docs/HANDOFF.md](docs/HANDOFF.md).
 5. `[escrito]` **Radio e autoplay configuravel** pelo caminho interno, anexando
@@ -61,7 +62,11 @@ O ciclo que transforma isto num player.
    rodada final contra a conta real.
 6. `[verificado]` **Capas**: download, cache em disco de 48 MB com descarte por
    LRU e escolha pelo tamanho de exibicao via `ImageSet::best_for_width`.
-7. `[aberto]` **Medir o que importa**: CPU e GPU em segundo plano com musica
+7. `[verificado]` **Fundacao de UX e acessibilidade**: arvore AccessKit exposta
+   ao Windows, foco e teclado nos controles customizados, estados vazios com
+   proxima acao e grades adaptativas. Evidencias e pendencias em
+   [UX_AUDIT.md](UX_AUDIT.md).
+8. `[aberto]` **Medir o que importa**: CPU e GPU em segundo plano com musica
    tocando, com um jogo em tela cheia rodando junto. E o criterio de desempenho
    do produto e nunca foi medido — ver [PERFORMANCE.md](PERFORMANCE.md). RAM
    entra como teto de crescimento, nao como meta de vitrine.
@@ -96,9 +101,11 @@ Risco conhecido: librespot 0.8 exige `vergen` fixado em 9.0.x no `Cargo.lock`
 3. **Notificacao de bandeja na primeira vez** que a janela fecha, para quem nao
    percebeu que o aplicativo continua tocando.
 4. **Mini-player**.
-5. **DPI**: verificar 100%, 125%, 150% e 200%, e monitor secundario com escala
-   diferente.
-6. **Atalhos de teclado** completos e navegacao so por teclado.
+5. **DPI**: smoke test concluido em 100%, 125%, 150% e 200%; falta inspecao
+   visual em cada escala e monitor secundario com escala diferente.
+6. **Atalhos de teclado** completos e navegacao so por teclado. A fundacao
+   (Tab, Enter/Espaco, setas em sliders, Ctrl+K, Ctrl+, e voltar) esta pronta;
+   faltam referencia `Ctrl+/`, tooltips e cobertura de todos os fluxos.
 7. **Assinatura de codigo** do instalador. Sem ela o SmartScreen avisa em toda
    instalacao, o que e o maior atrito restante para um usuario real.
 8. **Atualizacao automatica**, ou pelo menos aviso de versao nova.

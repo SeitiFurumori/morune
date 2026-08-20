@@ -20,7 +20,7 @@ maquina (AMD Ryzen 5 8500G, Windows 11 26200, Radeon 740M):
 | | |
 |---|---|
 | Instalador `.exe` | **5,31 MB** |
-| Executavel de release | **13,28 MB** |
+| Executavel de release | **13,49 MiB** |
 | Startup ate o laco de eventos | **19 ms** (mediana de 10 execucoes) |
 | Ciclo completo do processo | **509 ms** (mediana; inclui criar contexto OpenGL e encerrar) |
 | Working set em repouso | **78,8 MB** (media), pico 79,5 MB |
@@ -50,6 +50,10 @@ Ja implementado:
   vivo, como no Discord. Verificado por script, nao so afirmado;
 - **identidade visual propria**: o simbolo da marca aparece na barra lateral, no
   executavel, na janela, na barra de tarefas, na bandeja e no instalador;
+- **acessibilidade nativa do Windows**: controles expostos via AccessKit, foco
+  visivel, operacao por Enter/Espaco e sliders por setas;
+- **layout adaptativo**: grades reorganizam colunas durante o redimensionamento,
+  inclusive na janela minima de 720x480;
 - **instalador `.exe` unico** com escolha de disco, sem UAC e sem pre-requisitos.
 
 Verificado contra uma conta Spotify Premium real em 19/08/2026 — ver
@@ -58,7 +62,8 @@ Verificado contra uma conta Spotify Premium real em 19/08/2026 — ver
 - login no Spotify por OAuth com PKCE, sem senha e sem client secret, com o
   token no Gerenciador de Credenciais;
 - reproducao sobre a librespot, ligada a fila que ja existia;
-- busca; playlists, musicas curtidas e artistas seguidos;
+- busca por faixas, albuns, artistas e playlists; musicas curtidas e artistas
+  seguidos;
 - capas com cache LRU de 48 MB;
 - playlists na barra lateral e telas de detalhe com filtro e ordenacao.
 
@@ -80,6 +85,8 @@ recente e estatisticas de mais ouvidos. Essas secoes ficam escondidas em vez de
 mostrar dados inventados.
 
 Nada aqui e declarado funcionando sem medicao ou teste. Onde falta, esta dito.
+A auditoria de produto e usabilidade, com severidades, evidencias e pendencias,
+esta em [UX_AUDIT.md](UX_AUDIT.md).
 
 ---
 

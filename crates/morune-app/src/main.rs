@@ -53,6 +53,19 @@ fn main() -> anyhow::Result<()> {
 
     state.apply_theme_to(&window);
     state.apply_initial_window_size(&window);
+    #[cfg(feature = "snapshot")]
+    if let (Ok(width), Ok(height)) = (
+        std::env::var("MORUNE_SNAPSHOT_WIDTH").and_then(|v| {
+            v.parse::<f32>().map_err(|_| std::env::VarError::NotPresent)
+        }),
+        std::env::var("MORUNE_SNAPSHOT_HEIGHT").and_then(|v| {
+            v.parse::<f32>().map_err(|_| std::env::VarError::NotPresent)
+        }),
+    ) {
+        window
+            .window()
+            .set_size(slint::LogicalSize::new(width, height));
+    }
     state.push_to_ui(&window);
 
     // A bandeja precisa existir antes de interceptar o fechamento: sem ela nao
@@ -113,7 +126,11 @@ fn main() -> anyhow::Result<()> {
     if let Some(path) = std::env::var_os("MORUNE_SNAPSHOT") {
         let weak = window.as_weak();
         let path = std::path::PathBuf::from(path);
-        slint::Timer::single_shot(std::time::Duration::from_millis(600), move || {
+        let delay = std::env::var("MORUNE_SNAPSHOT_DELAY_MS")
+            .ok()
+            .and_then(|value| value.parse::<u64>().ok())
+            .unwrap_or(600);
+        slint::Timer::single_shot(std::time::Duration::from_millis(delay), move || {
             if let Some(w) = weak.upgrade() {
                 match snapshot::save(&w, &path) {
                     Ok((width, height)) => {
@@ -373,6 +390,11 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
 
     on!(on_search, |w, s, query: slint::SharedString| {
         s.search(query.as_str());
+        s.push_to_ui(&w);
+    });
+
+    on!(on_dismiss_status, |w, s| {
+        s.clear_status();
         s.push_to_ui(&w);
     });
 

@@ -168,6 +168,7 @@ pub enum Outcome {
     Search {
         query: String,
         tracks: Vec<Track>,
+        cards: Vec<Card>,
     },
     Home(Box<Home>),
     Library(Vec<Card>),
@@ -337,13 +338,22 @@ impl Browse {
         let query = query.trim().to_string();
         self.spawn(move |tx| async move {
             let outcome = match catalog
-                .search(&query, SearchKind::Tracks, SEARCH_LIMIT)
+                .search(&query, SearchKind::All, SEARCH_LIMIT)
                 .await
             {
-                Ok(results) => Outcome::Search {
-                    query,
-                    tracks: results.tracks,
-                },
+                Ok(results) => {
+                    let mut cards = Vec::with_capacity(
+                        results.albums.len() + results.artists.len() + results.playlists.len(),
+                    );
+                    cards.extend(results.albums.iter().map(album_card));
+                    cards.extend(results.artists.iter().map(artist_card));
+                    cards.extend(results.playlists.iter().map(playlist_card));
+                    Outcome::Search {
+                        query,
+                        tracks: results.tracks,
+                        cards,
+                    }
+                }
                 Err(e) => Outcome::Failed(describe(&e)),
             };
             let _ = tx.send(outcome);
