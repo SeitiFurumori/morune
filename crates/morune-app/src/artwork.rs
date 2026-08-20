@@ -22,6 +22,11 @@
 //! O nome vem do hash da URL, e nao da URL: uma URL do Spotify tem barra e
 //! caracteres que nao cabem em nome de arquivo, e o hash tambem impede que uma
 //! resposta adulterada escreva fora da pasta do cache.
+//!
+//! **A extensao importa.** O decodificador do Slint escolhe o formato pelo
+//! nome do arquivo, e nao pelo conteudo: gravar um JPEG como `.img` faz
+//! `load_from_path` falhar antes de olhar um byte. Por isso o formato e
+//! reconhecido pela assinatura no momento da gravacao, e a extensao sai dela.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -42,6 +47,12 @@ const TETO_BYTES: u64 = 48 * 1024 * 1024;
 /// Limpar ate exatamente o teto faria a proxima capa disparar outra limpeza.
 /// Descer a 80% deixa folga para as proximas dezenas.
 const ALVO_APOS_LIMPEZA: u64 = TETO_BYTES * 4 / 5;
+
+/// Extensoes que o cache usa, e as unicas que ele procura em disco.
+///
+/// Sao as duas que o Spotify serve. A ordem importa so na busca: JPEG e o
+/// caso comum, entao vem primeiro.
+const EXTENSOES: [&str; 2] = ["jpg", "png"];
 
 /// Capa pronta para a interface desenhar.
 #[derive(Debug, Clone)]
@@ -89,11 +100,15 @@ impl ArtworkCache {
             return Some(path.clone());
         }
 
-        let path = self.caminho(url);
-        path.is_file().then(|| {
-            self.pedidas.insert(url.to_string(), Estado::Pronta(path.clone()));
-            path
-        })
+        // A extensao depende do que o servidor mandou, entao nao da para
+        // deduzi-la da URL: procura-se pelas conhecidas.
+        let achado = EXTENSOES
+            .iter()
+            .map(|ext| self.caminho(url, ext))
+            .find(|path| path.is_file())?;
+
+        self.pedidas.insert(url.to_string(), Estado::Pronta(achado.clone()));
+        Some(achado)
     }
 
     /// Pede uma capa que ainda nao esta em disco.
@@ -115,16 +130,22 @@ impl ArtworkCache {
 
         let source = source.clone();
         let url = url.to_string();
-        let path = self.caminho(&url);
         let dir = self.dir.clone();
+        let base = hash(&url);
 
         runtime.spawn(async move {
             match source.fetch(&url).await {
                 Ok(bytes) => {
+                    let Some(extensao) = formato(&bytes) else {
+                        tracing::debug!(url, "capa em formato que o Morune nao desenha");
+                        return;
+                    };
+                    let path = dir.join(format!("{base:016x}.{extensao}"));
+
                     // Grava em temporario e renomeia: uma interrupcao no meio
                     // deixaria um arquivo truncado que o decodificador tentaria
                     // abrir em toda abertura seguinte.
-                    let temporario = path.with_extension("parcial");
+                    let temporario = dir.join(format!("{base:016x}.parcial"));
                     if std::fs::write(&temporario, &bytes).is_ok()
                         && std::fs::rename(&temporario, &path).is_ok()
                     {
@@ -144,8 +165,23 @@ impl ArtworkCache {
         self.pedidas.insert(ready.url.clone(), Estado::Pronta(ready.path.clone()));
     }
 
-    fn caminho(&self, url: &str) -> PathBuf {
-        self.dir.join(format!("{:016x}.img", hash(url)))
+    fn caminho(&self, url: &str, extensao: &str) -> PathBuf {
+        self.dir.join(format!("{:016x}.{extensao}", hash(url)))
+    }
+}
+
+/// Extensao correspondente ao formato da imagem, pela assinatura.
+///
+/// O `Content-Type` da resposta seria o caminho obvio, mas o contrato
+/// [`Artwork`] devolve so os bytes -- e a assinatura e mais confiavel que o
+/// cabecalho de qualquer jeito. `None` para o que o Slint nao desenha, e
+/// nesse caso nada e gravado: um arquivo que nunca vai abrir so ocuparia
+/// espaco no teto do cache.
+fn formato(bytes: &[u8]) -> Option<&'static str> {
+    match bytes {
+        [0xff, 0xd8, 0xff, ..] => Some("jpg"),
+        [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, ..] => Some("png"),
+        _ => None,
     }
 }
 
@@ -248,18 +284,18 @@ mod tests {
     fn a_url_becomes_a_filename_that_cannot_escape_the_cache() {
         // Uma URL tem barra e `?`; usada crua, escreveria fora da pasta.
         let (dir, cache) = cache("escapar");
-        let path = cache.caminho("https://i.scdn.co/image/ab67616d/../../senha");
+        let path = cache.caminho("https://i.scdn.co/image/ab67616d/../../senha", "jpg");
 
         assert_eq!(path.parent(), Some(dir.path()));
-        assert!(path.file_name().unwrap().to_str().unwrap().ends_with(".img"));
+        assert!(path.file_name().unwrap().to_str().unwrap().ends_with(".jpg"));
     }
 
     #[test]
     fn the_same_url_always_lands_on_the_same_file() {
         let (_dir, cache) = cache("mesmo-arquivo");
-        let a = cache.caminho("https://i.scdn.co/image/abc");
-        let b = cache.caminho("https://i.scdn.co/image/abc");
-        let outra = cache.caminho("https://i.scdn.co/image/def");
+        let a = cache.caminho("https://i.scdn.co/image/abc", "jpg");
+        let b = cache.caminho("https://i.scdn.co/image/abc", "jpg");
+        let outra = cache.caminho("https://i.scdn.co/image/def", "jpg");
 
         assert_eq!(a, b);
         assert_ne!(a, outra);
@@ -269,7 +305,7 @@ mod tests {
     fn a_cover_already_on_disk_is_found_without_network() {
         let (dir, mut cache) = cache("em-disco");
         let url = "https://i.scdn.co/image/abc";
-        std::fs::write(cache.caminho(url), b"jpeg").unwrap();
+        std::fs::write(cache.caminho(url, "jpg"), b"jpeg").unwrap();
 
         let achado = cache.cached(url).expect("capa em disco");
         assert_eq!(achado.parent(), Some(dir.path()));
@@ -289,7 +325,7 @@ mod tests {
 
         // Tres arquivos que somados passam do teto, gravados em ordem.
         let grande = vec![0u8; (TETO_BYTES / 2) as usize];
-        for nome in ["a.img", "b.img", "c.img"] {
+        for nome in ["a.jpg", "b.jpg", "c.jpg"] {
             std::fs::write(dir.path().join(nome), &grande).unwrap();
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
@@ -303,17 +339,30 @@ mod tests {
             .collect();
 
         // O mais antigo saiu, e o cache voltou para dentro do teto.
-        assert!(!restantes.contains(&"a.img".to_string()), "restaram: {restantes:?}");
+        assert!(!restantes.contains(&"a.jpg".to_string()), "restaram: {restantes:?}");
         assert!(restantes.len() < 3);
+    }
+
+    #[test]
+    fn the_extension_comes_from_the_bytes_not_from_the_url() {
+        // O decodificador do Slint escolhe o formato pelo nome do arquivo.
+        // Gravar um JPEG como `.img` fazia todas as capas falharem ao abrir,
+        // mesmo com os bytes corretos em disco.
+        assert_eq!(formato(&[0xff, 0xd8, 0xff, 0xe0, 0, 0]), Some("jpg"));
+        assert_eq!(formato(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0]), Some("png"));
+        // Formato que o Slint nao desenha nao vira arquivo: ocuparia teto do
+        // cache para nunca abrir.
+        assert_eq!(formato(b"GIF89a..."), None);
+        assert_eq!(formato(b""), None);
     }
 
     #[test]
     fn a_cover_below_the_ceiling_is_never_discarded() {
         let dir = TempDir::new("abaixo");
-        std::fs::write(dir.path().join("a.img"), b"pequena").unwrap();
+        std::fs::write(dir.path().join("a.jpg"), b"pequena").unwrap();
 
         limpar_se_passou_do_teto(dir.path());
 
-        assert!(dir.path().join("a.img").is_file());
+        assert!(dir.path().join("a.jpg").is_file());
     }
 }

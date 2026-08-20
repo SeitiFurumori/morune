@@ -413,6 +413,9 @@ component PlayerBar inherits Rectangle {
     in property <string> total;
     in property <float> volume;
     in property <bool> has-track;
+    // Capa da faixa tocando. Vazia enquanto o cache nao a entrega, e o bloco
+    // neutro do `Artwork` ocupa o lugar sem mudar o layout.
+    in property <image> cover;
 
     callback toggle-play();
     callback next();
@@ -458,6 +461,7 @@ component PlayerBar inherits Rectangle {
 
                 if Layout.player-artwork: Artwork {
                     seed: root.title;
+                    source: root.cover;
                     width: Layout.player-artwork-size;
                     height: Layout.player-artwork-size;
                     y: (parent.height - self.height) / 2;
@@ -1055,6 +1059,7 @@ export component AppWindow inherits Window {
     in property <[Diagnostic]> diagnostics;
 
     in property <string> now-title;
+    in property <image> now-cover;
     in property <string> now-artist;
     in property <bool> playing;
     in property <bool> has-track;
@@ -1115,6 +1120,7 @@ export component AppWindow inherits Window {
         if Layout.player-position == 1: PlayerBar {
             title: root.now-title;
             artist: root.now-artist;
+            cover: root.now-cover;
             playing: root.playing;
             has-track: root.has-track;
             progress: root.progress;
@@ -1276,6 +1282,7 @@ export component AppWindow inherits Window {
         if Layout.player-position != 1: PlayerBar {
             title: root.now-title;
             artist: root.now-artist;
+            cover: root.now-cover;
             playing: root.playing;
             has-track: root.has-track;
             progress: root.progress;

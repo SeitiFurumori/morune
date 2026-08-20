@@ -67,6 +67,12 @@ pub struct AppState {
     home_top_artists: Vec<Card>,
     home_playlists: Vec<Card>,
     library: Vec<Card>,
+    /// Capa da faixa tocando: a URL pedida e o arquivo, quando ja chegou.
+    ///
+    /// Guardada separada dos cartoes porque a faixa tocando nao esta
+    /// necessariamente em nenhuma tela aberta -- ela continua tocando com o
+    /// usuario navegando por outra coisa.
+    now_cover: (String, Option<std::path::PathBuf>),
     /// `true` depois de a tela ter sido pedida ao backend, e nao depois de
     /// chegar: sem isso, ir e voltar numa tela lenta dispara uma requisicao por
     /// visita.
@@ -147,6 +153,7 @@ impl AppState {
             home_top_artists: Vec::new(),
             home_playlists: Vec::new(),
             library: Vec::new(),
+            now_cover: (String::new(), None),
             home_requested: false,
             library_requested: false,
         }
@@ -202,6 +209,10 @@ impl AppState {
         }
 
         changed |= self.poll_covers();
+
+        // Depois dos eventos do player: a troca de faixa acabou de ser
+        // aplicada, entao a capa pedida aqui ja e a da faixa certa.
+        self.resolve_now_cover();
 
         changed
     }
@@ -269,6 +280,32 @@ impl AppState {
         browse.resolve_covers(&mut self.library);
     }
 
+    /// Pede a capa da faixa que esta tocando, se ela mudou.
+    ///
+    /// Separado de [`AppState::resolve_covers`] porque a origem e outra: a
+    /// faixa tocando vem da fila, e nao de uma tela.
+    fn resolve_now_cover(&mut self) {
+        let url = self
+            .queue
+            .current()
+            .and_then(|t| t.album.as_ref())
+            .and_then(|a| a.images.best_for_width(PLAYER_ARTWORK_WIDTH))
+            .map(|i| i.url.to_string())
+            .unwrap_or_default();
+
+        if url == self.now_cover.0 {
+            return;
+        }
+
+        self.now_cover = (url.clone(), None);
+        if url.is_empty() {
+            return;
+        }
+
+        let Some(browse) = self.session.browse_mut() else { return };
+        self.now_cover.1 = browse.cover(&url);
+    }
+
     /// Recolhe as capas que terminaram de baixar e liga cada uma ao cartao.
     ///
     /// Devolve `true` quando alguma chegou. Roda a cada 100 ms junto com o
@@ -283,6 +320,10 @@ impl AppState {
         }
 
         for ready in prontas {
+            if ready.url == self.now_cover.0 {
+                self.now_cover.1 = Some(ready.path.clone());
+            }
+
             for lista in [
                 &mut self.home_made_for_you,
                 &mut self.home_top_artists,
@@ -755,6 +796,7 @@ impl AppState {
         let snapshot = self.engine.snapshot();
         let current = self.queue.current();
         window.set_has_track(current.is_some());
+        window.set_now_cover(cover_image(self.now_cover.1.as_deref()));
         window.set_playing(snapshot.state == morune_core::PlaybackState::Playing);
         window.set_progress(snapshot.progress());
         window.set_elapsed(format_time(snapshot.position).into());
@@ -840,6 +882,13 @@ struct TrackList {
     origin: QueueOrigin,
     tracks: Vec<Track>,
 }
+
+/// Largura em que a barra de reproducao desenha a capa.
+///
+/// Bem menor que a das grades: e um quadrado de poucas dezenas de pixels no
+/// canto. Pedir a capa grande para desenhar isso seria baixar dez vezes mais
+/// bytes do que a tela usa.
+const PLAYER_ARTWORK_WIDTH: u32 = 64;
 
 fn card_items(cards: &[Card]) -> ModelRc<ui::CardItem> {
     let items: Vec<ui::CardItem> = cards

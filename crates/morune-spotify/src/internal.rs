@@ -34,11 +34,11 @@ use librespot_protocol::metadata::Artist as ArtistMessage;
 use librespot_protocol::metadata::ImageGroup as ImageGroupMessage;
 use librespot_protocol::metadata::Track as TrackMessage;
 use librespot_protocol::metadata::image::Size as ImageSize;
+use librespot_protocol::playlist4_external::ListAttributes as ListAttributesMessage;
 use librespot_protocol::playlist4_external::SelectedListContent as SelectedListContentMessage;
-use protobuf::EnumOrUnknown;
 use morune_core::model::{ImageRef, ImageSet, PlaylistId};
 use morune_core::{CoreError, CoreResult};
-use protobuf::Message;
+use protobuf::{EnumOrUnknown, Message};
 
 use crate::auth::SharedSession;
 use crate::error::from_librespot;
@@ -83,6 +83,12 @@ pub(crate) struct PlaylistSummary {
     /// Vazio nas playlists que o usuario criou ou seguiu; preenchido nas que o
     /// Spotify monta para ele. E o unico jeito honesto de separar as duas.
     pub format: String,
+    /// Capa, quando a playlist tem uma propria.
+    ///
+    /// Boa parte nao tem: o mosaico de quatro capas que o cliente oficial
+    /// mostra e montado por ele a partir das faixas, e nao vem na resposta.
+    /// Na conta de teste, 37 das 86 playlists trazem capa.
+    pub images: ImageSet,
 }
 
 impl PlaylistSummary {
@@ -183,12 +189,25 @@ impl Internal {
     /// # O formato
     ///
     /// Protobuf simples, sem esquema publicado, mas sem ambiguidade: campo 1
-    /// repetido, e dentro de cada item o campo 2 traz o `gid` de 16 bytes. Foi
-    /// lido byte a byte de `bench-out/sonda/colecao-faixas.bin`.
+    /// repetido, e dentro de cada item o campo 2 traz o `gid` de 16 bytes e o
+    /// campo 5, quando o item e datado, traz o instante em que entrou na
+    /// colecao. Foi lido byte a byte de `bench-out/sonda/colecao-faixas.bin`.
     ///
     /// Arquivo local da conta aparece na mesma lista com um id de texto no
     /// lugar do `gid`. Nao ha como o Morune tocar, entao some aqui em vez de
     /// virar linha que falha ao ser clicada.
+    ///
+    /// # A ordem e nossa, nao do servidor
+    ///
+    /// A resposta **nao vem ordenada**. Nas 723 curtidas da conta de teste, as
+    /// datas alternam entre 2022 e 2025 sem padrao: 362 pares em ordem
+    /// crescente contra 360 em decrescente. Pegar as primeiras seria pegar uma
+    /// fatia arbitraria, que na tela aparece como "minhas curtidas estao
+    /// desatualizadas".
+    ///
+    /// Por isso a lista sai daqui **da mais recente para a mais antiga**, que
+    /// e o que "Musicas curtidas" significa em qualquer player. Item sem data
+    /// vai para o fim, em vez de disputar o topo com um zero.
     pub(crate) async fn collection(&self, conjunto: Conjunto) -> CoreResult<Vec<String>> {
         let session = self.session.get().ok_or(CoreError::NotAuthenticated)?;
         let usuario = session.username();
@@ -201,11 +220,16 @@ impl Internal {
             .await
             .map_err(from_librespot)?;
 
-        let mut out = Vec::new();
+        let mut itens = Vec::new();
         for parte in &resposta.payload {
-            out.extend(collection_ids(parte));
+            itens.extend(collection_items(parte));
         }
-        Ok(out)
+
+        // Da mais recente para a mais antiga. Ver o cabecalho do metodo: sem
+        // isto a tela mostra uma fatia arbitraria da colecao.
+        itens.sort_by_key(|(_, quando)| std::cmp::Reverse(*quando));
+
+        Ok(itens.into_iter().map(|(id, _)| id).collect())
     }
     /// Album completo pelo protocolo interno: capa, artistas, data e faixas.
     ///
@@ -527,12 +551,12 @@ impl Conjunto {
     }
 }
 
-/// Ids base62 de um payload de colecao.
+/// Itens de um payload de colecao, com a data em que entraram.
 ///
 /// Le o protobuf a mao porque o esquema nao esta entre os compilados pela
 /// librespot. So dois campos interessam, e o que nao encaixar e pulado -- ver
 /// [`Internal::collection`].
-fn collection_ids(bytes: &[u8]) -> Vec<String> {
+fn collection_items(bytes: &[u8]) -> Vec<(String, u64)> {
     let mut out = Vec::new();
     let mut cursor = 0usize;
 
@@ -542,19 +566,61 @@ fn collection_ids(bytes: &[u8]) -> Vec<String> {
             continue;
         }
 
-        // Dentro do item, o campo 2 e o identificador.
+        let mut id = None;
+        let mut quando = 0u64;
         let mut interno = 0usize;
-        while let Some((campo, id, proximo)) = campo_delimitado(dado, interno) {
+
+        while let Some((campo, valor, proximo)) = campo_do_item(dado, interno) {
             interno = proximo;
-            if campo == 2 {
-                if let Some(base62) = base62(id) {
-                    out.push(base62);
-                }
+            match (campo, valor) {
+                (2, Valor::Bytes(bruto)) => id = base62(bruto),
+                (5, Valor::Numero(instante)) => quando = instante,
+                _ => {}
             }
+        }
+
+        if let Some(id) = id {
+            out.push((id, quando));
         }
     }
 
     out
+}
+
+/// Valor de um campo do protobuf, do tipo que interessa aqui.
+enum Valor<'a> {
+    Bytes(&'a [u8]),
+    Numero(u64),
+}
+
+/// Proximo campo de um item, delimitado ou numerico.
+///
+/// Existe separado de [`campo_delimitado`] porque dentro do item interessam os
+/// dois tipos: o identificador e delimitado, e a data e varint.
+fn campo_do_item(bytes: &[u8], mut cursor: usize) -> Option<(u64, Valor<'_>, usize)> {
+    loop {
+        let (chave, lido) = varint(bytes, cursor)?;
+        cursor += lido;
+        let campo = chave >> 3;
+
+        match chave & 7 {
+            2 => {
+                let (tamanho, lido) = varint(bytes, cursor)?;
+                cursor += lido;
+                let fim = cursor.checked_add(tamanho as usize)?;
+                let dado = bytes.get(cursor..fim)?;
+                return Some((campo, Valor::Bytes(dado), fim));
+            }
+            0 => {
+                let (valor, lido) = varint(bytes, cursor)?;
+                cursor += lido;
+                return Some((campo, Valor::Numero(valor), cursor));
+            }
+            5 => cursor = cursor.checked_add(4)?,
+            1 => cursor = cursor.checked_add(8)?,
+            _ => return None,
+        }
+    }
 }
 
 /// Proximo campo delimitado por tamanho a partir de `cursor`.
@@ -645,10 +711,48 @@ fn summaries_from(message: &SelectedListContentMessage) -> Vec<PlaylistSummary> 
                 .unwrap_or_default(),
             length: decorated.map(|m| m.length().max(0) as u32).unwrap_or_default(),
             format: atributos.map(|a| a.format().to_string()).unwrap_or_default(),
+            images: atributos.map(playlist_covers).unwrap_or_default(),
         });
     }
 
     out
+}
+
+/// Capas de uma playlist, como o rootlist as descreve.
+///
+/// Sao duas formas, e uma playlist pode trazer as duas, uma, ou nenhuma:
+///
+/// - **`picture`** e um identificador de arquivo, como no metadado de album:
+///   a URL e montada aqui. Nao vem com tamanho.
+/// - **`picture_size`** ja traz a URL pronta, e num host diferente
+///   (`pickasso.spotifycdn.com`, onde ficam as capas geradas). O
+///   `target_name` e um rotulo (`default`, `small`...), e nao uma largura --
+///   entao nenhuma dessas entra no `ImageSet` com tamanho conhecido.
+///
+/// Sem largura, `best_for_width` cai para a unica disponivel, que e o
+/// comportamento certo: e melhor uma capa de tamanho incerto que nenhuma.
+fn playlist_covers(atributos: &ListAttributesMessage) -> ImageSet {
+    let mut refs = Vec::new();
+
+    if !atributos.picture().is_empty() {
+        refs.push(ImageRef {
+            url: Arc::from(format!("{CDN_IMAGEM}{}", hex(atributos.picture())).as_str()),
+            width: None,
+            height: None,
+        });
+    }
+
+    for tamanho in &atributos.picture_size {
+        if !tamanho.url().is_empty() {
+            refs.push(ImageRef {
+                url: Arc::from(tamanho.url()),
+                width: None,
+                height: None,
+            });
+        }
+    }
+
+    ImageSet(refs)
 }
 
 /// Id base62 de uma URI de playlist, ou `None` quando nao e uma.
@@ -701,7 +805,81 @@ mod tests {
             owner: owner.into(),
             length: 30,
             format: format.into(),
+            images: ImageSet::default(),
         }
+    }
+
+    /// Monta um item de colecao: campo 2 com o `gid`, campo 5 com a data.
+    fn item(gid: u8, quando: u64) -> Vec<u8> {
+        let mut corpo = vec![0x12, 16];
+        corpo.extend(std::iter::repeat_n(gid, 16));
+        corpo.push(5 << 3); // campo 5, varint
+        let mut valor = quando;
+        loop {
+            let mut byte = (valor & 0x7f) as u8;
+            valor >>= 7;
+            if valor != 0 {
+                byte |= 0x80;
+            }
+            corpo.push(byte);
+            if valor == 0 {
+                break;
+            }
+        }
+
+        let mut out = vec![0x0a, corpo.len() as u8];
+        out.extend(corpo);
+        out
+    }
+
+    #[test]
+    fn the_collection_comes_out_newest_first() {
+        // A resposta do servidor nao vem ordenada: na conta de teste as datas
+        // alternavam entre 2022 e 2025 sem padrao, e pegar as primeiras 50
+        // entregava uma fatia arbitraria -- o que na tela parecia "minhas
+        // curtidas estao desatualizadas".
+        let mut payload = Vec::new();
+        payload.extend(item(0xaa, 1_600_000_000));
+        payload.extend(item(0xbb, 1_750_000_000));
+        payload.extend(item(0xcc, 1_700_000_000));
+
+        let itens = collection_items(&payload);
+        let mut ordenados = itens.clone();
+        ordenados.sort_by_key(|(_, quando)| std::cmp::Reverse(*quando));
+
+        assert_eq!(itens.len(), 3);
+        let datas: Vec<u64> = ordenados.iter().map(|(_, q)| *q).collect();
+        assert_eq!(datas, vec![1_750_000_000, 1_700_000_000, 1_600_000_000]);
+    }
+
+    #[test]
+    fn an_item_without_a_date_does_not_take_the_top() {
+        // Sem data o item vale zero, e zero no topo de uma ordem decrescente
+        // colocaria o mais antigo primeiro.
+        let mut payload = Vec::new();
+        payload.extend(vec![0x0a, 18, 0x12, 16]);
+        payload.extend(std::iter::repeat_n(0xdd, 16));
+        payload.extend(item(0xee, 1_750_000_000));
+
+        let mut itens = collection_items(&payload);
+        itens.sort_by_key(|(_, quando)| std::cmp::Reverse(*quando));
+
+        assert_eq!(itens.len(), 2);
+        assert_eq!(itens[0].1, 1_750_000_000);
+        assert_eq!(itens[1].1, 0);
+    }
+
+    #[test]
+    fn a_local_file_never_becomes_a_track() {
+        // Arquivo do computador entra na mesma lista com um id de texto no
+        // lugar do `gid` de 16 bytes. Nao ha como toca-lo.
+        let nome = b"::minha-musica.mp3";
+        let mut corpo = vec![0x12, nome.len() as u8];
+        corpo.extend_from_slice(nome);
+        let mut payload = vec![0x0a, corpo.len() as u8];
+        payload.extend(corpo);
+
+        assert!(collection_items(&payload).is_empty());
     }
 
     #[test]
