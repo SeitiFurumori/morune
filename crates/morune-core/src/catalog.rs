@@ -94,7 +94,7 @@ impl SearchResults {
     }
 }
 
-/// Acesso somente leitura ao catalogo de um provedor.
+/// Acesso ao catalogo e a biblioteca de um provedor.
 ///
 /// Implementacoes nao devem fazer cache proprio: cache e responsabilidade da
 /// camada de storage, que envolve qualquer `Catalog`. Manter isto separado e o
@@ -197,6 +197,23 @@ pub trait Library: Send + Sync + 'static {
         offset: u32,
         limit: u32,
     ) -> BoxFuture<'a, CoreResult<Page<Track>>>;
+
+    /// Todos os identificadores salvos, sem baixar metadado de cada faixa.
+    ///
+    /// Serve para desenhar o estado correto do coracao inclusive em curtidas
+    /// antigas que nao cabem na primeira pagina da biblioteca.
+    fn saved_track_ids<'a>(&'a self) -> BoxFuture<'a, CoreResult<Vec<TrackId>>> {
+        Box::pin(async { Err(CoreError::Unsupported("estado das musicas curtidas")) })
+    }
+
+    /// Adiciona ou remove uma faixa da biblioteca do provedor.
+    fn set_track_saved<'a>(
+        &'a self,
+        _id: &'a TrackId,
+        _saved: bool,
+    ) -> BoxFuture<'a, CoreResult<()>> {
+        Box::pin(async { Err(CoreError::Unsupported("alterar musicas curtidas")) })
+    }
 
     fn followed_artists<'a>(
         &'a self,
@@ -309,6 +326,10 @@ mod tests {
         let refused = futures_lite_block_on(library.recently_played(10));
         assert!(matches!(refused, Err(CoreError::Unsupported(_))));
         let refused = futures_lite_block_on(library.made_for_you(10));
+        assert!(matches!(refused, Err(CoreError::Unsupported(_))));
+        let refused = futures_lite_block_on(library.saved_track_ids());
+        assert!(matches!(refused, Err(CoreError::Unsupported(_))));
+        let refused = futures_lite_block_on(library.set_track_saved(&TrackId::spotify("x"), true));
         assert!(matches!(refused, Err(CoreError::Unsupported(_))));
     }
 

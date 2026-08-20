@@ -107,6 +107,30 @@ export component IconButton inherits Rectangle {
             if (root.enabled) { root.clicked(); }
         }
     }
+
+    // Rotulos visuais preservam a limpeza dos controles por icone, mas tiram
+    // do usuario a obrigacao de adivinhar botoes menos universais.
+    if touch.has-hover && root.label != "": Rectangle {
+        z: 20;
+        x: (root.width - self.width) / 2;
+        y: -self.height - Theme.space-xs;
+        width: min(280px, tooltip-text.preferred-width + Theme.space-md * 2);
+        height: 28px;
+        border-radius: Theme.radius-sm;
+        background: Theme.surface-raised;
+        border-width: Theme.border-width;
+        border-color: Theme.border;
+
+        tooltip-text := Text {
+            text: root.label;
+            color: Theme.text;
+            font-size: Theme.size-sm;
+            font-family: Theme.font-family;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
 }
 
 export component PrimaryButton inherits Rectangle {

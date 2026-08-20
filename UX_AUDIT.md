@@ -15,9 +15,16 @@ Foram encontrados quatro riscos P1. Todos estão corrigidos:
 - grades de cinco colunas estouravam na janela mínima;
 - salvar/favoritar não concluía o fluxo central de construir uma biblioteca.
 
-Favoritos agora pertencem ao MORU•NE e são persistidos localmente, sem ampliar permissões da conta Spotify. Essa decisão aplica “Your music. Your way.” de forma estrutural: a biblioteca guarda a origem da faixa, mas não pertence a um único provedor.
+O coração agora corresponde ao modelo mental consolidado pelos players: ele
+altera “Músicas curtidas” na conta Spotify. O MORU•NE aguarda confirmação remota
+antes de preencher ou esvaziar o ícone, evitando falso sucesso e uma biblioteca
+local concorrente que o usuário não pediu.
 
 Também foram corrigidas fricções P2 em estados vazios, feedback, configurações, temas, player e navegação por teclado. A direção visual existente foi preservada.
+
+A barra lateral também passou a refletir a intenção recente: “Músicas curtidas”
+permanece fixada e as playlists abertas mais recentemente vêm em seguida. As
+demais conservam a ordem da conta, evitando reorganização arbitrária.
 
 ## Método
 
@@ -27,7 +34,7 @@ A avaliação combinou modelo mental, affordance, descoberta, feedback, consist�
 
 Validações realizadas:
 
-- conta Spotify Premium real, sem modificar curtidas ou playlists;
+- conta Spotify Premium real; a escrita de curtidas requer reverificação final;
 - busca “Daft Punk” acionada pela API de acessibilidade do Windows;
 - 14 ações de resultado expostas ao UI Automation, com faixa e artista anunciados;
 - janela mínima de 720×480 inspecionada visualmente;
@@ -35,7 +42,7 @@ Validações realizadas:
 - contraste calculado para os três temas;
 - testes automatizados e compilação do aplicativo.
 
-Limites desta rodada: não houve teste humano com Narrador, monitor secundário com escala mista nem interação real de mini-player, porque o mini-player ainda não existe.
+Limites desta rodada: não houve teste humano com Narrador nem monitor secundário com escala mista. O mini-player foi renderizado e inspecionado, mas ainda precisa de uma sessão humana prolongada durante jogo/multitarefa.
 
 ## Mapa de severidade
 
@@ -43,8 +50,8 @@ Limites desta rodada: não houve teste humano com Narrador, monitor secundário 
 |---|---:|---:|---:|
 | P0 — bloqueia uso | 0 | 0 | 0 |
 | P1 — crítico | 4 | 4 | 0 |
-| P2 — fricção relevante | 10 | 7 | 3 |
-| P3 — refinamento | 7 | 3 | 4 |
+| P2 — fricção relevante | 10 | 9 | 1 |
+| P3 — refinamento | 8 | 7 | 1 |
 | P4 — cosmético | 2 | 1 | 1 |
 
 ## Principais problemas e decisões
@@ -78,9 +85,14 @@ Limites desta rodada: não houve teste humano com Narrador, monitor secundário 
 **Problema.** Não há ação de curtir, salvar álbum ou seguir artista, embora Biblioteca e padrões de players criem essa expectativa.  
 **Impacto.** Um fluxo central de música termina sem conclusão e a biblioteca parece somente decorativa.  
 **Princípios.** Modelo mental, controle e liberdade, completude do fluxo.  
-**Solução.** Biblioteca local independente de provedor, com coração no player e nas linhas; estado acessível; remoção pelo mesmo controle; persistência recuperável; favoritos recentes primeiro; Biblioteca separa “Favoritos no Morune” de conteúdo “Da sua conta”. As permissões Spotify continuam somente leitura.
+**Solução.** Coração no player e nas linhas ligado às “Músicas curtidas” do
+Spotify; estado acessível; remoção pelo mesmo controle; todos os IDs curtidos
+carregados para representar corretamente itens antigos; confirmação remota antes
+da mudança visual; erro preserva o estado anterior.
 
-**Justificativa.** O usuário conclui o fluxo sem entregar controle da biblioteca a um serviço específico. Falha de gravação faz rollback e explica o problema, evitando falso sucesso e perda silenciosa.
+**Justificativa.** O coração produz o efeito que usuários de música esperam e a
+mesma biblioteca aparece nos demais clientes Spotify. Não há duas coleções com
+o mesmo símbolo e significados diferentes.
 
 ### P2 — Estados vazios não ofereciam próxima ação — corrigido
 
@@ -120,7 +132,7 @@ Limites desta rodada: não houve teste humano com Narrador, monitor secundário 
 **Impacto.** Usuários novos precisavam adivinhar fila, repetição e aleatório.  
 **Princípios.** Affordance, feedback, Fitts, reconhecimento.  
 **Solução.** Nome acessível contextual, fundo ativo, foco visível e alvos acionáveis por teclado.  
-**Pendente.** Tooltips visuais e alvos maiores em modos de layout muito densos.  
+**Solução adicional.** Tooltips visuais usam os mesmos nomes contextuais da árvore acessível. Alvos continuam com área maior que o glifo; modos densos permanecem como escolha explícita do tema.
 **Justificativa.** A operação assistiva está clara; a descoberta visual ainda pode melhorar.
 
 ### P2 — Fila não podia ser gerenciada — corrigido
@@ -132,52 +144,53 @@ Limites desta rodada: não houve teste humano com Narrador, monitor secundário 
 
 **Justificativa.** A fila virou ferramenta de decisão sem sugerir que a ordem original de álbum ou playlist foi editada. Separar as camadas reduz erro e explica por que alguns itens são gerenciáveis.
 
-### P2 — Customização não tem preview nem desfazer — pendente
+### P2 — Importação de customização era irreversível — corrigido
 
 **Problema.** Trocar tema é imediato e importar não mostra previamente o alcance da mudança.  
 **Impacto.** Experimentação — diferencial do MORU•NE — parece arriscada para iniciantes.  
 **Princípios.** Controle, prevenção e recuperação de erro, progressive disclosure.  
-**Solução recomendada.** Preview antes de importar, confirmação somente para pacotes com alterações avançadas e ação Desfazer após aplicação.  
+**Solução.** O pacote é validado integralmente numa área temporária e mostra nome, autor, versão, descrição e aviso de substituição antes da confirmação. Tema substituído recebe backup privado e a aplicação oferece Desfazer. Pacote recusado ou cancelado não altera o tema atual.
 **Justificativa.** Aumenta liberdade percebida sem tornar a tela principal complexa.
 
-### P2 — Mini-player e seleção de dispositivo ausentes — pendente
+### P2 — Mini-player e saída de áudio não eram visíveis — corrigido parcialmente
 
 **Problema.** Não há mini-player nem seletor/indicação de saída.  
 **Impacto.** Uso durante jogos e multitarefa — contexto central do produto leve — perde eficiência.  
 **Princípios.** Flexibilidade, Fitts, visibilidade do sistema.  
-**Solução recomendada.** Mini-player com faixa, play/pause, anterior/próxima, volume e retorno; mostrar saída atual mesmo antes de permitir troca.  
+**Solução.** Mini-player compacto preserva faixa, capa, favorito, play/pause, anterior/próxima, progresso e retorno, restaurando tamanho/maximização anteriores. Configurações explicita “Padrão do Windows”. A troca de dispositivo dentro do app continua pendente porque o backend ainda segue a seleção do sistema.
 **Justificativa.** Entrega controle frequente com baixa ocupação de tela.
 
 ### P3/P4 — refinamentos
 
 | Problema | Impacto | Estado / solução |
 |---|---|---|
-| Busca exige Enter | Um passo extra e pouco feedback durante digitação | Pendente: debounce curto ou sugestões, preservando Enter |
-| Atalhos não são descobertos | Exige memorização externa | Pendente: tela `Ctrl+/` e dicas em tooltips |
+| Busca exige Enter | Um passo extra e pouco feedback durante digitação | Corrigido: debounce de 350 ms, com Enter preservado |
+| Atalhos não são descobertos | Exige memorização externa | Corrigido: folha `Ctrl+/` e dicas em tooltips |
 | Voltar tinha pouca equivalência de teclado | Navegação mais lenta | Corrigido: Escape e Alt+← no detalhe |
-| Títulos truncados sem revelação | Informação pode ficar inacessível visualmente | Pendente: tooltip/foco com texto completo |
+| Títulos truncados sem revelação | Informação pode ficar inacessível visualmente | Parcial: ações de faixa revelam título completo; falta tooltip direto no texto |
 | Ações ativas só por cor | Baixa visão perde estado | Corrigido em tema, navegação, shuffle e repeat |
 | Texto secundário pequeno | Pode cansar em densidade alta | Contraste aprovado; reavaliar tamanho em teste humano a 200% |
 | Toast sem expiração automática | Pode continuar ocupando espaço | Parcial: agora dispensável; classificar mensagens antes de aplicar TTL |
 | Espaçamento e iconografia | Pequenas diferenças entre áreas | Preservados: sistema atual é coerente e próprio |
-| Ausência de ajuda contextual | Usuário avançado descobre atalhos por tentativa | Pendente: referência curta, não tour obrigatório |
+| Barra de título nativa não acompanhava os temas | A primeira faixa visual parecia pertencer a outro produto | Corrigido: title bar temática sem repetir a marca da sidebar, controles acessíveis, arraste, duplo clique, resize e correção de DPI |
+| Ausência de ajuda contextual | Usuário avançado descobre atalhos por tentativa | Corrigido: referência curta sob demanda, sem tour obrigatório |
 
 ## Heurísticas de Nielsen
 
 1. **Visibilidade do estado:** player persistente e estados de reprodução são bons; busca ganhou loading/empty/result; toast ganhou dispensa.  
 2. **Sistema e mundo real:** terminologia musical é natural; busca agora corresponde ao texto.  
-3. **Controle e liberdade:** voltar, troca de tema, favoritos locais e fila manual estão cobertos; a ordem do contexto permanece protegida.
-4. **Consistência e padrões:** tokens e iconografia são fortes; componentes agora compartilham foco e semântica.  
-5. **Prevenção de erros:** camadas de clique de tema corrigidas; importação ainda precisa preview.  
-6. **Reconhecimento:** sidebar e player são reconhecíveis; ícones críticos agora têm nome acessível, mas ainda precisam tooltip visual.  
-7. **Flexibilidade e eficiência:** teclado e resize avançaram; mini-player e referência de atalhos faltam.  
+3. **Controle e liberdade:** voltar, troca de tema, curtidas sincronizadas e fila manual estão cobertos; a ordem do contexto permanece protegida.
+4. **Consistência e padrões:** tokens, iconografia e agora também o chrome da janela seguem a identidade do produto; os controles preservam nomes e ações esperados no Windows.
+5. **Prevenção de erros:** camadas de clique de tema corrigidas; importação valida, confirma, faz backup e pode ser desfeita.
+6. **Reconhecimento:** sidebar e player são reconhecíveis; ícones críticos têm nome acessível e tooltip visual.
+7. **Flexibilidade e eficiência:** teclado, resize, mini-player, teclas de mídia e referência de atalhos estão cobertos.
 8. **Estético e minimalista:** bom; não foram adicionadas animações ou superfícies desnecessárias.  
-9. **Recuperação de erros:** mensagens existentes costumam dizer o que fazer; falta retry explícito em falhas de rede de algumas páginas.  
-10. **Ajuda:** onboarding contextual melhorou; documentação de atalhos e customização avançada ainda deve entrar no produto.
+9. **Recuperação de erros:** limpar fila e importar tema têm Desfazer; falhas repetíveis de Início, Biblioteca e Busca oferecem retry explícito.
+10. **Ajuda:** onboarding contextual e a folha de atalhos explicam no momento de necessidade.
 
 ## Comparação com padrões maduros
 
-- **Spotify e Apple Music:** reforçam busca ampla, favorito próximo da faixa e fila editável. O MORU•NE atende os três, mantendo favoritos no próprio produto e distinguindo fila manual de contexto.
+- **Spotify e Apple Music:** reforçam busca ampla, favorito próximo da faixa e fila editável. O MORU•NE atende os três, sincronizando o coração com o Spotify e distinguindo fila manual de contexto.
 - **YouTube Music:** mantém player e fila como continuidade da navegação e oferece atalhos no desktop. O player persistente do MORU•NE está alinhado; falta referência de atalhos e mini-player.
 - **Windows 11:** exige Tab lógico, foco visível, Enter/Espaço e nomes para controles customizados. A árvore AccessKit agora segue esse modelo.
 - **Discord:** torna `Ctrl+,`, voltar e navegação por teclado padrões descobríveis. O MORU•NE implementa parte do vocabulário, mas ainda precisa uma folha de atalhos.
@@ -197,8 +210,16 @@ Referências: [atalhos do Spotify](https://support.spotify.com/uk/article/keyboa
 | Mensagem permanente sem controle | Botão acessível para dispensar |
 | Switch só no pequeno alvo | Linha inteira acionável, sem duplicar foco |
 | Player icon-only para tecnologia assistiva | Ações e estados anunciados por nome |
-| Biblioteca dependia do que a conta externa salvou | Favoritos locais, persistentes e independentes do provedor |
+| Coração criava favoritos somente no Morune | Coração sincroniza com “Músicas curtidas” do Spotify |
 | Fila era apenas uma lista de leitura | Inserções manuais reordenáveis, removíveis e separadas do contexto |
+| Barra de título genérica e separada do tema | Chrome integrado ao MORU•NE, com controles de janela previsíveis e acessíveis |
+| Importação substituía tema sem inspeção ou volta | Preview de metadados, confirmação, backup e Desfazer |
+| Limpar fila era definitivo | Aviso com Desfazer restaura a ordem removida |
+| Busca aguardava Enter | Busca automática com debounce e Enter preservado |
+| Atalhos existiam apenas na memória/documentação | Folha `Ctrl+/` dentro do produto |
+| Janela sempre ocupava a interface completa | Mini-player compacto com retorno ao estado anterior |
+| Abrir novamente criava outro player | Instância única traz a janela existente para frente |
+| Inicialização com o sistema só aparecia no instalador | Preferência reversível também em Configurações; abertura automática fica na bandeja |
 
 ## Pontos fortes preservados
 
@@ -211,13 +232,17 @@ Referências: [atalhos do Spotify](https://support.spotify.com/uk/article/keyboa
 - contraste mínimo aprovado: Midnight 7,05:1, Pulse 6,32:1 e Paper 4,60:1 para texto secundário no pior fundo comum;
 - mensagens de erro do backend geralmente incluem recuperação;
 - janela e bandeja seguem o modelo mental de aplicativo de música para Windows.
+- o preview da barra de tarefas oferece anterior, tocar/pausar e próxima sem
+  obrigar o usuário a restaurar a janela, preservando contexto e reduzindo cliques.
+- a identidade do produto aparece uma vez na sidebar; a barra de título não
+  repete nome e símbolo imediatamente acima dela.
 
 ## Próximos passos priorizados
 
-1. Adicionar preview/desfazer para temas e importação (P2).
-2. Implementar mini-player e indicação de dispositivo de saída (P2).
-3. Criar referência de atalhos e tooltips visuais (P3).
-4. Fazer teste humano com Narrador, teclado-only e 200% de escala em monitor secundário.
-5. Testar rede lenta/offline, nomes extremos, CJK/RTL e listas extensas.
+1. Permitir seleção de dispositivo no app quando o backend expuser enumeração/troca segura (P2).
+2. Fazer teste humano com Narrador, teclado-only e 200% de escala em monitor secundário.
+3. Testar rede lenta/offline, nomes extremos, CJK/RTL e listas extensas.
+4. Integrar SMTC completo para metadados/capa no painel de mídia do Windows; as teclas de mídia já funcionam.
+5. Assinar instalador e executável para remover o maior atrito externo restante: SmartScreen.
 
 O critério de aceite permanece: um usuário novo deve chegar de abertura a busca e reprodução sem precisar aprender a arquitetura do aplicativo.

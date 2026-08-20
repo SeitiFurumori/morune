@@ -54,6 +54,7 @@ global Icons {
     out property <string> repeat: "M 4 9 L 4 6 L 17 6 L 17 3 L 21 7 L 17 11 L 17 8 M 20 15 L 20 18 L 7 18 L 7 21 L 3 17 L 7 13 L 7 16";
     out property <string> repeat-one: "M 4 9 L 4 6 L 17 6 L 17 3 L 21 7 L 17 11 L 17 8 M 20 15 L 20 18 L 7 18 L 7 21 L 3 17 L 7 13 L 7 16 M 11 12 L 12 12 L 12 17";
     out property <string> queue: "M 3 6 L 15 6 M 3 12 L 15 12 M 3 18 L 11 18 M 17 10 L 17 19 M 17 10 L 21 9 L 21 7 L 17 8";
+    out property <string> mini-player: "M 4 6 L 20 6 L 20 18 L 4 18 Z M 8 14 L 16 14";
     out property <string> volume: "M 4 9 L 7 9 L 12 5 L 12 19 L 7 15 L 4 15 Z M 15 9 a 5 5 0 0 1 0 6 M 18 6 a 9 9 0 0 1 0 12";
     out property <string> chevron-left: "M 15 5 L 8 12 L 15 19";
     out property <string> chevron-right: "M 9 5 L 16 12 L 9 19";
@@ -63,6 +64,9 @@ global Icons {
     out property <string> queue-next: "M 3 6 L 14 6 M 3 12 L 14 12 M 3 18 L 10 18 M 18 12 L 18 21 M 14 16 L 18 12 L 22 16";
     out property <string> chevron-up: "M 5 15 L 12 8 L 19 15";
     out property <string> chevron-down: "M 5 9 L 12 16 L 19 9";
+    out property <string> minimize-window: "M 5 12 L 19 12";
+    out property <string> maximize-window: "M 5 5 L 19 5 L 19 19 L 5 19 Z";
+    out property <string> restore-window: "M 8 5 L 19 5 L 19 16 M 5 8 L 16 8 L 16 19 L 5 19 Z";
 }
 
 component SectionTitle inherits Text {
@@ -101,6 +105,154 @@ component EmptyState inherits VerticalLayout {
     if root.action-label != "": PrimaryButton {
         label: root.action-label;
         clicked => { root.action(); }
+    }
+}
+
+// Controle da janela com a mesma semantica dos botoes nativos do Windows, mas
+// integrado ao tema do Morune. O alvo ocupa toda a altura da title bar: alem de
+// ser mais facil de acertar, permite levar o ponteiro ate a borda superior sem
+// perder o botao (Lei de Fitts).
+component WindowControl inherits Rectangle {
+    in property <string> label;
+    in property <string> path;
+    in property <bool> danger: false;
+    callback clicked();
+
+    width: Theme.space-xl + Theme.space-md;
+    height: Theme.space-xl + Theme.space-xs;
+    background: root.danger && touch.has-hover
+        ? Theme.danger
+        : (touch.pressed ? Theme.selected : (touch.has-hover ? Theme.hover : transparent));
+    animate background { duration: Theme.motion-fast; }
+
+    Path {
+        width: Theme.size-md;
+        height: self.width;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: root.path;
+        fill: transparent;
+        stroke: root.danger && touch.has-hover ? Theme.text-on-accent : Theme.text-muted;
+        stroke-width: 1.5px;
+        stroke-line-cap: square;
+        stroke-line-join: miter;
+    }
+
+    focus := FocusScope {
+        focus-on-click: true;
+        focus-on-tab-navigation: true;
+        accessible-role: button;
+        accessible-label: root.label;
+        accessible-action-default => { root.clicked(); }
+
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) {
+                root.clicked();
+                return EventResult.accept;
+            }
+            EventResult.reject
+        }
+    }
+
+    if focus.has-focus: Rectangle {
+        border-width: Theme.border-width * 2;
+        border-color: Theme.focus-ring;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: MouseCursor.default;
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.down) { focus.focus(); }
+        }
+        clicked => { root.clicked(); }
+    }
+}
+
+component AppTitleBar inherits Rectangle {
+    in property <bool> maximized;
+    callback move-window(float, float);
+    callback toggle-maximize();
+    callback minimize();
+    callback close();
+
+    private property <length> drag-origin-x;
+    private property <length> drag-origin-y;
+    private property <bool> restoring-from-maximized: false;
+
+    height: Theme.space-xl + Theme.space-xs;
+    background: Theme.sidebar-background;
+
+    // A area de arraste termina antes dos controles. Assim um clique nos
+    // botoes nunca pode ser interpretado como movimento da janela.
+    drag := TouchArea {
+        width: parent.width - (Theme.space-xl + Theme.space-md) * 3;
+        height: parent.height;
+        mouse-cursor: MouseCursor.default;
+
+        pointer-event(event) => {
+            if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
+                root.drag-origin-x = self.mouse-x;
+                root.drag-origin-y = self.mouse-y;
+                root.restoring-from-maximized = false;
+            }
+        }
+
+        moved => {
+            if (self.pressed) {
+                if (root.maximized) {
+                    root.toggle-maximize();
+                    root.restoring-from-maximized = true;
+                } else if (root.restoring-from-maximized) {
+                    // Depois que o Windows devolve o tamanho restaurado, cria
+                    // uma nova ancora para o arraste nao saltar entre monitores.
+                    root.drag-origin-x = self.mouse-x;
+                    root.drag-origin-y = self.mouse-y;
+                    root.restoring-from-maximized = false;
+                } else {
+                    root.move-window(
+                        (self.mouse-x - root.drag-origin-x) / 1px,
+                        (self.mouse-y - root.drag-origin-y) / 1px
+                    );
+                }
+            }
+        }
+
+        double-clicked => { root.toggle-maximize(); }
+    }
+
+    HorizontalLayout {
+        // A marca ja ancora a sidebar, inclusive quando ela esta recolhida.
+        // Repeti-la aqui criava dois cabecalhos para o mesmo aplicativo. A
+        // title bar fica deliberadamente silenciosa: arraste a esquerda,
+        // controles de janela previsiveis a direita.
+        Rectangle { horizontal-stretch: 1; }
+
+        WindowControl {
+            label: "Minimizar janela";
+            path: Icons.minimize-window;
+            clicked => { root.minimize(); }
+        }
+
+        WindowControl {
+            label: root.maximized ? "Restaurar janela" : "Maximizar janela";
+            path: root.maximized ? Icons.restore-window : Icons.maximize-window;
+            clicked => { root.toggle-maximize(); }
+        }
+
+        WindowControl {
+            label: "Fechar janela";
+            path: Icons.close;
+            danger: true;
+            clicked => { root.close(); }
+        }
+    }
+
+    Rectangle {
+        y: parent.height - Theme.border-width;
+        height: Theme.border-width;
+        background: Theme.border;
     }
 }
 
@@ -238,8 +390,8 @@ component TrackListRow inherits Rectangle {
         x: root.width - Theme.space-md - 48px - Theme.space-md - self.width;
         y: (root.height - self.height) / 2;
         label: root.track.favorite
-            ? "Remover " + root.track.title + " dos favoritos"
-            : "Adicionar " + root.track.title + " aos favoritos";
+            ? "Remover " + root.track.title + " das Musicas curtidas do Spotify"
+            : "Adicionar " + root.track.title + " as Musicas curtidas do Spotify";
         path: Icons.heart;
         filled: root.track.favorite;
         active: root.track.favorite;
@@ -617,6 +769,7 @@ component PlayerBar inherits Rectangle {
     in property <float> volume;
     in property <bool> has-track;
     in property <bool> favorite;
+    in property <bool> mini-player: false;
     // Capa da faixa tocando. Vazia enquanto o cache nao a entrega, e o bloco
     // neutro do `Artwork` ocupa o lugar sem mudar o layout.
     in property <image> cover;
@@ -630,6 +783,7 @@ component PlayerBar inherits Rectangle {
     callback cycle-repeat();
     callback open-queue();
     callback toggle-favorite();
+    callback toggle-mini-player();
 
     height: Layout.player-height;
     background: Theme.player-background;
@@ -663,7 +817,7 @@ component PlayerBar inherits Rectangle {
 
             HorizontalLayout {
                 spacing: Theme.space-md;
-                width: 26%;
+                width: root.mini-player ? 36% : 26%;
 
                 if Layout.player-artwork: Artwork {
                     seed: root.title;
@@ -697,8 +851,8 @@ component PlayerBar inherits Rectangle {
 
                 IconButton {
                     label: root.favorite
-                        ? "Remover faixa atual dos favoritos"
-                        : "Adicionar faixa atual aos favoritos";
+                        ? "Remover faixa atual das Musicas curtidas do Spotify"
+                        : "Adicionar faixa atual as Musicas curtidas do Spotify";
                     path: Icons.heart;
                     filled: root.favorite;
                     active: root.favorite;
@@ -813,11 +967,20 @@ component PlayerBar inherits Rectangle {
             }
 
             HorizontalLayout {
-                width: 26%;
+                width: root.mini-player ? 12% : 26%;
                 alignment: end;
                 spacing: Theme.space-sm;
 
-                if Layout.player-queue-button: IconButton {
+                IconButton {
+                    label: root.mini-player ? "Sair do mini-player" : "Abrir mini-player";
+                    path: Icons.mini-player;
+                    active: root.mini-player;
+                    tint: Theme.text-muted;
+                    y: (parent.height - self.height) / 2;
+                    clicked => { root.toggle-mini-player(); }
+                }
+
+                if !root.mini-player && Layout.player-queue-button: IconButton {
                     label: "Abrir fila";
                     path: Icons.queue;
                     tint: Theme.text-muted;
@@ -825,14 +988,14 @@ component PlayerBar inherits Rectangle {
                     clicked => { root.open-queue(); }
                 }
 
-                if Layout.player-volume: Icon {
+                if !root.mini-player && Layout.player-volume: Icon {
                     path: Icons.volume;
                     tint: Theme.text-muted;
                     size: 16px;
                     y: (parent.height - self.size) / 2;
                 }
 
-                if Layout.player-volume: Slider {
+                if !root.mini-player && Layout.player-volume: Slider {
                     label: "Volume";
                     width: 96px;
                     value: root.volume;
@@ -1005,12 +1168,32 @@ component SearchPage inherits VerticalLayout {
     callback favorite-toggled(string);
     callback play-next(string);
     callback enqueue(string);
+    private property <string> pending-query;
+
+    debounce := Timer {
+        interval: 350ms;
+        running: false;
+        triggered => {
+            self.running = false;
+            root.search(root.pending-query);
+        }
+    }
 
     spacing: Theme.space-md;
 
     SearchField {
         placeholder: "O que voce quer ouvir?";
-        accepted(q) => { root.search(q); }
+        text: root.query;
+        edited(q) => {
+            root.pending-query = q;
+            debounce.running = false;
+            if q.is-empty { root.search(""); }
+            else { debounce.running = true; }
+        }
+        accepted(q) => {
+            debounce.running = false;
+            root.search(q);
+        }
     }
 
     if root.searching: EmptyState {
@@ -1020,7 +1203,7 @@ component SearchPage inherits VerticalLayout {
 
     if !root.searching && root.tracks.length == 0 && root.items.length == 0 && root.query == "": EmptyState {
         title: "Busque por musica";
-        hint: "Digite uma faixa, album, artista ou playlist e pressione Enter.";
+        hint: "Digite uma faixa, album, artista ou playlist. A busca comeca enquanto voce escreve.";
     }
 
     if !root.searching && root.tracks.length == 0 && root.items.length == 0 && root.query != "": EmptyState {
@@ -1060,7 +1243,6 @@ component SearchPage inherits VerticalLayout {
 
 component LibraryPage inherits Flickable {
     in property <[CardItem]> items;
-    in property <[TrackRow]> favorites;
     in property <bool> logged-in;
     in property <int> grid-columns: 5;
     callback login();
@@ -1078,27 +1260,18 @@ component LibraryPage inherits Flickable {
 
         SectionTitle { text: "Biblioteca"; }
 
-        if root.favorites.length == 0 && root.items.length == 0 && !root.logged-in: EmptyState {
+        if root.items.length == 0 && !root.logged-in: EmptyState {
             title: "Sua biblioteca comeca aqui";
-            hint: "Entre para buscar musicas. Os favoritos ficam no Morune, independentes do provedor.";
+            hint: "Entre no Spotify para ver sua biblioteca e suas Musicas curtidas.";
             action-label: "Entrar no Spotify";
             action => { root.login(); }
         }
 
-        if root.favorites.length == 0 && root.items.length == 0 && root.logged-in: EmptyState {
+        if root.items.length == 0 && root.logged-in: EmptyState {
             title: "Sua biblioteca esta vazia";
-            hint: "Use o coracao ao lado de uma faixa para guarda-la no Morune.";
+            hint: "Use o coracao para salvar no Spotify. Suas Musicas curtidas ficam na barra lateral.";
             action-label: "Explorar musicas";
             action => { root.explore(); }
-        }
-
-        if root.favorites.length > 0: TrackShelf {
-            title: "Favoritos no Morune";
-            tracks: root.favorites;
-            activated(id) => { root.activated(id); }
-            favorite-toggled(id) => { root.favorite-toggled(id); }
-            play-next(id) => { root.play-next(id); }
-            enqueue(id) => { root.enqueue(id); }
         }
 
         if root.items.length > 0: VerticalLayout {
@@ -1111,31 +1284,6 @@ component LibraryPage inherits Flickable {
             }
         }
 
-        if root.favorites.length > 0 && !root.logged-in: Rectangle {
-            height: 48px;
-            border-radius: Theme.radius-md;
-            background: Theme.surface;
-
-            HorizontalLayout {
-                padding-left: Theme.space-md;
-                padding-right: Theme.space-md;
-                spacing: Theme.space-md;
-
-                Text {
-                    text: "Entre para ver tambem a biblioteca da sua conta.";
-                    color: Theme.text-muted;
-                    font-size: Theme.size-sm;
-                    font-family: Theme.font-family;
-                    vertical-alignment: center;
-                    horizontal-stretch: 1;
-                }
-
-                GhostButton {
-                    label: "Entrar";
-                    clicked => { root.login(); }
-                }
-            }
-        }
     }
 }
 
@@ -1580,9 +1728,11 @@ component SettingsPage inherits VerticalLayout {
     in property <string> account-name;
     in property <bool> close-to-tray;
     in property <bool> autoplay;
+    in property <bool> start-with-windows;
 
     callback set-close-to-tray(bool);
     callback set-autoplay(bool);
+    callback set-start-with-windows(bool);
     callback select-theme(string);
     callback import-theme();
     callback export-theme(string);
@@ -1648,11 +1798,37 @@ component SettingsPage inherits VerticalLayout {
             toggled(v) => { root.set-autoplay(v); }
         }
 
+        Rectangle {
+            height: 44px;
+            HorizontalLayout {
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 1;
+                    Text { text: "Saida de audio"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
+                    Text { text: "Segue o dispositivo escolhido no Windows."; color: Theme.text-muted; font-size: Theme.size-xs; font-family: Theme.font-family; }
+                }
+                Text {
+                    text: "Padrao do Windows";
+                    color: Theme.text-muted;
+                    font-size: Theme.size-sm;
+                    font-family: Theme.font-family;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
         SettingRow {
             label: "Continuar tocando ao fechar";
             hint: "Fechar a janela esconde o Morune na bandeja em vez de encerrar.";
             checked: root.close-to-tray;
             toggled(v) => { root.set-close-to-tray(v); }
+        }
+
+        SettingRow {
+            label: "Iniciar com o Windows";
+            hint: "Abre em segundo plano na bandeja quando voce entra no Windows.";
+            checked: root.start-with-windows;
+            toggled(v) => { root.set-start-with-windows(v); }
         }
 
         Text {
@@ -1758,6 +1934,8 @@ export component AppWindow inherits Window {
     // --- estado vindo do Rust ---
     in property <int> page: 0;
     in property <string> status-message;
+    in property <bool> undo-available: false;
+    in property <bool> retry-available: false;
     in property <bool> logged-in: false;
     in property <string> account-name;
 
@@ -1770,7 +1948,6 @@ export component AppWindow inherits Window {
     in property <string> search-query;
     in property <bool> searching;
     in property <[CardItem]> library-items;
-    in property <[TrackRow]> library-favorites;
     in property <[TrackRow]> queue-manual-tracks;
     in property <[TrackRow]> queue-context-tracks;
     in property <[ThemeItem]> themes;
@@ -1806,6 +1983,9 @@ export component AppWindow inherits Window {
     in property <string> perf-text;
     in property <bool> close-to-tray: true;
     in property <bool> autoplay: true;
+    in property <bool> start-with-windows: false;
+    private property <bool> shortcuts-visible: false;
+    in-out property <bool> mini-player: false;
     property <int> grid-columns: 5;
     private property <bool> sidebar-is-collapsed: Layout.sidebar-collapsed;
     changed width => {
@@ -1855,9 +2035,15 @@ export component AppWindow inherits Window {
     callback detail-activate(string);
     callback set-close-to-tray(bool);
     callback set-autoplay(bool);
+    callback set-start-with-windows(bool);
     callback login();
     callback logout();
     callback dismiss-status();
+    callback undo-last();
+    callback retry-last();
+    callback dismiss-undo();
+    callback move-window(float, float);
+    callback toggle-mini-player();
 
     // Icone da janela e da barra de tarefas. O Slint embute o arquivo no
     // binario e o decodifica ao abrir; o desenho de 128 px e o maior tamanho
@@ -1869,17 +2055,28 @@ export component AppWindow inherits Window {
     icon: @image-url("../../../assets/brand/morune-logo-system/morune-symbol-128.png");
 
     title: "Morune";
+    no-frame: true;
+    resize-border-width: root.maximized ? 0px : Theme.border-width * 6;
     background: Theme.background;
     default-font-family: Theme.font-family;
     default-font-size: Theme.size-md;
-    min-width: 720px;
-    min-height: 480px;
+    min-width: root.mini-player ? 600px : 720px;
+    min-height: root.mini-player ? 120px : 480px;
     preferred-width: 1180px;
     preferred-height: 760px;
     forward-focus: keys;
 
     VerticalLayout {
+        AppTitleBar {
+            maximized: root.maximized;
+            move-window(dx, dy) => { root.move-window(dx, dy); }
+            toggle-maximize => { root.maximized = !root.maximized; }
+            minimize => { root.minimized = true; }
+            close => { root.close(); }
+        }
+
         if Layout.player-position == 1: PlayerBar {
+            mini-player: root.mini-player;
             title: root.now-title;
             artist: root.now-artist;
             cover: root.now-cover;
@@ -1901,9 +2098,10 @@ export component AppWindow inherits Window {
             cycle-repeat => { root.cycle-repeat(); }
             toggle-favorite => { root.toggle-favorite(root.now-id); }
             open-queue => { root.navigate(4); }
+            toggle-mini-player => { root.toggle-mini-player(); }
         }
 
-        HorizontalLayout {
+        if !root.mini-player: HorizontalLayout {
             vertical-stretch: 1;
 
             if Layout.sidebar-position == 0: Rectangle {
@@ -1965,7 +2163,6 @@ export component AppWindow inherits Window {
 
                     if root.page == 2: LibraryPage {
                         items: root.library-items;
-                        favorites: root.library-favorites;
                         logged-in: root.logged-in;
                         grid-columns: root.grid-columns;
                         login => { root.login(); }
@@ -1984,8 +2181,10 @@ export component AppWindow inherits Window {
                         account-name: root.account-name;
                         close-to-tray: root.close-to-tray;
                         autoplay: root.autoplay;
+                        start-with-windows: root.start-with-windows;
                         set-close-to-tray(v) => { root.set-close-to-tray(v); }
                         set-autoplay(v) => { root.set-autoplay(v); }
+                        set-start-with-windows(v) => { root.set-start-with-windows(v); }
                         select-theme(id) => { root.select-theme(id); }
                         import-theme => { root.import-theme(); }
                         export-theme(id) => { root.export-theme(id); }
@@ -2048,9 +2247,25 @@ export component AppWindow inherits Window {
                         font-size: Theme.size-sm;
                         font-family: Theme.font-family;
                         wrap: word-wrap;
-                        width: parent.width - Theme.space-md * 2 - 32px;
+                        width: parent.width - Theme.space-md * 2 - 32px - ((root.undo-available || root.retry-available) ? 128px : 0px);
                         x: Theme.space-md;
                         y: Theme.space-md;
+                    }
+
+                    if root.undo-available: GhostButton {
+                        label: "Desfazer";
+                        width: 80px;
+                        x: parent.width - self.width - 40px;
+                        y: (parent.height - self.height) / 2;
+                        clicked => { root.undo-last(); }
+                    }
+
+                    if !root.undo-available && root.retry-available: GhostButton {
+                        label: "Tentar novamente";
+                        width: 120px;
+                        x: parent.width - self.width - 40px;
+                        y: (parent.height - self.height) / 2;
+                        clicked => { root.retry-last(); }
                     }
 
                     IconButton {
@@ -2060,7 +2275,10 @@ export component AppWindow inherits Window {
                         button-size: 28px;
                         x: parent.width - self.width - Theme.space-sm;
                         y: (parent.height - self.height) / 2;
-                        clicked => { root.dismiss-status(); }
+                        clicked => {
+                            if root.undo-available || root.retry-available { root.dismiss-undo(); }
+                            else { root.dismiss-status(); }
+                        }
                     }
                 }
 
@@ -2108,6 +2326,7 @@ export component AppWindow inherits Window {
         }
 
         if Layout.player-position != 1: PlayerBar {
+            mini-player: root.mini-player;
             title: root.now-title;
             artist: root.now-artist;
             cover: root.now-cover;
@@ -2129,6 +2348,54 @@ export component AppWindow inherits Window {
             cycle-repeat => { root.cycle-repeat(); }
             toggle-favorite => { root.toggle-favorite(root.now-id); }
             open-queue => { root.navigate(4); }
+            toggle-mini-player => { root.toggle-mini-player(); }
+        }
+    }
+
+    if root.shortcuts-visible: Rectangle {
+        z: 100;
+        background: #00000099;
+
+        TouchArea { clicked => { root.shortcuts-visible = false; } }
+
+        Rectangle {
+            width: min(480px, parent.width - Theme.space-xl * 2);
+            height: 360px;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            border-radius: Theme.radius-lg;
+            background: Theme.surface-raised;
+            border-width: Theme.border-width;
+            border-color: Theme.border;
+
+            VerticalLayout {
+                padding: Theme.space-xl;
+                spacing: Theme.space-md;
+
+                HorizontalLayout {
+                    Text {
+                        text: "Atalhos de teclado";
+                        color: Theme.text;
+                        font-size: Theme.size-xl;
+                        font-weight: Theme.weight-bold;
+                        font-family: Theme.font-family;
+                        vertical-alignment: center;
+                    }
+                    IconButton {
+                        label: "Fechar atalhos";
+                        path: Icons.close;
+                        clicked => { root.shortcuts-visible = false; }
+                    }
+                }
+
+                Text { text: "Ctrl + K     Buscar"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
+                Text { text: "Ctrl + ,     Configuracoes"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
+                Text { text: "Espaco       Reproduzir ou pausar"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
+                Text { text: "Ctrl + →     Proxima faixa"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
+                Text { text: "Ctrl + ←     Faixa anterior"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
+                Text { text: "Alt + ←      Voltar"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
+                Text { text: "Ctrl + /     Mostrar estes atalhos"; color: Theme.text-muted; font-size: Theme.size-md; font-family: Theme.font-family; }
+            }
         }
     }
 
@@ -2139,6 +2406,14 @@ export component AppWindow inherits Window {
         height: 0px;
 
         key-pressed(event) => {
+            if (event.text == "/" && event.modifiers.control) {
+                root.shortcuts-visible = !root.shortcuts-visible;
+                return EventResult.accept;
+            }
+            if (root.shortcuts-visible && event.text == Key.Escape) {
+                root.shortcuts-visible = false;
+                return EventResult.accept;
+            }
             if (event.text == Key.K && event.modifiers.control) {
                 root.navigate(1);
                 return EventResult.accept;

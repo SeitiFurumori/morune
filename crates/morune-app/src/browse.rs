@@ -138,6 +138,8 @@ pub struct Home {
     /// Retrospectivas: Your Top Songs de cada ano, e a de todos os tempos.
     pub retrospectives: Vec<Card>,
     pub liked: Vec<Track>,
+    /// Todos os ids curtidos, inclusive os que nao cabem na prateleira.
+    pub liked_ids: Vec<TrackId>,
     /// Todas as playlists da conta, para a barra lateral.
     ///
     /// Nao e prateleira: o `rootlist` e a navegacao do usuario, e vive na
@@ -200,6 +202,12 @@ pub enum AutoplayOutcome {
     Failed(String),
 }
 
+pub struct LibraryOutcome {
+    pub id: TrackId,
+    pub saved: bool,
+    pub result: Result<(), String>,
+}
+
 /// Catalogo e biblioteca ligados a interface.
 pub struct Browse {
     catalog: Arc<dyn Catalog>,
@@ -207,6 +215,8 @@ pub struct Browse {
     handle: tokio::runtime::Handle,
     pending: Option<Receiver<Outcome>>,
     autoplay_pending: Option<Receiver<AutoplayOutcome>>,
+    library_tx: UnboundedSender<LibraryOutcome>,
+    library_rx: UnboundedReceiver<LibraryOutcome>,
     artwork: Arc<dyn Artwork>,
     covers: ArtworkCache,
     /// Canal proprio das capas, separado de `pending`: um cartao continua
@@ -234,12 +244,15 @@ impl Browse {
         handle: tokio::runtime::Handle,
     ) -> Self {
         let (art_tx, art_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (library_tx, library_rx) = tokio::sync::mpsc::unbounded_channel();
         Self {
             catalog,
             library,
             handle,
             pending: None,
             autoplay_pending: None,
+            library_tx,
+            library_rx,
             artwork,
             covers: ArtworkCache::new(covers_dir),
             art_tx,
@@ -338,6 +351,23 @@ impl Browse {
         }
     }
 
+    /// Altera uma curtida sem competir com busca ou navegacao em andamento.
+    pub fn set_track_saved(&self, id: TrackId, saved: bool) {
+        let library = self.library.clone();
+        let tx = self.library_tx.clone();
+        self.handle.spawn(async move {
+            let result = library
+                .set_track_saved(&id, saved)
+                .await
+                .map_err(|error| describe(&error));
+            let _ = tx.send(LibraryOutcome { id, saved, result });
+        });
+    }
+
+    pub fn poll_library(&mut self) -> Option<LibraryOutcome> {
+        self.library_rx.try_recv().ok()
+    }
+
     pub fn search(&mut self, query: &str) {
         let catalog = self.catalog.clone();
         let query = query.trim().to_string();
@@ -409,6 +439,10 @@ impl Browse {
             match library.saved_tracks(0, SHELF_TRACKS).await {
                 Ok(page) => home.liked = page.items,
                 Err(e) => failure = note(failure, &e, "musicas curtidas"),
+            }
+            match library.saved_track_ids().await {
+                Ok(ids) => home.liked_ids = ids,
+                Err(e) => failure = note(failure, &e, "estado das curtidas"),
             }
 
             let vazio = home.made_for_you.is_empty()
