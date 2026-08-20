@@ -16,7 +16,9 @@ jobs:
   windows:
     name: Testar, empacotar e publicar
     runs-on: windows-latest
-    timeout-minutes: 45
+    # O primeiro runner compila o grafo duas vezes: testes em debug e o binario
+    # final com LTO. Sem cache, os testes sozinhos levam cerca de 44 minutos.
+    timeout-minutes: 120
 
     env:
       CARGO_TERM_COLOR: always
