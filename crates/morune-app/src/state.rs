@@ -271,6 +271,13 @@ impl AppState {
             changed |= self.apply_player_event(event);
         }
 
+        // Antes de recolher qualquer coisa: uma sessao caida faz todo o resto
+        // falhar, e a volta e silenciosa.
+        if self.session.reconnect_if_lost() {
+            self.status = "Reconectando ao Spotify...".into();
+            changed = true;
+        }
+
         changed |= self.poll_covers();
 
         // Depois dos eventos do player: a troca de faixa acabou de ser

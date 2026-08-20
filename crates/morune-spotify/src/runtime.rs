@@ -91,6 +91,20 @@ impl SpotifyBackend {
         self.catalog.clone()
     }
 
+    /// `true` quando havia sessao e ela caiu.
+    ///
+    /// O Spotify derruba sessao ociosa e a rede cai sozinha; sem isto o
+    /// aplicativo ficava com uma sessao morta na mao e toda requisicao
+    /// respondia `channel closed`.
+    pub fn session_lost(&self) -> bool {
+        self.session.is_lost()
+    }
+
+    /// Descarta a sessao morta antes de tentar de novo.
+    pub fn forget_lost_session(&self) {
+        self.session.forget_lost();
+    }
+
     /// Fonte de capas, para a camada que as guarda em disco.
     pub fn artwork(&self) -> Arc<dyn Artwork> {
         self.artwork.clone()
