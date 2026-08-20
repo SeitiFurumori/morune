@@ -12,18 +12,23 @@
 // Sem console preto atras da janela no Windows. Em depuracao o console e util,
 // entao a supressao vale so para builds de release.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-// `deny` e nao `forbid`: o codigo que o Slint gera para a interface contem
-// `allow(unsafe_code)` em trechos proprios, e `forbid` nao pode ser suspenso
-// nem pelo modulo gerado. Nosso codigo continua sem `unsafe`.
-#![deny(unsafe_code)]
+// A unica fronteira `unsafe` do aplicativo fica isolada em `taskbar.rs`: a API
+// nativa exige COM, HWND e um callback Win32. Dentro dela, cada operacao ainda
+// precisa declarar explicitamente o seu bloco inseguro.
+#![deny(unsafe_op_in_unsafe_fn)]
 
 mod artwork;
 mod browse;
 mod bundled;
+#[cfg(windows)]
+mod instance;
 mod session;
 #[cfg(feature = "snapshot")]
 mod snapshot;
 mod state;
+mod startup;
+#[cfg(windows)]
+mod taskbar;
 mod theme_bridge;
 mod tray;
 
@@ -39,7 +44,13 @@ use slint::ComponentHandle;
 use state::AppState;
 
 fn main() -> anyhow::Result<()> {
+    #[cfg(windows)]
+    let Some(_single_instance) = instance::SingleInstance::acquire()? else {
+        return Ok(());
+    };
+
     let started = Instant::now();
+    let started_with_windows = std::env::args_os().any(|arg| arg == "--startup");
     // Os caminhos vem antes do log porque e neles que o arquivo de log mora.
     // `ensure` e idempotente; `AppState::load` chama de novo logo abaixo.
     let paths = morune_storage::AppPaths::discover();
@@ -64,6 +75,13 @@ fn main() -> anyhow::Result<()> {
             .window()
             .set_size(slint::LogicalSize::new(width, height));
     }
+    #[cfg(feature = "snapshot")]
+    if std::env::var_os("MORUNE_SNAPSHOT_MINI_PLAYER").is_some() {
+        window.set_mini_player(true);
+        window
+            .window()
+            .set_size(slint::LogicalSize::new(620.0, 150.0));
+    }
     state.push_to_ui(&window);
 
     // A bandeja precisa existir antes de interceptar o fechamento: sem ela nao
@@ -79,8 +97,11 @@ fn main() -> anyhow::Result<()> {
 
     let state = Rc::new(std::cell::RefCell::new(state));
     wire_callbacks(&window, &state);
+    wire_window_chrome(&window);
+    wire_mini_player(&window);
     let _tray_poll = wire_tray(&window, &state, tray.clone());
     let _backend_poll = wire_backend(&window, &state);
+    let _window_state_poll = wire_window_state(&window, &state);
     wire_close_behavior(&window, &state, tray.is_some());
 
     // Medida real do caminho critico, comparavel entre execucoes. Aparece no
@@ -146,10 +167,98 @@ fn main() -> anyhow::Result<()> {
     // continua vivo, tocando. Quem termina o laco e `quit_event_loop`, chamado
     // pelo item "Sair" da bandeja ou quando a bandeja nao existe.
     window.show()?;
+    #[cfg(windows)]
+    let _taskbar_poll = wire_taskbar(&window, &state);
+    if started_with_windows && tray.is_some() {
+        window.hide()?;
+        tracing::info!("inicializacao do Windows concluida na bandeja");
+    }
     slint::run_event_loop_until_quit()?;
 
     state.borrow().save_config();
     Ok(())
+}
+
+/// Move a janela sem recorrer a APIs inseguras da plataforma.
+///
+/// A interface envia deltas em pixels logicos; `Window::position` trabalha em
+/// pixels fisicos. Multiplicar pelo fator de escala evita que o ponteiro se
+/// afaste da title bar em 125%, 150% ou 200% de DPI.
+fn wire_window_chrome(window: &ui::AppWindow) {
+    let weak = window.as_weak();
+    window.on_move_window(move |delta_x, delta_y| {
+        if !delta_x.is_finite() || !delta_y.is_finite() {
+            return;
+        }
+
+        let Some(window) = weak.upgrade() else {
+            return;
+        };
+        let native = window.window();
+        let position = native.position();
+        let scale = native.scale_factor();
+        native.set_position(slint::PhysicalPosition::new(
+            position.x + (delta_x * scale).round() as i32,
+            position.y + (delta_y * scale).round() as i32,
+        ));
+    });
+}
+
+/// Observa tamanho/maximizacao com baixa frequencia. Isso tambem cobre resize
+/// pelo teclado, snap layouts e restauracao do Windows, nao apenas arraste.
+fn wire_window_state(
+    window: &ui::AppWindow,
+    state: &Rc<std::cell::RefCell<AppState>>,
+) -> slint::Timer {
+    let weak = window.as_weak();
+    let state = state.clone();
+    let timer = slint::Timer::default();
+    timer.start(
+        slint::TimerMode::Repeated,
+        std::time::Duration::from_millis(500),
+        move || {
+            let Some(window) = weak.upgrade() else { return };
+            if window.get_mini_player() {
+                return;
+            }
+            let native = window.window();
+            let size = native.size();
+            let scale = native.scale_factor().max(0.1);
+            state.borrow_mut().remember_window_state(
+                size.width as f32 / scale,
+                size.height as f32 / scale,
+                native.is_maximized(),
+            );
+        },
+    );
+    timer
+}
+
+fn wire_mini_player(window: &ui::AppWindow) {
+    let weak = window.as_weak();
+    let previous = Rc::new(std::cell::Cell::new(None::<(f32, f32, bool)>));
+    window.on_toggle_mini_player(move || {
+        let Some(window) = weak.upgrade() else { return };
+        let native = window.window();
+        if !window.get_mini_player() {
+            let size = native.size();
+            let scale = native.scale_factor().max(0.1);
+            previous.set(Some((
+                size.width as f32 / scale,
+                size.height as f32 / scale,
+                native.is_maximized(),
+            )));
+            native.set_maximized(false);
+            window.set_mini_player(true);
+            native.set_size(slint::LogicalSize::new(620.0, 150.0));
+        } else {
+            window.set_mini_player(false);
+            if let Some((width, height, maximized)) = previous.get() {
+                native.set_size(slint::LogicalSize::new(width, height));
+                native.set_maximized(maximized);
+            }
+        }
+    });
 }
 
 /// Faz o fechamento da janela esconder em vez de encerrar, quando o usuario
@@ -160,12 +269,26 @@ fn wire_close_behavior(
     has_tray: bool,
 ) {
     let state = state.clone();
+    let weak = window.as_weak();
     window.window().on_close_requested(move || {
         let keep_running = has_tray && state.borrow().close_to_tray();
+        let show_hint = keep_running && state.borrow_mut().take_tray_hint();
+        state.borrow().save_config();
         if keep_running {
             tracing::info!("janela escondida na bandeja; reproducao continua");
+            if show_hint {
+                if let Some(window) = weak.upgrade() {
+                    let _ = window.hide();
+                }
+                let _ = rfd::MessageDialog::new()
+                    .set_title("Morune continua tocando")
+                    .set_description(
+                        "A janela foi escondida na bandeja do Windows. Use o icone do Morune para abrir novamente ou sair.",
+                    )
+                    .set_buttons(rfd::MessageButtons::Ok)
+                    .show();
+            }
         } else {
-            state.borrow().save_config();
             let _ = slint::quit_event_loop();
         }
         // Nos dois casos a janela some. A diferenca esta em o laco de eventos
@@ -254,6 +377,50 @@ fn wire_tray(
     });
 
     Some(timer)
+}
+
+/// Mantem os controles de reproducao no preview da barra de tarefas em sincronia.
+///
+/// A integracao nasce depois de `show()`: antes disso o backend do Slint pode
+/// ainda nao ter criado o HWND que o Windows exige para registrar os botoes.
+#[cfg(windows)]
+fn wire_taskbar(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState>>) -> slint::Timer {
+    let weak = window.as_weak();
+    let state = state.clone();
+    let mut controls: Option<taskbar::TaskbarControls> = None;
+    let mut creation_failed = false;
+
+    let timer = slint::Timer::default();
+    timer.start(slint::TimerMode::Repeated, tray::POLL_INTERVAL, move || {
+        let Some(window) = weak.upgrade() else { return };
+
+        if controls.is_none() && !creation_failed {
+            match taskbar::TaskbarControls::new(window.window()) {
+                Ok(created) => controls = Some(created),
+                Err(error) => {
+                    creation_failed = true;
+                    tracing::warn!(%error, "controles da barra de tarefas indisponiveis");
+                }
+            }
+        }
+
+        let Some(controls) = controls.as_mut() else {
+            return;
+        };
+        for command in controls.poll() {
+            match command {
+                taskbar::TaskbarCommand::TogglePlay => state.borrow_mut().toggle_play(),
+                taskbar::TaskbarCommand::Next => state.borrow_mut().next_track(),
+                taskbar::TaskbarCommand::Previous => state.borrow_mut().previous_track(),
+            }
+            state.borrow().push_to_ui(&window);
+        }
+
+        let (now_playing, playing) = state.borrow().tray_status();
+        controls.update(now_playing.is_some(), playing);
+    });
+
+    timer
 }
 
 /// Tamanho a partir do qual o log da vez vira `morune.log.old`.
@@ -396,6 +563,23 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
         s.push_to_ui(&w);
     });
 
+    on!(on_undo_last, |w, s| {
+        s.undo_last();
+        s.apply_theme_to(&w);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_retry_last, |w, s| {
+        s.retry_last();
+        s.push_to_ui(&w);
+    });
+
+    on!(on_dismiss_undo, |w, s| {
+        s.dismiss_recovery();
+        s.clear_status();
+        s.push_to_ui(&w);
+    });
+
     // Filtrar nao vai a rede: a lista inteira ja esta em memoria, e responder
     // a cada tecla e o que faz o filtro parecer instantaneo.
     on!(on_filter_playlists, |w, s, texto: slint::SharedString| {
@@ -519,6 +703,11 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
 
     on!(on_set_close_to_tray, |w, s, on: bool| {
         s.set_close_to_tray(on);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_set_start_with_windows, |w, s, on: bool| {
+        s.set_start_with_windows(on);
         s.push_to_ui(&w);
     });
 

@@ -95,19 +95,6 @@ VIAddVersionKey "OriginalFilename" "Morune-${VERSION}-setup.exe"
 
 ; ---------------------------------------------------------------------------
 
-Function .onInit
-    ; Instalar por cima de uma versao em execucao deixaria um executavel
-    ; travado e uma instalacao pela metade.
-    Call CloseRunningApp
-
-    ; Se ja existe instalacao, o padrao e atualizar no mesmo lugar em vez de
-    ; espalhar copias por varios discos.
-    ReadRegStr $0 HKCU "${REG_APP}" "InstallDir"
-    ${If} $0 != ""
-        StrCpy $INSTDIR $0
-    ${EndIf}
-FunctionEnd
-
 ; Fecha o Morune se ele estiver rodando, inclusive escondido na bandeja.
 ;
 ; Deteccao sem plugin e sem busca em string: no formato CSV, `tasklist` responde
@@ -149,6 +136,10 @@ Section "!${APP_NAME} (obrigatorio)" SecCore
     WriteRegStr HKCU "${REG_APP}" "InstallDir" "$INSTDIR"
     WriteRegStr HKCU "${REG_APP}" "Version" "${VERSION}"
 
+    ; A secao opcional abaixo recria a entrada quando marcada. Remover aqui
+    ; permite que desmarcar durante uma atualizacao realmente desligue a opcao.
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_NAME}"
+
     WriteUninstaller "$INSTDIR\Uninstall.exe"
 
     ; Entrada em Aplicativos e Recursos.
@@ -180,8 +171,30 @@ SectionEnd
 Section /o "Abrir com o Windows" SecStartup
     ; Desmarcado por padrao: decidir sozinho que um player inicia junto com o
     ; sistema e o tipo de coisa que faz o usuario desinstalar.
-    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_NAME}" '"$INSTDIR\${APP_EXE}"'
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_NAME}" '"$INSTDIR\${APP_EXE}" --startup'
 SectionEnd
+
+Function .onInit
+    ; Instalar por cima de uma versao em execucao deixaria um executavel
+    ; travado e uma instalacao pela metade.
+    Call CloseRunningApp
+
+    ; Se ja existe instalacao, o padrao e atualizar no mesmo lugar em vez de
+    ; espalhar copias por varios discos.
+    ReadRegStr $0 HKCU "${REG_APP}" "InstallDir"
+    ${If} $0 != ""
+        StrCpy $INSTDIR $0
+    ${EndIf}
+
+    ; Reinstalar/atualizar reflete a escolha atual em vez de mostrar a caixa
+    ; desmarcada quando o usuario ja habilitou pelo app ou por outro instalador.
+    ReadRegStr $1 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_NAME}"
+    ${If} $1 != ""
+        SectionGetFlags ${SecStartup} $2
+        IntOp $2 $2 | ${SF_SELECTED}
+        SectionSetFlags ${SecStartup} $2
+    ${EndIf}
+FunctionEnd
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
     !insertmacro MUI_DESCRIPTION_TEXT ${SecCore}      "O aplicativo. Cerca de 10 MB, sem dependencias externas."

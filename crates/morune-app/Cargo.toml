@@ -37,6 +37,7 @@ slint = { version = "1.17", default-features = false, features = [
     "renderer-femtovg",
     "renderer-software",
     "accessibility",
+    "raw-window-handle-06",
     "std",
 ] }
 
@@ -53,6 +54,19 @@ png = { version = "0.18", optional = true }
 # Icone de bandeja: fechar a janela nao pode encerrar a reproducao, e a bandeja
 # e o unico jeito visivel de voltar ou de sair de verdade.
 tray-icon = "0.21"
+
+[target.'cfg(windows)'.dependencies]
+# Integra os controles anterior/tocar-proxima ao preview nativo da barra de
+# tarefas, sem carregar outro toolkit de interface no executavel.
+raw-window-handle = "0.6"
+windows = { version = "0.61.3", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Registry",
+    "Win32_System_Threading",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
 
 [build-dependencies]
 slint-build = "1.17"

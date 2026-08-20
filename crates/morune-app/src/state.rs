@@ -4,20 +4,20 @@
 //! sem nenhuma decisao de produto: cada callback do Slint chama um metodo deste
 //! tipo e depois pede um `push_to_ui`.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use morune_core::playback::{NullEngine, PlaybackEngine, PlayerCommand, PlayerEvent};
 use morune_core::queue::{Queue, QueueOrigin, RepeatMode};
-use morune_core::Track;
-use morune_storage::{AppPaths, Config, Favorites};
+use morune_core::{Track, TrackId};
+use morune_storage::{AppPaths, Config};
 use morune_theme::{loader, ThemeSpec};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use tokio::sync::broadcast;
 
-use crate::browse::{AutoplayOutcome, Card, Home, Outcome, Target};
+use crate::browse::{AutoplayOutcome, Card, Home, LibraryOutcome, Outcome, Target};
 use crate::session::Session;
 use crate::theme_bridge::{self, UserOverrides};
 use crate::ui;
@@ -73,6 +73,16 @@ impl SortBy {
     }
 }
 
+/// Ultima acao destrutiva que ainda pode ser revertida pelo aviso na tela.
+enum UndoAction {
+    QueueClear(Vec<Track>),
+    ThemeImport {
+        previous_id: String,
+        installed_id: String,
+        backup: Option<PathBuf>,
+    },
+}
+
 pub struct AppState {
     paths: AppPaths,
     config: Config,
@@ -80,6 +90,9 @@ pub struct AppState {
     overrides: UserOverrides,
     page: Page,
     status: String,
+    undo: Option<UndoAction>,
+    retry_available: bool,
+    start_with_windows: bool,
     queue: Queue,
     engine: Arc<dyn PlaybackEngine>,
     session: Session,
@@ -100,9 +113,10 @@ pub struct AppState {
     home_retrospectives: Vec<Card>,
     home_playlists: Vec<Card>,
     library: Vec<Card>,
-    /// Biblioteca local do Morune. Continua existindo entre contas e nao
-    /// depende de permissao de escrita em nenhum provedor.
-    favorites: Favorites,
+    /// Estado completo das "Musicas curtidas" do Spotify.
+    liked_ids: HashSet<TrackId>,
+    /// Cliques aguardando confirmacao remota; impede alternancias duplicadas.
+    liked_pending: HashSet<TrackId>,
     /// Texto do filtro da barra lateral.
     ///
     /// Filtrar acontece aqui e nao no backend: as 86 playlists da conta ja
@@ -189,7 +203,7 @@ impl AppState {
         // A pasta do cache de capas e lida antes de `paths` ser movido para o
         // estado.
         let covers_dir = paths.artwork_cache_dir();
-        let favorites = Favorites::load(&paths.favorites_file());
+        let start_with_windows = crate::startup::is_enabled();
 
         Self {
             volume: config.playback.volume,
@@ -199,6 +213,9 @@ impl AppState {
             overrides,
             page: Page::Home,
             status: String::new(),
+            undo: None,
+            retry_available: false,
+            start_with_windows,
             queue,
             // Sem backend real ate haver login: o motor nulo aceita
             // preferencias e recusa reproducao, sem que a interface precise
@@ -216,7 +233,8 @@ impl AppState {
             home_retrospectives: Vec::new(),
             home_playlists: Vec::new(),
             library: Vec::new(),
-            favorites,
+            liked_ids: HashSet::new(),
+            liked_pending: HashSet::new(),
             playlist_filter: String::new(),
             detail: None,
             detail_filter: String::new(),
@@ -292,6 +310,11 @@ impl AppState {
             changed = true;
         }
 
+        while let Some(outcome) = self.session.browse_mut().and_then(|b| b.poll_library()) {
+            self.apply_library(outcome);
+            changed = true;
+        }
+
         while let Some(event) = self.next_player_event() {
             changed |= self.apply_player_event(event);
         }
@@ -314,6 +337,7 @@ impl AppState {
 
     /// Aplica o que a busca ou a biblioteca trouxeram.
     fn apply_browse(&mut self, outcome: Outcome) {
+        self.retry_available = matches!(&outcome, Outcome::Failed(_));
         match outcome {
             Outcome::Search {
                 query,
@@ -344,8 +368,10 @@ impl AppState {
                     stations,
                     retrospectives,
                     liked,
+                    liked_ids,
                     playlists,
                 } = *home;
+                self.liked_ids = liked_ids.into_iter().collect();
                 self.home_made_for_you = made_for_you;
 
                 self.liked = TrackList {
@@ -438,20 +464,60 @@ impl AppState {
         }
     }
 
+    fn apply_library(&mut self, outcome: LibraryOutcome) {
+        self.liked_pending.remove(&outcome.id);
+        let track = self.find_track(&outcome.id);
+        match outcome.result {
+            Ok(()) if outcome.saved => {
+                self.liked_ids.insert(outcome.id.clone());
+                if let Some(track) = track {
+                    self.liked.tracks.retain(|item| item.id != outcome.id);
+                    self.liked.tracks.insert(0, track.clone());
+                    self.liked.tracks.truncate(6);
+                    self.status = format!("{} foi adicionada as Musicas curtidas.", track.name);
+                } else {
+                    self.status = "Faixa adicionada as Musicas curtidas do Spotify.".into();
+                }
+            }
+            Ok(()) => {
+                self.liked_ids.remove(&outcome.id);
+                self.liked.tracks.retain(|item| item.id != outcome.id);
+                if let Some(detail) = &mut self.detail {
+                    if detail.title == crate::browse::LIKED_TITLE {
+                        detail.tracks.retain(|item| item.id != outcome.id);
+                        detail.total_tracks = detail.total_tracks.map(|total| total.saturating_sub(1));
+                    }
+                }
+                self.status = track
+                    .map(|track| format!("{} foi removida das Musicas curtidas.", track.name))
+                    .unwrap_or_else(|| {
+                        "Faixa removida das Musicas curtidas do Spotify.".into()
+                    });
+            }
+            Err(message) => {
+                self.status = format!("Nao consegui atualizar o Spotify. {message}");
+            }
+        }
+    }
+
     /// Guarda o texto digitado no filtro da barra lateral.
     pub fn set_playlist_filter(&mut self, texto: &str) {
         self.playlist_filter = texto.trim().to_lowercase();
     }
 
-    /// Playlists da barra lateral, ja filtradas.
+    /// Playlists da barra lateral, com as abertas recentemente primeiro.
     ///
-    /// A ordem e a que o Spotify mandou, e isso e deliberado: o `rootlist` e a
-    /// barra lateral do cliente oficial, entao aquela e a ordem que o usuario
-    /// arrumou. Reordenar seria descartar informacao real -- e nao ha por que
-    /// reordenar, porque nenhuma playlist traz data.
+    /// Playlists ainda sem historico preservam a ordem do provedor. Assim a
+    /// personalizacao anterior nao e perdida e a lista so muda depois de uma
+    /// acao explicita do usuario.
     fn sidebar_playlists(&self) -> Vec<&Card> {
+        let playlists = playlists_by_recent(
+            &self.home_playlists,
+            &self.config.navigation.recent_playlists,
+        );
+
         std::iter::once(&self.liked_card)
-            .chain(self.home_playlists.iter())
+            .chain(playlists)
             .filter(|c| {
                 self.playlist_filter.is_empty()
                     || c.title.to_lowercase().contains(&self.playlist_filter)
@@ -721,7 +787,6 @@ impl AppState {
             .tracks
             .iter()
             .chain(self.liked.tracks.iter())
-            .chain(self.favorites.tracks().iter())
             .chain(self.detail.iter().flat_map(|detail| detail.tracks.iter()))
             .chain(self.queue.tracks().iter())
             .filter_map(track_cover_url)
@@ -777,18 +842,7 @@ impl AppState {
             let index = list.tracks.iter().position(|t| t.id == *id)?;
             Some((list.origin.clone(), list.tracks.clone(), index))
         });
-        provider_list.or_else(|| {
-            let index = self
-                .favorites
-                .tracks()
-                .iter()
-                .position(|track| track.id == *id)?;
-            Some((
-                QueueOrigin::Custom("Favoritos no Morune".into()),
-                self.favorites.tracks().to_vec(),
-                index,
-            ))
-        })
+        provider_list
     }
 
     /// Carrega a faixa selecionada na fila e comeca a tocar.
@@ -897,6 +951,18 @@ impl AppState {
         window
             .window()
             .set_size(slint::LogicalSize::new(width, height));
+        window.window().set_maximized(self.config.window.maximized);
+    }
+
+    /// Mantem em memoria o ultimo estado escolhido pelo usuario. A gravacao
+    /// fica para ocultar/fechar, evitando escrever no disco a cada pixel de um
+    /// redimensionamento continuo.
+    pub fn remember_window_state(&mut self, width: f32, height: f32, maximized: bool) {
+        self.config.window.maximized = maximized;
+        if !maximized && width.is_finite() && height.is_finite() && width >= 480.0 && height >= 320.0 {
+            self.config.window.width = width;
+            self.config.window.height = height;
+        }
     }
 
     pub fn select_theme(&mut self, id: &str) {
@@ -968,16 +1034,100 @@ impl AppState {
             return;
         };
 
-        match morune_theme::import_pack(&file, &self.paths.themes_dir(), true) {
+        // Primeiro abre o pacote numa pasta temporaria. Assim o usuario ve o
+        // que vai instalar antes de qualquer tema existente ser substituido.
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let preview_dir = std::env::temp_dir().join(format!(
+            "morune-theme-preview-{}-{nonce}",
+            std::process::id()
+        ));
+        let preview = morune_theme::import_pack(&file, &preview_dir, false);
+        let _ = std::fs::remove_dir_all(&preview_dir);
+        let preview = match preview {
+            Ok(preview) => preview,
+            Err(e) => {
+                tracing::warn!(error = %e, "importacao de tema recusada");
+                self.status = format!("Pacote recusado: {e}");
+                return;
+            }
+        };
+
+        let destination = self.paths.theme_dir(&preview.manifest.id);
+        let replacement = if destination.exists() {
+            "\n\nJa existe um tema com este ID. Ele sera substituido, mas voce podera desfazer."
+        } else {
+            ""
+        };
+        let description = format!(
+            "{}\nPor: {}\nVersao: {}\n\n{}{}",
+            preview.manifest.name,
+            if preview.manifest.author.is_empty() {
+                "Autor nao informado"
+            } else {
+                preview.manifest.author.as_str()
+            },
+            if preview.manifest.version.is_empty() {
+                "Nao informada"
+            } else {
+                preview.manifest.version.as_str()
+            },
+            if preview.manifest.description.is_empty() {
+                "Sem descricao."
+            } else {
+                preview.manifest.description.as_str()
+            },
+            replacement
+        );
+        let confirmed = rfd::MessageDialog::new()
+            .set_title("Importar este tema?")
+            .set_description(description)
+            .set_buttons(rfd::MessageButtons::YesNo)
+            .show();
+        if confirmed != rfd::MessageDialogResult::Yes {
+            self.status = "Importacao cancelada; nada foi alterado.".into();
+            return;
+        }
+
+        self.discard_undo();
+        let previous_id = self.config.appearance.theme.clone();
+        let backup = if destination.exists() {
+            let path = self
+                .paths
+                .themes_dir()
+                .join(format!(".{}.undo-import", preview.manifest.id));
+            let _ = std::fs::remove_dir_all(&path);
+            match std::fs::rename(&destination, &path) {
+                Ok(()) => Some(path),
+                Err(e) => {
+                    self.status = format!("Nao foi possivel preparar a substituicao: {e}");
+                    return;
+                }
+            }
+        } else {
+            None
+        };
+
+        match morune_theme::import_pack(&file, &self.paths.themes_dir(), false) {
             Ok(imported) => {
-                self.status = format!(
-                    "Tema {} importado ({} arquivos).",
-                    imported.manifest.name, imported.files_written
-                );
                 let id = imported.manifest.id.clone();
                 self.select_theme(&id);
+                self.status = format!(
+                    "Tema {} importado e aplicado ({} arquivos).",
+                    imported.manifest.name, imported.files_written
+                );
+                self.undo = Some(UndoAction::ThemeImport {
+                    previous_id,
+                    installed_id: id,
+                    backup,
+                });
             }
             Err(e) => {
+                if let Some(backup) = backup {
+                    let _ = std::fs::rename(backup, destination);
+                }
                 tracing::warn!(error = %e, "importacao de tema recusada");
                 self.status = format!("Pacote recusado: {e}");
             }
@@ -1035,6 +1185,15 @@ impl AppState {
         self.config.window.close_to_tray
     }
 
+    pub fn take_tray_hint(&mut self) -> bool {
+        if self.config.window.close_to_tray && !self.config.window.tray_hint_shown {
+            self.config.window.tray_hint_shown = true;
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn set_close_to_tray(&mut self, on: bool) {
         self.config.window.close_to_tray = on;
         self.status = if on {
@@ -1043,6 +1202,23 @@ impl AppState {
             "Fechar a janela vai encerrar o Morune.".into()
         };
         self.save_config();
+    }
+
+    pub fn set_start_with_windows(&mut self, on: bool) {
+        match crate::startup::set_enabled(on) {
+            Ok(()) => {
+                self.start_with_windows = on;
+                self.status = if on {
+                    "O Morune vai iniciar em segundo plano com o Windows.".into()
+                } else {
+                    "O Morune nao vai mais iniciar com o Windows.".into()
+                };
+            }
+            Err(error) => {
+                self.start_with_windows = crate::startup::is_enabled();
+                self.status = format!("Nao foi possivel alterar a inicializacao: {error}");
+            }
+        }
     }
 
     pub fn set_autoplay(&mut self, on: bool) {
@@ -1095,9 +1271,15 @@ impl AppState {
     }
 
     pub fn search(&mut self, query: &str) {
-        if query.trim().is_empty() {
+        let query = query.trim();
+        if query.is_empty() {
+            self.search_query.clear();
+            self.searching = false;
+            self.search = TrackList::default();
+            self.search_cards.clear();
             return;
         }
+        self.search_query = query.to_string();
         // A busca depende do catalogo, que so responde depois do login. Sem
         // sessao, dizer isso e melhor que uma lista vazia sem explicacao.
         if !self.session.state().is_logged_in() {
@@ -1109,7 +1291,6 @@ impl AppState {
             self.status = "Backend do Spotify indisponivel nesta maquina.".into();
             return;
         };
-        self.search_query = query.trim().to_string();
         self.searching = true;
         self.search = TrackList::default();
         self.search_cards.clear();
@@ -1121,35 +1302,102 @@ impl AppState {
         self.status.clear();
     }
 
-    /// Guarda ou remove uma faixa da biblioteca local.
-    ///
-    /// A interface envia o mesmo id canonico usado para tocar. O retrato
-    /// completo e salvo para que nome, artista e capa continuem visiveis sem
-    /// depender de rede na proxima abertura.
-    pub fn toggle_favorite(&mut self, tag: &str) {
-        let Some(Target::Track(id)) = Target::parse(tag) else {
-            self.status = "Nao reconheci a faixa que voce quer favoritar.".into();
-            return;
-        };
-        let Some(track) = self.find_track(&id) else {
-            self.status = "Essa faixa nao esta mais disponivel nesta tela.".into();
+    pub fn undo_available(&self) -> bool {
+        self.undo.is_some()
+    }
+
+    pub fn retry_last(&mut self) {
+        self.retry_available = false;
+        match self.page {
+            Page::Search if !self.search_query.is_empty() => {
+                let query = self.search_query.clone();
+                self.search(&query);
+            }
+            Page::Home | Page::Library => self.request_page_data(),
+            _ => {
+                self.status = "Volte a abrir o item para tentar novamente.".into();
+            }
+        }
+    }
+
+    pub fn dismiss_recovery(&mut self) {
+        self.discard_undo();
+        self.retry_available = false;
+    }
+
+    /// Descarta a oportunidade de desfazer e limpa apenas o backup privado que
+    /// o Morune criou para uma substituicao de tema ja confirmada.
+    pub fn discard_undo(&mut self) {
+        if let Some(UndoAction::ThemeImport {
+            backup: Some(backup),
+            ..
+        }) = self.undo.take()
+        {
+            let _ = std::fs::remove_dir_all(backup);
+        }
+    }
+
+    pub fn undo_last(&mut self) {
+        let Some(action) = self.undo.take() else {
+            self.status = "Nao ha nenhuma acao recente para desfazer.".into();
             return;
         };
 
-        let previous = self.favorites.clone();
-        let saved = self.favorites.toggle(track.clone());
-        if let Err(error) = self.favorites.save(&self.paths.favorites_file()) {
-            self.favorites = previous;
-            self.status = format!("Nao consegui atualizar seus favoritos: {error}");
+        match action {
+            UndoAction::QueueClear(tracks) => {
+                let count = tracks.len();
+                for track in tracks {
+                    self.queue.enqueue(track);
+                }
+                self.status = format!("Fila restaurada: {count} faixas voltaram.");
+            }
+            UndoAction::ThemeImport {
+                previous_id,
+                installed_id,
+                backup,
+            } => {
+                let installed = self.paths.theme_dir(&installed_id);
+                if installed.exists() {
+                    let _ = std::fs::remove_dir_all(&installed);
+                }
+                if let Some(backup) = backup {
+                    if let Err(e) = std::fs::rename(backup, &installed) {
+                        self.status = format!("Nao foi possivel restaurar o tema anterior: {e}");
+                        return;
+                    }
+                }
+                self.select_theme(&previous_id);
+                self.status = "Importacao desfeita; o tema anterior foi restaurado.".into();
+            }
+        }
+    }
+
+    /// Adiciona ou remove uma faixa das "Musicas curtidas" do Spotify.
+    pub fn toggle_favorite(&mut self, tag: &str) {
+        let Some(Target::Track(id)) = Target::parse(tag) else {
+            self.status = "Nao reconheci a faixa que voce quer curtir.".into();
+            return;
+        };
+        if !self.session.state().is_logged_in() {
+            self.status = "Entre no Spotify para curtir esta faixa.".into();
+            return;
+        }
+        if !self.liked_pending.insert(id.clone()) {
             return;
         }
 
-        self.status = if saved {
-            format!("{} foi adicionada aos favoritos do Morune.", track.name)
-        } else {
-            format!("{} foi removida dos favoritos do Morune.", track.name)
+        let saved = !self.liked_ids.contains(&id);
+        let Some(browse) = self.session.browse_mut() else {
+            self.liked_pending.remove(&id);
+            self.status = "Spotify indisponivel nesta sessao.".into();
+            return;
         };
-        self.resolve_track_covers();
+        browse.set_track_saved(id, saved);
+        self.status = if saved {
+            "Adicionando as Musicas curtidas do Spotify...".into()
+        } else {
+            "Removendo das Musicas curtidas do Spotify...".into()
+        };
     }
 
     fn find_track(&self, id: &morune_core::TrackId) -> Option<Track> {
@@ -1158,7 +1406,6 @@ impl AppState {
             .iter()
             .chain(self.search.tracks.iter())
             .chain(self.liked.tracks.iter())
-            .chain(self.favorites.tracks().iter())
             .chain(self.detail.iter().flat_map(|detail| detail.tracks.iter()))
             .find(|track| track.id == *id)
             .cloned()
@@ -1232,11 +1479,14 @@ impl AppState {
     }
 
     pub fn queue_clear(&mut self) {
-        let count = self.queue.user_queue_len();
+        let removed: Vec<_> = self.queue.user_queue().cloned().collect();
+        let count = removed.len();
         self.queue.clear_user_queue();
         self.status = if count == 0 {
             "A fila manual ja estava vazia.".into()
         } else {
+            self.discard_undo();
+            self.undo = Some(UndoAction::QueueClear(removed));
             format!("Fila manual limpa: {count} faixas removidas.")
         };
     }
@@ -1267,6 +1517,7 @@ impl AppState {
             return;
         };
         self.autoplay_seed = None;
+        let opened_playlist = matches!(&target, Target::Playlist(_)).then(|| target.tag());
 
         if let Target::Track(id) = &target {
             // Na fila: e so pular para ela, mantendo o contexto que ja estava
@@ -1291,6 +1542,11 @@ impl AppState {
             return;
         };
         browse.open(target);
+        if let Some(tag) = opened_playlist {
+            if remember_recent_playlist(&mut self.config.navigation.recent_playlists, tag) {
+                self.save_config();
+            }
+        }
         self.status = "Carregando...".into();
     }
 
@@ -1370,6 +1626,8 @@ impl AppState {
         // mostraria a playlist de alguem que nao esta mais conectado.
         self.search = TrackList::default();
         self.liked = TrackList::default();
+        self.liked_ids.clear();
+        self.liked_pending.clear();
         self.home_made_for_you.clear();
         self.home_stations.clear();
         self.home_retrospectives.clear();
@@ -1397,10 +1655,13 @@ impl AppState {
     pub fn push_to_ui(&self, window: &ui::AppWindow) {
         window.set_page(self.page as i32);
         window.set_status_message(SharedString::from(self.status.as_str()));
+        window.set_undo_available(self.undo_available());
+        window.set_retry_available(self.retry_available);
         window.set_logged_in(self.session.state().is_logged_in());
         window.set_account_name(SharedString::from(self.session.state().account_name()));
         window.set_dev_mode(self.config.developer.enabled);
         window.set_close_to_tray(self.config.window.close_to_tray);
+        window.set_start_with_windows(self.start_with_windows);
         window.set_autoplay(self.config.playback.autoplay);
         window.set_search_query(self.search_query.as_str().into());
         window.set_searching(self.searching);
@@ -1420,7 +1681,7 @@ impl AppState {
                 self.detail_tracks(),
                 current,
                 &self.track_covers,
-                &self.favorites,
+                &self.liked_ids,
             ));
             window.set_detail_sort(self.detail_sort as i32);
             window.set_detail_descending(self.detail_desc);
@@ -1454,19 +1715,19 @@ impl AppState {
                 .unwrap_or_default()
                 .into(),
         );
-        window.set_now_favorite(current.is_some_and(|track| self.favorites.contains(track)));
+        window.set_now_favorite(current.is_some_and(|track| self.liked_ids.contains(&track.id)));
 
         window.set_queue_manual_tracks(track_rows(
             self.queue.user_queue().take(200).collect(),
             current,
             &self.track_covers,
-            &self.favorites,
+            &self.liked_ids,
         ));
         window.set_queue_context_tracks(track_rows(
             self.queue.upcoming_context(200),
             current,
             &self.track_covers,
-            &self.favorites,
+            &self.liked_ids,
         ));
         window.set_themes(self.theme_items());
         window.set_diagnostics(self.diagnostics());
@@ -1475,23 +1736,17 @@ impl AppState {
             self.liked.tracks.iter().collect(),
             current,
             &self.track_covers,
-            &self.favorites,
+            &self.liked_ids,
         ));
         window.set_home_stations(card_items(&self.home_stations));
         window.set_home_retrospectives(card_items(&self.home_retrospectives));
         window.set_library_items(card_items(&self.library));
-        window.set_library_favorites(track_rows(
-            self.favorites.tracks().iter().collect(),
-            current,
-            &self.track_covers,
-            &self.favorites,
-        ));
         window.set_search_items(card_items(&self.search_cards));
         window.set_search_tracks(track_rows(
             self.search.tracks.iter().collect(),
             current,
             &self.track_covers,
-            &self.favorites,
+            &self.liked_ids,
         ));
     }
 
@@ -1534,7 +1789,7 @@ fn track_rows(
     tracks: Vec<&Track>,
     current: Option<&Track>,
     covers: &HashMap<String, std::path::PathBuf>,
-    favorites: &Favorites,
+    liked_ids: &HashSet<TrackId>,
 ) -> ModelRc<ui::TrackRow> {
     let rows: Vec<ui::TrackRow> = tracks
         .into_iter()
@@ -1557,7 +1812,7 @@ fn track_rows(
             duration: format_time(t.duration).into(),
             playable: t.playable,
             playing: current.is_some_and(|c| c.id == t.id),
-            favorite: favorites.contains(t),
+            favorite: liked_ids.contains(&t.id),
         })
         .collect();
     ModelRc::new(VecModel::from(rows))
@@ -1666,6 +1921,36 @@ fn format_time(d: Duration) -> String {
     }
 }
 
+/// Move uma playlist para o inicio do historico quando ela foi aberta.
+/// Devolve `true` apenas quando ha algo novo para persistir.
+fn remember_recent_playlist(recent: &mut Vec<String>, tag: String) -> bool {
+    if recent.first() == Some(&tag) {
+        return false;
+    }
+    recent.retain(|saved| saved != &tag);
+    recent.insert(0, tag);
+    recent.truncate(100);
+    true
+}
+
+/// Ordena apenas o que tem historico. O sort estavel conserva a sequencia do
+/// provedor para todas as playlists que ainda nao foram abertas no Morune.
+fn playlists_by_recent<'a>(playlists: &'a [Card], recent: &[String]) -> Vec<&'a Card> {
+    let positions: HashMap<&str, usize> = recent
+        .iter()
+        .enumerate()
+        .map(|(position, tag)| (tag.as_str(), position))
+        .collect();
+    let mut ordered: Vec<&Card> = playlists.iter().collect();
+    ordered.sort_by_key(|card| {
+        positions
+            .get(card.tag.as_str())
+            .copied()
+            .unwrap_or(usize::MAX)
+    });
+    ordered
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1688,5 +1973,40 @@ mod tests {
         // Valor desconhecido nunca deixa a interface sem pagina.
         assert_eq!(Page::from_i32(99), Page::Home);
         assert_eq!(Page::from_i32(-1), Page::Home);
+    }
+
+    #[test]
+    fn recent_playlist_moves_to_front_without_duplicates() {
+        let mut recent = vec!["playlist/spotify:a".into(), "playlist/spotify:b".into()];
+
+        assert!(remember_recent_playlist(
+            &mut recent,
+            "playlist/spotify:b".into()
+        ));
+        assert_eq!(recent, ["playlist/spotify:b", "playlist/spotify:a"]);
+        assert!(!remember_recent_playlist(
+            &mut recent,
+            "playlist/spotify:b".into()
+        ));
+    }
+
+    #[test]
+    fn sidebar_puts_recent_first_and_preserves_the_rest() {
+        let card = |id: &str| Card {
+            tag: format!("playlist/spotify:{id}"),
+            title: id.into(),
+            subtitle: String::new(),
+            cover: String::new(),
+            cover_path: None,
+        };
+        let playlists = vec![card("a"), card("b"), card("c"), card("d")];
+        let recent = vec!["playlist/spotify:c".into(), "playlist/spotify:a".into()];
+
+        let ordered: Vec<&str> = playlists_by_recent(&playlists, &recent)
+            .into_iter()
+            .map(|item| item.title.as_str())
+            .collect();
+
+        assert_eq!(ordered, ["c", "a", "b", "d"]);
     }
 }

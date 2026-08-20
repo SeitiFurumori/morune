@@ -334,6 +334,26 @@ impl Library for SpotifyCatalog {
         })
     }
 
+    fn saved_track_ids<'a>(&'a self) -> BoxFuture<'a, CoreResult<Vec<TrackId>>> {
+        Box::pin(async move {
+            Ok(self
+                .internal
+                .collection(Conjunto::Faixas)
+                .await?
+                .into_iter()
+                .map(TrackId::spotify)
+                .collect())
+        })
+    }
+
+    fn set_track_saved<'a>(
+        &'a self,
+        id: &'a TrackId,
+        saved: bool,
+    ) -> BoxFuture<'a, CoreResult<()>> {
+        Box::pin(async move { self.pathfinder.set_track_saved(id, saved).await })
+    }
+
     /// Artistas seguidos, pela colecao do protocolo interno.
     ///
     /// O `/v1/me/following` era paginado por cursor e obrigava a caminhar ate o

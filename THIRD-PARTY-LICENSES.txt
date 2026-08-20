@@ -9,13 +9,29 @@ LicenseRef-Slint-Royalty-free-2.0, nao sob a GPL. Ver docs/adr/0005.
 priority-queue 2.7.0 e usado sob MPL-2.0, nao sob LGPL. O codigo-fonte
 exato esta em https://crates.io/crates/priority-queue/2.7.0. Ver docs/adr/0006.
 
-Gerado por tools/licenses.ps1 em 19/08/2026, para o alvo x86_64-pc-windows-gnu.
-485 dependencias, 292 textos de licenca distintos.
+Gerado por tools/licenses.ps1 em 20/08/2026, para o alvo x86_64-pc-windows-gnu.
+490 dependencias, 293 textos de licenca distintos.
 Textos identicos aparecem uma vez so, referenciados por numero.
 
 ==============================================================================
 DEPENDENCIAS
 ==============================================================================
+
+accesskit 0.24.1 -- MIT OR Apache-2.0
+    https://github.com/AccessKit/accesskit
+    o pacote nao traz arquivo de licenca proprio; vale a licenca declarada
+
+accesskit_consumer 0.38.0 -- MIT OR Apache-2.0
+    https://github.com/AccessKit/accesskit
+    o pacote nao traz arquivo de licenca proprio; vale a licenca declarada
+
+accesskit_windows 0.34.0 -- MIT OR Apache-2.0
+    https://github.com/AccessKit/accesskit
+    o pacote nao traz arquivo de licenca proprio; vale a licenca declarada
+
+accesskit_winit 0.33.2 -- Apache-2.0
+    https://github.com/AccessKit/accesskit
+    o pacote nao traz arquivo de licenca proprio; vale a licenca declarada
 
 adler2 2.0.1 -- 0BSD OR MIT OR Apache-2.0
     https://github.com/oyvindln/adler2
@@ -1367,29 +1383,33 @@ stable_deref_trait 1.2.1 -- MIT OR Apache-2.0
     https://github.com/storyyeller/stable_deref_trait
     texto: #6, #234
 
+static_assertions 1.1.0 -- MIT OR Apache-2.0
+    https://github.com/nvzqz/static-assertions-rs
+    texto: #70, #235
+
 strict-num 0.1.1 -- MIT
     https://github.com/RazrFalcon/strict-num
-    texto: #235
+    texto: #236
 
 strum 0.28.0 -- MIT
     https://github.com/Peternator7/strum
-    texto: #236
+    texto: #237
 
 strum_macros 0.28.0 -- MIT
     https://github.com/Peternator7/strum
-    texto: #236
+    texto: #237
 
 subtle 2.6.1 -- BSD-3-Clause
     https://github.com/dalek-cryptography/subtle
-    texto: #237
+    texto: #238
 
 svgtypes 0.16.1 -- Apache-2.0 OR MIT
     https://github.com/linebender/svgtypes
-    texto: #6, #238
+    texto: #6, #239
 
 swash 0.2.10 -- Apache-2.0 OR MIT
     https://github.com/dfrg/swash
-    texto: #6, #239
+    texto: #6, #240
 
 symphonia 0.5.5 -- MPL-2.0
     https://github.com/pdeljanov/Symphonia
@@ -1437,15 +1457,15 @@ sync_wrapper 1.0.2 -- Apache-2.0
 
 synstructure 0.13.2 -- MIT
     https://github.com/mystor/synstructure
-    texto: #240
+    texto: #241
 
 sys-locale 0.3.2 -- MIT OR Apache-2.0
     https://github.com/1Password/sys-locale
-    texto: #46, #241
+    texto: #46, #242
 
 sysinfo 0.36.1 -- MIT
     https://github.com/GuillaumeGomez/sysinfo
-    texto: #242
+    texto: #243
 
 taffy 0.10.1 -- MIT
     https://github.com/DioxusLabs/taffy
@@ -1453,7 +1473,7 @@ taffy 0.10.1 -- MIT
 
 tempfile 3.27.0 -- MIT OR Apache-2.0
     https://github.com/Stebalien/tempfile
-    texto: #6, #243
+    texto: #6, #244
 
 text-size 1.1.1 -- MIT OR Apache-2.0
     https://github.com/rust-analyzer/text-size
@@ -1481,23 +1501,23 @@ thread_local 1.1.10 -- MIT OR Apache-2.0
 
 tiff 0.11.3 -- MIT
     https://github.com/image-rs/image-tiff
-    texto: #244
+    texto: #245
 
 time 0.3.55 -- MIT OR Apache-2.0
     https://github.com/time-rs/time
-    texto: #17, #245
+    texto: #17, #246
 
 time-core 0.1.9 -- MIT OR Apache-2.0
     https://github.com/time-rs/time
-    texto: #17, #245
+    texto: #17, #246
 
 tiny-skia 0.12.0 -- BSD-3-Clause
     https://github.com/linebender/tiny-skia
-    texto: #246
+    texto: #247
 
 tiny-skia-path 0.12.0 -- BSD-3-Clause
     https://github.com/linebender/tiny-skia/tree/master/path
-    texto: #246
+    texto: #247
 
 tinystr 0.8.4 -- Unicode-3.0
     https://github.com/unicode-org/icu4x
@@ -1505,35 +1525,35 @@ tinystr 0.8.4 -- Unicode-3.0
 
 tinyvec 1.12.0 -- Zlib OR Apache-2.0 OR MIT
     https://github.com/Lokathor/tinyvec
-    texto: #31, #70, #247
+    texto: #31, #70, #248
 
 tinyvec_macros 0.1.1 -- MIT OR Apache-2.0 OR Zlib
     https://github.com/Soveu/tinyvec_macros
-    texto: #248, #249, #250
+    texto: #249, #250, #251
 
 tokio 1.53.1 -- MIT
     https://github.com/tokio-rs/tokio
-    texto: #251
+    texto: #252
 
 tokio-macros 2.7.2 -- MIT
     https://github.com/tokio-rs/tokio
-    texto: #252
+    texto: #253
 
 tokio-native-tls 0.3.1 -- MIT
     https://github.com/tokio-rs/tls
-    texto: #253
+    texto: #254
 
 tokio-stream 0.1.19 -- MIT
     https://github.com/tokio-rs/tokio
-    texto: #251
+    texto: #252
 
 tokio-tungstenite 0.28.0 -- MIT
     https://github.com/snapview/tokio-tungstenite
-    texto: #254
+    texto: #255
 
 tokio-util 0.7.19 -- MIT
     https://github.com/tokio-rs/tokio
-    texto: #251
+    texto: #252
 
 toml 0.9.12+spec-1.1.0 -- MIT OR Apache-2.0
     https://github.com/toml-rs/toml
@@ -1561,63 +1581,63 @@ toml_writer 1.1.2+spec-1.1.0 -- MIT OR Apache-2.0
 
 tower 0.5.3 -- MIT
     https://github.com/tower-rs/tower
-    texto: #255
+    texto: #256
 
 tower-http 0.6.11 -- MIT
     https://github.com/tower-rs/tower-http
-    texto: #256
+    texto: #257
 
 tower-layer 0.3.3 -- MIT
     https://github.com/tower-rs/tower
-    texto: #255
+    texto: #256
 
 tower-service 0.3.3 -- MIT
     https://github.com/tower-rs/tower
-    texto: #255
+    texto: #256
 
 tracing 0.1.44 -- MIT
     https://github.com/tokio-rs/tracing
-    texto: #253
+    texto: #254
 
 tracing-attributes 0.1.31 -- MIT
     https://github.com/tokio-rs/tracing
-    texto: #253
+    texto: #254
 
 tracing-core 0.1.36 -- MIT
     https://github.com/tokio-rs/tracing
-    texto: #253
+    texto: #254
 
 tracing-log 0.2.0 -- MIT
     https://github.com/tokio-rs/tracing
-    texto: #253
+    texto: #254
 
 tracing-subscriber 0.3.23 -- MIT
     https://github.com/tokio-rs/tracing
-    texto: #253
+    texto: #254
 
 tray-icon 0.21.3 -- MIT OR Apache-2.0
     https://github.com/tauri-apps/tray-icon
-    texto: #6, #155, #257
+    texto: #6, #155, #258
 
 try-lock 0.2.5 -- MIT
     https://github.com/seanmonstar/try-lock
-    texto: #258
+    texto: #259
 
 ttf-parser 0.25.1 -- MIT OR Apache-2.0
     https://github.com/harfbuzz/ttf-parser
-    texto: #6, #238
+    texto: #6, #239
 
 tungstenite 0.28.0 -- MIT OR Apache-2.0
     https://github.com/snapview/tungstenite-rs
-    texto: #6, #259
+    texto: #6, #260
 
 typed-index-collections 3.5.0 -- MIT OR Apache-2.0
     https://github.com/zheland/typed-index-collections
-    texto: #9, #260
+    texto: #9, #261
 
 typenum 1.20.1 -- MIT OR Apache-2.0
     https://github.com/paholg/typenum
-    texto: #261, #262, #263
+    texto: #262, #263, #264
 
 unicase 2.9.0 -- MIT OR Apache-2.0
     https://github.com/seanmonstar/unicase
@@ -1625,7 +1645,7 @@ unicase 2.9.0 -- MIT OR Apache-2.0
 
 unicode-bidi 0.3.18 -- MIT OR Apache-2.0
     https://github.com/servo/unicode-bidi
-    texto: #6, #114, #264
+    texto: #6, #114, #265
 
 unicode-bidi-mirroring 0.4.0 -- MIT/Apache-2.0
     https://github.com/RazrFalcon/unicode-bidi-mirroring
@@ -1637,7 +1657,7 @@ unicode-ccc 0.4.0 -- MIT/Apache-2.0
 
 unicode-ident 1.0.24 -- (MIT OR Apache-2.0) AND Unicode-3.0
     https://github.com/dtolnay/unicode-ident
-    texto: #3, #9, #265
+    texto: #3, #9, #266
 
 unicode-linebreak 0.1.5 -- Apache-2.0
     https://github.com/axelf4/unicode-linebreak
@@ -1645,15 +1665,15 @@ unicode-linebreak 0.1.5 -- Apache-2.0
 
 unicode-properties 0.1.4 -- MIT/Apache-2.0
     https://github.com/unicode-rs/unicode-properties
-    texto: #6, #114, #266
+    texto: #6, #114, #267
 
 unicode-script 0.5.8 -- MIT OR Apache-2.0
     https://github.com/unicode-rs/unicode-script
-    texto: #267, #268
+    texto: #268, #269
 
 unicode-segmentation 1.13.3 -- MIT OR Apache-2.0
     https://github.com/unicode-rs/unicode-segmentation
-    texto: #6, #114, #266
+    texto: #6, #114, #267
 
 unicode-vo 0.1.0 -- MIT/Apache-2.0
     https://github.com/RazrFalcon/unicode-vo
@@ -1661,11 +1681,11 @@ unicode-vo 0.1.0 -- MIT/Apache-2.0
 
 unicode-width 0.2.2 -- MIT OR Apache-2.0
     https://github.com/unicode-rs/unicode-width
-    texto: #6, #114, #266
+    texto: #6, #114, #267
 
 unicode-xid 0.2.6 -- MIT OR Apache-2.0
     https://github.com/unicode-rs/unicode-xid
-    texto: #6, #114, #266
+    texto: #6, #114, #267
 
 url 2.5.8 -- MIT OR Apache-2.0
     https://github.com/servo/rust-url
@@ -1681,15 +1701,15 @@ utf-8 0.7.6 -- MIT OR Apache-2.0
 
 utf8_iter 1.0.4 -- Apache-2.0 OR MIT
     https://github.com/hsivonen/utf8_iter
-    texto: #70, #71, #269
+    texto: #70, #71, #270
 
 uuid 1.24.1 -- Apache-2.0 OR MIT
     https://github.com/uuid-rs/uuid
-    texto: #6, #270
+    texto: #6, #271
 
 v_frame 0.3.9 -- BSD-2-Clause
     https://github.com/rust-av/v_frame
-    texto: #271
+    texto: #272
 
 vtable 0.4.0 -- MIT OR Apache-2.0
     https://github.com/slint-ui/slint
@@ -1705,23 +1725,23 @@ walkdir 2.5.0 -- Unlicense/MIT
 
 want 0.3.1 -- MIT
     https://github.com/seanmonstar/want
-    texto: #272
+    texto: #273
 
 web-time 1.1.0 -- MIT OR Apache-2.0
     https://github.com/daxpedda/web-time
-    texto: #273, #274
+    texto: #274, #275
 
 webbrowser 1.2.4 -- MIT OR Apache-2.0
     https://github.com/amodm/webbrowser-rs
-    texto: #275, #276
+    texto: #276, #277
 
 weezl 0.1.12 -- MIT OR Apache-2.0
     https://github.com/image-rs/weezl
-    texto: #6, #277
+    texto: #6, #278
 
 winapi 0.3.9 -- MIT/Apache-2.0
     https://github.com/retep998/winapi-rs
-    texto: #10, #278
+    texto: #10, #279
 
 winapi-util 0.1.11 -- Unlicense OR MIT
     https://github.com/BurntSushi/winapi-util
@@ -1733,131 +1753,131 @@ winapi-x86_64-pc-windows-gnu 0.4.0 -- MIT/Apache-2.0
 
 windows 0.54.0 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows 0.61.3 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows 0.62.2 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows_x86_64_gnu 0.52.6 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows_x86_64_gnu 0.53.1 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-collections 0.2.0 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-collections 0.3.2 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-core 0.54.0 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-core 0.61.2 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-core 0.62.2 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-future 0.2.1 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-future 0.3.2 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-implement 0.60.2 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-interface 0.59.3 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-link 0.1.3 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-link 0.2.1 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-numerics 0.2.0 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-numerics 0.3.1 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-registry 0.6.1 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-result 0.1.2 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-result 0.3.4 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-result 0.4.1 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-strings 0.4.2 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-strings 0.5.1 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-sys 0.52.0 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-sys 0.59.0 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-sys 0.60.2 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-sys 0.61.2 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-targets 0.52.6 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-targets 0.53.5 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-threading 0.1.0 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 windows-threading 0.2.1 -- MIT OR Apache-2.0
     https://github.com/microsoft/windows-rs
-    texto: #279, #280
+    texto: #280, #281
 
 winit 0.30.13 -- Apache-2.0
     https://github.com/rust-windowing/winit
@@ -1865,11 +1885,11 @@ winit 0.30.13 -- Apache-2.0
 
 winnow 0.7.15 -- MIT
     https://github.com/winnow-rs/winnow
-    texto: #281
+    texto: #282
 
 winnow 1.0.4 -- MIT
     https://github.com/winnow-rs/winnow
-    texto: #281
+    texto: #282
 
 writeable 0.6.4 -- Unicode-3.0
     https://github.com/unicode-org/icu4x
@@ -1877,15 +1897,15 @@ writeable 0.6.4 -- Unicode-3.0
 
 xmlwriter 0.1.0 -- MIT
     https://github.com/RazrFalcon/xmlwriter
-    texto: #282
+    texto: #283
 
 y4m 0.8.0 -- MIT
     https://github.com/image-rs/y4m.git
-    texto: #283
+    texto: #284
 
 yazi 0.2.1 -- Apache-2.0 OR MIT
     https://github.com/dfrg/yazi
-    texto: #6, #284
+    texto: #6, #285
 
 yoke 0.8.3 -- Unicode-3.0
     https://github.com/unicode-org/icu4x
@@ -1897,15 +1917,15 @@ yoke-derive 0.8.2 -- Unicode-3.0
 
 zeno 0.3.3 -- Apache-2.0 OR MIT
     https://github.com/dfrg/zeno
-    texto: #6, #239
+    texto: #6, #240
 
 zerocopy 0.8.56 -- BSD-2-Clause OR Apache-2.0 OR MIT
     https://github.com/google/zerocopy
-    texto: #285, #286, #287
+    texto: #286, #287, #288
 
 zerocopy-derive 0.8.56 -- BSD-2-Clause OR Apache-2.0 OR MIT
     https://github.com/google/zerocopy
-    texto: #285, #286, #287
+    texto: #286, #287, #288
 
 zerofrom 0.1.8 -- Unicode-3.0
     https://github.com/unicode-org/icu4x
@@ -1917,7 +1937,7 @@ zerofrom-derive 0.1.7 -- Unicode-3.0
 
 zeroize 1.9.0 -- Apache-2.0 OR MIT
     https://github.com/RustCrypto/utils
-    texto: #70, #288
+    texto: #70, #289
 
 zerotrie 0.2.5 -- Unicode-3.0
     https://github.com/unicode-org/icu4x
@@ -1933,7 +1953,7 @@ zerovec-derive 0.11.5 -- Unicode-3.0
 
 zip 2.4.2 -- MIT
     https://github.com/zip-rs/zip2.git
-    texto: #289
+    texto: #290
 
 zmij 1.0.23 -- MIT
     https://github.com/dtolnay/zmij
@@ -1941,18 +1961,18 @@ zmij 1.0.23 -- MIT
 
 zopfli 0.8.3 -- Apache-2.0
     https://github.com/zopfli-rs/zopfli
-    texto: #290
+    texto: #291
 
 zune-core 0.5.3 -- MIT OR Apache-2.0 OR Zlib
     https://github.com/etemesi254/zune-image
-    texto: #46, #291, #292
+    texto: #46, #292, #293
 
 zune-inflate 0.2.54 -- MIT OR Apache-2.0 OR Zlib
     o pacote nao traz arquivo de licenca proprio; vale a licenca declarada
 
 zune-jpeg 0.5.15 -- MIT OR Apache-2.0 OR Zlib
     https://github.com/etemesi254/zune-image/tree/dev/crates/zune-jpeg
-    texto: #46, #291, #292
+    texto: #46, #292, #293
 
 ==============================================================================
 TEXTOS DE LICENCA
@@ -6591,7 +6611,7 @@ designated (see the individual files for PD/CC0-dedicated sections).
 
 
 --- texto #70 ---
-usado por: encoding_rs 0.8.35 (LICENSE-APACHE); kurbo 0.13.1 (LICENSE-APACHE); polycool 0.4.0 (LICENSE-APACHE); tinyvec 1.12.0 (LICENSE-APACHE.md); utf8_iter 1.0.4 (LICENSE-APACHE); zeroize 1.9.0 (LICENSE-APACHE)
+usado por: encoding_rs 0.8.35 (LICENSE-APACHE); kurbo 0.13.1 (LICENSE-APACHE); polycool 0.4.0 (LICENSE-APACHE); static_assertions 1.1.0 (LICENSE-APACHE); tinyvec 1.12.0 (LICENSE-APACHE.md); utf8_iter 1.0.4 (LICENSE-APACHE); zeroize 1.9.0 (LICENSE-APACHE)
 
 
                                  Apache License
@@ -16307,6 +16327,32 @@ DEALINGS IN THE SOFTWARE.
 
 
 --- texto #235 ---
+usado por: static_assertions 1.1.0 (LICENSE-MIT)
+
+MIT License
+
+Copyright (c) 2017 Nikolai Vazquez
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+--- texto #236 ---
 usado por: strict-num 0.1.1 (LICENSE)
 
 Copyright (c) 2022 Yevhenii Reizner
@@ -16330,7 +16376,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
---- texto #236 ---
+--- texto #237 ---
 usado por: strum 0.28.0 (LICENSE); strum_macros 0.28.0 (LICENSE)
 
 MIT License
@@ -16356,7 +16402,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
---- texto #237 ---
+--- texto #238 ---
 usado por: subtle 2.6.1 (LICENSE)
 
 Copyright (c) 2016-2017 Isis Agora Lovecruft, Henry de Valence. All rights reserved.
@@ -16390,7 +16436,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
---- texto #238 ---
+--- texto #239 ---
 usado por: svgtypes 0.16.1 (LICENSE-MIT); ttf-parser 0.25.1 (LICENSE-MIT)
 
 Copyright (c) 2018 Yevhenii Reizner
@@ -16414,7 +16460,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
---- texto #239 ---
+--- texto #240 ---
 usado por: swash 0.2.10 (LICENSE-MIT); zeno 0.3.3 (LICENSE-MIT)
 
 Copyright (c) 2020 Chad Brokaw
@@ -16444,7 +16490,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 
---- texto #240 ---
+--- texto #241 ---
 usado por: synstructure 0.13.2 (LICENSE)
 
 Copyright 2016 Nika Layzell
@@ -16456,7 +16502,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
---- texto #241 ---
+--- texto #242 ---
 usado por: sys-locale 0.3.2 (LICENSE-MIT)
 
 MIT License
@@ -16482,7 +16528,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
---- texto #242 ---
+--- texto #243 ---
 usado por: sysinfo 0.36.1 (LICENSE)
 
 The MIT License (MIT)
@@ -16508,7 +16554,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
---- texto #243 ---
+--- texto #244 ---
 usado por: tempfile 3.27.0 (LICENSE-MIT)
 
 Copyright (c) 2015 Steven Allen
@@ -16538,7 +16584,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 
---- texto #244 ---
+--- texto #245 ---
 usado por: tiff 0.11.3 (LICENSE)
 
 MIT License
@@ -16564,7 +16610,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
---- texto #245 ---
+--- texto #246 ---
 usado por: time 0.3.55 (LICENSE-MIT); time-core 0.1.9 (LICENSE-MIT)
 
 Copyright (c) Jacob Pratt et al.
@@ -16588,7 +16634,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
---- texto #246 ---
+--- texto #247 ---
 usado por: tiny-skia 0.12.0 (LICENSE); tiny-skia-path 0.12.0 (LICENSE)
 
 Copyright (c) 2011 Google Inc. All rights reserved.
@@ -16623,7 +16669,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
---- texto #247 ---
+--- texto #248 ---
 usado por: tinyvec 1.12.0 (LICENSE-MIT.md)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
@@ -16633,7 +16679,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
---- texto #248 ---
+--- texto #249 ---
 usado por: tinyvec_macros 0.1.1 (LICENSE-APACHE.md)
 
                                  Apache License
@@ -16839,7 +16885,7 @@ usado por: tinyvec_macros 0.1.1 (LICENSE-APACHE.md)
    limitations under the License.
 
 
---- texto #249 ---
+--- texto #250 ---
 usado por: tinyvec_macros 0.1.1 (LICENSE-MIT.md)
 
 MIT License
@@ -16865,7 +16911,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
---- texto #250 ---
+--- texto #251 ---
 usado por: tinyvec_macros 0.1.1 (LICENSE-ZLIB.md)
 
 zlib License
@@ -16889,7 +16935,7 @@ freely, subject to the following restrictions:
 3. This notice may not be removed or altered from any source distribution.
 
 
---- texto #251 ---
+--- texto #252 ---
 usado por: tokio 1.53.1 (LICENSE); tokio-stream 0.1.19 (LICENSE); tokio-util 0.7.19 (LICENSE)
 
 MIT License
@@ -16915,7 +16961,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
---- texto #252 ---
+--- texto #253 ---
 usado por: tokio-macros 2.7.2 (LICENSE)
 
 MIT License
@@ -16942,7 +16988,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
---- texto #253 ---
+--- texto #254 ---
 usado por: tokio-native-tls 0.3.1 (LICENSE); tracing 0.1.44 (LICENSE); tracing-attributes 0.1.31 (LICENSE); tracing-core 0.1.36 (LICENSE); tracing-log 0.2.0 (LICENSE); tracing-subscriber 0.3.23 (LICENSE)
 
 Copyright (c) 2019 Tokio Contributors
@@ -16972,7 +17018,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 
---- texto #254 ---
+--- texto #255 ---
 usado por: tokio-tungstenite 0.28.0 (LICENSE)
 
 Copyright (c) 2017 Daniel Abramov
@@ -16997,7 +17043,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
---- texto #255 ---
+--- texto #256 ---
 usado por: tower 0.5.3 (LICENSE); tower-layer 0.3.3 (LICENSE); tower-service 0.3.3 (LICENSE)
 
 Copyright (c) 2019 Tower Contributors
@@ -17027,7 +17073,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 
---- texto #256 ---
+--- texto #257 ---
 usado por: tower-http 0.6.11 (LICENSE)
 
 Copyright (c) 2019-2021 Tower Contributors
@@ -17057,7 +17103,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 
---- texto #257 ---
+--- texto #258 ---
 usado por: tray-icon 0.21.3 (LICENSE.spdx)
 
 SPDXVersion: SPDX-2.1
@@ -17081,7 +17127,7 @@ PackageDownloadLocation: git+ssh://github.com/tauri-apps/tray-icon.git
 Creator: Person: Daniel Thompson-Yvetot
 
 
---- texto #258 ---
+--- texto #259 ---
 usado por: try-lock 0.2.5 (LICENSE)
 
 Copyright (c) 2018-2023 Sean McArthur
@@ -17106,7 +17152,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
---- texto #259 ---
+--- texto #260 ---
 usado por: tungstenite 0.28.0 (LICENSE-MIT)
 
 Copyright (c) 2017 Alexey Galakhov
@@ -17131,7 +17177,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
---- texto #260 ---
+--- texto #261 ---
 usado por: typed-index-collections 3.5.0 (LICENSE-MIT)
 
 Copyright (c) 2020 Andrey Zheleznov <zheland.net@gmail.com>
@@ -17161,13 +17207,13 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 
---- texto #261 ---
+--- texto #262 ---
 usado por: typenum 1.20.1 (LICENSE)
 
 MIT OR Apache-2.0
 
 
---- texto #262 ---
+--- texto #263 ---
 usado por: typenum 1.20.1 (LICENSE-APACHE)
 
                               Apache License
@@ -17373,7 +17419,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 
---- texto #263 ---
+--- texto #264 ---
 usado por: typenum 1.20.1 (LICENSE-MIT)
 
 The MIT License (MIT)
@@ -17399,7 +17445,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
---- texto #264 ---
+--- texto #265 ---
 usado por: unicode-bidi 0.3.18 (COPYRIGHT)
 
 This project is copyright 2015, The Servo Project Developers (given in the
@@ -17412,7 +17458,7 @@ carrying such notice may not be copied, modified, or distributed except
 according to those terms.
 
 
---- texto #265 ---
+--- texto #266 ---
 usado por: unicode-ident 1.0.24 (LICENSE-UNICODE)
 
 UNICODE LICENSE V3
@@ -17456,7 +17502,7 @@ dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
 
 
---- texto #266 ---
+--- texto #267 ---
 usado por: unicode-properties 0.1.4 (COPYRIGHT); unicode-segmentation 1.13.3 (COPYRIGHT); unicode-width 0.2.2 (COPYRIGHT); unicode-xid 0.2.6 (COPYRIGHT)
 
 Licensed under the Apache License, Version 2.0
@@ -17468,7 +17514,7 @@ notice may not be copied, modified, or distributed except
 according to those terms.
 
 
---- texto #267 ---
+--- texto #268 ---
 usado por: unicode-script 0.5.8 (LICENSE-APACHE)
 
                               Apache License
@@ -17674,7 +17720,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 
---- texto #268 ---
+--- texto #269 ---
 usado por: unicode-script 0.5.8 (LICENSE-MIT)
 
 MIT License
@@ -17706,7 +17752,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 
---- texto #269 ---
+--- texto #270 ---
 usado por: utf8_iter 1.0.4 (COPYRIGHT)
 
 Copyright Mozilla Foundation
@@ -17753,7 +17799,7 @@ licensed under the Apache License, Version 2.0 <LICENSE-APACHE> or
 <LICENSE-MIT> or <http://opensource.org/licenses/MIT>, at your option.
 
 
---- texto #270 ---
+--- texto #271 ---
 usado por: uuid 1.24.1 (LICENSE-MIT)
 
 Copyright (c) 2014 The Rust Project Developers
@@ -17784,7 +17830,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 
---- texto #271 ---
+--- texto #272 ---
 usado por: v_frame 0.3.9 (LICENSE)
 
 BSD 2-Clause License
@@ -17814,7 +17860,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
---- texto #272 ---
+--- texto #273 ---
 usado por: want 0.3.1 (LICENSE)
 
 Copyright (c) 2018-2019 Sean McArthur
@@ -17838,7 +17884,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
---- texto #273 ---
+--- texto #274 ---
 usado por: web-time 1.1.0 (LICENSE-APACHE)
 
                                  Apache License
@@ -18044,7 +18090,7 @@ usado por: web-time 1.1.0 (LICENSE-APACHE)
    limitations under the License.
 
 
---- texto #274 ---
+--- texto #275 ---
 usado por: web-time 1.1.0 (LICENSE-MIT)
 
 MIT License
@@ -18070,7 +18116,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
---- texto #275 ---
+--- texto #276 ---
 usado por: webbrowser 1.2.4 (LICENSE-APACHE)
 
                               Apache License
@@ -18265,7 +18311,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 
---- texto #276 ---
+--- texto #277 ---
 usado por: webbrowser 1.2.4 (LICENSE-MIT)
 
 The MIT License (MIT)
@@ -18297,7 +18343,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 
---- texto #277 ---
+--- texto #278 ---
 usado por: weezl 0.1.12 (LICENSE-MIT)
 
 The MIT License (MIT)
@@ -18323,7 +18369,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
---- texto #278 ---
+--- texto #279 ---
 usado por: winapi 0.3.9 (LICENSE-MIT)
 
 Copyright (c) 2015-2018 The winapi-rs Developers
@@ -18347,7 +18393,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
---- texto #279 ---
+--- texto #280 ---
 usado por: windows 0.54.0 (license-apache-2.0); windows 0.61.3 (license-apache-2.0); windows 0.62.2 (license-apache-2.0); windows_x86_64_gnu 0.52.6 (license-apache-2.0); windows_x86_64_gnu 0.53.1 (license-apache-2.0); windows-collections 0.2.0 (license-apache-2.0); windows-collections 0.3.2 (license-apache-2.0); windows-core 0.54.0 (license-apache-2.0); windows-core 0.61.2 (license-apache-2.0); windows-core 0.62.2 (license-apache-2.0); windows-future 0.2.1 (license-apache-2.0); windows-future 0.3.2 (license-apache-2.0); windows-implement 0.60.2 (license-apache-2.0); windows-interface 0.59.3 (license-apache-2.0); windows-link 0.1.3 (license-apache-2.0); windows-link 0.2.1 (license-apache-2.0); windows-numerics 0.2.0 (license-apache-2.0); windows-numerics 0.3.1 (license-apache-2.0); windows-registry 0.6.1 (license-apache-2.0); windows-result 0.1.2 (license-apache-2.0); windows-result 0.3.4 (license-apache-2.0); windows-result 0.4.1 (license-apache-2.0); windows-strings 0.4.2 (license-apache-2.0); windows-strings 0.5.1 (license-apache-2.0); windows-sys 0.52.0 (license-apache-2.0); windows-sys 0.59.0 (license-apache-2.0); windows-sys 0.60.2 (license-apache-2.0); windows-sys 0.61.2 (license-apache-2.0); windows-targets 0.52.6 (license-apache-2.0); windows-targets 0.53.5 (license-apache-2.0); windows-threading 0.1.0 (license-apache-2.0); windows-threading 0.2.1 (license-apache-2.0)
 
                                  Apache License
@@ -18553,7 +18599,7 @@ usado por: windows 0.54.0 (license-apache-2.0); windows 0.61.3 (license-apache-2
    limitations under the License.
 
 
---- texto #280 ---
+--- texto #281 ---
 usado por: windows 0.54.0 (license-mit); windows 0.61.3 (license-mit); windows 0.62.2 (license-mit); windows_x86_64_gnu 0.52.6 (license-mit); windows_x86_64_gnu 0.53.1 (license-mit); windows-collections 0.2.0 (license-mit); windows-collections 0.3.2 (license-mit); windows-core 0.54.0 (license-mit); windows-core 0.61.2 (license-mit); windows-core 0.62.2 (license-mit); windows-future 0.2.1 (license-mit); windows-future 0.3.2 (license-mit); windows-implement 0.60.2 (license-mit); windows-interface 0.59.3 (license-mit); windows-link 0.1.3 (license-mit); windows-link 0.2.1 (license-mit); windows-numerics 0.2.0 (license-mit); windows-numerics 0.3.1 (license-mit); windows-registry 0.6.1 (license-mit); windows-result 0.1.2 (license-mit); windows-result 0.3.4 (license-mit); windows-result 0.4.1 (license-mit); windows-strings 0.4.2 (license-mit); windows-strings 0.5.1 (license-mit); windows-sys 0.52.0 (license-mit); windows-sys 0.59.0 (license-mit); windows-sys 0.60.2 (license-mit); windows-sys 0.61.2 (license-mit); windows-targets 0.52.6 (license-mit); windows-targets 0.53.5 (license-mit); windows-threading 0.1.0 (license-mit); windows-threading 0.2.1 (license-mit)
 
     MIT License
@@ -18579,7 +18625,7 @@ usado por: windows 0.54.0 (license-mit); windows 0.61.3 (license-mit); windows 0
     SOFTWARE
 
 
---- texto #281 ---
+--- texto #282 ---
 usado por: winnow 0.7.15 (LICENSE-MIT); winnow 1.0.4 (LICENSE-MIT)
 
 Permission is hereby granted, free of charge, to any person obtaining
@@ -18602,7 +18648,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
---- texto #282 ---
+--- texto #283 ---
 usado por: xmlwriter 0.1.0 (LICENSE)
 
 The MIT License (MIT)
@@ -18628,7 +18674,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
---- texto #283 ---
+--- texto #284 ---
 usado por: y4m 0.8.0 (LICENSE)
 
 The MIT License (MIT)
@@ -18655,7 +18701,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
---- texto #284 ---
+--- texto #285 ---
 usado por: yazi 0.2.1 (LICENSE-MIT)
 
 Copyright (c) 2020 Chad Brokaw
@@ -18679,7 +18725,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
---- texto #285 ---
+--- texto #286 ---
 usado por: zerocopy 0.8.56 (LICENSE-APACHE); zerocopy-derive 0.8.56 (LICENSE-APACHE)
 
                                  Apache License
@@ -18885,7 +18931,7 @@ usado por: zerocopy 0.8.56 (LICENSE-APACHE); zerocopy-derive 0.8.56 (LICENSE-APA
    limitations under the License.
 
 
---- texto #286 ---
+--- texto #287 ---
 usado por: zerocopy 0.8.56 (LICENSE-BSD); zerocopy-derive 0.8.56 (LICENSE-BSD)
 
 Copyright 2019 The Fuchsia Authors.
@@ -18914,7 +18960,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
---- texto #287 ---
+--- texto #288 ---
 usado por: zerocopy 0.8.56 (LICENSE-MIT); zerocopy-derive 0.8.56 (LICENSE-MIT)
 
 Copyright 2023 The Fuchsia Authors
@@ -18944,7 +18990,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 
---- texto #288 ---
+--- texto #289 ---
 usado por: zeroize 1.9.0 (LICENSE-MIT)
 
 Copyright (c) 2018-2026 The RustCrypto Project Developers
@@ -18974,7 +19020,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 
---- texto #289 ---
+--- texto #290 ---
 usado por: zip 2.4.2 (LICENSE)
 
 The MIT License (MIT)
@@ -19003,7 +19049,7 @@ Some files in the "tests/data" subdirectory of this repository are under other
 licences; see files named LICENSE.*.txt for details.
 
 
---- texto #290 ---
+--- texto #291 ---
 usado por: zopfli 0.8.3 (COPYING)
 
                                  Apache License
@@ -19209,7 +19255,7 @@ usado por: zopfli 0.8.3 (COPYING)
    limitations under the License.
 
 
---- texto #291 ---
+--- texto #292 ---
 usado por: zune-core 0.5.3 (LICENSE-MIT); zune-jpeg 0.5.15 (LICENSE-MIT)
 
 MIT License
@@ -19235,7 +19281,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
---- texto #292 ---
+--- texto #293 ---
 usado por: zune-core 0.5.3 (LICENSE-ZLIB); zune-jpeg 0.5.15 (LICENSE-ZLIB)
 
 zlib License

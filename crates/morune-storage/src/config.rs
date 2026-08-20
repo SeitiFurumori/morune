@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
@@ -15,6 +16,7 @@ pub struct Config {
     pub version: u32,
     pub appearance: AppearanceConfig,
     pub playback: PlaybackConfig,
+    pub navigation: NavigationConfig,
     pub window: WindowConfig,
     pub developer: DeveloperConfig,
 }
@@ -25,10 +27,22 @@ impl Default for Config {
             version: CONFIG_VERSION,
             appearance: AppearanceConfig::default(),
             playback: PlaybackConfig::default(),
+            navigation: NavigationConfig::default(),
             window: WindowConfig::default(),
             developer: DeveloperConfig::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct NavigationConfig {
+    /// Tags das playlists abertas, da mais recente para a mais antiga.
+    ///
+    /// A barra lateral cruza este historico com as playlists que a conta
+    /// entrega naquele momento. IDs antigos ou de outra conta ficam inertes,
+    /// sem fazer conteudo desaparecer.
+    pub recent_playlists: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -101,6 +115,8 @@ pub struct WindowConfig {
     /// fechar sem querer no meio de uma musica e mais irritante que ter de
     /// sair pela bandeja. Desligavel em Configuracoes.
     pub close_to_tray: bool,
+    /// Evita repetir a explicacao da bandeja depois que ela ja foi vista.
+    pub tray_hint_shown: bool,
 }
 
 impl Default for WindowConfig {
@@ -110,6 +126,7 @@ impl Default for WindowConfig {
             height: 0.0,
             maximized: false,
             close_to_tray: true,
+            tray_hint_shown: false,
         }
     }
 }
@@ -200,6 +217,15 @@ impl Config {
         }
         self.playback.volume = self.playback.volume.clamp(0.0, 1.0);
         self.playback.audio_cache_mb = self.playback.audio_cache_mb.min(64 * 1024);
+
+        for tag in &mut self.navigation.recent_playlists {
+            *tag = tag.trim().to_string();
+        }
+        let mut seen = HashSet::new();
+        self.navigation
+            .recent_playlists
+            .retain(|tag| !tag.is_empty() && seen.insert(tag.clone()));
+        self.navigation.recent_playlists.truncate(100);
 
         if !(0.0..=3.0).contains(&self.appearance.font_scale_override)
             || !self.appearance.font_scale_override.is_finite()
@@ -301,6 +327,22 @@ mod tests {
         c.sanitize();
         assert!(!c.developer.hot_reload);
         assert!(!c.developer.performance_overlay);
+    }
+
+    #[test]
+    fn recent_playlists_are_cleaned_deduplicated_and_bounded() {
+        let mut c = Config::default();
+        c.navigation.recent_playlists = std::iter::once("  playlist/spotify:a  ".into())
+            .chain(std::iter::once("playlist/spotify:a".into()))
+            .chain(std::iter::once(String::new()))
+            .chain((0..120).map(|n| format!("playlist/spotify:{n}")))
+            .collect();
+
+        c.sanitize();
+
+        assert_eq!(c.navigation.recent_playlists.len(), 100);
+        assert_eq!(c.navigation.recent_playlists[0], "playlist/spotify:a");
+        assert_eq!(c.navigation.recent_playlists[1], "playlist/spotify:0");
     }
 
     #[test]

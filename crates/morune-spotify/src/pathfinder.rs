@@ -10,16 +10,17 @@
 //! desenvolvimento, onde so entra quem o dono cadastrar a mao, e o Morune e
 //! aberto. A tabela completa esta em [`docs/HANDOFF.md`](../../../docs/HANDOFF.md).
 //!
-//! O `pathfinder` e por onde o player web do Spotify busca. Ele aceita o token
-//! do login5 com o client token -- os dois ja existem dentro da sessao da
-//! librespot -- e devolve faixa, album, artista e playlist em JSON.
+//! O `pathfinder` e por onde o player web do Spotify busca e altera a
+//! biblioteca. Ele aceita o token do login5 com o client token -- os dois ja
+//! existem dentro da sessao da librespot -- e devolve JSON.
 //!
 //! # A divida
 //!
 //! Consulta GraphQL crua e recusada com 400. So passa **consulta persistida**,
 //! identificada por um hash SHA-256 acordado entre cliente e servidor, que
-//! acompanha a versao do player web e **muda sem aviso**. Quando mudar, a busca
-//! para de responder ate alguem atualizar [`HASH_BUSCA`].
+//! acompanha a versao do player web e **muda sem aviso**. Quando mudar, a
+//! operacao afetada para de responder ate alguem atualizar [`HASH_BUSCA`] ou
+//! [`HASH_LIBRARY`].
 //!
 //! Nao ha alternativa medida, entao a divida e assumida. O que este modulo
 //! garante e que ela fique **contida**: quem chama recebe um erro comum, e
@@ -29,6 +30,7 @@ use bytes::Bytes;
 use http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderName};
 use http::{Method, Request};
 use morune_core::catalog::{SearchKind, SearchResults};
+use morune_core::model::{Provider, TrackId};
 use morune_core::{CoreError, CoreResult};
 
 use crate::auth::SharedSession;
@@ -36,6 +38,14 @@ use crate::error::from_librespot;
 use crate::graphql::SearchDataDto;
 
 const ENDPOINT: &str = "https://api-partner.spotify.com/pathfinder/v1/query";
+const MUTATION_ENDPOINT: &str = "https://api-partner.spotify.com/pathfinder/v2/query";
+
+/// A mesma operacao persistida atende adicionar e remover; o nome da mutacao
+/// decide o sentido. O anterior fica como fallback porque o web player gira
+/// hashes sem coordenar com clientes de terceiros.
+const HASH_LIBRARY: &str = "1ad0d40b3c09660d818b9e770eb1e84745dfbe941df159a64f8772b6fa2bfc3a";
+const HASH_LIBRARY_PREVIOUS: &str =
+    "7c5a69420e2bfae3da5cc4e14cbc8bb3f6090f80afc00ffc179177f19be3f33d";
 
 /// Cabecalho que o pathfinder exige alem do `Authorization`.
 ///
@@ -102,6 +112,43 @@ impl Pathfinder {
         Ok(dto.into_results(kinds))
     }
 
+    /// Sincroniza o coracao do Morune com "Musicas curtidas" do Spotify.
+    pub(crate) async fn set_track_saved(&self, id: &TrackId, saved: bool) -> CoreResult<()> {
+        if id.provider != Provider::Spotify {
+            return Err(CoreError::Unsupported(
+                "curtir no Spotify uma faixa de outro provedor",
+            ));
+        }
+
+        let operation = if saved {
+            "addToLibrary"
+        } else {
+            "removeFromLibrary"
+        };
+        let variables = serde_json::json!({
+            "libraryItemUris": [format!("spotify:track:{}", id.id)],
+        });
+
+        for hash in [HASH_LIBRARY, HASH_LIBRARY_PREVIOUS] {
+            let response: serde_json::Value = self
+                .request(MUTATION_ENDPOINT, operation, hash, &variables)
+                .await?;
+            if persisted_query_missing(&response) {
+                continue;
+            }
+            if let Some(message) = graphql_error(&response) {
+                return Err(CoreError::Network(format!(
+                    "o Spotify recusou a alteracao da biblioteca: {message}"
+                )));
+            }
+            return Ok(());
+        }
+
+        Err(CoreError::Decode(
+            "o Spotify mudou a operacao de curtir; atualize o Morune".into(),
+        ))
+    }
+
     /// Envia uma consulta persistida e desserializa a resposta.
     ///
     /// A resposta vai direto para o tipo pedido, sem passar por
@@ -110,6 +157,16 @@ impl Pathfinder {
     /// a toa.
     async fn query<T: serde::de::DeserializeOwned>(
         &self,
+        operacao: &str,
+        hash: &str,
+        variaveis: &serde_json::Value,
+    ) -> CoreResult<T> {
+        self.request(ENDPOINT, operacao, hash, variaveis).await
+    }
+
+    async fn request<T: serde::de::DeserializeOwned>(
+        &self,
+        endpoint: &str,
         operacao: &str,
         hash: &str,
         variaveis: &serde_json::Value,
@@ -131,7 +188,7 @@ impl Pathfinder {
 
         let request = Request::builder()
             .method(Method::POST)
-            .uri(ENDPOINT)
+            .uri(endpoint)
             .header(AUTHORIZATION, format!("{} {}", token.token_type, token.access_token))
             .header(CLIENT_TOKEN, client_token)
             .header(CONTENT_TYPE, "application/json")
@@ -149,10 +206,33 @@ impl Pathfinder {
             // Erro aqui quase sempre significa hash vencido -- ver o cabecalho.
             tracing::debug!(operacao, error = %e, "pathfinder respondeu fora do formato esperado");
             CoreError::Decode(
-                "a busca do Spotify mudou de formato e o Morune ainda nao acompanha".into(),
+                "uma operacao do Spotify mudou de formato e o Morune ainda nao acompanha".into(),
             )
         })
     }
+}
+
+fn persisted_query_missing(response: &serde_json::Value) -> bool {
+    response
+        .get("errors")
+        .and_then(|errors| errors.as_array())
+        .is_some_and(|errors| {
+            errors.iter().any(|error| {
+                error
+                    .get("message")
+                    .and_then(|message| message.as_str())
+                    .is_some_and(|message| message.contains("PersistedQueryNotFound"))
+            })
+        })
+}
+
+fn graphql_error(response: &serde_json::Value) -> Option<&str> {
+    response
+        .get("errors")?
+        .as_array()?
+        .first()?
+        .get("message")?
+        .as_str()
 }
 
 #[cfg(test)]
@@ -172,5 +252,14 @@ mod tests {
     fn the_limit_stays_within_what_the_screen_draws() {
         assert_eq!(50u32.clamp(1, LIMITE_MAX), LIMITE_MAX);
         assert_eq!(0u32.clamp(1, LIMITE_MAX), 1);
+    }
+
+    #[test]
+    fn a_rotated_persisted_query_is_recognised_for_fallback() {
+        let response = serde_json::json!({
+            "errors": [{ "message": "PersistedQueryNotFound" }]
+        });
+        assert!(persisted_query_missing(&response));
+        assert!(!persisted_query_missing(&serde_json::json!({ "data": {} })));
     }
 }

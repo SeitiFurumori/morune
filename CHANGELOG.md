@@ -7,6 +7,44 @@ Versionamento semantico.
 
 ### Adicionado
 
+**UX, recuperacao e desktop**
+- Importacao de tema com validacao em area temporaria, preview de metadados,
+  confirmacao de substituicao, backup e acao Desfazer.
+- Limpeza da fila reversivel pelo aviso “Desfazer” e retry explicito para falhas
+  repetiveis de Inicio, Biblioteca e Busca.
+- Busca automatica com debounce de 350 ms, folha de atalhos `Ctrl+/` e tooltips
+  visuais nos controles por icone.
+- Mini-player compacto que preserva controles essenciais e restaura tamanho e
+  maximizacao anteriores.
+- Instancia unica: abrir o Morune novamente restaura e foca a janela existente.
+- Persistencia de tamanho/maximizacao, suporte a teclas multimidia e explicacao
+  unica ao fechar para a bandeja.
+- Configuracoes mostra honestamente que a saida acompanha o dispositivo padrao
+  do Windows; selecao interna permanece para quando o backend a suportar.
+- Inicializacao opcional com o Windows sincronizada entre instalador e
+  Configuracoes. A entrada e por usuario, nao exige UAC, pode ser removida pelo
+  mesmo switch e usa a bandeja quando a abertura foi automatica.
+- Barra lateral prioriza as playlists abertas recentemente, persiste o historico
+  localmente e preserva a ordem original para playlists ainda sem uso.
+- O coracao agora adiciona e remove faixas das Musicas curtidas do Spotify, com
+  estado completo da conta, confirmacao remota e falha sem falso sucesso. A
+  antiga colecao local deixa de aparecer como uma biblioteca concorrente.
+
+**Chrome da janela**
+- Barra de título própria, integrada aos temas e à estrutura visual do MORU•NE, com alvos de
+  minimizar, maximizar/restaurar e fechar compatíveis com teclado e tecnologia
+  assistiva.
+- Marca e nome ficam concentrados na sidebar em vez de se repetirem também na
+  barra de título; o título nativo continua disponível ao Windows e à tecnologia
+  assistiva.
+- Arraste da janela, maximização por duplo clique, bordas redimensionáveis e
+  conversão de coordenadas por fator de escala para 125%, 150% e 200% de DPI.
+- Fechar pela nova barra continua passando pela preferência de fechar para a
+  bandeja; a mudança visual não altera o ciclo de vida do player.
+- O preview do Morune na barra de tarefas agora oferece controles nativos de
+  faixa anterior, tocar/pausar e próxima faixa. O estado do botão central muda
+  junto com o player e os três ficam desabilitados quando nada está carregado.
+
 **Radio, detalhes e acabamento do ciclo 2**
 - Autoplay configuravel, ligado por padrao: ao fim da fila, a ultima faixa vira
   semente de radio e as recomendacoes sao anexadas sem apagar o historico ou
@@ -21,6 +59,9 @@ Versionamento semantico.
   barra lateral.
 
 **Backend de Spotify (`morune-spotify`)**
+- Mutacoes autenticadas `addToLibrary` e `removeFromLibrary` pelo Pathfinder v2,
+  com fallback para o hash anterior quando o web player gira a consulta
+  persistida. Nenhum novo escopo OAuth e pedido.
 - Crate nova, implementando os contratos de `morune-core` sobre a librespot 0.8.
   A interface continua guardando `Arc<dyn PlaybackEngine>`, `Arc<dyn Catalog>` e
   `Arc<dyn Authenticator>`: nenhuma tela sabe que o provedor e o Spotify.

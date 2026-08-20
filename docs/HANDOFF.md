@@ -28,8 +28,9 @@ catalogo inteiro ser reescrito sobre o protocolo interno.
 
 Login OAuth PKCE com reconexao pelo cofre; reproducao com som saindo; busca;
 playlists, curtidas e artistas seguidos; capas; abrir uma playlist, filtrar,
-ordenar e tocar a faixa escolhida. Favoritos do Morune foram validados em
-persistencia, acessibilidade e janela minima; a conta Spotify continua somente leitura.
+ordenar e tocar a faixa escolhida. O coracao agora representa e altera as
+Musicas curtidas da conta Spotify; a mutacao ainda precisa da reverificacao
+contra a conta real descrita abaixo.
 
 ### O que existe agora e nao existia
 
@@ -73,7 +74,9 @@ escrito depois do fato -- todos apareceram na tela.
 
 - **albuns salvos, mais ouvidos e tocadas recentemente** -- sem caminho
   conhecido, recusam com `Unsupported` e a interface esconde a secao;
-- **escrita na conta** -- o Morune so le: nao curte, nao reordena, nao remove.
+- **edicao de playlists e organizacao da biblioteca** -- o Morune ja adiciona
+  e remove faixas das Musicas curtidas, mas ainda nao reordena nem remove
+  playlists ou outros tipos de item.
 
 Radio/autoplay, capas em `TrackRow`, aviso do teto de 200 e a tela completa de
 artista foram implementados depois da rodada real de 19/08 e ainda precisam da
@@ -126,7 +129,8 @@ Tudo sai de **uma sessao da librespot**. O Web API saiu do desenho.
   token).
 - **`engine.rs`** fala o protocolo da librespot: e de la que sai o audio.
 - **`pathfinder.rs` + `graphql.rs`** falam o `api-partner` por GraphQL: e de
-  la que sai a **busca**, e so ela. Traz divida -- ver abaixo.
+  la que saem a **busca** e as mutacoes de **Musicas curtidas**. Traz divida
+  -- ver abaixo.
 - **`internal.rs`** e o resto: playlists, metadado em lote, colecao, capas,
   album, artista. Protobuf tipado pela propria librespot.
 - **`artwork.rs`** baixa capa; quem guarda e o aplicativo, com teto e LRU.
@@ -182,9 +186,10 @@ artista e faixa em JSON limpo. Ver a divida que ele traz na secao seguinte.
 ### A divida do pathfinder
 
 A consulta crua e recusada com 400: so passa **consulta persistida**, que e
-identificada por um hash SHA-256 acordado entre cliente e servidor. Esse hash
-acompanha a versao do player web e **muda sem aviso**. Quando mudar, a busca do
-Morune para de responder ate alguem atualizar a constante.
+identificada por um hash SHA-256 acordado entre cliente e servidor. Esses
+hashes acompanham a versao do player web e **mudam sem aviso**. Quando um deles
+mudar, a busca ou a alteracao de curtidas correspondente para de responder ate
+alguem atualizar a constante.
 
 Isso e divida assumida, nao descuido. Nao ha alternativa medida: a consulta
 crua nao passa, o `searchview` morreu em todas as versoes testadas, e o Web API
@@ -285,8 +290,8 @@ backend -- nesta ordem, porque cada passo depende do anterior.
    nao respondeu, e `MORUNE_LOG=debug` diz qual.
 6. **Abrir Descobertas da Semana**. E o teste do caminho interno: pelo Web API
    ela responde 404.
-7. **Buscar** uma musica: e o unico teste do pathfinder. Se a busca vier vazia
-   sem erro, o primeiro suspeito e o hash da consulta persistida.
+7. **Buscar** uma musica: se a busca vier vazia sem erro, o primeiro suspeito
+   e o hash da consulta persistida.
 8. **Abrir uma playlist**: capa, nome, lista. Clicar numa faixa toca **aquela**
    faixa. Filtrar e clicar tem de tocar a faixa filtrada, e nao a da mesma
    posicao na lista sem filtro.
@@ -294,9 +299,10 @@ backend -- nesta ordem, porque cada passo depende do anterior.
    discreto de todos -- a lista parecia certa, so estava desatualizada.
 10. **Capas**: parte das playlists mostra imagem, o resto mostra a marca. A
     faixa tocando tem capa na barra de baixo.
-11. **Favoritos do Morune**: adicionar pelo coracao de uma linha, conferir o
-    estado preenchido no player e a faixa em Biblioteca; remover pelo mesmo
-    controle. Nenhuma curtida do Spotify deve mudar.
+11. **Curtidas do Spotify**: adicionar pelo coracao de uma linha, conferir no
+    cliente oficial que a faixa entrou em Musicas curtidas e que o estado ficou
+    preenchido no player; remover pelo mesmo controle e confirmar nos dois
+    clientes. Simular rede indisponivel e verificar que o icone nao mente.
 12. **Fila manual**: usar “Tocar a seguir” e “Adicionar ao fim” em duas faixas;
     abrir Fila, mover, remover e limpar. A secao da lista atual nao deve ganhar
     controles de edicao.
@@ -408,10 +414,11 @@ instalador. Opcoes, precos e requisitos em [assinatura.md](assinatura.md).
 
 ## Divida tecnica conhecida
 
-- **O hash da consulta persistida do pathfinder.** E a divida mais provavel de
-  cobrar: ele acompanha a versao do player web do Spotify e muda sem aviso.
-  Quando mudar, a busca para de responder e o resto continua funcionando --
-  isso e de proposito. Fica em `HASH_BUSCA`, em `pathfinder.rs`.
+- **Os hashes das operacoes persistidas do pathfinder.** Acompanham a versao do
+  player web do Spotify e mudam sem aviso. Busca e curtidas falham de modo
+  independente quando o hash correspondente vence. Ficam em `HASH_BUSCA` e
+  `HASH_LIBRARY`, em `pathfinder.rs`; a mutacao ainda guarda o hash anterior
+  como fallback.
 - **A copia da librespot em `vendor/`.** Toda atualizacao dela exige refazer a
   alteracao a mao. Se o projeto original trocar o `exit(1)` por erro -- o
   proprio codigo tem um `TODO` dizendo que deveria --, a copia some.

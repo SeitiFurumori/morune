@@ -10,7 +10,8 @@ recompilar nada.
 
 Premissa de produto: **Your music. Your way.** A experiencia basica permanece
 simples; liberdade e profundidade aparecem quando o usuario decide procura-las.
-Dados centrais, como favoritos, pertencem ao Morune e nao a um unico provedor.
+O coracao segue o modelo mental conhecido: ele altera as Musicas curtidas da
+conta Spotify, sem criar uma segunda biblioteca concorrente no Morune.
 
 Sem Electron. Sem Chromium. Sem WebView.
 
@@ -47,8 +48,8 @@ Ja implementado:
 - tres temas com aparencia e **composicao** diferentes, trocaveis em execucao;
 - configuracao persistente com gravacao atomica e recuperacao de arquivo
   corrompido;
-- favoritos locais e independentes do provedor, com gravacao recuperavel,
-  rollback em falha e acesso pelo player, pelas listas e pela Biblioteca;
+- curtidas sincronizadas com a biblioteca Spotify pelo player e pelas listas,
+  com confirmacao remota antes de alterar o estado visual;
 - cofre de credenciais no Gerenciador de Credenciais do Windows;
 - fila com shuffle, repeticao, historico real, tocar a seguir, adicionar ao fim,
   reordenar, remover e limpar, coberta por testes;
@@ -61,6 +62,8 @@ Ja implementado:
 - **layout adaptativo**: grades reorganizam colunas durante o redimensionamento,
   inclusive na janela minima de 720x480;
 - **instalador `.exe` unico** com escolha de disco, sem UAC e sem pre-requisitos.
+- inicializacao opcional com o Windows, configuravel tanto no instalador quanto
+  no aplicativo; quando automatica, abre discretamente na bandeja.
 
 Verificado contra uma conta Spotify Premium real em 19/08/2026 — ver
 [docs/HANDOFF.md](docs/HANDOFF.md):
@@ -70,9 +73,11 @@ Verificado contra uma conta Spotify Premium real em 19/08/2026 — ver
 - reproducao sobre a librespot, ligada a fila que ja existia;
 - busca por faixas, albuns, artistas e playlists; musicas curtidas e artistas
   seguidos;
-- favoritos do Morune persistidos sem pedir permissao de escrita na conta;
+- coracao sincronizado com as Musicas curtidas do Spotify pelo caminho
+  autenticado usado pelo web player;
 - capas com cache LRU de 48 MB;
-- playlists na barra lateral e telas de detalhe com filtro e ordenacao.
+- playlists abertas recentemente no topo da barra lateral, com historico local
+  persistente; telas de detalhe com filtro e ordenacao.
 
 As playlists que o Spotify monta para a conta — Descobertas da Semana, Radar de
 Novidades — nao sao mais acessiveis pelo Web API desde a
@@ -120,6 +125,10 @@ O instalador pergunta **em qual disco e em qual pasta** instalar, mostrando o
 espaco livre do disco escolhido. Nao pede elevacao: a instalacao e por usuario,
 o que e justamente o que torna a escolha de disco livre de verdade — com
 instalacao por maquina, apontar para um disco secundario ainda dispararia UAC.
+
+Na tela de componentes, **Abrir com o Windows** e opcional e vem desmarcado. A
+mesma escolha pode ser alterada depois em **Configuracoes → Iniciar com o
+Windows**, sem reinstalar e sem permissao de administrador.
 
 Suas configuracoes e temas ficam sempre em `%APPDATA%\morune`, independente do
 disco escolhido, e **nao** sao apagados ao desinstalar, a menos que voce marque

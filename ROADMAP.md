@@ -54,8 +54,8 @@ O ciclo que transforma isto num player.
    volume, avanco automatico ligado a `Queue::next`.
 4. `[verificado]` **Busca e biblioteca** ligadas as telas que ja existem, e um
    Inicio com cinco prateleiras. A busca cobre faixas, albuns, artistas e
-   playlists. Favoritos ficam numa biblioteca local independente do provedor,
-   com a conta Spotify mantida em modo somente leitura. As playlists que o Spotify monta para a conta
+   playlists. O coracao sincroniza com as Musicas curtidas do Spotify e so
+   muda visualmente depois da confirmacao remota. As playlists que o Spotify monta para a conta
    vem pelo protocolo interno, porque o Web API deixou de entrega-las em 2024 —
    ver [docs/HANDOFF.md](docs/HANDOFF.md).
 5. `[escrito]` **Radio e autoplay configuravel** pelo caminho interno, anexando
@@ -96,23 +96,25 @@ Risco conhecido: librespot 0.8 exige `vergen` fixado em 9.0.x no `Cargo.lock`
 
 ## Ciclo 4 — Produto
 
-1. **Teclas de midia** e integracao com o painel de reproducao do Windows
-   (SMTC), funcionando com a janela sem foco e com o aplicativo na bandeja.
+1. **Teclas de midia** `[feito]`; integracao completa de metadados/capa com o
+   painel de reproducao do Windows (SMTC) `[pendente]`.
 2. **Minimizar para a bandeja**, alem de fechar. Fica pendente porque o Slint
    nao expoe o evento de minimizacao da janela; exige alcançar o `HWND` pelo
    handle nativo, o que so vale a pena junto com as teclas de midia.
-3. **Notificacao de bandeja na primeira vez** que a janela fecha, para quem nao
-   percebeu que o aplicativo continua tocando.
-4. **Mini-player**.
+3. **Notificacao de bandeja na primeira vez** `[feito]`: explica onde o Morune
+   ficou e como abrir/sair, sem repetir nas proximas vezes.
+4. **Mini-player** `[feito]`: modo compacto reversivel, com estado essencial do
+   player e restauracao exata da janela anterior.
 5. **DPI**: smoke test concluido em 100%, 125%, 150% e 200%; falta inspecao
    visual em cada escala e monitor secundario com escala diferente.
-6. **Atalhos de teclado** completos e navegacao so por teclado. A fundacao
-   (Tab, Enter/Espaco, setas em sliders, Ctrl+K, Ctrl+, e voltar) esta pronta;
-   faltam referencia `Ctrl+/`, tooltips e cobertura de todos os fluxos.
-7. **Assinatura de codigo** do instalador. Sem ela o SmartScreen avisa em toda
+6. **Atalhos de teclado**: fundacao, referencia `Ctrl+/`, tooltips e teclas de
+   midia prontos; falta a ultima rodada humana teclado-only em todos os fluxos.
+7. **Inicializar com o Windows** `[feito]`: escolha reversivel no instalador e
+   nas Configuracoes, por usuario e sem UAC; inicio automatico fica na bandeja.
+8. **Assinatura de codigo** do instalador. Sem ela o SmartScreen avisa em toda
    instalacao, o que e o maior atrito restante para um usuario real.
-8. **Atualizacao automatica**, ou pelo menos aviso de versao nova.
-9. **Migrar para MSVC** como alvo de release: binarios menores e alvo com mais
+9. **Atualizacao automatica**, ou pelo menos aviso de versao nova.
+10. **Migrar para MSVC** como alvo de release: binarios menores e alvo com mais
    rodagem no Windows.
 
 ## Ciclo 5 — Extensibilidade
