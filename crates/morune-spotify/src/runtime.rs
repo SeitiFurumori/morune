@@ -14,11 +14,12 @@
 use std::sync::Arc;
 
 use morune_core::auth::{Authenticator, CredentialStore};
-use morune_core::catalog::{Catalog, Library};
+use morune_core::catalog::{Artwork, Catalog, Library};
 use morune_core::playback::PlaybackEngine;
 use morune_core::{CoreError, CoreResult};
 
 use crate::auth::{SharedSession, SpotifyAuthenticator};
+use crate::artwork::SpotifyArtwork;
 use crate::catalog::SpotifyCatalog;
 use crate::engine::SpotifyEngine;
 use crate::token::TokenSource;
@@ -37,6 +38,7 @@ pub struct SpotifyBackend {
     runtime: tokio::runtime::Runtime,
     authenticator: Arc<SpotifyAuthenticator>,
     catalog: Arc<SpotifyCatalog>,
+    artwork: Arc<SpotifyArtwork>,
     session: SharedSession,
 }
 
@@ -60,16 +62,18 @@ impl SpotifyBackend {
             .build()
             .map_err(|e| CoreError::InvalidState(format!("runtime do Spotify: {e}")))?;
 
-        // Autenticador e catalogo compartilham a mesma fonte de token: o
-        // catalogo assina requisicao com o token que o login obteve, e a
-        // renovacao acontece num lugar so.
+        // O catalogo nao recebe mais a fonte de token: depois que o Web API
+        // saiu do caminho, tudo que ele faz passa pela propria sessao da
+        // librespot, que renova o que precisa sozinha. So o login ainda guarda
+        // token, e por causa do refresh no cofre do Windows.
         let session = SharedSession::default();
         let tokens = Arc::new(TokenSource::new(credentials));
         let authenticator =
             Arc::new(SpotifyAuthenticator::with_tokens(tokens.clone(), session.clone()));
-        let catalog = Arc::new(SpotifyCatalog::new(session.clone(), tokens));
+        let catalog = Arc::new(SpotifyCatalog::new(session.clone()));
+        let artwork = Arc::new(SpotifyArtwork::new(session.clone()));
 
-        Ok(Self { runtime, authenticator, catalog, session })
+        Ok(Self { runtime, authenticator, catalog, artwork, session })
     }
 
     /// Autenticador, para a aplicacao ligar aos botoes de entrar e sair.
@@ -85,6 +89,25 @@ impl SpotifyBackend {
     /// checar em cada tela.
     pub fn catalog(&self) -> Arc<dyn Catalog> {
         self.catalog.clone()
+    }
+
+    /// `true` quando havia sessao e ela caiu.
+    ///
+    /// O Spotify derruba sessao ociosa e a rede cai sozinha; sem isto o
+    /// aplicativo ficava com uma sessao morta na mao e toda requisicao
+    /// respondia `channel closed`.
+    pub fn session_lost(&self) -> bool {
+        self.session.is_lost()
+    }
+
+    /// Descarta a sessao morta antes de tentar de novo.
+    pub fn forget_lost_session(&self) {
+        self.session.forget_lost();
+    }
+
+    /// Fonte de capas, para a camada que as guarda em disco.
+    pub fn artwork(&self) -> Arc<dyn Artwork> {
+        self.artwork.clone()
     }
 
     /// Biblioteca do usuario. Mesmo objeto do catalogo, outro contrato.

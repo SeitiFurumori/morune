@@ -167,9 +167,38 @@ pub struct Artist {
     pub albums: Vec<AlbumRef>,
 }
 
+/// Que tipo de playlist e esta.
+///
+/// Existe porque "playlist" cobre coisas que o usuario trata de forma
+/// diferente: a que ele montou fica na navegacao, a que o provedor gerou para
+/// ele fica na tela de descoberta, e a vitrine editorial nao e nem uma nem
+/// outra.
+///
+/// Nao e detalhe do Spotify: qualquer provedor que gere lista para o usuario
+/// cai nas mesmas categorias. Quem nao souber classificar responde
+/// [`PlaylistKind::Personal`], que e o comportamento certo para uma pasta de
+/// arquivos locais.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlaylistKind {
+    /// Criada ou seguida pelo usuario.
+    #[default]
+    Personal,
+    /// Gerada para esta conta a partir do que ela ouve.
+    MadeForYou,
+    /// Fluxo continuo em torno de uma semente -- artista, faixa ou tema.
+    Station,
+    /// Retrospectiva: o que a conta mais ouviu num periodo.
+    Retrospective,
+    /// Vitrine do provedor, igual para todo mundo.
+    Editorial,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Playlist {
     pub id: PlaylistId,
+    #[serde(default)]
+    pub kind: PlaylistKind,
     pub name: Arc<str>,
     pub owner: Option<Arc<str>>,
     pub description: Option<Arc<str>>,

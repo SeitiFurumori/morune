@@ -21,6 +21,8 @@ export struct CardItem {
     id: string,
     title: string,
     subtitle: string,
+    // Capa ja em disco. Vazia enquanto o cache nao a entrega.
+    cover: image,
 }
 
 export struct ThemeItem {
@@ -207,6 +209,7 @@ component Card inherits Rectangle {
 
         Artwork {
             seed: root.item.title;
+            source: root.item.cover;
             width: parent.width - Theme.space-sm * 2;
             height: self.width;
         }
@@ -277,13 +280,61 @@ component TrackList inherits Flickable {
     }
 }
 
+// Uma playlist na barra lateral.
+//
+// Capa pequena e uma linha de texto. A capa nao e enfeite: recolhida, ela e a
+// unica coisa que sobra, e e por ela que a lista continua navegavel sem
+// rotulo.
+component PlaylistNavItem inherits Rectangle {
+    in property <CardItem> item;
+    callback activated();
+
+    height: Layout.sidebar-playlist-height;
+    border-radius: Theme.radius-sm;
+    background: touch.has-hover ? Theme.surface-raised : transparent;
+    animate background { duration: Theme.motion-fast; }
+
+    HorizontalLayout {
+        padding-left: Theme.space-sm;
+        padding-right: Theme.space-sm;
+        spacing: Theme.space-sm;
+        alignment: Layout.sidebar-labels-shown ? start : center;
+
+        Artwork {
+            source: root.item.cover;
+            seed: root.item.title;
+            radius: Theme.radius-sm;
+            width: Layout.sidebar-playlist-height - Theme.space-xs * 2;
+            height: self.width;
+            y: (parent.height - self.height) / 2;
+        }
+
+        if Layout.sidebar-labels-shown: Text {
+            text: root.item.title;
+            color: Theme.text-muted;
+            font-size: Theme.size-sm;
+            font-family: Theme.font-family;
+            vertical-alignment: center;
+            overflow: elide;
+            horizontal-stretch: 1;
+        }
+    }
+
+    touch := PressableArea {
+        clicked => { root.activated(); }
+    }
+}
+
 component Sidebar inherits Rectangle {
     in property <int> page;
     in property <bool> logged-in;
     in property <string> account-name;
+    in property <[CardItem]> playlists;
     callback navigate(int);
     callback toggle-sidebar();
     callback login();
+    callback filter-playlists(string);
+    callback open-playlist(string);
 
     VerticalLayout {
         padding: Theme.space-sm;
@@ -375,7 +426,40 @@ component Sidebar inherits Rectangle {
             clicked => { root.navigate(2); }
         }
 
-        Rectangle { vertical-stretch: 1; }
+        // As playlists vivem aqui porque e o que elas sao: o `rootlist` do
+        // Spotify e a barra lateral dele, arrumada pelo proprio usuario.
+        // Desenha-las como prateleira do Inicio era tratar navegacao como
+        // descoberta.
+        //
+        // O filtro so aparece quando ha rotulo: recolhida, nao ha onde digitar
+        // -- e nem faria sentido, porque a barra vira uma coluna de capas.
+        if Layout.sidebar-playlists && Layout.sidebar-labels-shown && root.playlists.length > 0: Rectangle {
+            height: Theme.border-width;
+            background: Theme.border;
+        }
+
+        if Layout.sidebar-playlists && Layout.sidebar-labels-shown && root.playlists.length > 0: SearchField {
+            placeholder: "Filtrar playlists";
+            edited(q) => { root.filter-playlists(q); }
+        }
+
+        if !Layout.sidebar-playlists: Rectangle { vertical-stretch: 1; }
+
+        if Layout.sidebar-playlists: Flickable {
+            vertical-stretch: 1;
+            viewport-height: lista.preferred-height;
+
+            lista := VerticalLayout {
+                alignment: start;
+                spacing: Theme.space-xs;
+                width: 100%;
+
+                for item in root.playlists: PlaylistNavItem {
+                    item: item;
+                    activated => { root.open-playlist(item.id); }
+                }
+            }
+        }
 
         NavItem {
             label: "Configuracoes";
@@ -410,6 +494,9 @@ component PlayerBar inherits Rectangle {
     in property <string> total;
     in property <float> volume;
     in property <bool> has-track;
+    // Capa da faixa tocando. Vazia enquanto o cache nao a entrega, e o bloco
+    // neutro do `Artwork` ocupa o lugar sem mudar o layout.
+    in property <image> cover;
 
     callback toggle-play();
     callback next();
@@ -455,6 +542,7 @@ component PlayerBar inherits Rectangle {
 
                 if Layout.player-artwork: Artwork {
                     seed: root.title;
+                    source: root.cover;
                     width: Layout.player-artwork-size;
                     height: Layout.player-artwork-size;
                     y: (parent.height - self.height) / 2;
@@ -654,18 +742,16 @@ component TrackShelf inherits VerticalLayout {
 
 component HomePage inherits Flickable {
     in property <[CardItem]> made-for-you;
+    in property <[CardItem]> stations;
+    in property <[CardItem]> retrospectives;
     in property <[TrackRow]> liked;
-    in property <[TrackRow]> recent;
-    in property <[CardItem]> top-artists;
-    in property <[CardItem]> playlists;
     in property <bool> logged-in;
     callback activated(string);
 
     // Verdadeiro enquanto nenhuma secao tem conteudo: antes do login, e nos
     // segundos entre entrar e as listas chegarem.
-    property <bool> empty: root.made-for-you.length == 0 && root.liked.length == 0
-        && root.recent.length == 0 && root.top-artists.length == 0
-        && root.playlists.length == 0;
+    property <bool> empty: root.made-for-you.length == 0 && root.stations.length == 0
+        && root.retrospectives.length == 0 && root.liked.length == 0;
 
     viewport-height: sections.preferred-height;
 
@@ -683,33 +769,27 @@ component HomePage inherits Flickable {
             hint: "Suas listas aparecem aqui em instantes.";
         }
 
-        if root.made-for-you.length > 0: CardShelf {
-            title: "Feito para voce";
-            items: root.made-for-you;
-            activated(id) => { root.activated(id); }
-        }
-
-        if root.recent.length > 0: TrackShelf {
-            title: "Tocadas recentemente";
-            tracks: root.recent;
-            activated(id) => { root.activated(id); }
-        }
-
         if root.liked.length > 0: TrackShelf {
             title: "Musicas curtidas";
             tracks: root.liked;
             activated(id) => { root.activated(id); }
         }
 
-        if root.top-artists.length > 0: CardShelf {
-            title: "Seus mais ouvidos";
-            items: root.top-artists;
+        if root.made-for-you.length > 0: CardShelf {
+            title: "Feito para voce";
+            items: root.made-for-you;
             activated(id) => { root.activated(id); }
         }
 
-        if root.playlists.length > 0: CardShelf {
-            title: "Suas playlists";
-            items: root.playlists;
+        if root.stations.length > 0: CardShelf {
+            title: "Estacoes recomendadas";
+            items: root.stations;
+            activated(id) => { root.activated(id); }
+        }
+
+        if root.retrospectives.length > 0: CardShelf {
+            title: "Seus mais ouvidos";
+            items: root.retrospectives;
             activated(id) => { root.activated(id); }
         }
     }
@@ -762,6 +842,196 @@ component LibraryPage inherits VerticalLayout {
     if root.items.length > 0: CardGrid {
         vertical-stretch: 1;
         items: root.items;
+        activated(id) => { root.activated(id); }
+    }
+}
+
+// Um criterio de ordenacao da tela de detalhe.
+//
+// Chip e nao cabecalho de coluna de proposito: a linha de faixa mostra numero,
+// titulo com artista e duracao, entao um cabecalho alinhado nao teria onde
+// pendurar "artista" nem "album". O chip diz o que ordena sem fingir uma
+// tabela que nao existe.
+component SortChip inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    in property <bool> descending;
+    callback clicked();
+
+    height: 28px;
+    width: rotulo.preferred-width + Theme.space-md * 2;
+    border-radius: Theme.radius-sm;
+    background: root.active
+        ? Theme.surface-raised
+        : (toque.has-hover ? Theme.hover : transparent);
+    animate background { duration: Theme.motion-fast; }
+
+    rotulo := Text {
+        // A seta so aparece no criterio ativo: repetida em todos, viraria
+        // ruido, e num criterio inativo ela nao significa nada.
+        text: root.active
+            ? (root.descending ? root.label + " \u{2193}" : root.label + " \u{2191}")
+            : root.label;
+        color: root.active ? Theme.text : Theme.text-muted;
+        font-size: Theme.size-sm;
+        font-family: Theme.font-family;
+        x: Theme.space-md;
+        y: (parent.height - self.height) / 2;
+    }
+
+    toque := PressableArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+// Uma lista aberta: playlist, album, artista ou as curtidas.
+//
+// Existe porque ativar um card tocava direto, e isso tira da pessoa a escolha
+// mais basica -- qual faixa ela quer. Aqui ela le antes de tocar, procura, e
+// ordena do jeito que preferir.
+component DetailPage inherits VerticalLayout {
+    in property <string> title;
+    in property <string> subtitle;
+    in property <string> kind;
+    in property <image> cover;
+    in property <[TrackRow]> tracks;
+    in property <int> sort;
+    in property <bool> descending;
+    in property <bool> filtered;
+
+    callback back();
+    callback play();
+    callback filter(string);
+    callback sort-by(int);
+    callback activated(string);
+
+    spacing: Theme.space-md;
+
+    HorizontalLayout {
+        spacing: Theme.space-md;
+        vertical-stretch: 0;
+
+        GhostButton {
+            label: "\u{2190} Voltar";
+            clicked => { root.back(); }
+        }
+
+        Rectangle { horizontal-stretch: 1; }
+    }
+
+    // Cabecalho: capa grande, tipo, nome e o que ha dentro.
+    HorizontalLayout {
+        spacing: Theme.space-lg;
+        vertical-stretch: 0;
+
+        Artwork {
+            source: root.cover;
+            seed: root.title;
+            width: Layout.detail-cover-size;
+            height: self.width;
+        }
+
+        VerticalLayout {
+            alignment: end;
+            spacing: Theme.space-xs;
+            horizontal-stretch: 1;
+
+            Text {
+                text: root.kind;
+                color: Theme.text-muted;
+                font-size: Theme.size-xs;
+                font-family: Theme.font-family;
+            }
+
+            Text {
+                text: root.title;
+                color: Theme.text;
+                font-size: Theme.size-xl;
+                font-weight: Theme.weight-bold;
+                font-family: Theme.font-family;
+                overflow: elide;
+            }
+
+            Text {
+                text: root.subtitle;
+                color: Theme.text-muted;
+                font-size: Theme.size-sm;
+                font-family: Theme.font-family;
+                overflow: elide;
+            }
+
+            HorizontalLayout {
+                alignment: start;
+                padding-top: Theme.space-sm;
+
+                PrimaryButton {
+                    label: "Tocar";
+                    clicked => { root.play(); }
+                }
+            }
+        }
+    }
+
+    SearchField {
+        placeholder: "Filtrar nesta lista";
+        edited(q) => { root.filter(q); }
+    }
+
+    HorizontalLayout {
+        spacing: Theme.space-xs;
+        alignment: start;
+        vertical-stretch: 0;
+
+        Text {
+            text: "Ordenar por";
+            color: Theme.text-muted;
+            font-size: Theme.size-sm;
+            font-family: Theme.font-family;
+            vertical-alignment: center;
+        }
+
+        SortChip {
+            label: "Ordem da lista";
+            active: root.sort == 0;
+            descending: root.descending;
+            clicked => { root.sort-by(0); }
+        }
+        SortChip {
+            label: "Titulo";
+            active: root.sort == 1;
+            descending: root.descending;
+            clicked => { root.sort-by(1); }
+        }
+        SortChip {
+            label: "Artista";
+            active: root.sort == 2;
+            descending: root.descending;
+            clicked => { root.sort-by(2); }
+        }
+        SortChip {
+            label: "Album";
+            active: root.sort == 3;
+            descending: root.descending;
+            clicked => { root.sort-by(3); }
+        }
+        SortChip {
+            label: "Duracao";
+            active: root.sort == 4;
+            descending: root.descending;
+            clicked => { root.sort-by(4); }
+        }
+    }
+
+    // Lista vazia com filtro e outra coisa de lista vazia sem: uma diz que a
+    // busca nao achou, a outra que nao ha nada.
+    if root.tracks.length == 0 && root.filtered: EmptyState {
+        title: "Nada com esse texto";
+        hint: "Nenhuma faixa desta lista combina com o que voce digitou.";
+    }
+
+    if root.tracks.length > 0: TrackList {
+        vertical-stretch: 1;
+        tracks: root.tracks;
         activated(id) => { root.activated(id); }
     }
 }
@@ -1041,10 +1311,9 @@ export component AppWindow inherits Window {
     in property <string> account-name;
 
     in property <[CardItem]> home-made-for-you;
+    in property <[CardItem]> home-stations;
+    in property <[CardItem]> home-retrospectives;
     in property <[TrackRow]> home-liked;
-    in property <[TrackRow]> home-recent;
-    in property <[CardItem]> home-top-artists;
-    in property <[CardItem]> home-playlists;
     in property <[TrackRow]> search-tracks;
     in property <[CardItem]> library-items;
     in property <[TrackRow]> queue-tracks;
@@ -1052,6 +1321,16 @@ export component AppWindow inherits Window {
     in property <[Diagnostic]> diagnostics;
 
     in property <string> now-title;
+    in property <image> now-cover;
+    in property <[CardItem]> sidebar-playlists;
+    in property <string> detail-title;
+    in property <string> detail-subtitle;
+    in property <string> detail-kind;
+    in property <image> detail-cover;
+    in property <[TrackRow]> detail-tracks;
+    in property <int> detail-sort;
+    in property <bool> detail-descending;
+    in property <bool> detail-filtered;
     in property <string> now-artist;
     in property <bool> playing;
     in property <bool> has-track;
@@ -1085,6 +1364,12 @@ export component AppWindow inherits Window {
     callback open-theme-folder();
     callback reload-theme();
     callback toggle-sidebar();
+    callback filter-playlists(string);
+    callback detail-back();
+    callback detail-play();
+    callback detail-filter(string);
+    callback detail-sort-by(int);
+    callback detail-activate(string);
     callback set-close-to-tray(bool);
     callback login();
     callback logout();
@@ -1112,6 +1397,7 @@ export component AppWindow inherits Window {
         if Layout.player-position == 1: PlayerBar {
             title: root.now-title;
             artist: root.now-artist;
+            cover: root.now-cover;
             playing: root.playing;
             has-track: root.has-track;
             progress: root.progress;
@@ -1146,9 +1432,12 @@ export component AppWindow inherits Window {
                     page: root.page;
                     logged-in: root.logged-in;
                     account-name: root.account-name;
+                    playlists: root.sidebar-playlists;
                     navigate(p) => { root.navigate(p); }
                     toggle-sidebar => { root.toggle-sidebar(); }
                     login => { root.login(); }
+                    filter-playlists(q) => { root.filter-playlists(q); }
+                    open-playlist(id) => { root.play-track(id); }
                 }
             }
 
@@ -1162,10 +1451,9 @@ export component AppWindow inherits Window {
 
                     if root.page == 0: HomePage {
                         made-for-you: root.home-made-for-you;
+                        stations: root.home-stations;
+                        retrospectives: root.home-retrospectives;
                         liked: root.home-liked;
-                        recent: root.home-recent;
-                        top-artists: root.home-top-artists;
-                        playlists: root.home-playlists;
                         logged-in: root.logged-in;
                         activated(id) => { root.play-track(id); }
                     }
@@ -1200,6 +1488,22 @@ export component AppWindow inherits Window {
                         reload-theme => { root.reload-theme(); }
                         login => { root.login(); }
                         logout => { root.logout(); }
+                    }
+
+                    if root.page == 5: DetailPage {
+                        title: root.detail-title;
+                        subtitle: root.detail-subtitle;
+                        kind: root.detail-kind;
+                        cover: root.detail-cover;
+                        tracks: root.detail-tracks;
+                        sort: root.detail-sort;
+                        descending: root.detail-descending;
+                        filtered: root.detail-filtered;
+                        back => { root.detail-back(); }
+                        play => { root.detail-play(); }
+                        filter(q) => { root.detail-filter(q); }
+                        sort-by(c) => { root.detail-sort-by(c); }
+                        activated(id) => { root.detail-activate(id); }
                     }
 
                     if root.page == 4: QueuePage {
@@ -1263,9 +1567,12 @@ export component AppWindow inherits Window {
                     page: root.page;
                     logged-in: root.logged-in;
                     account-name: root.account-name;
+                    playlists: root.sidebar-playlists;
                     navigate(p) => { root.navigate(p); }
                     toggle-sidebar => { root.toggle-sidebar(); }
                     login => { root.login(); }
+                    filter-playlists(q) => { root.filter-playlists(q); }
+                    open-playlist(id) => { root.play-track(id); }
                 }
             }
         }
@@ -1273,6 +1580,7 @@ export component AppWindow inherits Window {
         if Layout.player-position != 1: PlayerBar {
             title: root.now-title;
             artist: root.now-artist;
+            cover: root.now-cover;
             playing: root.playing;
             has-track: root.has-track;
             progress: root.progress;

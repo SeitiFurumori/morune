@@ -79,11 +79,19 @@ impl std::fmt::Debug for Session {
 impl Session {
     /// Sobe o backend. Nao toca a rede: falhar aqui nao pode impedir o
     /// aplicativo de abrir, entao o erro vira estado, nao panico.
-    pub fn new(credentials: Arc<dyn morune_core::auth::CredentialStore>) -> Self {
+    pub fn new(
+        credentials: Arc<dyn morune_core::auth::CredentialStore>,
+        covers_dir: std::path::PathBuf,
+    ) -> Self {
         match SpotifyBackend::new(credentials) {
             Ok(backend) => {
-                let browse =
-                    Browse::new(backend.catalog(), backend.library(), backend.handle());
+                let browse = Browse::new(
+                    backend.catalog(),
+                    backend.library(),
+                    backend.artwork(),
+                    covers_dir,
+                    backend.handle(),
+                );
                 Self {
                     backend: Some(backend),
                     state: SessionState::LoggedOut,
@@ -115,6 +123,29 @@ impl Session {
     /// `true` enquanto ha uma tentativa em andamento.
     pub fn is_busy(&self) -> bool {
         self.pending.is_some()
+    }
+
+    /// Reabre a sessao quando ela caiu, sem pedir nada ao usuario.
+    ///
+    /// A conexao com o Spotify nao dura para sempre: ele derruba sessao ociosa,
+    /// e a rede cai sozinha. Sem isto, a partir da queda **tudo** respondia
+    /// `channel closed` ate o usuario reiniciar o aplicativo -- e nada na tela
+    /// dizia que era so reconectar.
+    ///
+    /// Devolve `true` quando comecou uma tentativa. O refresh token esta no
+    /// cofre, entao a volta e silenciosa: sem navegador, sem clique.
+    pub fn reconnect_if_lost(&mut self) -> bool {
+        let Some(backend) = &self.backend else { return false };
+        if self.pending.is_some() || !backend.session_lost() {
+            return false;
+        }
+
+        // Sem descartar a sessao morta, `restore` a encontraria de novo e o
+        // aplicativo ficaria tentando para sempre.
+        backend.forget_lost_session();
+        tracing::info!("sessao do Spotify caiu; reconectando");
+        self.restore();
+        true
     }
 
     /// Tenta reabrir a ultima sessao, sem interacao.
@@ -213,6 +244,10 @@ impl Session {
                 })
             }
             Outcome::Restored(Err(e)) | Outcome::LoggedIn(Err(e)) => {
+                // Sem isto a barra de status diz "verifique a internet" e o
+                // motivo real -- porta ocupada, plano recusado, token negado,
+                // resposta fora do formato -- nao aparece em lugar nenhum.
+                tracing::error!(error = %e, "login no Spotify falhou");
                 let message = describe(&e);
                 self.state = SessionState::Failed(message.clone());
                 Some(SessionChange { message, engine: None })
@@ -266,7 +301,7 @@ mod tests {
     use morune_core::auth::MemoryCredentialStore;
 
     fn session() -> Session {
-        Session::new(Arc::new(MemoryCredentialStore::default()))
+        Session::new(Arc::new(MemoryCredentialStore::default()), std::env::temp_dir())
     }
 
     #[test]

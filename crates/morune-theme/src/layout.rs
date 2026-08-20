@@ -95,8 +95,28 @@ pub struct SidebarLayout {
     pub show_labels: bool,
     /// Mostra a lista de playlists abaixo da navegacao.
     pub show_playlists: bool,
+    /// Altura de cada linha da lista de playlists.
+    ///
+    /// E ela que define o tamanho da capa: recolhida, a barra vira uma coluna
+    /// de capas, e essa altura passa a ser a unica coisa que separa uma
+    /// playlist da outra.
+    pub playlist_height: f32,
     /// Ordem dos itens de navegacao. Nomes desconhecidos sao ignorados com aviso.
     pub items: Vec<String>,
+}
+
+/// Tela de uma lista aberta.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct DetailLayout {
+    /// Lado da capa no cabecalho.
+    pub cover_size: f32,
+}
+
+impl Default for DetailLayout {
+    fn default() -> Self {
+        Self { cover_size: 160.0 }
+    }
 }
 
 impl Default for SidebarLayout {
@@ -110,6 +130,7 @@ impl Default for SidebarLayout {
             show_icons: true,
             show_labels: true,
             show_playlists: true,
+            playlist_height: 40.0,
             items: ["home", "search", "library"].iter().map(|s| s.to_string()).collect(),
         }
     }
@@ -192,6 +213,8 @@ impl Default for ContentLayout {
 pub struct LayoutSpec {
     pub window: WindowLayout,
     pub sidebar: SidebarLayout,
+    #[serde(default)]
+    pub detail: DetailLayout,
     pub player: PlayerLayout,
     pub content: ContentLayout,
 }
@@ -220,6 +243,12 @@ impl LayoutSpec {
         clamp("window.min_height", &mut self.window.min_height, 360.0, 4000.0);
         clamp("sidebar.width", &mut self.sidebar.width, 120.0, 600.0);
         clamp("sidebar.collapsed_width", &mut self.sidebar.collapsed_width, 40.0, 200.0);
+        // Abaixo de 24 a capa some; acima de 96 cabem meia duzia de playlists
+        // na barra inteira, o que a torna inutil como navegacao.
+        clamp("sidebar.playlist_height", &mut self.sidebar.playlist_height, 24.0, 96.0);
+        // Abaixo de 64 a capa nao serve de cabecalho; acima de 320 ela empurra a
+        // lista inteira para fora da primeira tela.
+        clamp("detail.cover_size", &mut self.detail.cover_size, 64.0, 320.0);
         clamp("player.height", &mut self.player.height, 48.0, 260.0);
         clamp("player.artwork_size", &mut self.player.artwork_size, 0.0, 240.0);
         clamp("content.card_width", &mut self.content.card_width, 80.0, 480.0);
