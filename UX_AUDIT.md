@@ -8,13 +8,14 @@ Objetivo: reduzir tempo para compreensão e esforço operacional sem descaracter
 
 O MORU•NE já tinha uma base visual acima da média para um produto em estágio inicial: identidade própria, hierarquia limpa, navegação estável, player persistente, temas realmente estruturais e mensagens de erro geralmente orientadas à recuperação. O principal problema não era estética. Era a diferença entre o que a interface prometia e o que um usuário conseguia operar.
 
-Foram encontrados quatro riscos P1. Três foram corrigidos nesta rodada:
+Foram encontrados quatro riscos P1. Todos estão corrigidos:
 
 - a busca dizia aceitar faixa, álbum e artista, mas consultava somente faixas;
 - controles customizados eram essencialmente áreas de mouse, sem árvore acessível real no Windows;
-- grades de cinco colunas estouravam na janela mínima.
+- grades de cinco colunas estouravam na janela mínima;
+- salvar/favoritar não concluía o fluxo central de construir uma biblioteca.
 
-O quarto P1 permanece: salvar/favoritar não existe. O backend e as permissões atuais são intencionalmente somente leitura; adicionar escrita na conta é uma decisão de produto e segurança, não um ajuste visual.
+Favoritos agora pertencem ao MORU•NE e são persistidos localmente, sem ampliar permissões da conta Spotify. Essa decisão aplica “Your music. Your way.” de forma estrutural: a biblioteca guarda a origem da faixa, mas não pertence a um único provedor.
 
 Também foram corrigidas fricções P2 em estados vazios, feedback, configurações, temas, player e navegação por teclado. A direção visual existente foi preservada.
 
@@ -41,7 +42,7 @@ Limites desta rodada: não houve teste humano com Narrador, monitor secundário 
 | Severidade | Encontrados | Corrigidos | Pendentes |
 |---|---:|---:|---:|
 | P0 — bloqueia uso | 0 | 0 | 0 |
-| P1 — crítico | 4 | 3 | 1 |
+| P1 — crítico | 4 | 4 | 0 |
 | P2 — fricção relevante | 10 | 6 | 4 |
 | P3 — refinamento | 7 | 3 | 4 |
 | P4 — cosmético | 2 | 1 | 1 |
@@ -72,13 +73,14 @@ Limites desta rodada: não houve teste humano com Narrador, monitor secundário 
 **Solução.** Número de colunas recalculado a cada redimensionamento, preservando tamanho legível dos cards.  
 **Justificativa.** A estrutura se reorganiza; os cards não são comprimidos até perder legibilidade.
 
-### P1 — Salvar e favoritar não existem — pendente
+### P1 — Salvar e favoritar não existiam — corrigido
 
 **Problema.** Não há ação de curtir, salvar álbum ou seguir artista, embora Biblioteca e padrões de players criem essa expectativa.  
 **Impacto.** Um fluxo central de música termina sem conclusão e a biblioteca parece somente decorativa.  
 **Princípios.** Modelo mental, controle e liberdade, completude do fluxo.  
-**Solução recomendada.** Definir se a escrita será feita na conta Spotify ou numa biblioteca local; ampliar escopos OAuth apenas após essa decisão; adicionar estado otimista com rollback e desfazer.  
-**Justificativa.** Implementar silenciosamente escrita externa seria uma expansão de permissão e risco incompatível com a filosofia do produto.
+**Solução.** Biblioteca local independente de provedor, com coração no player e nas linhas; estado acessível; remoção pelo mesmo controle; persistência recuperável; favoritos recentes primeiro; Biblioteca separa “Favoritos no Morune” de conteúdo “Da sua conta”. As permissões Spotify continuam somente leitura.
+
+**Justificativa.** O usuário conclui o fluxo sem entregar controle da biblioteca a um serviço específico. Falha de gravação faz rollback e explica o problema, evitando falso sucesso e perda silenciosa.
 
 ### P2 — Estados vazios não ofereciam próxima ação — corrigido
 
@@ -163,7 +165,7 @@ Limites desta rodada: não houve teste humano com Narrador, monitor secundário 
 
 1. **Visibilidade do estado:** player persistente e estados de reprodução são bons; busca ganhou loading/empty/result; toast ganhou dispensa.  
 2. **Sistema e mundo real:** terminologia musical é natural; busca agora corresponde ao texto.  
-3. **Controle e liberdade:** voltar e troca de tema melhoraram; favoritar e editar fila seguem como lacunas.  
+3. **Controle e liberdade:** voltar, troca de tema e favoritos locais estão cobertos; editar fila segue como lacuna.
 4. **Consistência e padrões:** tokens e iconografia são fortes; componentes agora compartilham foco e semântica.  
 5. **Prevenção de erros:** camadas de clique de tema corrigidas; importação ainda precisa preview.  
 6. **Reconhecimento:** sidebar e player são reconhecíveis; ícones críticos agora têm nome acessível, mas ainda precisam tooltip visual.  
@@ -174,7 +176,7 @@ Limites desta rodada: não houve teste humano com Narrador, monitor secundário 
 
 ## Comparação com padrões maduros
 
-- **Spotify e Apple Music:** reforçam busca ampla, favorito próximo da faixa e fila editável. O MORU•NE agora atende busca ampla, mas ainda não favorito/fila editável.
+- **Spotify e Apple Music:** reforçam busca ampla, favorito próximo da faixa e fila editável. O MORU•NE atende busca e favorito, mas mantém o dado no próprio produto; fila editável ainda falta.
 - **YouTube Music:** mantém player e fila como continuidade da navegação e oferece atalhos no desktop. O player persistente do MORU•NE está alinhado; falta referência de atalhos e mini-player.
 - **Windows 11:** exige Tab lógico, foco visível, Enter/Espaço e nomes para controles customizados. A árvore AccessKit agora segue esse modelo.
 - **Discord:** torna `Ctrl+,`, voltar e navegação por teclado padrões descobríveis. O MORU•NE implementa parte do vocabulário, mas ainda precisa uma folha de atalhos.
@@ -194,6 +196,7 @@ Referências: [atalhos do Spotify](https://support.spotify.com/uk/article/keyboa
 | Mensagem permanente sem controle | Botão acessível para dispensar |
 | Switch só no pequeno alvo | Linha inteira acionável, sem duplicar foco |
 | Player icon-only para tecnologia assistiva | Ações e estados anunciados por nome |
+| Biblioteca dependia do que a conta externa salvou | Favoritos locais, persistentes e independentes do provedor |
 
 ## Pontos fortes preservados
 
@@ -209,12 +212,11 @@ Referências: [atalhos do Spotify](https://support.spotify.com/uk/article/keyboa
 
 ## Próximos passos priorizados
 
-1. Decidir produto/permissões para favorito e biblioteca gravável (P1).
-2. Implementar gestão completa de fila (P2).
-3. Adicionar preview/desfazer para temas e importação (P2).
-4. Implementar mini-player e indicação de dispositivo de saída (P2).
-5. Criar referência de atalhos e tooltips visuais (P3).
-6. Fazer teste humano com Narrador, teclado-only e 200% de escala em monitor secundário.
-7. Testar rede lenta/offline, nomes extremos, CJK/RTL e listas extensas.
+1. Implementar gestão completa de fila (P2).
+2. Adicionar preview/desfazer para temas e importação (P2).
+3. Implementar mini-player e indicação de dispositivo de saída (P2).
+4. Criar referência de atalhos e tooltips visuais (P3).
+5. Fazer teste humano com Narrador, teclado-only e 200% de escala em monitor secundário.
+6. Testar rede lenta/offline, nomes extremos, CJK/RTL e listas extensas.
 
 O critério de aceite permanece: um usuário novo deve chegar de abertura a busca e reprodução sem precisar aprender a arquitetura do aplicativo.

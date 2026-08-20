@@ -18,17 +18,18 @@ catalogo inteiro ser reescrito sobre o protocolo interno.
 | | |
 |---|---|
 | Instalador | 5,31 MB, `dist/Morune-0.1.0-setup.exe` |
-| Executavel | 13,28 MB, `target/release/morune.exe` |
+| Executavel | 13,62 MiB, `target/release/morune.exe` |
 | Startup interno | 19 ms (mediana de 10 execucoes) |
 | RAM em repouso | 78,8 MB de working set medio; pico 79,5 MB |
-| Testes | 217 no total; dois exigem uma sessao de logon do Windows para o cofre |
+| Testes | 222 no total; dois exigem uma sessao de logon do Windows para o cofre |
 | Clippy | limpo com `-D warnings` |
 
 ### Verificado contra a conta real
 
 Login OAuth PKCE com reconexao pelo cofre; reproducao com som saindo; busca;
 playlists, curtidas e artistas seguidos; capas; abrir uma playlist, filtrar,
-ordenar e tocar a faixa escolhida.
+ordenar e tocar a faixa escolhida. Favoritos do Morune foram validados em
+persistencia, acessibilidade e janela minima; a conta Spotify continua somente leitura.
 
 ### O que existe agora e nao existia
 
@@ -272,7 +273,7 @@ o processo ainda morre. Nao ha como contornar sem alterar a librespot.
 Feito em 19/08/2026 contra uma conta Premium real. Repetir depois de mexer no
 backend -- nesta ordem, porque cada passo depende do anterior.
 
-1. `. .	oolsenv.ps1` e `cargo run --release`.
+1. `. .\tools\env.ps1` e `cargo run --release`.
 2. Configuracoes -> **Entrar no Spotify**. O navegador abre; autorize. A barra
    de status deve dizer "Conectado como ...".
 3. Feche e abra. Tem de reconectar sozinho, sem navegador: e o refresh token
@@ -293,11 +294,14 @@ backend -- nesta ordem, porque cada passo depende do anterior.
    discreto de todos -- a lista parecia certa, so estava desatualizada.
 10. **Capas**: parte das playlists mostra imagem, o resto mostra a marca. A
     faixa tocando tem capa na barra de baixo.
-11. Deixar uma faixa acabar sozinha, com repeticao em "uma": tem de repetir,
+11. **Favoritos do Morune**: adicionar pelo coracao de uma linha, conferir o
+    estado preenchido no player e a faixa em Biblioteca; remover pelo mesmo
+    controle. Nenhuma curtida do Spotify deve mudar.
+12. Deixar uma faixa acabar sozinha, com repeticao em "uma": tem de repetir,
     nao pular. E o unico jeito de verificar o `user_advance = false`.
-12. Fechar a janela com "continuar tocando ao fechar" ligado: o som continua e
+13. Fechar a janela com "continuar tocando ao fechar" ligado: o som continua e
     a bandeja mostra a faixa.
-13. **Medir de novo** com `.	oolsmeasure.ps1` e atualizar
+14. **Medir de novo** com `.\tools\measure.ps1` e atualizar
     [PERFORMANCE.md](../PERFORMANCE.md) -- agora com CPU e GPU **tocando**, que
     e o criterio que passou a valer. **Ainda nao foi feito.**
 

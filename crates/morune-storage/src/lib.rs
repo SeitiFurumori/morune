@@ -14,8 +14,10 @@
 
 pub mod config;
 pub mod credentials;
+pub mod favorites;
 pub mod paths;
 
 pub use config::{Config, ConfigError};
 pub use credentials::platform_store;
+pub use favorites::{Favorites, FavoritesError};
 pub use paths::AppPaths;
