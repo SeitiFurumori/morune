@@ -54,8 +54,18 @@ fn main() -> anyhow::Result<()> {
     }
 
     #[cfg(windows)]
-    let Some(_single_instance) = instance::SingleInstance::acquire()? else {
-        return Ok(());
+    let _single_instance = if cfg!(feature = "snapshot")
+        && std::env::var_os("MORUNE_SNAPSHOT").is_some()
+    {
+        // A ferramenta visual precisa coexistir com o aplicativo que o dono
+        // esta usando. Isto nao entra no build normal porque a feature fica
+        // desligada em release.
+        None
+    } else {
+        let Some(instance) = instance::SingleInstance::acquire()? else {
+            return Ok(());
+        };
+        Some(instance)
     };
 
     let started = Instant::now();
@@ -80,6 +90,7 @@ fn main() -> anyhow::Result<()> {
         std::env::var("MORUNE_SNAPSHOT_HEIGHT")
             .and_then(|v| v.parse::<f32>().map_err(|_| std::env::VarError::NotPresent)),
     ) {
+        window.window().set_maximized(false);
         window
             .window()
             .set_size(slint::LogicalSize::new(width, height));
@@ -613,6 +624,11 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
 
     on!(on_detail_sort_by, |w, s, criterio: i32| {
         s.set_detail_sort(criterio);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_detail_load_more, |w, s| {
+        s.load_more_detail();
         s.push_to_ui(&w);
     });
 

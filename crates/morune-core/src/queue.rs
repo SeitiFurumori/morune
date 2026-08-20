@@ -253,6 +253,33 @@ impl Queue {
         self.user_queue.push_back(track);
     }
 
+    /// Acrescenta a pagina seguinte ao contexto sem mudar a faixa atual.
+    ///
+    /// Playlists podem repetir a mesma musica de proposito, portanto este
+    /// metodo preserva duplicatas e ordem. Quando o shuffle esta ativo, apenas
+    /// as novas posicoes sao embaralhadas antes de entrar no restante da fila.
+    pub fn append_context(&mut self, tracks: Vec<Track>) {
+        if tracks.is_empty() {
+            return;
+        }
+
+        let first = self.context.len();
+        let mut appended_order: Vec<usize> = (first..first + tracks.len()).collect();
+        self.context.extend(tracks);
+
+        if self.shuffle && appended_order.len() > 1 {
+            let mut rng =
+                Xorshift64::new(self.seed ^ (self.context.len() as u64).wrapping_mul(0x9E37));
+            self.seed = self.seed.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            for i in (1..appended_order.len()).rev() {
+                let j = rng.below((i + 1) as u64) as usize;
+                appended_order.swap(i, j);
+            }
+        }
+
+        self.order.extend(appended_order);
+    }
+
     /// Acrescenta uma continuacao ao contexto e seleciona a primeira faixa nova.
     ///
     /// Usado pelo autoplay depois que o contexto terminou. Preserva historico,
@@ -619,6 +646,19 @@ mod tests {
         q.set_repeat(RepeatMode::All);
         let up: Vec<&str> = q.upcoming(3).iter().map(|t| t.name.as_ref()).collect();
         assert_eq!(up, vec!["Track 0", "Track 1", "Track 2"]);
+    }
+
+    #[test]
+    fn a_new_page_extends_the_context_without_interrupting_playback() {
+        let mut queue = q(2);
+        queue.jump_to(1);
+
+        queue.append_context(vec![track(2), track(2), track(3)]);
+
+        assert_eq!(queue.current().unwrap().name.as_ref(), "Track 1");
+        assert_eq!(queue.len(), 5);
+        assert_eq!(queue.next(true).unwrap().name.as_ref(), "Track 2");
+        assert_eq!(queue.next(true).unwrap().name.as_ref(), "Track 2");
     }
 
     #[test]

@@ -39,16 +39,12 @@ const SHELF_TRACKS: u32 = 6;
 /// Escrito tres vezes, envelheceria em tres lugares.
 pub const LIKED_TITLE: &str = "Musicas curtidas";
 
-/// Quantas faixas a tela de detalhe carrega.
+/// Quantas faixas a tela pede por vez.
 ///
-/// Filtrar e ordenar so sao honestos sobre o que esta carregado, entao o teto
-/// e alto: uma playlist normal cabe inteira. Acima disso a tela diz quantas
-/// mostrou, em vez de fingir que a lista acabou.
-///
-/// Nao e um limite do protocolo: o caminho interno entrega a lista de ids
-/// completa numa requisicao, e o custo esta no metadado, que vem em lotes de
-/// 50. Subir isto e trocar tempo de abertura por lista maior.
-const DETAIL_TRACKS: u32 = 200;
+/// E pagina, nao teto: a interface pede a proxima quando a pessoa se aproxima
+/// do fim. O provedor ainda pode devolver menos (curtidas vem em lotes de 50),
+/// e [`morune_core::catalog::Page`] informa se existe continuacao.
+const DETAIL_PAGE: u32 = 100;
 
 /// O que a interface pode ativar com um clique.
 ///
@@ -149,9 +145,9 @@ pub struct Home {
 
 /// Uma lista aberta na tela de detalhe.
 ///
-/// Carrega as faixas **inteiras**, e nao so as visiveis: filtrar e ordenar
-/// precisam ver tudo, e uma lista que so ordena o pedaco carregado mente para
-/// quem olha. O teto de quantas vem esta em [`DETAIL_TRACKS`].
+/// Comeca com uma pagina e cresce conforme a pessoa rola. Quando filtro ou
+/// ordenacao exigem a colecao inteira, o estado pede as paginas restantes em
+/// segundo plano antes de tratar o resultado como definitivo.
 #[derive(Debug, Clone)]
 pub struct Detail {
     /// O que abriu esta tela, para o botao de voltar e para a fila.
@@ -168,6 +164,10 @@ pub struct Detail {
     pub cards: Vec<Card>,
     /// Total informado pelo provedor, antes do teto local da tela.
     pub total_tracks: Option<u32>,
+    /// Origem paginavel. Album e artista ja chegam completos e usam `None`.
+    pub source: Option<Target>,
+    /// Verdadeiro quando o provedor informou que existe outra pagina.
+    pub has_more: bool,
 }
 
 /// O que um pedido produziu.
@@ -190,6 +190,18 @@ pub enum Outcome {
     },
     /// Uma lista aberta para ser lida antes de tocada.
     Detail(Box<Detail>),
+    /// Continuacao de uma lista ja aberta. Separada de `Detail` para anexar as
+    /// linhas sem perder filtro, ordenacao nem posicao de rolagem.
+    DetailMore {
+        source: Target,
+        tracks: Vec<Track>,
+        total: Option<u32>,
+        has_more: bool,
+    },
+    DetailMoreFailed {
+        source: Target,
+        message: String,
+    },
     Failed(String),
 }
 
@@ -499,6 +511,38 @@ impl Browse {
         });
     }
 
+    /// Pede a pagina seguinte da lista aberta sem permitir requisicoes
+    /// duplicadas. O gesto de rolagem pode disparar varias vezes na mesma
+    /// borda; somente a primeira deve chegar ao Spotify.
+    pub fn load_more(&mut self, source: Target, offset: u32) -> bool {
+        if self.pending.is_some() {
+            return false;
+        }
+        let catalog = self.catalog.clone();
+        let library = self.library.clone();
+        self.spawn(move |tx| async move {
+            let result = match &source {
+                Target::Playlist(id) => catalog.playlist_tracks(id, offset, DETAIL_PAGE).await,
+                Target::Liked => library.saved_tracks(offset, DETAIL_PAGE).await,
+                _ => Err(CoreError::Unsupported("esta lista nao possui continuacao")),
+            };
+            let outcome = match result {
+                Ok(page) => Outcome::DetailMore {
+                    source,
+                    has_more: !page.items.is_empty() && page.has_more(),
+                    total: page.total,
+                    tracks: page.items,
+                },
+                Err(error) => Outcome::DetailMoreFailed {
+                    source,
+                    message: describe(&error),
+                },
+            };
+            let _ = tx.send(outcome);
+        });
+        true
+    }
+
     /// Recolhe o resultado do pedido em andamento, se ja houver.
     pub fn poll(&mut self) -> Option<Outcome> {
         let rx = self.pending.as_ref()?;
@@ -558,49 +602,43 @@ async fn resolve(
                 cover: cover(&album.images),
                 cover_path: None,
                 total_tracks: album.total_tracks,
+                source: None,
+                has_more: false,
                 tracks: album.tracks,
                 cards: Vec::new(),
             }))
         }
         Target::Playlist(id) => {
             let playlist = catalog.playlist(&id).await?;
-            let mut tracks = Vec::new();
-            let mut offset = 0;
-            let mut total = playlist.total_tracks;
-            while tracks.len() < DETAIL_TRACKS as usize {
-                let remaining = DETAIL_TRACKS - tracks.len() as u32;
-                let page = catalog.playlist_tracks(&id, offset, remaining).await?;
-                total = page.total.or(total);
-                let received = page.items.len() as u32;
-                let has_more = page.has_more();
-                tracks.extend(page.items);
-                if received == 0 || !has_more {
-                    break;
-                }
-                offset += received;
-            }
+            let page = catalog.playlist_tracks(&id, 0, DETAIL_PAGE).await?;
+            let total = page.total.or(playlist.total_tracks);
+            let has_more = !page.items.is_empty() && page.has_more();
+            let loaded = page.items.len() as u32;
             Outcome::Detail(Box::new(Detail {
                 origin: QueueOrigin::Playlist(playlist.id.canonical()),
                 title: playlist.name.to_string(),
                 subtitle: match playlist.owner.as_deref() {
                     Some(dono) => {
-                        format!("{dono} — {} faixas", total.unwrap_or(tracks.len() as u32))
+                        format!("{dono} — {} faixas", total.unwrap_or(loaded))
                     }
-                    None => format!("{} faixas", total.unwrap_or(tracks.len() as u32)),
+                    None => format!("{} faixas", total.unwrap_or(loaded)),
                 },
                 kind: "Playlist".into(),
                 cover: cover(&playlist.images),
                 cover_path: None,
-                tracks,
+                tracks: page.items,
                 total_tracks: total,
+                source: Some(Target::Playlist(id)),
+                has_more,
                 cards: Vec::new(),
             }))
         }
         // Diferente das outras, esta nao vem do catalogo: curtidas sao da
         // conta, e quem responde por elas e a biblioteca.
         Target::Liked => {
-            let page = library.saved_tracks(0, DETAIL_TRACKS).await?;
+            let page = library.saved_tracks(0, DETAIL_PAGE).await?;
             let total = page.total.unwrap_or(page.items.len() as u32);
+            let has_more = !page.items.is_empty() && page.has_more();
             Outcome::Detail(Box::new(Detail {
                 origin: QueueOrigin::Custom(LIKED_TITLE.into()),
                 title: LIKED_TITLE.into(),
@@ -610,6 +648,8 @@ async fn resolve(
                 cover_path: None,
                 tracks: page.items,
                 total_tracks: Some(total),
+                source: Some(Target::Liked),
+                has_more,
                 cards: Vec::new(),
             }))
         }
@@ -625,6 +665,8 @@ async fn resolve(
                 cover_path: None,
                 tracks: artist.top_tracks,
                 total_tracks: None,
+                source: None,
+                has_more: false,
                 cards,
             }))
         }
@@ -709,7 +751,7 @@ const CARD_ARTWORK_WIDTH: u32 = 300;
 ///
 /// Nao e teto de prateleira: e a lista inteira da conta, porque a barra
 /// lateral mostra todas e o filtro precisa ver todas para filtrar.
-const ROOTLIST_LIMIT: u32 = 200;
+const ROOTLIST_LIMIT: u32 = u32::MAX;
 
 /// Uma estacao chega em blocos curtos: o proximo fim de fila pede outro bloco.
 const AUTOPLAY_TRACKS: u32 = 50;

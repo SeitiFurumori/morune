@@ -45,6 +45,11 @@ impl<T> Page<T> {
 
     /// `true` quando existe pelo menos mais uma pagina depois desta.
     pub fn has_more(&self) -> bool {
+        // Uma pagina vazia nao avancou o cursor. Mesmo que o provedor repita
+        // um total antigo, insistir nela criaria um ciclo de requisicoes.
+        if self.items.is_empty() {
+            return false;
+        }
         match self.total {
             Some(total) => {
                 self.offset + self.items.len() as u32 > 0
@@ -294,6 +299,13 @@ mod tests {
             total: None,
         };
         assert!(!exhausted.has_more());
+
+        let stale_total: Page<i32> = Page {
+            items: vec![],
+            offset: 5,
+            total: Some(10),
+        };
+        assert!(!stale_total.has_more());
     }
 
     #[test]
