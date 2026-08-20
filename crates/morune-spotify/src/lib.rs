@@ -32,17 +32,30 @@
 
 #![deny(unsafe_code)]
 
+mod artwork;
 mod auth;
 mod catalog;
-mod dto;
 mod engine;
 mod error;
+mod graphql;
 mod internal;
+mod pathfinder;
 mod runtime;
 mod token;
-mod webapi;
 
 pub use auth::{SharedSession, SpotifyAuthenticator};
 pub use catalog::SpotifyCatalog;
 pub use engine::SpotifyEngine;
 pub use runtime::SpotifyBackend;
+
+/// Le um rootlist cru e devolve `(nome, dono, tamanho, formato)` de cada
+/// playlist.
+///
+/// Existe **so para o exemplo `rootlist`**, que confere a leitura contra a
+/// resposta gravada de uma conta real sem precisar de login. Nao e usado pelo
+/// aplicativo, e o tipo devolvido e proposital: uma tupla nao tenta parecer
+/// parte do contrato publico.
+#[doc(hidden)]
+pub fn debug_rootlist(bytes: &[u8]) -> Result<Vec<(String, String, u32, String)>, String> {
+    internal::summaries_for_debug(bytes)
+}

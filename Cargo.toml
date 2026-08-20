@@ -52,3 +52,14 @@ codegen-units = 1
 panic = "abort"
 strip = "symbols"
 incremental = false
+
+# A librespot encerrava o processo em conta nao-Premium: `check_catalogue`
+# chamava `process::exit(1)` no manipulador do pacote de produto, e a janela
+# sumia sem erro, sem log e sem aviso. Num aplicativo aberto isso e o primeiro
+# contato da maioria das contas do Spotify com o Morune -- ver vendor/README.md.
+#
+# A copia em `vendor/` muda esse metodo e nada mais. `patch.crates-io` faz
+# `librespot-playback`, `-metadata` e `-oauth` usarem a mesma copia, sem que
+# nenhum deles precise ser alterado.
+[patch.crates-io]
+librespot-core = { path = "vendor/librespot-core" }

@@ -114,6 +114,24 @@ pub trait Catalog: Send + Sync + 'static {
     ) -> BoxFuture<'a, CoreResult<Page<Track>>>;
 }
 
+
+/// Busca os bytes de uma capa.
+///
+/// Fica separado de [`Catalog`] porque a pergunta e de outra natureza: o
+/// catalogo devolve estrutura, isto devolve um arquivo. Separar permite que a
+/// camada de cache envolva so este, que e o unico que vale a pena guardar em
+/// disco.
+///
+/// Quem implementa **nao** guarda nada: a decisao de cachear, com que teto e
+/// com que descarte, e de quem chama. Ver `docs/HANDOFF.md`.
+pub trait Artwork: Send + Sync + 'static {
+    /// Baixa a imagem apontada por `url`.
+    ///
+    /// A URL vem de um [`crate::model::ImageSet`], ou seja, do proprio
+    /// provedor -- nunca de entrada do usuario.
+    fn fetch<'a>(&'a self, url: &'a str) -> BoxFuture<'a, CoreResult<Vec<u8>>>;
+}
+
 /// Janela de tempo de "mais ouvidos".
 ///
 /// Os tres recortes existem porque respondem perguntas diferentes: o que estou

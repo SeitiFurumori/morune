@@ -30,6 +30,8 @@ pub use playback::{
     EngineCapabilities, NullEngine, PlaybackEngine, PlaybackState, PlayerCommand, PlayerEvent,
     PlayerSnapshot,
 };
+pub use catalog::Artwork;
+pub use model::PlaylistKind;
 pub use queue::{Queue, QueueOrigin, RepeatMode};
 
 /// Versao da crate, exposta para telas de "sobre" e para log de diagnostico.
