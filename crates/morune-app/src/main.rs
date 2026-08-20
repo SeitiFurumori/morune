@@ -44,6 +44,15 @@ use slint::ComponentHandle;
 use state::AppState;
 
 fn main() -> anyhow::Result<()> {
+    // O empacotador executa o binario com um PATH que contem apenas o Windows.
+    // Chegar ate aqui prova que o loader encontrou todas as DLLs importadas.
+    // Nao criamos a janela nesse modo porque runners do GitHub executam como
+    // servico, sem uma area de trabalho interativa onde o Slint possa abrir UI.
+    if let Some(report) = std::env::var_os("MORUNE_BINARY_CHECK_FILE") {
+        std::fs::write(report, "binary_loaded=ok\n")?;
+        return Ok(());
+    }
+
     #[cfg(windows)]
     let Some(_single_instance) = instance::SingleInstance::acquire()? else {
         return Ok(());
