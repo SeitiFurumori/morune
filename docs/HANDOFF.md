@@ -17,11 +17,11 @@ catalogo inteiro ser reescrito sobre o protocolo interno.
 
 | | |
 |---|---|
-| Instalador | 4,00 MB, `dist/Morune-0.1.0-setup.exe` (medido no ciclo 1) |
-| Executavel | 13,0 MB, `target/release/morune.exe` |
-| Startup interno | 17-18 ms |
-| RAM em repouso | 70,6 MB (medido no ciclo 1) |
-| Testes | 212, todos passando |
+| Instalador | 5,31 MB, `dist/Morune-0.1.0-setup.exe` |
+| Executavel | 13,28 MB, `target/release/morune.exe` |
+| Startup interno | 19 ms (mediana de 10 execucoes) |
+| RAM em repouso | 78,8 MB de working set medio; pico 79,5 MB |
+| Testes | 217 no total; dois exigem uma sessao de logon do Windows para o cofre |
 | Clippy | limpo com `-D warnings` |
 
 ### Verificado contra a conta real
@@ -70,13 +70,13 @@ escrito depois do fato -- todos apareceram na tela.
 
 ### O que ainda nao existe
 
-- **radio e autoplay** -- o silencio quando a fila acaba;
 - **albuns salvos, mais ouvidos e tocadas recentemente** -- sem caminho
   conhecido, recusam com `Unsupported` e a interface esconde a secao;
-- **discografia e faixas populares** na tela do artista;
-- **aviso de corte** na tela de detalhe, que carrega ate 200 faixas;
-- **capa em `TrackRow`** -- so cartoes, lateral e barra de reproducao tem;
 - **escrita na conta** -- o Morune so le: nao curte, nao reordena, nao remove.
+
+Radio/autoplay, capas em `TrackRow`, aviso do teto de 200 e a tela completa de
+artista foram implementados depois da rodada real de 19/08 e ainda precisam da
+reverificacao descrita abaixo.
 
 ---
 
@@ -197,18 +197,13 @@ enderecos testados. Provavelmente existem como operacoes do proprio pathfinder,
 que nao foram sondadas ainda. Ate la, sao prateleiras que nao podem ser
 prometidas na interface.
 
-### A conta gratuita continua matando o processo
+### A conta gratuita nao encerra mais o processo
 
-`check_catalogue` chama `exit(1)`, e quem a chama e o manipulador do pacote de
-produto -- o mesmo pacote que traz o plano. Ou seja, ler
-`get_user_attribute("type")` **nao** serve de guarda: quando o valor existe, a
-decisao de encerrar ja foi tomada. O guarda que existia era o `/v1/me`, que
-acabou de morrer junto com o Web API.
-
-Enquanto isso nao for resolvido, qualquer pessoa com conta gratuita que baixar o
-Morune e clicar em "Entrar" ve a janela sumir sem explicacao. A unica saida e
-alterar a librespot -- ela e MIT, entao um `[patch.crates-io]` para um fork com
-`exit(1)` trocado por erro e compativel com o projeto.
+Resolvido com uma copia pontual de `librespot-core` em `vendor/`, ligada por
+`[patch.crates-io]`. `check_catalogue` apenas registra o plano no log; o Morune
+continua aberto e explica a limitacao quando a reproducao e recusada. O motivo,
+a alteracao exata e o procedimento de atualizacao estao em
+[`vendor/README.md`](../vendor/README.md).
 
 ---
 
@@ -308,62 +303,45 @@ backend -- nesta ordem, porque cada passo depende do anterior.
 
 ---
 
-## O proximo passo: radio e autoplay
+## O proximo passo: reverificacao final do ciclo 2
 
-**E o unico item do ciclo 2 que ficou por fazer, e o mais visivel:** quando a
-fila acaba, o som simplesmente para. Nenhum player faz isso.
+Radio e autoplay estao implementados. Ao fim natural da fila, com a opcao
+ligada por padrao, a ultima faixa vira semente; o endpoint devolve uma playlist,
+as faixas novas sao anexadas ao contexto e o historico e preservado. Faixas ja
+presentes no contexto sao descartadas para evitar ciclos curtos. O pedido de
+radio tem canal proprio e nao cancela busca ou navegacao.
 
-Resolve duas coisas de uma vez -- "tocar parecidas" a partir de uma faixa, e o
-silencio no fim da fila -- e e o que sobrou de "recomendacao" depois de 2024.
+O JSON sem esquema publicado e lido por um parser minimo e tolerante a campos
+extras. A resposta real gravada na sonda virou fixture conceitual dos testes,
+mas ainda e necessario repetir com generos diferentes na conta Premium.
 
-### O caminho ja esta medido
+Na mesma rodada foram concluídos:
 
-`spclient.get_radio_for_track` **responde**. Na sonda de 19/08/2026 devolveu:
+1. aviso quando a tela mostra apenas as primeiras 200 faixas;
+2. capas pequenas em todas as linhas de faixa;
+3. discografia e faixas populares vindas diretamente do protobuf tipado do
+   artista, sem uma requisicao por album;
+4. retirada das playlists da Biblioteca, pois elas ja moram na lateral.
 
-```json
-{"total": 1, "mediaItems": [{"uri": "spotify:playlist:37i9dQZF1E8JoTa1qkl0zw"}]}
-```
+### Roteiro adicional para os recursos novos
 
-Ou seja: nao devolve faixas, devolve **a URI de uma playlist**. O caminho
-completo e `get_radio_for_track` -> `Internal::playlist` -> `Internal::tracks`,
-e as duas ultimas ja existem e ja estao verificadas.
+1. Com autoplay ligado, tocar ate o fim de uma lista curta: o radio deve
+   continuar sem apagar o historico.
+2. Desligar autoplay em Configuracoes e repetir: deve parar em "Fim da fila".
+3. Abrir uma colecao com mais de 200 faixas: o aviso de recorte deve aparecer.
+4. Abrir um artista: faixas populares e discografia devem aparecer; abrir um
+   album da faixa horizontal deve trocar para o detalhe do album.
+5. Conferir capas em busca, curtidas, detalhe e fila.
+6. Repetir com rede indisponivel no fim da fila: a musica termina e a falha do
+   radio aparece na barra de status sem derrubar a tela.
 
-`get_apollo_station` ainda nao foi sondada.
+## Depois da reverificacao
 
-### O que decidir antes de escrever
-
-1. **Quando dispara.** Automatico ao acabar a fila, ou so por acao explicita
-   ("tocar parecidas")? O Spotify faz automatico e da para desligar. Se for
-   automatico, precisa de chave na configuracao -- ninguem gosta de musica que
-   comeca sozinha sem ter pedido.
-2. **De que semente.** A ultima faixa tocada e o obvio, mas uma playlist inteira
-   tem contexto melhor. A resposta muda o que se passa para `get_radio_for_track`.
-3. **Se entra na fila ou vira contexto novo.** Empurrar na fila atual mantem o
-   historico; trocar o contexto e mais parecido com o que o Spotify faz.
-
-### Armadilha
-
-Diferente do rootlist e do metadado, o radio responde **JSON sem tipo** na
-librespot. O formato acima foi visto uma vez, numa conta, numa faixa. Antes de
-escrever parser, vale sondar de novo com faixas de generos diferentes: um
-campo que aparece so as vezes vira `Option`, e um que muda de forma vira
-defeito em producao.
-
-## Depois do radio
-
-1. **Aviso de corte na tela de detalhe.** Ela carrega ate 200 faixas e nao diz
-   quando cortou. Nas 723 curtidas, o usuario ve 200 e nao sabe.
-2. **Capa em `TrackRow`.** Cartoes, lateral e barra de reproducao ja tem; as
-   linhas de faixa nao.
-3. **Discografia e faixas populares** na tela do artista. O protobuf do artista
-   traz os grupos de album como referencia; montar a lista exige um pedido de
-   metadado por album, e isso ainda nao foi medido.
-4. **Tirar playlists da Biblioteca.** Depois que elas foram para a lateral, a
-   Biblioteca ficou redundante nessa parte -- ela deveria sobrar para album e
-   artista.
-5. **Albuns salvos, mais ouvidos e tocadas recentemente.** Sem caminho
-   conhecido. Talvez existam como operacoes do pathfinder, mas cada uma traria
-   a mesma divida de hash da busca. Nao fazer tambem e resposta.
+1. Medir CPU e GPU tocando, com um jogo em tela cheia.
+2. Gerar e instalar o pacote final em uma conta limpa do Windows.
+3. Decidir se albuns salvos, mais ouvidos e tocadas recentemente justificam
+   novas consultas persistidas do pathfinder. Nao implementar continua sendo
+   uma resposta valida enquanto nao houver caminho estavel.
 ---
 
 ## Decisoes que dependem do Felipe
@@ -386,7 +364,7 @@ inteiro a deixar de ser MIT. Decida, escreva um ADR, e so entao adicione.
 exato de MB nao e criterio. O criterio e **nao atrapalhar quem esta jogando**:
 sem roubar quadro, sem acordar a GPU em segundo plano, sem disputar CPU, e sem a
 interface travar quando o usuario volta a ela — o defeito do cliente oficial do
-Spotify. Os 70,6 MB ficam aceitos como estao.
+Spotify. Os 78,8 MB ficam aceitos como estao.
 
 Duas consequencias praticas, e as duas valem para o ciclo 2:
 
@@ -401,8 +379,8 @@ Duas consequencias praticas, e as duas valem para o ciclo 2:
 
 **Publicacao — decidida em 19/08/2026.** O repositorio fica privado ate haver uma
 **v1 pronta**. Nao e indefinicao: e a ordem certa, porque publicar cedo demais
-convida issue e pull request para um aplicativo que ainda nao foi visto tocando
-uma musica sequer. A consequencia esta na entrada seguinte -- assinatura de
+convida issue e pull request antes de o fluxo completo da v1 estar fechado. A
+consequencia esta na entrada seguinte -- assinatura de
 codigo depende de publicar, entao ela tambem espera a v1.
 
 **Assinatura de codigo.** O instalador nao e assinado e o SmartScreen avisa em
@@ -434,8 +412,6 @@ instalador. Opcoes, precos e requisitos em [assinatura.md](assinatura.md).
   le campo a campo o que a sonda mostrou. Nao ha `.proto` para conferir: se o
   Spotify mudar a numeracao dos campos, a leitura devolve lista vazia em vez
   de erro.
-- **A tela de detalhe carrega ate 200 faixas e nao avisa quando corta.** Numa
-  colecao de 723, o usuario ve 200 e nao tem como saber.
 - **~1 s de inicializacao grafica** no ciclo completo do processo. Nao
   investigado. Vale medir quanto e criacao do contexto OpenGL no driver Radeon
   e quanto e o backend winit, antes de tentar otimizar qualquer coisa.
@@ -449,10 +425,6 @@ instalador. Opcoes, precos e requisitos em [assinatura.md](assinatura.md).
   navegador sozinha e nao expoe a URL, entao o contrato recebe o endereco de
   retorno no lugar. Se o navegador nao abrir, o usuario fica sem nada para
   copiar. Resolver exige um fluxo proprio sobre a crate `oauth2`.
-- **Artistas seguidos sao paginados por cursor** no Web API, e o contrato
-  `Library` e por deslocamento. A implementacao caminha os cursores ate chegar
-  ao deslocamento pedido, com teto de 40 requisicoes. Funciona para quem segue
-  centenas de artistas; para milhares, nao.
 - **Busca so devolve faixas.** A tela de busca so tem lista de faixas; album,
   artista e playlist nos resultados precisam de uma grade que ainda nao existe
   la.

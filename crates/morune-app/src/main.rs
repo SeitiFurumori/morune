@@ -77,7 +77,12 @@ fn main() -> anyhow::Result<()> {
     let ready = started.elapsed();
     tracing::info!(ms = ready.as_millis(), "interface pronta");
     window.set_perf_text(
-        format!("startup {} ms | tema {}", ready.as_millis(), state.borrow().theme_id()).into(),
+        format!(
+            "startup {} ms | tema {}",
+            ready.as_millis(),
+            state.borrow().theme_id()
+        )
+        .into(),
     );
 
     // Modo de medicao: abre a janela de verdade, espera o laco de eventos
@@ -171,10 +176,7 @@ const BACKEND_POLL: std::time::Duration = std::time::Duration::from_millis(100);
 ///
 /// O temporizador devolvido precisa continuar vivo: descartado, o aplicativo
 /// para de receber login, fim de faixa e erro de reproducao.
-fn wire_backend(
-    window: &ui::AppWindow,
-    state: &Rc<std::cell::RefCell<AppState>>,
-) -> slint::Timer {
+fn wire_backend(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState>>) -> slint::Timer {
     let weak = window.as_weak();
     let state = state.clone();
     let mut started = false;
@@ -262,12 +264,18 @@ fn init_logging(paths: &morune_storage::AppPaths) {
     use tracing_subscriber::filter::EnvFilter;
 
     let filter = EnvFilter::try_from_env("MORUNE_LOG").unwrap_or_else(|_| EnvFilter::new("info"));
-    let builder = tracing_subscriber::fmt().with_env_filter(filter).with_target(false).compact();
+    let builder = tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_target(false)
+        .compact();
 
     match open_log_file(paths) {
         // Sem cor: o arquivo e lido em editor de texto, e o codigo de escape
         // apareceria como lixo no meio da mensagem.
-        Some(file) => builder.with_ansi(false).with_writer(std::sync::Mutex::new(file)).init(),
+        Some(file) => builder
+            .with_ansi(false)
+            .with_writer(std::sync::Mutex::new(file))
+            .init(),
         None => builder.init(),
     }
 }
@@ -284,7 +292,11 @@ fn open_log_file(paths: &morune_storage::AppPaths) -> Option<std::fs::File> {
         let _ = std::fs::rename(&path, path.with_extension("log.old"));
     }
 
-    std::fs::OpenOptions::new().create(true).append(true).open(&path).ok()
+    std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .ok()
 }
 
 fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState>>) {
@@ -448,6 +460,11 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
 
     on!(on_set_close_to_tray, |w, s, on: bool| {
         s.set_close_to_tray(on);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_set_autoplay, |w, s, on: bool| {
+        s.set_autoplay(on);
         s.push_to_ui(&w);
     });
 }

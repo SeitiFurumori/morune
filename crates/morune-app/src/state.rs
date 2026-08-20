@@ -4,19 +4,20 @@
 //! sem nenhuma decisao de produto: cada callback do Slint chama um metodo deste
 //! tipo e depois pede um `push_to_ui`.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 use morune_core::playback::{NullEngine, PlaybackEngine, PlayerCommand, PlayerEvent};
-use tokio::sync::broadcast;
 use morune_core::queue::{Queue, QueueOrigin, RepeatMode};
 use morune_core::Track;
 use morune_storage::{AppPaths, Config};
 use morune_theme::{loader, ThemeSpec};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
+use tokio::sync::broadcast;
 
-use crate::browse::{Card, Home, Outcome, Target};
+use crate::browse::{AutoplayOutcome, Card, Home, Outcome, Target};
 use crate::session::Session;
 use crate::theme_bridge::{self, UserOverrides};
 use crate::ui;
@@ -123,6 +124,11 @@ pub struct AppState {
     /// necessariamente em nenhuma tela aberta -- ela continua tocando com o
     /// usuario navegando por outra coisa.
     now_cover: (String, Option<std::path::PathBuf>),
+    /// Capas pequenas das linhas, indexadas pela URL que o modelo da faixa traz.
+    track_covers: HashMap<String, std::path::PathBuf>,
+    /// Semente do pedido de autoplay em voo; impede uma resposta antiga de
+    /// continuar uma fila que o usuario ja substituiu.
+    autoplay_seed: Option<morune_core::TrackId>,
     /// `true` depois de a tela ter sido pedida ao backend, e nao depois de
     /// chegar: sem isso, ir e voltar numa tela lenta dispara uma requisicao por
     /// visita.
@@ -191,10 +197,7 @@ impl AppState {
             // preferencias e recusa reproducao, sem que a interface precise
             // tratar "sem motor" em lugar nenhum.
             engine: Arc::new(NullEngine::new("entre na sua conta para tocar musica")),
-            session: Session::new(
-                Arc::from(morune_storage::platform_store()),
-                covers_dir,
-            ),
+            session: Session::new(Arc::from(morune_storage::platform_store()), covers_dir),
             player_events: None,
             search: TrackList::default(),
             liked: TrackList::default(),
@@ -217,6 +220,8 @@ impl AppState {
                 cover_path: None,
             },
             now_cover: (String::new(), None),
+            track_covers: HashMap::new(),
+            autoplay_seed: None,
             home_requested: false,
             library_requested: false,
         }
@@ -241,7 +246,11 @@ impl AppState {
 
         // Sem tentativa em andamento nao ha canal para ler: o caso comum sai
         // daqui sem tocar em nada.
-        let pending = self.session.is_busy().then(|| self.session.poll()).flatten();
+        let pending = self
+            .session
+            .is_busy()
+            .then(|| self.session.poll())
+            .flatten();
         if let Some(change) = pending {
             self.status = change.message;
             if let Some(engine) = change.engine {
@@ -264,6 +273,11 @@ impl AppState {
 
         if let Some(outcome) = self.session.browse_mut().and_then(|b| b.poll()) {
             self.apply_browse(outcome);
+            changed = true;
+        }
+
+        if let Some(outcome) = self.session.browse_mut().and_then(|b| b.poll_autoplay()) {
+            self.apply_autoplay(outcome);
             changed = true;
         }
 
@@ -296,17 +310,28 @@ impl AppState {
                 } else {
                     format!("{} faixas para \"{query}\".", tracks.len())
                 };
-                self.search = TrackList { origin: QueueOrigin::Search(query), tracks };
+                self.search = TrackList {
+                    origin: QueueOrigin::Search(query),
+                    tracks,
+                };
             }
             // Sem mensagem no sucesso: a tela vazia ja se explica sozinha, e
             // uma linha de status aqui apagaria o "Conectado como ..." que o
             // usuario acabou de receber.
             Outcome::Home(home) => {
-                let Home { made_for_you, stations, retrospectives, liked, playlists } = *home;
+                let Home {
+                    made_for_you,
+                    stations,
+                    retrospectives,
+                    liked,
+                    playlists,
+                } = *home;
                 self.home_made_for_you = made_for_you;
 
-                self.liked =
-                    TrackList { origin: QueueOrigin::Custom("Musicas curtidas".into()), tracks: liked };
+                self.liked = TrackList {
+                    origin: QueueOrigin::Custom("Musicas curtidas".into()),
+                    tracks: liked,
+                };
                 self.home_stations = stations;
                 self.home_retrospectives = retrospectives;
                 self.home_playlists = playlists;
@@ -317,7 +342,7 @@ impl AppState {
                 self.resolve_covers();
             }
             Outcome::Detail(detail) => {
-                if detail.tracks.is_empty() {
+                if detail.tracks.is_empty() && detail.cards.is_empty() {
                     self.status =
                         format!("{} nao tem nada que o Morune consiga tocar.", detail.title);
                     return;
@@ -333,13 +358,19 @@ impl AppState {
                 self.page = Page::Detail;
                 self.status.clear();
                 self.resolve_detail_cover();
+                self.resolve_detail_cards();
             }
-            Outcome::Context { origin, title, tracks } => {
+            Outcome::Context {
+                origin,
+                title,
+                tracks,
+            } => {
                 if tracks.is_empty() {
                     self.status = format!("{title} nao tem nada que o Morune consiga tocar.");
                     return;
                 }
                 self.status = format!("Tocando {title}.");
+                self.autoplay_seed = None;
                 self.queue.set_context(origin, tracks, Some(0));
                 self.play_current();
             }
@@ -350,6 +381,31 @@ impl AppState {
                 self.library_requested = false;
                 self.status = message;
             }
+        }
+        self.resolve_track_covers();
+    }
+
+    fn apply_autoplay(&mut self, outcome: AutoplayOutcome) {
+        match outcome {
+            AutoplayOutcome::Ready { seed, tracks }
+                if self.autoplay_seed.as_ref() == Some(&seed) && self.queue.current().is_none() =>
+            {
+                self.autoplay_seed = None;
+                if let Some(track) = self.queue.append_and_select(tracks).cloned() {
+                    self.status = "Radio continuando a fila.".into();
+                    self.send(PlayerCommand::Load {
+                        track,
+                        start_paused: false,
+                    });
+                    self.resolve_track_covers();
+                } else {
+                    self.status = "O radio nao encontrou faixas novas.".into();
+                }
+            }
+            AutoplayOutcome::Failed(message) if self.autoplay_seed.take().is_some() => {
+                self.status = format!("Fim da fila. {message}");
+            }
+            _ => {}
         }
     }
 
@@ -379,7 +435,9 @@ impl AppState {
     /// Ordenar por texto usa comparacao sem diferenciar maiuscula: uma lista
     /// onde "Zebra" vem antes de "abelha" nao parece ordenada para ninguem.
     fn detail_tracks(&self) -> Vec<&Track> {
-        let Some(detail) = &self.detail else { return Vec::new() };
+        let Some(detail) = &self.detail else {
+            return Vec::new();
+        };
 
         let mut tracks: Vec<&Track> = detail
             .tracks
@@ -481,7 +539,16 @@ impl AppState {
         // com o id cru: comparar com o id direto nunca casava, e o clique saia
         // sem tocar nada. Passar pelo `parse` e o que garante que os dois lados
         // falem a mesma lingua, hoje e quando a forma mudar.
-        let Some(Target::Track(alvo)) = Target::parse(tag) else {
+        let Some(target) = Target::parse(tag) else {
+            return;
+        };
+        let Target::Track(alvo) = target else {
+            let Some(browse) = self.session.browse_mut() else {
+                self.status = "Backend do Spotify indisponivel nesta maquina.".into();
+                return;
+            };
+            browse.open(target);
+            self.status = "Carregando...".into();
             return;
         };
 
@@ -494,11 +561,15 @@ impl AppState {
 
     /// Pede a capa da lista aberta.
     fn resolve_detail_cover(&mut self) {
-        let Some(url) = self.detail.as_ref().map(|d| d.cover.clone()) else { return };
+        let Some(url) = self.detail.as_ref().map(|d| d.cover.clone()) else {
+            return;
+        };
         if url.is_empty() {
             return;
         }
-        let Some(browse) = self.session.browse_mut() else { return };
+        let Some(browse) = self.session.browse_mut() else {
+            return;
+        };
         let path = browse.cover(&url);
         if let Some(detail) = &mut self.detail {
             detail.cover_path = path;
@@ -510,7 +581,9 @@ impl AppState {
     /// O que ja esta em disco entra no mesmo quadro em que a lista aparece;
     /// o resto e pedido e chega depois, por [`AppState::poll_covers`].
     fn resolve_covers(&mut self) {
-        let Some(browse) = self.session.browse_mut() else { return };
+        let Some(browse) = self.session.browse_mut() else {
+            return;
+        };
 
         // Emprestar cada lista separadamente evita mover os cartoes so para
         // preencher um campo.
@@ -543,7 +616,9 @@ impl AppState {
             return;
         }
 
-        let Some(browse) = self.session.browse_mut() else { return };
+        let Some(browse) = self.session.browse_mut() else {
+            return;
+        };
         self.now_cover.1 = browse.cover(&url);
     }
 
@@ -553,7 +628,9 @@ impl AppState {
     /// resto, entao o caminho comum -- nenhuma capa pronta -- sai daqui sem
     /// percorrer lista nenhuma.
     fn poll_covers(&mut self) -> bool {
-        let Some(browse) = self.session.browse_mut() else { return false };
+        let Some(browse) = self.session.browse_mut() else {
+            return false;
+        };
 
         let prontas = browse.poll_artwork();
         if prontas.is_empty() {
@@ -561,9 +638,18 @@ impl AppState {
         }
 
         for ready in prontas {
+            self.track_covers
+                .insert(ready.url.clone(), ready.path.clone());
             if let Some(detail) = &mut self.detail {
                 if detail.cover == ready.url {
                     detail.cover_path = Some(ready.path.clone());
+                }
+                for card in detail
+                    .cards
+                    .iter_mut()
+                    .filter(|card| card.cover == ready.url)
+                {
+                    card.cover_path = Some(ready.path.clone());
                 }
             }
 
@@ -587,6 +673,41 @@ impl AppState {
         true
     }
 
+    fn resolve_detail_cards(&mut self) {
+        let Some(detail) = &mut self.detail else {
+            return;
+        };
+        let Some(browse) = self.session.browse_mut() else {
+            return;
+        };
+        browse.resolve_covers(&mut detail.cards);
+    }
+
+    /// Resolve as capas pequenas das listas sem bloquear a interface.
+    fn resolve_track_covers(&mut self) {
+        let urls: Vec<String> = self
+            .search
+            .tracks
+            .iter()
+            .chain(self.liked.tracks.iter())
+            .chain(self.detail.iter().flat_map(|detail| detail.tracks.iter()))
+            .chain(self.queue.tracks().iter())
+            .filter_map(track_cover_url)
+            .collect();
+
+        let Some(browse) = self.session.browse_mut() else {
+            return;
+        };
+        for url in urls {
+            if self.track_covers.contains_key(&url) {
+                continue;
+            }
+            if let Some(path) = browse.cover(&url) {
+                self.track_covers.insert(url, path);
+            }
+        }
+    }
+
     /// Pede ao backend o que a tela aberta mostra, se ainda nao pediu.
     fn request_page_data(&mut self) {
         if !self.session.state().is_logged_in() {
@@ -595,7 +716,9 @@ impl AppState {
 
         let page = self.page;
         let (home_requested, library_requested) = (self.home_requested, self.library_requested);
-        let Some(browse) = self.session.browse_mut() else { return };
+        let Some(browse) = self.session.browse_mut() else {
+            return;
+        };
 
         match page {
             Page::Home if !home_requested => {
@@ -614,7 +737,10 @@ impl AppState {
     ///
     /// Clona porque a fila fica dona do contexto; e o mesmo custo que a busca
     /// ja pagava, e vale a pena para o botao de proxima ter para onde ir.
-    fn open_lists(&self, id: &morune_core::model::TrackId) -> Option<(QueueOrigin, Vec<Track>, usize)> {
+    fn open_lists(
+        &self,
+        id: &morune_core::model::TrackId,
+    ) -> Option<(QueueOrigin, Vec<Track>, usize)> {
         [&self.search, &self.liked].into_iter().find_map(|list| {
             let index = list.tracks.iter().position(|t| t.id == *id)?;
             Some((list.origin.clone(), list.tracks.clone(), index))
@@ -624,7 +750,10 @@ impl AppState {
     /// Carrega a faixa selecionada na fila e comeca a tocar.
     fn play_current(&mut self) {
         if let Some(track) = self.queue.current().cloned() {
-            self.send(PlayerCommand::Load { track, start_paused: false });
+            self.send(PlayerCommand::Load {
+                track,
+                start_paused: false,
+            });
         }
     }
 
@@ -652,8 +781,29 @@ impl AppState {
             // O fim natural da faixa avanca a fila com `user_advance = false`,
             // que e o que faz "repetir uma" repetir em vez de pular.
             PlayerEvent::EndOfTrack(_) => {
+                let seed = self.queue.current().map(|track| track.id.clone());
                 if let Some(next) = self.queue.next(false).cloned() {
-                    self.send(PlayerCommand::Load { track: next, start_paused: false });
+                    self.send(PlayerCommand::Load {
+                        track: next,
+                        start_paused: false,
+                    });
+                } else if self.config.playback.autoplay {
+                    let requested = seed.is_some_and(|seed| {
+                        let Some(browse) = self.session.browse_mut() else {
+                            return false;
+                        };
+                        if browse.autoplay(seed.clone()) {
+                            self.autoplay_seed = Some(seed);
+                            true
+                        } else {
+                            false
+                        }
+                    });
+                    self.status = if requested {
+                        "Preparando o radio...".into()
+                    } else {
+                        "Fim da fila.".into()
+                    };
                 } else {
                     self.status = "Fim da fila.".into();
                 }
@@ -700,7 +850,9 @@ impl AppState {
         } else {
             theme_bridge::initial_window_size(self.spec())
         };
-        window.window().set_size(slint::LogicalSize::new(width, height));
+        window
+            .window()
+            .set_size(slint::LogicalSize::new(width, height));
     }
 
     pub fn select_theme(&mut self, id: &str) {
@@ -849,6 +1001,16 @@ impl AppState {
         self.save_config();
     }
 
+    pub fn set_autoplay(&mut self, on: bool) {
+        self.config.playback.autoplay = on;
+        self.status = if on {
+            "Autoplay ligado: o radio continua quando a fila acabar.".into()
+        } else {
+            "Autoplay desligado: a reproducao para no fim da fila.".into()
+        };
+        self.save_config();
+    }
+
     /// Texto e estado da faixa atual, para o menu da bandeja.
     pub fn tray_status(&self) -> (Option<String>, bool) {
         let label = self.queue.current().map(|t| {
@@ -859,7 +1021,10 @@ impl AppState {
                 format!("{} — {artists}", t.name)
             }
         });
-        (label, self.engine.snapshot().state == morune_core::PlaybackState::Playing)
+        (
+            label,
+            self.engine.snapshot().state == morune_core::PlaybackState::Playing,
+        )
     }
 
     pub fn toggle_sidebar(&mut self) {
@@ -917,6 +1082,7 @@ impl AppState {
             self.status = "Nao reconheci o que voce clicou.".into();
             return;
         };
+        self.autoplay_seed = None;
 
         if let Target::Track(id) = &target {
             // Na fila: e so pular para ela, mantendo o contexto que ja estava
@@ -950,7 +1116,10 @@ impl AppState {
 
     pub fn next_track(&mut self) {
         if let Some(track) = self.queue.next(true).cloned() {
-            self.send(PlayerCommand::Load { track, start_paused: false });
+            self.send(PlayerCommand::Load {
+                track,
+                start_paused: false,
+            });
         } else {
             self.send(PlayerCommand::Stop);
         }
@@ -958,7 +1127,10 @@ impl AppState {
 
     pub fn previous_track(&mut self) {
         if let Some(track) = self.queue.previous().cloned() {
-            self.send(PlayerCommand::Load { track, start_paused: false });
+            self.send(PlayerCommand::Load {
+                track,
+                start_paused: false,
+            });
         }
     }
 
@@ -1009,6 +1181,7 @@ impl AppState {
         self.player_events = None;
         self.session.logout();
         self.queue.clear();
+        self.autoplay_seed = None;
         // Busca, inicio e biblioteca sao da conta que saiu: deixa-los na tela
         // mostraria a playlist de alguem que nao esta mais conectado.
         self.search = TrackList::default();
@@ -1040,6 +1213,7 @@ impl AppState {
         window.set_account_name(SharedString::from(self.session.state().account_name()));
         window.set_dev_mode(self.config.developer.enabled);
         window.set_close_to_tray(self.config.window.close_to_tray);
+        window.set_autoplay(self.config.playback.autoplay);
 
         let snapshot = self.engine.snapshot();
         let current = self.queue.current();
@@ -1052,10 +1226,21 @@ impl AppState {
             window.set_detail_subtitle(detail.subtitle.as_str().into());
             window.set_detail_kind(detail.kind.as_str().into());
             window.set_detail_cover(cover_image(detail.cover_path.as_deref()));
-            window.set_detail_tracks(track_rows(self.detail_tracks(), current));
+            window.set_detail_tracks(track_rows(
+                self.detail_tracks(),
+                current,
+                &self.track_covers,
+            ));
             window.set_detail_sort(self.detail_sort as i32);
             window.set_detail_descending(self.detail_desc);
             window.set_detail_filtered(!self.detail_filter.is_empty());
+            window.set_detail_truncated(
+                detail
+                    .total_tracks
+                    .is_some_and(|total| total as usize > detail.tracks.len()),
+            );
+            window.set_detail_loaded_count(detail.tracks.len() as i32);
+            window.set_detail_items(card_items(&detail.cards));
         }
         window.set_playing(snapshot.state == morune_core::PlaybackState::Playing);
         window.set_progress(snapshot.progress());
@@ -1073,15 +1258,27 @@ impl AppState {
         window.set_now_title(current.map(|t| t.name.as_ref()).unwrap_or("").into());
         window.set_now_artist(current.map(|t| t.artists_line()).unwrap_or_default().into());
 
-        window.set_queue_tracks(track_rows(self.queue.upcoming(200), current));
+        window.set_queue_tracks(track_rows(
+            self.queue.upcoming(200),
+            current,
+            &self.track_covers,
+        ));
         window.set_themes(self.theme_items());
         window.set_diagnostics(self.diagnostics());
         window.set_home_made_for_you(card_items(&self.home_made_for_you));
-        window.set_home_liked(track_rows(self.liked.tracks.iter().collect(), current));
+        window.set_home_liked(track_rows(
+            self.liked.tracks.iter().collect(),
+            current,
+            &self.track_covers,
+        ));
         window.set_home_stations(card_items(&self.home_stations));
         window.set_home_retrospectives(card_items(&self.home_retrospectives));
         window.set_library_items(card_items(&self.library));
-        window.set_search_tracks(track_rows(self.search.tracks.iter().collect(), current));
+        window.set_search_tracks(track_rows(
+            self.search.tracks.iter().collect(),
+            current,
+            &self.track_covers,
+        ));
     }
 
     fn theme_items(&self) -> ModelRc<ui::ThemeItem> {
@@ -1119,20 +1316,44 @@ impl AppState {
     }
 }
 
-fn track_rows(tracks: Vec<&Track>, current: Option<&Track>) -> ModelRc<ui::TrackRow> {
+fn track_rows(
+    tracks: Vec<&Track>,
+    current: Option<&Track>,
+    covers: &HashMap<String, std::path::PathBuf>,
+) -> ModelRc<ui::TrackRow> {
     let rows: Vec<ui::TrackRow> = tracks
         .into_iter()
         .map(|t| ui::TrackRow {
             id: Target::Track(t.id.clone()).tag().into(),
             title: t.name.as_ref().into(),
             artist: t.artists_line().into(),
-            album: t.album.as_ref().map(|a| a.name.as_ref()).unwrap_or("").into(),
+            album: t
+                .album
+                .as_ref()
+                .map(|a| a.name.as_ref())
+                .unwrap_or("")
+                .into(),
+            cover: cover_image(
+                track_cover_url(t)
+                    .as_deref()
+                    .and_then(|url| covers.get(url))
+                    .map(|p| p.as_path()),
+            ),
             duration: format_time(t.duration).into(),
             playable: t.playable,
             playing: current.is_some_and(|c| c.id == t.id),
         })
         .collect();
     ModelRc::new(VecModel::from(rows))
+}
+
+fn track_cover_url(track: &Track) -> Option<String> {
+    track
+        .album
+        .as_ref()?
+        .images
+        .best_for_width(TRACK_ROW_ARTWORK_WIDTH)
+        .map(|image| image.url.to_string())
 }
 
 /// Uma lista de faixas visivel numa tela, com a origem que ela dara a fila.
@@ -1149,6 +1370,9 @@ struct TrackList {
 /// bytes do que a tela usa.
 const PLAYER_ARTWORK_WIDTH: u32 = 64;
 
+/// Largura pedida para capas desenhadas nas linhas de faixa.
+const TRACK_ROW_ARTWORK_WIDTH: u32 = 64;
+
 /// Igual a [`card_items`], para uma lista de referencias.
 ///
 /// Existe porque o filtro da barra lateral devolve emprestimos, e copiar os
@@ -1159,11 +1383,19 @@ const PLAYER_ARTWORK_WIDTH: u32 = 64;
 /// Ordenar por "artista" numa faixa com tres significa ordenar pelo primeiro,
 /// que e o que aparece na linha.
 fn primeiro_artista(track: &Track) -> &str {
-    track.artists.first().map(|a| a.name.as_ref()).unwrap_or_default()
+    track
+        .artists
+        .first()
+        .map(|a| a.name.as_ref())
+        .unwrap_or_default()
 }
 
 fn nome_do_album(track: &Track) -> &str {
-    track.album.as_ref().map(|a| a.name.as_ref()).unwrap_or_default()
+    track
+        .album
+        .as_ref()
+        .map(|a| a.name.as_ref())
+        .unwrap_or_default()
 }
 
 fn card_refs(cards: &[&Card]) -> ModelRc<ui::CardItem> {
@@ -1194,7 +1426,9 @@ fn card_items(cards: &[Card]) -> ModelRc<ui::CardItem> {
 /// isso: sao arquivos de 300 px que o Slint mantem em cache proprio depois do
 /// primeiro carregamento.
 fn cover_image(path: Option<&std::path::Path>) -> slint::Image {
-    let Some(path) = path else { return slint::Image::default() };
+    let Some(path) = path else {
+        return slint::Image::default();
+    };
 
     slint::Image::load_from_path(path).unwrap_or_else(|e| {
         // Arquivo truncado ou formato inesperado: o cartao fica sem capa e o

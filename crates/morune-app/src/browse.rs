@@ -157,20 +157,40 @@ pub struct Detail {
     pub cover: String,
     pub cover_path: Option<std::path::PathBuf>,
     pub tracks: Vec<Track>,
+    /// Recursos relacionados, hoje a discografia na tela de artista.
+    pub cards: Vec<Card>,
+    /// Total informado pelo provedor, antes do teto local da tela.
+    pub total_tracks: Option<u32>,
 }
 
 /// O que um pedido produziu.
 pub enum Outcome {
-    Search { query: String, tracks: Vec<Track> },
+    Search {
+        query: String,
+        tracks: Vec<Track>,
+    },
     Home(Box<Home>),
     Library(Vec<Card>),
     /// Um album, playlist ou artista pronto para virar fila.
     ///
     /// Continua existindo para o que se toca sem abrir: uma faixa avulsa da
     /// busca, ou a lista inteira acionada pelo botao de tocar.
-    Context { origin: QueueOrigin, title: String, tracks: Vec<Track> },
+    Context {
+        origin: QueueOrigin,
+        title: String,
+        tracks: Vec<Track>,
+    },
     /// Uma lista aberta para ser lida antes de tocada.
     Detail(Box<Detail>),
+    Failed(String),
+}
+
+/// Resultado independente da navegacao para o fim natural da fila.
+///
+/// Nao usa [`Outcome`] nem o mesmo canal porque uma resposta de autoplay nao
+/// pode cancelar uma busca que a pessoa acabou de iniciar.
+pub enum AutoplayOutcome {
+    Ready { seed: TrackId, tracks: Vec<Track> },
     Failed(String),
 }
 
@@ -180,6 +200,7 @@ pub struct Browse {
     library: Arc<dyn Library>,
     handle: tokio::runtime::Handle,
     pending: Option<Receiver<Outcome>>,
+    autoplay_pending: Option<Receiver<AutoplayOutcome>>,
     artwork: Arc<dyn Artwork>,
     covers: ArtworkCache,
     /// Canal proprio das capas, separado de `pending`: um cartao continua
@@ -212,6 +233,7 @@ impl Browse {
             library,
             handle,
             pending: None,
+            autoplay_pending: None,
             artwork,
             covers: ArtworkCache::new(covers_dir),
             art_tx,
@@ -230,7 +252,8 @@ impl Browse {
         if let Some(path) = self.covers.cached(url) {
             return Some(path);
         }
-        self.covers.request(url, &self.artwork, &self.handle, self.art_tx.clone());
+        self.covers
+            .request(url, &self.artwork, &self.handle, self.art_tx.clone());
         None
     }
 
@@ -269,14 +292,58 @@ impl Browse {
     /// Esquece o pedido em andamento. Usado ao sair da conta.
     pub fn cancel(&mut self) {
         self.pending = None;
+        self.autoplay_pending = None;
+    }
+
+    /// Pede uma continuacao para a fila sem competir com pedidos de tela.
+    pub fn autoplay(&mut self, seed: TrackId) -> bool {
+        if self.autoplay_pending.is_some() {
+            return false;
+        }
+        let catalog = self.catalog.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let task_seed = seed.clone();
+        self.handle.spawn(async move {
+            let outcome = match catalog.radio(&task_seed, AUTOPLAY_TRACKS).await {
+                Ok(page) => AutoplayOutcome::Ready {
+                    seed: task_seed,
+                    tracks: page.items,
+                },
+                Err(error) => AutoplayOutcome::Failed(describe(&error)),
+            };
+            let _ = tx.send(outcome);
+        });
+        self.autoplay_pending = Some(rx);
+        true
+    }
+
+    pub fn poll_autoplay(&mut self) -> Option<AutoplayOutcome> {
+        let rx = self.autoplay_pending.as_ref()?;
+        match rx.try_recv() {
+            Ok(outcome) => {
+                self.autoplay_pending = None;
+                Some(outcome)
+            }
+            Err(TryRecvError::Empty) => None,
+            Err(TryRecvError::Disconnected) => {
+                self.autoplay_pending = None;
+                Some(AutoplayOutcome::Failed("o radio foi interrompido".into()))
+            }
+        }
     }
 
     pub fn search(&mut self, query: &str) {
         let catalog = self.catalog.clone();
         let query = query.trim().to_string();
         self.spawn(move |tx| async move {
-            let outcome = match catalog.search(&query, SearchKind::Tracks, SEARCH_LIMIT).await {
-                Ok(results) => Outcome::Search { query, tracks: results.tracks },
+            let outcome = match catalog
+                .search(&query, SearchKind::Tracks, SEARCH_LIMIT)
+                .await
+            {
+                Ok(results) => Outcome::Search {
+                    query,
+                    tracks: results.tracks,
+                },
                 Err(e) => Outcome::Failed(describe(&e)),
             };
             let _ = tx.send(outcome);
@@ -344,7 +411,7 @@ impl Browse {
             });
         });
     }
-    /// Playlists, albuns salvos e artistas seguidos, nesta ordem.
+    /// Albuns salvos e artistas seguidos.
     ///
     /// As tres requisicoes sao sequenciais e nao paralelas: a biblioteca abre
     /// uma vez por sessao, e tres conexoes simultaneas para economizar
@@ -356,10 +423,6 @@ impl Browse {
             let mut cards = Vec::new();
             let mut failure = None;
 
-            match library.saved_playlists(0, SECTION_LIMIT).await {
-                Ok(page) => cards.extend(page.items.iter().map(playlist_card)),
-                Err(e) => failure = note(failure, &e, "playlists salvas"),
-            }
             match library.saved_albums(0, SECTION_LIMIT).await {
                 Ok(page) => cards.extend(page.items.iter().map(album_card)),
                 Err(e) => failure = note(failure, &e, "albuns salvos"),
@@ -428,7 +491,11 @@ async fn resolve(
         Target::Track(id) => {
             let track = catalog.track(&id).await?;
             let title = track.name.to_string();
-            Outcome::Context { origin: QueueOrigin::Custom(title.clone()), title, tracks: vec![track] }
+            Outcome::Context {
+                origin: QueueOrigin::Custom(title.clone()),
+                title,
+                tracks: vec![track],
+            }
         }
         Target::Album(id) => {
             let album = catalog.album(&id).await?;
@@ -444,22 +511,43 @@ async fn resolve(
                 kind: "Album".into(),
                 cover: cover(&album.images),
                 cover_path: None,
+                total_tracks: album.total_tracks,
                 tracks: album.tracks,
+                cards: Vec::new(),
             }))
         }
         Target::Playlist(id) => {
             let playlist = catalog.playlist(&id).await?;
+            let mut tracks = Vec::new();
+            let mut offset = 0;
+            let mut total = playlist.total_tracks;
+            while tracks.len() < DETAIL_TRACKS as usize {
+                let remaining = DETAIL_TRACKS - tracks.len() as u32;
+                let page = catalog.playlist_tracks(&id, offset, remaining).await?;
+                total = page.total.or(total);
+                let received = page.items.len() as u32;
+                let has_more = page.has_more();
+                tracks.extend(page.items);
+                if received == 0 || !has_more {
+                    break;
+                }
+                offset += received;
+            }
             Outcome::Detail(Box::new(Detail {
                 origin: QueueOrigin::Playlist(playlist.id.canonical()),
                 title: playlist.name.to_string(),
                 subtitle: match playlist.owner.as_deref() {
-                    Some(dono) => format!("{dono} — {} faixas", playlist.tracks.len()),
-                    None => format!("{} faixas", playlist.tracks.len()),
+                    Some(dono) => {
+                        format!("{dono} — {} faixas", total.unwrap_or(tracks.len() as u32))
+                    }
+                    None => format!("{} faixas", total.unwrap_or(tracks.len() as u32)),
                 },
                 kind: "Playlist".into(),
                 cover: cover(&playlist.images),
                 cover_path: None,
-                tracks: playlist.tracks,
+                tracks,
+                total_tracks: total,
+                cards: Vec::new(),
             }))
         }
         // Diferente das outras, esta nao vem do catalogo: curtidas sao da
@@ -475,10 +563,13 @@ async fn resolve(
                 cover: String::new(),
                 cover_path: None,
                 tracks: page.items,
+                total_tracks: Some(total),
+                cards: Vec::new(),
             }))
         }
         Target::Artist(id) => {
             let artist = catalog.artist(&id).await?;
+            let cards = artist.albums.iter().map(album_ref_card).collect();
             Outcome::Detail(Box::new(Detail {
                 origin: QueueOrigin::Artist(artist.id.canonical()),
                 title: artist.name.to_string(),
@@ -487,11 +578,12 @@ async fn resolve(
                 cover: cover(&artist.images),
                 cover_path: None,
                 tracks: artist.top_tracks,
+                total_tracks: None,
+                cards,
             }))
         }
     })
 }
-
 
 /// URL da capa no tamanho que o cartao desenha.
 ///
@@ -500,7 +592,10 @@ async fn resolve(
 /// mostra dezenas deles -- e o criterio do projeto e nao disputar recurso com
 /// quem esta jogando.
 fn cover(images: &morune_core::model::ImageSet) -> String {
-    images.best_for_width(CARD_ARTWORK_WIDTH).map(|i| i.url.to_string()).unwrap_or_default()
+    images
+        .best_for_width(CARD_ARTWORK_WIDTH)
+        .map(|i| i.url.to_string())
+        .unwrap_or_default()
 }
 
 fn playlist_card(p: &morune_core::model::Playlist) -> Card {
@@ -522,7 +617,22 @@ fn album_card(a: &morune_core::model::Album) -> Card {
     Card {
         tag: Target::Album(a.id.clone()).tag(),
         title: a.name.to_string(),
-        subtitle: a.artists.iter().map(|x| x.name.as_ref()).collect::<Vec<_>>().join(", "),
+        subtitle: a
+            .artists
+            .iter()
+            .map(|x| x.name.as_ref())
+            .collect::<Vec<_>>()
+            .join(", "),
+        cover: cover(&a.images),
+        cover_path: None,
+    }
+}
+
+fn album_ref_card(a: &morune_core::model::AlbumRef) -> Card {
+    Card {
+        tag: Target::Album(a.id.clone()).tag(),
+        title: a.name.to_string(),
+        subtitle: "Album".into(),
         cover: cover(&a.images),
         cover_path: None,
     }
@@ -532,7 +642,11 @@ fn artist_card(a: &morune_core::model::Artist) -> Card {
     Card {
         tag: Target::Artist(a.id.clone()).tag(),
         title: a.name.to_string(),
-        subtitle: a.genres.first().map(|g| g.to_string()).unwrap_or_else(|| "Artista".into()),
+        subtitle: a
+            .genres
+            .first()
+            .map(|g| g.to_string())
+            .unwrap_or_else(|| "Artista".into()),
         cover: cover(&a.images),
         cover_path: None,
     }
@@ -550,6 +664,9 @@ const CARD_ARTWORK_WIDTH: u32 = 300;
 /// Nao e teto de prateleira: e a lista inteira da conta, porque a barra
 /// lateral mostra todas e o filtro precisa ver todas para filtrar.
 const ROOTLIST_LIMIT: u32 = 200;
+
+/// Uma estacao chega em blocos curtos: o proximo fim de fila pede outro bloco.
+const AUTOPLAY_TRACKS: u32 = 50;
 
 /// Guarda a primeira falha e registra as demais no log.
 ///
@@ -652,7 +769,11 @@ mod tests {
         assert_eq!(Target::parse("album/local:musica.flac"), None);
     }
 
-    fn playlist(name: &str, owner: Option<&str>, total: Option<u32>) -> morune_core::model::Playlist {
+    fn playlist(
+        name: &str,
+        owner: Option<&str>,
+        total: Option<u32>,
+    ) -> morune_core::model::Playlist {
         morune_core::model::Playlist {
             id: PlaylistId::spotify("37i9"),
             kind: PlaylistKind::default(),
@@ -678,8 +799,14 @@ mod tests {
         // Playlist colaborativa as vezes chega sem dono; a grade nao pode
         // mostrar um travessao solto por causa disso.
         assert_eq!(playlist_card(&playlist("x", None, None)).subtitle, "");
-        assert_eq!(playlist_card(&playlist("x", None, Some(4))).subtitle, "4 faixas");
-        assert_eq!(playlist_card(&playlist("x", Some("Felipe"), None)).subtitle, "Felipe");
+        assert_eq!(
+            playlist_card(&playlist("x", None, Some(4))).subtitle,
+            "4 faixas"
+        );
+        assert_eq!(
+            playlist_card(&playlist("x", Some("Felipe"), None)).subtitle,
+            "Felipe"
+        );
     }
 
     #[test]
@@ -688,8 +815,14 @@ mod tests {
             id: AlbumId::spotify("6eUW"),
             name: "Colaboracao".into(),
             artists: vec![
-                ArtistRef { id: ArtistId::spotify("a"), name: "Um".into() },
-                ArtistRef { id: ArtistId::spotify("b"), name: "Outro".into() },
+                ArtistRef {
+                    id: ArtistId::spotify("a"),
+                    name: "Um".into(),
+                },
+                ArtistRef {
+                    id: ArtistId::spotify("b"),
+                    name: "Outro".into(),
+                },
             ],
             images: ImageSet::default(),
             release_date: None,
@@ -720,7 +853,11 @@ mod tests {
         // Quatro prateleiras podem falhar juntas quando a rede cai. A tela tem
         // uma linha, e a primeira mensagem ja diz o que houve.
         let primeira = note(None, &CoreError::Network("timeout".into()), "historico");
-        let depois = note(primeira.clone(), &CoreError::NotFound("x".into()), "curtidas");
+        let depois = note(
+            primeira.clone(),
+            &CoreError::NotFound("x".into()),
+            "curtidas",
+        );
         assert_eq!(depois, primeira);
         assert!(depois.unwrap().contains("internet"));
     }

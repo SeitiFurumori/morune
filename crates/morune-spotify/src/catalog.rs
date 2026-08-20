@@ -21,8 +21,7 @@ use morune_core::catalog::{
     BoxFuture, Catalog, Library, Page, SearchKind, SearchResults, TopRange,
 };
 use morune_core::model::{
-    PlaylistKind,
-    Album, AlbumId, Artist, ArtistId, Playlist, PlaylistId, Provider, Track, TrackId,
+    Album, AlbumId, Artist, ArtistId, Playlist, PlaylistId, PlaylistKind, Provider, Track, TrackId,
 };
 use morune_core::{CoreError, CoreResult};
 
@@ -71,7 +70,13 @@ impl SpotifyCatalog {
     /// do Web API fazia o mesmo e morreu -- ver `crate::pathfinder` para a
     /// medicao.
     async fn tracks_by_id(&self, ids: &[String]) -> CoreResult<Vec<Track>> {
-        Ok(self.internal.tracks(ids).await?.into_iter().map(meta_to_track).collect())
+        Ok(self
+            .internal
+            .tracks(ids)
+            .await?
+            .into_iter()
+            .map(meta_to_track)
+            .collect())
     }
 
     /// Playlist pelo caminho interno, quando o Web API recusa.
@@ -82,7 +87,6 @@ impl SpotifyCatalog {
     async fn playlist_from_internal(&self, id: &str) -> CoreResult<Playlist> {
         let contents = self.internal.playlist(id).await?;
         let total = contents.track_ids.len() as u32;
-        let tracks = self.tracks_by_id(&contents.track_ids).await?;
 
         Ok(Playlist {
             id: PlaylistId::spotify(id),
@@ -92,7 +96,9 @@ impl SpotifyCatalog {
             description: None,
             images: Default::default(),
             total_tracks: Some(total),
-            tracks,
+            // O contrato tem `playlist_tracks` justamente para nao baixar uma
+            // playlist inteira ao abrir. Quem precisa das faixas pagina.
+            tracks: Vec::new(),
         })
     }
 
@@ -106,10 +112,17 @@ impl SpotifyCatalog {
         let todas = self.internal.rootlist().await?;
         let total = Some(todas.len() as u32);
 
-        let items: Vec<Playlist> =
-            todas.iter().take(limit as usize).map(summary_to_playlist).collect();
+        let items: Vec<Playlist> = todas
+            .iter()
+            .take(limit as usize)
+            .map(summary_to_playlist)
+            .collect();
 
-        Ok(Page { items, offset: 0, total })
+        Ok(Page {
+            items,
+            offset: 0,
+            total,
+        })
     }
 
     /// Busca no catalogo.
@@ -211,10 +224,36 @@ impl Catalog for SpotifyCatalog {
                 .take(clamp(limit, MAX_PLAYLIST_PAGE) as usize)
                 .collect();
 
-            Ok(Page { items: self.tracks_by_id(&fatia).await?, offset, total })
+            Ok(Page {
+                items: self.tracks_by_id(&fatia).await?,
+                offset,
+                total,
+            })
         })
     }
 
+    fn radio<'a>(
+        &'a self,
+        seed: &'a TrackId,
+        limit: u32,
+    ) -> BoxFuture<'a, CoreResult<Page<Track>>> {
+        Box::pin(async move {
+            let seed = spotify_id(seed.provider, &seed.id)?;
+            let playlist_id = self.internal.radio_playlist(seed).await?;
+            let contents = self.internal.playlist(&playlist_id).await?;
+            let total = Some(contents.track_ids.len() as u32);
+            let ids: Vec<String> = contents
+                .track_ids
+                .into_iter()
+                .take(clamp(limit, MAX_PLAYLIST_PAGE) as usize)
+                .collect();
+            Ok(Page {
+                items: self.tracks_by_id(&ids).await?,
+                offset: 0,
+                total,
+            })
+        })
+    }
 }
 
 impl Library for SpotifyCatalog {
@@ -244,7 +283,11 @@ impl Library for SpotifyCatalog {
                 .map(summary_to_playlist)
                 .collect();
 
-            Ok(Page { items, offset, total })
+            Ok(Page {
+                items,
+                offset,
+                total,
+            })
         })
     }
 
@@ -254,7 +297,11 @@ impl Library for SpotifyCatalog {
     /// `hm://collection/album/{usuario}` nem `collection/v2/paging` responderam
     /// na sonda de 19/08/2026. Recusar explicitamente e melhor que devolver
     /// lista vazia: vazio diria ao usuario que ele nao salvou nenhum album.
-    fn saved_albums<'a>(&'a self, _offset: u32, _limit: u32) -> BoxFuture<'a, CoreResult<Page<Album>>> {
+    fn saved_albums<'a>(
+        &'a self,
+        _offset: u32,
+        _limit: u32,
+    ) -> BoxFuture<'a, CoreResult<Page<Album>>> {
         Box::pin(async { Err(CoreError::Unsupported(SEM_CAMINHO)) })
     }
 
@@ -264,7 +311,11 @@ impl Library for SpotifyCatalog {
     /// O recorte acontece aqui, e so a fatia pedida vira requisicao de
     /// metadado: numa conta com 723 curtidas, pedir as 723 para desenhar 50
     /// seria quinze vezes mais rede do que a tela usa.
-    fn saved_tracks<'a>(&'a self, offset: u32, limit: u32) -> BoxFuture<'a, CoreResult<Page<Track>>> {
+    fn saved_tracks<'a>(
+        &'a self,
+        offset: u32,
+        limit: u32,
+    ) -> BoxFuture<'a, CoreResult<Page<Track>>> {
         Box::pin(async move {
             let ids = self.internal.collection(Conjunto::Faixas).await?;
             let total = Some(ids.len() as u32);
@@ -275,7 +326,11 @@ impl Library for SpotifyCatalog {
                 .take(clamp(limit, MAX_PAGE) as usize)
                 .collect();
 
-            Ok(Page { items: self.tracks_by_id(&fatia).await?, offset, total })
+            Ok(Page {
+                items: self.tracks_by_id(&fatia).await?,
+                offset,
+                total,
+            })
         })
     }
 
@@ -307,7 +362,11 @@ impl Library for SpotifyCatalog {
                 .map(meta_to_artist)
                 .collect();
 
-            Ok(Page { items, offset, total })
+            Ok(Page {
+                items,
+                offset,
+                total,
+            })
         })
     }
 
@@ -374,11 +433,13 @@ fn checked_id(id: &str) -> CoreResult<&str> {
 /// Id do Spotify pronto para entrar num caminho de URL.
 fn spotify_id(provider: Provider, id: &str) -> CoreResult<&str> {
     if provider != Provider::Spotify {
-        return Err(CoreError::NotFound(format!("{} nao e um recurso do Spotify", provider.as_str())));
+        return Err(CoreError::NotFound(format!(
+            "{} nao e um recurso do Spotify",
+            provider.as_str()
+        )));
     }
     checked_id(id)
 }
-
 
 /// Referencias de artista vindas do protocolo interno.
 fn artist_refs(pares: Vec<(String, String)>) -> Vec<morune_core::model::ArtistRef> {
@@ -402,8 +463,16 @@ fn meta_to_artist(meta: ArtistMeta) -> Artist {
         name: Arc::from(meta.name.as_str()),
         images: meta.images,
         genres: meta.genres.iter().map(|g| Arc::from(g.as_str())).collect(),
-        top_tracks: Vec::new(),
-        albums: Vec::new(),
+        top_tracks: meta.top_tracks.into_iter().map(meta_to_track).collect(),
+        albums: meta
+            .albums
+            .into_iter()
+            .map(|(id, name, images)| morune_core::model::AlbumRef {
+                id: AlbumId::spotify(id.as_str()),
+                name: Arc::from(name.as_str()),
+                images,
+            })
+            .collect(),
     }
 }
 
@@ -418,11 +487,13 @@ fn meta_to_track(meta: TrackMeta) -> Track {
         id: TrackId::spotify(meta.id.as_str()),
         name: Arc::from(meta.name.as_str()),
         artists: artist_refs(meta.artists),
-        album: meta.album.map(|(id, nome, capas)| morune_core::model::AlbumRef {
-            id: AlbumId::spotify(id.as_str()),
-            name: Arc::from(nome.as_str()),
-            images: capas,
-        }),
+        album: meta
+            .album
+            .map(|(id, nome, capas)| morune_core::model::AlbumRef {
+                id: AlbumId::spotify(id.as_str()),
+                name: Arc::from(nome.as_str()),
+                images: capas,
+            }),
         duration: std::time::Duration::from_millis(meta.duration_ms),
         track_number: meta.number,
         disc_number: meta.disc,
@@ -440,7 +511,9 @@ fn summary_to_playlist(summary: &PlaylistSummary) -> Playlist {
         id: summary.id.clone(),
         kind: summary.kind(),
         name: Arc::from(summary.name.as_str()),
-        owner: Some(summary.owner.as_str()).filter(|o| !o.is_empty()).map(Arc::from),
+        owner: Some(summary.owner.as_str())
+            .filter(|o| !o.is_empty())
+            .map(Arc::from),
         description: None,
         images: summary.images.clone(),
         total_tracks: Some(summary.length),
@@ -467,6 +540,9 @@ mod tests {
         // Um id local vindo de um `.musicpack` nao pode virar uma requisicao ao
         // Spotify -- responderia 404 depois de uma ida a rede.
         assert!(spotify_id(Provider::Local, "musica.flac").is_err());
-        assert_eq!(spotify_id(Provider::Spotify, "4cOdK2wGLETK").unwrap(), "4cOdK2wGLETK");
+        assert_eq!(
+            spotify_id(Provider::Spotify, "4cOdK2wGLETK").unwrap(),
+            "4cOdK2wGLETK"
+        );
     }
 }

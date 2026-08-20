@@ -19,14 +19,14 @@ maquina (AMD Ryzen 5 8500G, Windows 11 26200, Radeon 740M):
 
 | | |
 |---|---|
-| Instalador `.exe` | **4,00 MB** |
-| Executavel de release | **9,39 MB** |
-| Startup ate o laco de eventos | **18 ms** (mediana de 8 execucoes) |
-| Ciclo completo do processo | **1,01 s** (inclui criar contexto OpenGL e encerrar) |
-| Working set em repouso | **70,6 MB** (media), pico 71,3 MB |
-| CPU em repouso | **0,00%** de um nucleo |
+| Instalador `.exe` | **5,31 MB** |
+| Executavel de release | **13,28 MB** |
+| Startup ate o laco de eventos | **19 ms** (mediana de 10 execucoes) |
+| Ciclo completo do processo | **509 ms** (mediana; inclui criar contexto OpenGL e encerrar) |
+| Working set em repouso | **78,8 MB** (media), pico 79,5 MB |
+| CPU em repouso | **0,14%** de um nucleo |
 | CPU na bandeja, janela oculta | **0,00%** de um nucleo |
-| Testes | 134 passando, `clippy -D warnings` limpo |
+| Testes | 217, `clippy -D warnings` limpo |
 
 O criterio de desempenho do Morune nao e "usar pouca RAM" — e **nao atrapalhar
 quem esta jogando**. O que manda e CPU e GPU em segundo plano e a interface
@@ -52,27 +52,32 @@ Ja implementado:
   executavel, na janela, na barra de tarefas, na bandeja e no instalador;
 - **instalador `.exe` unico** com escolha de disco, sem UAC e sem pre-requisitos.
 
-Escrito, compilando e coberto por teste de unidade, mas **ainda nao exercitado
-contra uma conta real** — ver [docs/HANDOFF.md](docs/HANDOFF.md):
+Verificado contra uma conta Spotify Premium real em 19/08/2026 — ver
+[docs/HANDOFF.md](docs/HANDOFF.md):
 
 - login no Spotify por OAuth com PKCE, sem senha e sem client secret, com o
   token no Gerenciador de Credenciais;
 - reproducao sobre a librespot, ligada a fila que ja existia;
-- busca, e um Inicio com cinco prateleiras — o que o Spotify monta pra voce,
-  tocadas recentemente, musicas curtidas, seus mais ouvidos e suas playlists;
-- biblioteca com playlists, albuns salvos e artistas seguidos.
+- busca; playlists, musicas curtidas e artistas seguidos;
+- capas com cache LRU de 48 MB;
+- playlists na barra lateral e telas de detalhe com filtro e ordenacao.
 
 As playlists que o Spotify monta para a conta — Descobertas da Semana, Radar de
 Novidades — nao sao mais acessiveis pelo Web API desde a
 [mudanca de novembro de 2024](https://developer.spotify.com/blog/2024-11-27-changes-to-the-web-api).
 O Morune as busca pelo mesmo protocolo interno que ja usa para tocar.
 
-Ainda **nao** implementado — ver [ROADMAP.md](ROADMAP.md):
+Implementado depois dessa verificacao e aguardando uma nova rodada na conta
+real:
 
-- radio e autoplay quando a fila acaba;
-- capas: nem download nem cache;
-- paginacao das telas de conteudo;
-- telas de detalhe de album, artista e playlist.
+- radio e autoplay configuravel quando a fila acaba;
+- capas nas linhas de faixa;
+- discografia e faixas populares na tela de artista;
+- aviso quando uma lista e limitada as primeiras 200 faixas.
+
+Ainda sem caminho conhecido no protocolo acessivel: albuns salvos, historico
+recente e estatisticas de mais ouvidos. Essas secoes ficam escondidas em vez de
+mostrar dados inventados.
 
 Nada aqui e declarado funcionando sem medicao ou teste. Onde falta, esta dito.
 

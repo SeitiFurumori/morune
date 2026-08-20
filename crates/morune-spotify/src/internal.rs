@@ -21,25 +21,24 @@
 //! nao foi afetado pela mudanca. Um pedido por faixa custaria cem requisicoes
 //! numa playlist de cem.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use librespot_core::{SpotifyId, SpotifyUri};
 use librespot_metadata::Metadata;
-use librespot_protocol::extended_metadata::{
-    BatchedEntityRequest, EntityRequest, ExtensionQuery,
-};
+use librespot_protocol::extended_metadata::{BatchedEntityRequest, EntityRequest, ExtensionQuery};
 use librespot_protocol::extension_kind::ExtensionKind;
+use librespot_protocol::metadata::image::Size as ImageSize;
 use librespot_protocol::metadata::Album as AlbumMessage;
 use librespot_protocol::metadata::Artist as ArtistMessage;
 use librespot_protocol::metadata::ImageGroup as ImageGroupMessage;
 use librespot_protocol::metadata::Track as TrackMessage;
-use librespot_protocol::metadata::image::Size as ImageSize;
 use librespot_protocol::playlist4_external::ListAttributes as ListAttributesMessage;
 use librespot_protocol::playlist4_external::SelectedListContent as SelectedListContentMessage;
 use morune_core::model::{ImageRef, ImageSet, PlaylistId, PlaylistKind};
 use morune_core::{CoreError, CoreResult};
 use protobuf::{EnumOrUnknown, Message};
+use serde::Deserialize;
 
 use crate::auth::SharedSession;
 use crate::error::from_librespot;
@@ -204,7 +203,10 @@ impl Internal {
             })
             .collect();
 
-        Ok(PlaylistContents { name: playlist.name().to_string(), track_ids })
+        Ok(PlaylistContents {
+            name: playlist.name().to_string(),
+            track_ids,
+        })
     }
     /// Ids da colecao da conta: curtidas, ou artistas seguidos.
     ///
@@ -241,7 +243,10 @@ impl Internal {
         let session = self.session.get().ok_or(CoreError::NotAuthenticated)?;
         let usuario = session.username();
 
-        let uri = format!("hm://collection/{}/{usuario}/?allowonlytracks=false", conjunto.caminho());
+        let uri = format!(
+            "hm://collection/{}/{usuario}/?allowonlytracks=false",
+            conjunto.caminho()
+        );
         let resposta = session
             .mercury()
             .get(uri)
@@ -279,8 +284,7 @@ impl Internal {
         let message = AlbumMessage::parse_from_bytes(&bytes)
             .map_err(|e| CoreError::Decode(format!("album ilegivel: {e}")))?;
 
-        AlbumMeta::from_message(&message)
-            .ok_or_else(|| CoreError::NotFound(format!("album {id}")))
+        AlbumMeta::from_message(&message).ok_or_else(|| CoreError::NotFound(format!("album {id}")))
     }
 
     /// Artista pelo protocolo interno.
@@ -298,7 +302,7 @@ impl Internal {
         let message = ArtistMessage::parse_from_bytes(&bytes)
             .map_err(|e| CoreError::Decode(format!("artista ilegivel: {e}")))?;
 
-        ArtistMeta::from_message(&message)
+        ArtistMeta::from_message(&message, session.get_user_attribute("country").as_deref())
             .ok_or_else(|| CoreError::NotFound(format!("artista {id}")))
     }
     /// Metadado de varios artistas numa requisicao so.
@@ -335,11 +339,13 @@ impl Internal {
 
             for entidade in &resposta.extended_metadata {
                 for extensao in &entidade.extension_data {
-                    let Some(dado) = extensao.extension_data.as_ref() else { continue };
+                    let Some(dado) = extensao.extension_data.as_ref() else {
+                        continue;
+                    };
                     let Ok(message) = ArtistMessage::parse_from_bytes(&dado.value) else {
                         continue;
                     };
-                    if let Some(artista) = ArtistMeta::from_message(&message) {
+                    if let Some(artista) = ArtistMeta::from_message(&message, None) {
                         por_id.insert(artista.id.clone(), artista);
                     }
                 }
@@ -347,6 +353,24 @@ impl Internal {
         }
 
         Ok(ids.iter().filter_map(|id| por_id.remove(id)).collect())
+    }
+
+    /// Playlist que o Spotify montou como radio de uma faixa.
+    ///
+    /// Este endpoint devolve JSON sem esquema publicado. A estrutura local e
+    /// deliberadamente pequena e tolerante: campos extras e itens sem URI sao
+    /// ignorados, mas a ausencia de uma playlist utilizavel vira erro claro.
+    pub(crate) async fn radio_playlist(&self, track_id: &str) -> CoreResult<String> {
+        let session = self.session.get().ok_or(CoreError::NotAuthenticated)?;
+        let uri =
+            SpotifyUri::from_uri(&format!("spotify:track:{track_id}")).map_err(from_librespot)?;
+        let bytes = session
+            .spclient()
+            .get_radio_for_track(&uri)
+            .await
+            .map_err(from_librespot)?;
+        radio_playlist_id(&bytes)
+            .ok_or_else(|| CoreError::Decode("radio sem playlist utilizavel".into()))
     }
 
     /// Metadado de varias faixas numa requisicao so.
@@ -390,7 +414,9 @@ impl Internal {
 
             for entidade in &resposta.extended_metadata {
                 for extensao in &entidade.extension_data {
-                    let Some(dado) = extensao.extension_data.as_ref() else { continue };
+                    let Some(dado) = extensao.extension_data.as_ref() else {
+                        continue;
+                    };
                     let Ok(message) = TrackMessage::parse_from_bytes(&dado.value) else {
                         continue;
                     };
@@ -407,6 +433,25 @@ impl Internal {
     }
 }
 
+#[derive(Debug, Deserialize)]
+struct RadioResponse {
+    #[serde(default, rename = "mediaItems", alias = "media_items")]
+    media_items: Vec<RadioItem>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RadioItem {
+    #[serde(default)]
+    uri: String,
+}
+
+fn radio_playlist_id(bytes: &[u8]) -> Option<String> {
+    let response: RadioResponse = serde_json::from_slice(bytes).ok()?;
+    response
+        .media_items
+        .iter()
+        .find_map(|item| playlist_id(&item.uri))
+}
 
 /// Faixa como o protocolo interno a descreve.
 ///
@@ -462,7 +507,9 @@ fn base62(gid: &[u8]) -> Option<String> {
 /// imagem sem largura conhecida entra com a largura do enum, que e o que
 /// permite ao `best_for_width` nao baixar 640 px para desenhar 64.
 fn covers(group: Option<&ImageGroupMessage>) -> ImageSet {
-    let Some(group) = group else { return ImageSet::default() };
+    let Some(group) = group else {
+        return ImageSet::default();
+    };
 
     let mut refs: Vec<ImageRef> = group
         .image
@@ -489,15 +536,14 @@ fn covers(group: Option<&ImageGroupMessage>) -> ImageSet {
 }
 
 fn hex(bytes: &[u8]) -> String {
-    bytes.iter().fold(String::with_capacity(bytes.len() * 2), |mut acc, b| {
-        use std::fmt::Write;
-        let _ = write!(acc, "{b:02x}");
-        acc
-    })
+    bytes
+        .iter()
+        .fold(String::with_capacity(bytes.len() * 2), |mut acc, b| {
+            use std::fmt::Write;
+            let _ = write!(acc, "{b:02x}");
+            acc
+        })
 }
-
-
-
 
 /// Album como o protocolo interno o descreve.
 #[derive(Debug, Clone)]
@@ -553,10 +599,51 @@ pub(crate) struct ArtistMeta {
     pub name: String,
     pub images: ImageSet,
     pub genres: Vec<String>,
+    pub top_tracks: Vec<TrackMeta>,
+    pub albums: Vec<(String, String, ImageSet)>,
 }
 
 impl ArtistMeta {
-    fn from_message(msg: &ArtistMessage) -> Option<Self> {
+    fn from_message(msg: &ArtistMessage, country: Option<&str>) -> Option<Self> {
+        let top_tracks = country
+            .and_then(|country| {
+                msg.top_track
+                    .iter()
+                    .find(|group| group.country().eq_ignore_ascii_case(country))
+            })
+            .or_else(|| {
+                msg.top_track
+                    .iter()
+                    .find(|group| group.country().is_empty())
+            })
+            .or_else(|| msg.top_track.first())
+            .map(|group| {
+                group
+                    .track
+                    .iter()
+                    .filter_map(TrackMeta::from_message)
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let mut seen = HashSet::new();
+        let albums = msg
+            .album_group
+            .iter()
+            .chain(msg.single_group.iter())
+            .filter_map(|group| group.album.first())
+            .filter_map(|album| {
+                let id = base62(album.gid())?;
+                seen.insert(id.clone()).then(|| {
+                    (
+                        id,
+                        album.name().to_string(),
+                        covers(album.cover_group.as_ref()),
+                    )
+                })
+            })
+            .collect();
+
         Some(Self {
             id: base62(msg.gid())?,
             name: msg.name().to_string(),
@@ -564,6 +651,8 @@ impl ArtistMeta {
             // O protobuf do artista nao traz genero neste caminho. A tela do
             // artista, que e onde genero aparece, vem por outra requisicao.
             genres: Vec::new(),
+            top_tracks,
+            albums,
         })
     }
 }
@@ -723,7 +812,9 @@ fn varint(bytes: &[u8], cursor: usize) -> Option<(u64, usize)> {
 fn summaries_from(message: &SelectedListContentMessage) -> Vec<PlaylistSummary> {
     let contents = message.contents.as_ref();
     let items = contents.map(|c| c.items.as_slice()).unwrap_or_default();
-    let meta = contents.map(|c| c.meta_items.as_slice()).unwrap_or_default();
+    let meta = contents
+        .map(|c| c.meta_items.as_slice())
+        .unwrap_or_default();
 
     let mut out = Vec::with_capacity(items.len());
 
@@ -746,8 +837,12 @@ fn summaries_from(message: &SelectedListContentMessage) -> Vec<PlaylistSummary> 
                 .filter(|o| !o.is_empty())
                 .or_else(|| owner_from_uri(item.uri()))
                 .unwrap_or_default(),
-            length: decorated.map(|m| m.length().max(0) as u32).unwrap_or_default(),
-            format: atributos.map(|a| a.format().to_string()).unwrap_or_default(),
+            length: decorated
+                .map(|m| m.length().max(0) as u32)
+                .unwrap_or_default(),
+            format: atributos
+                .map(|a| a.format().to_string())
+                .unwrap_or_default(),
             images: atributos.map(playlist_covers).unwrap_or_default(),
         });
     }
@@ -815,7 +910,6 @@ fn owner_from_uri(uri: &str) -> Option<String> {
     let dono = uri.strip_prefix("spotify:user:")?.split_once(':')?.0;
     (!dono.is_empty()).then(|| dono.to_string())
 }
-
 
 /// Ponte para o exemplo `rootlist`. Ver `crate::debug_rootlist`.
 pub(crate) fn summaries_for_debug(
@@ -885,8 +979,10 @@ mod tests {
         chegaram.insert("aaa".into(), "primeira");
         chegaram.insert("bbb".into(), "segunda");
 
-        let ordenadas: Vec<&str> =
-            pedidos.iter().filter_map(|id| chegaram.remove(id)).collect();
+        let ordenadas: Vec<&str> = pedidos
+            .iter()
+            .filter_map(|id| chegaram.remove(id))
+            .collect();
 
         assert_eq!(ordenadas, vec!["primeira", "segunda", "terceira"]);
     }
@@ -901,8 +997,10 @@ mod tests {
         chegaram.insert("aaa".into(), "primeira");
         chegaram.insert("ccc".into(), "terceira");
 
-        let ordenadas: Vec<&str> =
-            pedidos.iter().filter_map(|id| chegaram.remove(id)).collect();
+        let ordenadas: Vec<&str> = pedidos
+            .iter()
+            .filter_map(|id| chegaram.remove(id))
+            .collect();
 
         assert_eq!(ordenadas, vec!["primeira", "terceira"]);
     }
@@ -972,15 +1070,24 @@ mod tests {
         assert_eq!(caso("artist-mix-reader"), PlaylistKind::Station);
 
         assert_eq!(caso("wrapped-2025-top100"), PlaylistKind::Retrospective);
-        assert_eq!(caso("all-time-top-songs-20-years"), PlaylistKind::Retrospective);
+        assert_eq!(
+            caso("all-time-top-songs-20-years"),
+            PlaylistKind::Retrospective
+        );
     }
 
     #[test]
     fn the_showcase_kinds_are_kept_out_of_the_home() {
         // "This Is <artista>" e as vitrines de genero sao iguais para todo
         // mundo: nao sao feitas para esta conta e nao entram no Inicio.
-        assert_eq!(summary("spotify", "artistsets").kind(), PlaylistKind::Editorial);
-        assert_eq!(summary("spotify", "editorial").kind(), PlaylistKind::Editorial);
+        assert_eq!(
+            summary("spotify", "artistsets").kind(),
+            PlaylistKind::Editorial
+        );
+        assert_eq!(
+            summary("spotify", "editorial").kind(),
+            PlaylistKind::Editorial
+        );
     }
 
     #[test]
@@ -988,7 +1095,10 @@ mod tests {
         // O Spotify inventa formato novo sem avisar. Cair em `Editorial` faz o
         // desconhecido aparecer na barra lateral, e nao numa prateleira onde
         // talvez nao pertenca.
-        assert_eq!(summary("spotify", "formato-que-ainda-nao-existe").kind(), PlaylistKind::Editorial);
+        assert_eq!(
+            summary("spotify", "formato-que-ainda-nao-existe").kind(),
+            PlaylistKind::Editorial
+        );
     }
 
     #[test]
@@ -1031,7 +1141,10 @@ mod tests {
             playlist_id("spotify:user:felipe:playlist:37i9dQZEVXcJZyENOWUFo7").as_deref(),
             Some("37i9dQZEVXcJZyENOWUFo7")
         );
-        assert_eq!(owner_from_uri("spotify:user:felipe:playlist:37i9dQZEVXcJZyENOWUFo7").as_deref(), Some("felipe"));
+        assert_eq!(
+            owner_from_uri("spotify:user:felipe:playlist:37i9dQZEVXcJZyENOWUFo7").as_deref(),
+            Some("felipe")
+        );
     }
 
     #[test]
@@ -1043,6 +1156,29 @@ mod tests {
         assert!(playlist_id("spotify:playlist:curto").is_none());
         assert!(playlist_id("spotify:playlist:../../me/player").is_none());
         assert!(playlist_id("nao e uri").is_none());
+    }
+
+    #[test]
+    fn radio_response_yields_the_first_usable_playlist() {
+        let bytes = br#"{
+            "total": 3,
+            "mediaItems": [
+                {"uri": "spotify:track:nao-e-playlist", "extra": true},
+                {"uri": "spotify:playlist:37i9dQZF1E8JoTa1qkl0zw"},
+                {}
+            ],
+            "unknown": "ignored"
+        }"#;
+        assert_eq!(
+            radio_playlist_id(bytes).as_deref(),
+            Some("37i9dQZF1E8JoTa1qkl0zw")
+        );
+    }
+
+    #[test]
+    fn malformed_or_empty_radio_response_is_not_invented() {
+        assert!(radio_playlist_id(b"not json").is_none());
+        assert!(radio_playlist_id(br#"{"mediaItems": [{"uri": ""}]}"#).is_none());
     }
 
     #[test]
