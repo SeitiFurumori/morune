@@ -52,7 +52,12 @@ Versionamento semantico.
 - Parser tolerante para a resposta JSON de `get_radio_for_track`, com falha
   isolada da busca e da navegacao.
 - Capas pequenas nas linhas de faixa, reutilizando o cache LRU de 48 MB.
-- Aviso explicito quando uma lista foi limitada as primeiras 200 faixas.
+- Colecoes extensas carregam progressivamente, sem os antigos tetos visiveis de
+  50/200 faixas. A lista virtualizada mantem custo estavel, filtro e ordenacao
+  completam os lotes em segundo plano, e a fila recebe a continuacao sem
+  interromper a musica atual.
+- Barra lateral usa o rootlist completo em vez de ocultar playlists depois da
+  200a.
 - Tela de artista com faixas populares por pais e discografia vindas do
   protobuf tipado; abrir um album navega para seu detalhe.
 - Playlists removidas da Biblioteca, pois a fonte canonica delas agora e a

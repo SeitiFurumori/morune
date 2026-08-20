@@ -73,6 +73,15 @@ impl SortBy {
     }
 }
 
+/// Acao aguardando a lista inteira quando filtro ou ordenacao tornam o trecho
+/// parcial ambiguo. Na ordem original a reproducao comeca imediatamente e as
+/// paginas seguintes entram na fila em segundo plano.
+#[derive(Debug, Clone)]
+enum PendingDetailPlay {
+    First,
+    Track(TrackId),
+}
+
 /// Ultima acao destrutiva que ainda pode ser revertida pelo aviso na tela.
 enum UndoAction {
     QueueClear(Vec<Track>),
@@ -136,6 +145,13 @@ pub struct AppState {
     /// `true` inverte a ordenacao. Nao se aplica a [`SortBy::Original`]:
     /// inverter a ordem da playlist nao e ordenar, e embaralhar ao contrario.
     detail_desc: bool,
+    /// Uma pagina seguinte esta em voo. Impede que roda do mouse e touchpad
+    /// disparem a mesma requisicao varias vezes.
+    detail_loading: bool,
+    /// Continua pedindo paginas sem esperar nova rolagem. Ativado quando uma
+    /// acao precisa conhecer a lista inteira (filtro, ordenacao ou fila).
+    detail_complete_requested: bool,
+    detail_pending_play: Option<PendingDetailPlay>,
     /// De onde a tela de detalhe foi aberta, para o botao de voltar.
     detail_from: Page,
     /// Capa da faixa tocando: a URL pedida e o arquivo, quando ja chegou.
@@ -205,7 +221,7 @@ impl AppState {
         let covers_dir = paths.artwork_cache_dir();
         let start_with_windows = crate::startup::is_enabled();
 
-        Self {
+        let loaded = Self {
             volume: config.playback.volume,
             paths,
             config,
@@ -240,6 +256,9 @@ impl AppState {
             detail_filter: String::new(),
             detail_sort: SortBy::Original,
             detail_desc: false,
+            detail_loading: false,
+            detail_complete_requested: false,
+            detail_pending_play: None,
             detail_from: Page::Home,
             liked_card: Card {
                 tag: crate::browse::Target::Liked.tag(),
@@ -253,7 +272,59 @@ impl AppState {
             autoplay_seed: None,
             home_requested: false,
             library_requested: false,
+        };
+
+        #[cfg(feature = "snapshot")]
+        let mut loaded = loaded;
+        #[cfg(feature = "snapshot")]
+        loaded.install_snapshot_detail_demo();
+
+        loaded
+    }
+
+    /// Conteudo determinista para inspecionar a lista longa sem uma conta nem
+    /// rede. Compilado somente pela ferramenta de snapshot, nunca no produto.
+    #[cfg(feature = "snapshot")]
+    fn install_snapshot_detail_demo(&mut self) {
+        if std::env::var_os("MORUNE_SNAPSHOT_DETAIL_DEMO").is_none() {
+            return;
         }
+
+        let tracks = (1..=100)
+            .map(|number| Track {
+                id: TrackId::spotify(format!("snapshot{number}")),
+                name: format!("Faixa {number:03}").into(),
+                artists: vec![morune_core::model::ArtistRef {
+                    id: morune_core::model::ArtistId::spotify("snapshotartist"),
+                    name: "Artista de exemplo".into(),
+                }],
+                album: Some(morune_core::model::AlbumRef {
+                    id: morune_core::model::AlbumId::spotify("snapshotalbum"),
+                    name: "Album de exemplo".into(),
+                    images: Default::default(),
+                }),
+                duration: Duration::from_secs(180 + u64::from(number % 60)),
+                track_number: Some(number),
+                disc_number: Some(1),
+                explicit: false,
+                playable: true,
+            })
+            .collect();
+
+        self.detail = Some(crate::browse::Detail {
+            origin: QueueOrigin::Custom(crate::browse::LIKED_TITLE.into()),
+            title: crate::browse::LIKED_TITLE.into(),
+            subtitle: "719 faixas".into(),
+            kind: "Colecao".into(),
+            cover: String::new(),
+            cover_path: None,
+            tracks,
+            cards: Vec::new(),
+            total_tracks: Some(719),
+            source: Some(Target::Liked),
+            has_more: true,
+        });
+        self.page = Page::Detail;
     }
 
     /// Tenta reabrir a ultima sessao do Spotify.
@@ -407,12 +478,66 @@ impl AppState {
                 self.detail_filter.clear();
                 self.detail_sort = SortBy::Original;
                 self.detail_desc = false;
+                self.detail_loading = false;
+                self.detail_complete_requested = false;
+                self.detail_pending_play = None;
                 self.detail = Some(*detail);
                 self.detail_from = self.page;
                 self.page = Page::Detail;
                 self.status.clear();
                 self.resolve_detail_cover();
                 self.resolve_detail_cards();
+            }
+            Outcome::DetailMore {
+                source,
+                tracks,
+                total,
+                has_more,
+            } => {
+                self.detail_loading = false;
+                let queue_can_follow = self.detail_filter.is_empty()
+                    && self.detail_sort == SortBy::Original
+                    && self
+                        .detail
+                        .as_ref()
+                        .is_some_and(|detail| {
+                            self.queue.origin() == &detail.origin
+                                && self.queue.len() == detail.tracks.len()
+                        });
+
+                let mut accepted = false;
+                if let Some(detail) = &mut self.detail {
+                    if detail.source.as_ref() == Some(&source) {
+                        detail.tracks.extend(tracks.iter().cloned());
+                        detail.total_tracks = total.or(detail.total_tracks);
+                        detail.has_more = has_more;
+                        accepted = true;
+                    }
+                }
+
+                if accepted && queue_can_follow {
+                    self.queue.append_context(tracks);
+                }
+
+                if accepted && self.detail_complete_requested && has_more {
+                    self.request_detail_more();
+                } else if accepted && self.detail_complete_requested {
+                    self.detail_complete_requested = false;
+                    self.finish_pending_detail_play();
+                }
+            }
+            Outcome::DetailMoreFailed { source, message } => {
+                if self
+                    .detail
+                    .as_ref()
+                    .and_then(|detail| detail.source.as_ref())
+                    == Some(&source)
+                {
+                    self.detail_loading = false;
+                    self.detail_complete_requested = false;
+                    self.detail_pending_play = None;
+                    self.status = format!("Nao consegui carregar mais faixas. {message}");
+                }
             }
             Outcome::Context {
                 origin,
@@ -574,6 +699,9 @@ impl AppState {
 
     pub fn set_detail_filter(&mut self, texto: &str) {
         self.detail_filter = texto.trim().to_lowercase();
+        if !self.detail_filter.is_empty() && self.detail_has_more() {
+            self.complete_detail();
+        }
     }
 
     /// Escolhe o criterio de ordenacao.
@@ -588,12 +716,24 @@ impl AppState {
             self.detail_sort = novo;
             self.detail_desc = false;
         }
+        if self.detail_sort != SortBy::Original && self.detail_has_more() {
+            self.complete_detail();
+        }
+    }
+
+    /// Acao explicita e alternativa de teclado ao carregamento automatico no
+    /// fim da rolagem.
+    pub fn load_more_detail(&mut self) {
+        self.request_detail_more();
     }
 
     /// Fecha a tela de detalhe e volta de onde ela foi aberta.
     pub fn close_detail(&mut self) {
         self.page = self.detail_from;
         self.detail = None;
+        self.detail_loading = false;
+        self.detail_complete_requested = false;
+        self.detail_pending_play = None;
     }
 
     /// Toca a lista aberta a partir da primeira faixa visivel.
@@ -601,7 +741,17 @@ impl AppState {
     /// "Visivel" e deliberado: com filtro aplicado, tocar tem de tocar o que
     /// esta na tela, e nao a lista inteira que o usuario acabou de esconder.
     pub fn play_detail(&mut self) {
+        if self.detail_has_more()
+            && (!self.detail_filter.is_empty() || self.detail_sort != SortBy::Original)
+        {
+            self.detail_pending_play = Some(PendingDetailPlay::First);
+            self.complete_detail();
+            return;
+        }
         self.play_detail_from(0);
+        if self.detail_has_more() {
+            self.complete_detail();
+        }
     }
 
     /// Toca a lista aberta a partir de uma faixa.
@@ -651,7 +801,68 @@ impl AppState {
             return;
         };
 
+        if self.detail_has_more()
+            && (!self.detail_filter.is_empty() || self.detail_sort != SortBy::Original)
+        {
+            self.detail_pending_play = Some(PendingDetailPlay::Track(alvo));
+            self.complete_detail();
+            return;
+        }
         self.play_detail_from(index);
+        if self.detail_has_more() {
+            self.complete_detail();
+        }
+    }
+
+    fn detail_has_more(&self) -> bool {
+        self.detail.as_ref().is_some_and(|detail| detail.has_more)
+    }
+
+    /// Pede uma unica pagina. Retorna sem efeito enquanto outra esta em voo.
+    fn request_detail_more(&mut self) {
+        if self.detail_loading {
+            return;
+        }
+        let Some(detail) = self.detail.as_ref() else {
+            return;
+        };
+        if !detail.has_more {
+            return;
+        }
+        let Some(source) = detail.source.clone() else {
+            return;
+        };
+        let offset = detail.tracks.len() as u32;
+        let Some(browse) = self.session.browse_mut() else {
+            self.status = "Backend do Spotify indisponivel nesta maquina.".into();
+            return;
+        };
+        if browse.load_more(source, offset) {
+            self.detail_loading = true;
+        }
+    }
+
+    /// Completa a lista em lotes. A interface continua responsiva entre cada
+    /// resposta e mostra o progresso no lugar do antigo aviso de recorte.
+    fn complete_detail(&mut self) {
+        if !self.detail_has_more() {
+            self.finish_pending_detail_play();
+            return;
+        }
+        self.detail_complete_requested = true;
+        self.request_detail_more();
+    }
+
+    fn finish_pending_detail_play(&mut self) {
+        match self.detail_pending_play.take() {
+            Some(PendingDetailPlay::First) => self.play_detail_from(0),
+            Some(PendingDetailPlay::Track(id)) => {
+                if let Some(index) = self.detail_tracks().iter().position(|track| track.id == id) {
+                    self.play_detail_from(index);
+                }
+            }
+            None => {}
+        }
     }
 
     /// Pede a capa da lista aberta.
@@ -1255,6 +1466,11 @@ impl AppState {
 
     pub fn navigate(&mut self, page: i32) {
         self.page = Page::from_i32(page);
+        if self.page != Page::Detail {
+            self.detail_loading = false;
+            self.detail_complete_requested = false;
+            self.detail_pending_play = None;
+        }
         self.request_page_data();
     }
 
@@ -1637,6 +1853,10 @@ impl AppState {
         self.search_cards.clear();
         self.search_query.clear();
         self.searching = false;
+        self.detail = None;
+        self.detail_loading = false;
+        self.detail_complete_requested = false;
+        self.detail_pending_play = None;
         self.home_requested = false;
         self.library_requested = false;
         self.status = "Sessao encerrada.".into();
@@ -1686,11 +1906,8 @@ impl AppState {
             window.set_detail_sort(self.detail_sort as i32);
             window.set_detail_descending(self.detail_desc);
             window.set_detail_filtered(!self.detail_filter.is_empty());
-            window.set_detail_truncated(
-                detail
-                    .total_tracks
-                    .is_some_and(|total| total as usize > detail.tracks.len()),
-            );
+            window.set_detail_has_more(detail.has_more);
+            window.set_detail_loading(self.detail_loading);
             window.set_detail_loaded_count(detail.tracks.len() as i32);
             window.set_detail_items(card_items(&detail.cards));
         }

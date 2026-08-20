@@ -1,5 +1,6 @@
 import { Theme, Layout } from "theme.slint";
 import { Icon, IconButton, PrimaryButton, GhostButton, SearchField, Slider, Artwork, PressableArea, Toggle, Logo } from "components.slint";
+import { ListView } from "std-widgets.slint";
 
 // O Slint exige que um componente esteja declarado antes de ser usado, entao
 // este arquivo vai do menor para o maior: dados, icones, pecas, paginas e por
@@ -517,8 +518,10 @@ component CardCollection inherits Rectangle {
     }
 }
 
-component TrackList inherits Flickable {
+component TrackList inherits ListView {
     in property <[TrackRow]> tracks;
+    in property <bool> has-more: false;
+    in property <bool> loading: false;
     callback activated(string);
     callback favorite-toggled(string);
     in property <bool> queue-actions: true;
@@ -527,13 +530,22 @@ component TrackList inherits Flickable {
     callback enqueue(string);
     callback remove-queued(int);
     callback move-queued(int, int);
+    callback nearing-end();
 
-    viewport-height: list.preferred-height;
+    scrolled => {
+        if root.has-more && !root.loading
+            && -root.viewport-y + root.visible-height
+                >= root.viewport-height - Layout.row-height * 8 {
+            root.nearing-end();
+        }
+    }
 
-    list := VerticalLayout {
-        spacing: 2px;
-        alignment: start;
-        for track[i] in root.tracks: TrackListRow {
+    for track[i] in root.tracks: Rectangle {
+        height: Layout.row-height + 2px;
+
+        TrackListRow {
+            width: parent.width;
+            height: Layout.row-height;
             track: track;
             index: i;
             queue-actions: root.queue-actions;
@@ -1343,7 +1355,8 @@ component DetailPage inherits VerticalLayout {
     in property <int> sort;
     in property <bool> descending;
     in property <bool> filtered;
-    in property <bool> truncated;
+    in property <bool> has-more;
+    in property <bool> loading;
     in property <int> loaded-count;
 
     callback back();
@@ -1354,6 +1367,7 @@ component DetailPage inherits VerticalLayout {
     callback favorite-toggled(string);
     callback play-next(string);
     callback enqueue(string);
+    callback load-more();
 
     spacing: Theme.space-md;
 
@@ -1377,7 +1391,7 @@ component DetailPage inherits VerticalLayout {
         Artwork {
             source: root.cover;
             seed: root.title;
-            width: Layout.detail-cover-size;
+            width: min(Layout.detail-cover-size, 128px);
             height: self.width;
         }
 
@@ -1427,22 +1441,28 @@ component DetailPage inherits VerticalLayout {
         edited(q) => { root.filter(q); }
     }
 
-    if root.truncated: Rectangle {
+    if root.has-more || root.loading: Rectangle {
         vertical-stretch: 0;
         height: Theme.space-xl + Theme.space-md;
-        border-radius: Theme.radius-sm;
-        background: Theme.hover;
 
-        Text {
-            x: Theme.space-md;
-            width: parent.width - Theme.space-md * 2;
-            height: parent.height;
-            text: "Mostrando as primeiras " + root.loaded-count + " faixas. Filtrar e ordenar afetam somente este recorte.";
-            color: Theme.text-muted;
-            font-size: Theme.size-sm;
-            font-family: Theme.font-family;
-            vertical-alignment: center;
-            wrap: word-wrap;
+        HorizontalLayout {
+            spacing: Theme.space-md;
+
+            Text {
+                text: root.loading
+                    ? "Carregando mais faixas..."
+                    : root.loaded-count + " faixas carregadas";
+                color: Theme.text-muted;
+                font-size: Theme.size-sm;
+                font-family: Theme.font-family;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+            }
+
+            if root.has-more && !root.loading: GhostButton {
+                label: "Carregar mais";
+                clicked => { root.load-more(); }
+            }
         }
     }
 
@@ -1511,6 +1531,9 @@ component DetailPage inherits VerticalLayout {
     if root.tracks.length > 0: TrackList {
         vertical-stretch: 1;
         tracks: root.tracks;
+        has-more: root.has-more;
+        loading: root.loading;
+        nearing-end => { root.load-more(); }
         activated(id) => { root.activated(id); }
         favorite-toggled(id) => { root.favorite-toggled(id); }
         play-next(id) => { root.play-next(id); }
@@ -1966,7 +1989,8 @@ export component AppWindow inherits Window {
     in property <int> detail-sort;
     in property <bool> detail-descending;
     in property <bool> detail-filtered;
-    in property <bool> detail-truncated;
+    in property <bool> detail-has-more;
+    in property <bool> detail-loading;
     in property <int> detail-loaded-count;
     in property <string> now-artist;
     in property <bool> playing;
@@ -2033,6 +2057,7 @@ export component AppWindow inherits Window {
     callback detail-filter(string);
     callback detail-sort-by(int);
     callback detail-activate(string);
+    callback detail-load-more();
     callback set-close-to-tray(bool);
     callback set-autoplay(bool);
     callback set-start-with-windows(bool);
@@ -2206,7 +2231,8 @@ export component AppWindow inherits Window {
                         sort: root.detail-sort;
                         descending: root.detail-descending;
                         filtered: root.detail-filtered;
-                        truncated: root.detail-truncated;
+                        has-more: root.detail-has-more;
+                        loading: root.detail-loading;
                         loaded-count: root.detail-loaded-count;
                         back => { root.detail-back(); }
                         play => { root.detail-play(); }
@@ -2216,6 +2242,7 @@ export component AppWindow inherits Window {
                         favorite-toggled(id) => { root.toggle-favorite(id); }
                         play-next(id) => { root.queue-play-next(id); }
                         enqueue(id) => { root.queue-enqueue(id); }
+                        load-more => { root.detail-load-more(); }
                     }
 
                     if root.page == 4: QueuePage {

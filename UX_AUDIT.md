@@ -144,6 +144,17 @@ o mesmo símbolo e significados diferentes.
 
 **Justificativa.** A fila virou ferramenta de decisão sem sugerir que a ordem original de álbum ou playlist foi editada. Separar as camadas reduz erro e explica por que alguns itens são gerenciáveis.
 
+### P2 — Coleções extensas pareciam terminar em 50/200 faixas — corrigido
+
+**Problema.** “Músicas curtidas” mostrava apenas o primeiro lote de 50 e playlists paravam em 200; a barra lateral também ocultava playlists depois da 200ª. Eram tetos do MORU•NE, não da conta.
+
+**Impacto.** Conteúdo existente parecia ausente, filtro e ordenação atuavam sobre um recorte e a fila podia terminar antes da coleção real.
+
+**Princípios.** Visibilidade do estado, correspondência com o mundo real, progressive disclosure, consistência, desempenho percebido.
+
+**Solução.** A tela abre com um lote rápido e busca os próximos automaticamente perto do fim; “Carregar mais” permanece como alternativa explícita e acessível. Filtrar ou ordenar completa a coleção em segundo plano antes de tratar o resultado como global. A lista passou a ser virtualizada e a fila recebe as páginas seguintes sem interromper a faixa atual. O rootlist deixa de truncar a navegação lateral.
+**Justificativa.** O limite técnico continua por requisição, protegendo rede e memória, mas desaparece do modelo mental do usuário — o mesmo padrão consolidado em players maduros.
+
 ### P2 — Importação de customização era irreversível — corrigido
 
 **Problema.** Trocar tema é imediato e importar não mostra previamente o alcance da mudança.  
@@ -212,6 +223,7 @@ Referências: [atalhos do Spotify](https://support.spotify.com/uk/article/keyboa
 | Player icon-only para tecnologia assistiva | Ações e estados anunciados por nome |
 | Coração criava favoritos somente no Morune | Coração sincroniza com “Músicas curtidas” do Spotify |
 | Fila era apenas uma lista de leitura | Inserções manuais reordenáveis, removíveis e separadas do contexto |
+| Curtidas paravam em 50 e playlists em 200 | Paginação progressiva sem teto visível, lista virtualizada e fila contínua |
 | Barra de título genérica e separada do tema | Chrome integrado ao MORU•NE, com controles de janela previsíveis e acessíveis |
 | Importação substituía tema sem inspeção ou volta | Preview de metadados, confirmação, backup e Desfazer |
 | Limpar fila era definitivo | Aviso com Desfazer restaura a ordem removida |
