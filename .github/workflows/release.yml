@@ -46,11 +46,20 @@ jobs:
           "MORUNE_TAG=$tag" >> $env:GITHUB_ENV
           "MORUNE_PRERELEASE=$($tag.Contains('-').ToString().ToLowerInvariant())" >> $env:GITHUB_ENV
 
-      - name: Preparar Rust 1.92 para Windows
+      - name: Preparar MinGW para Windows
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: mingw-w64-x86_64-gcc
+          path-type: inherit
+
+      - name: Preparar Rust 1.92 para Windows GNU
         shell: pwsh
         run: |
-          rustup toolchain install 1.92.0-x86_64-pc-windows-msvc --profile minimal
-          rustup default 1.92.0-x86_64-pc-windows-msvc
+          rustup toolchain install 1.92.0-x86_64-pc-windows-gnu --profile minimal
+          rustup default 1.92.0-x86_64-pc-windows-gnu
+          "C:\msys64\mingw64\bin" >> $env:GITHUB_PATH
           rustc --version --verbose
 
       - name: Restaurar cache do Cargo
@@ -60,8 +69,8 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: windows-msvc-release-${{ hashFiles('Cargo.lock') }}
-          restore-keys: windows-msvc-release-
+          key: windows-gnu-release-${{ hashFiles('Cargo.lock') }}
+          restore-keys: windows-gnu-release-
 
       - name: Instalar NSIS
         shell: pwsh
@@ -81,7 +90,7 @@ jobs:
           .\tools\build-installer.ps1 `
             -Version $env:MORUNE_VERSION `
             -SkipBuild `
-            -LicenseTarget x86_64-pc-windows-msvc
+            -LicenseTarget x86_64-pc-windows-gnu
 
       - name: Guardar artefatos do build
         uses: actions/upload-artifact@v4
