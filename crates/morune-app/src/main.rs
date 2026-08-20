@@ -364,6 +364,38 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
         s.push_to_ui(&w);
     });
 
+    // Filtrar nao vai a rede: a lista inteira ja esta em memoria, e responder
+    // a cada tecla e o que faz o filtro parecer instantaneo.
+    on!(on_filter_playlists, |w, s, texto: slint::SharedString| {
+        s.set_playlist_filter(texto.as_str());
+        s.push_to_ui(&w);
+    });
+
+    on!(on_detail_back, |w, s| {
+        s.close_detail();
+        s.push_to_ui(&w);
+    });
+
+    on!(on_detail_play, |w, s| {
+        s.play_detail();
+        s.push_to_ui(&w);
+    });
+
+    on!(on_detail_filter, |w, s, texto: slint::SharedString| {
+        s.set_detail_filter(texto.as_str());
+        s.push_to_ui(&w);
+    });
+
+    on!(on_detail_sort_by, |w, s, criterio: i32| {
+        s.set_detail_sort(criterio);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_detail_activate, |w, s, id: slint::SharedString| {
+        s.activate_detail(id.as_str());
+        s.push_to_ui(&w);
+    });
+
     on!(on_play_track, |w, s, id: slint::SharedString| {
         s.play_track(id.as_str());
         s.push_to_ui(&w);

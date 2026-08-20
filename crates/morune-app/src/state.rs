@@ -29,6 +29,8 @@ pub enum Page {
     Library = 2,
     Settings = 3,
     Queue = 4,
+    /// Uma lista aberta: playlist, album, artista ou as curtidas.
+    Detail = 5,
 }
 
 impl Page {
@@ -38,7 +40,34 @@ impl Page {
             2 => Page::Library,
             3 => Page::Settings,
             4 => Page::Queue,
+            5 => Page::Detail,
             _ => Page::Home,
+        }
+    }
+}
+
+/// Por que a tela de detalhe esta ordenada.
+///
+/// [`SortBy::Original`] nao e "sem ordem": e a ordem em que a lista foi
+/// montada -- a da playlist, a do album, a de quando a faixa foi curtida. E a
+/// unica que carrega intencao, entao e o padrao e da para voltar a ela.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SortBy {
+    Original,
+    Title,
+    Artist,
+    Album,
+    Duration,
+}
+
+impl SortBy {
+    fn from_i32(v: i32) -> Self {
+        match v {
+            1 => SortBy::Title,
+            2 => SortBy::Artist,
+            3 => SortBy::Album,
+            4 => SortBy::Duration,
+            _ => SortBy::Original,
         }
     }
 }
@@ -62,11 +91,32 @@ pub struct AppState {
     /// botao de proxima nao teria para onde ir.
     search: TrackList,
     liked: TrackList,
-    recent: TrackList,
     home_made_for_you: Vec<Card>,
-    home_top_artists: Vec<Card>,
+    home_stations: Vec<Card>,
+    home_retrospectives: Vec<Card>,
     home_playlists: Vec<Card>,
     library: Vec<Card>,
+    /// Texto do filtro da barra lateral.
+    ///
+    /// Filtrar acontece aqui e nao no backend: as 86 playlists da conta ja
+    /// estao na memoria, e ir a rede a cada tecla seria gastar requisicao
+    /// para responder o que ja se sabe.
+    playlist_filter: String,
+    /// Cartao fixo das curtidas, sempre no topo da barra lateral.
+    ///
+    /// Nao vem do `rootlist`: curtidas nao sao playlist para o Spotify. Mas
+    /// sao a lista que mais se abre, entao ficam em primeiro lugar -- antes
+    /// inclusive da ordem que o usuario arrumou.
+    liked_card: Card,
+    /// A lista aberta, quando ha uma.
+    detail: Option<crate::browse::Detail>,
+    detail_filter: String,
+    detail_sort: SortBy,
+    /// `true` inverte a ordenacao. Nao se aplica a [`SortBy::Original`]:
+    /// inverter a ordem da playlist nao e ordenar, e embaralhar ao contrario.
+    detail_desc: bool,
+    /// De onde a tela de detalhe foi aberta, para o botao de voltar.
+    detail_from: Page,
     /// Capa da faixa tocando: a URL pedida e o arquivo, quando ja chegou.
     ///
     /// Guardada separada dos cartoes porque a faixa tocando nao esta
@@ -148,11 +198,24 @@ impl AppState {
             player_events: None,
             search: TrackList::default(),
             liked: TrackList::default(),
-            recent: TrackList::default(),
             home_made_for_you: Vec::new(),
-            home_top_artists: Vec::new(),
+            home_stations: Vec::new(),
+            home_retrospectives: Vec::new(),
             home_playlists: Vec::new(),
             library: Vec::new(),
+            playlist_filter: String::new(),
+            detail: None,
+            detail_filter: String::new(),
+            detail_sort: SortBy::Original,
+            detail_desc: false,
+            detail_from: Page::Home,
+            liked_card: Card {
+                tag: crate::browse::Target::Liked.tag(),
+                title: crate::browse::LIKED_TITLE.into(),
+                subtitle: String::new(),
+                cover: String::new(),
+                cover_path: None,
+            },
             now_cover: (String::new(), None),
             home_requested: false,
             library_requested: false,
@@ -232,19 +295,37 @@ impl AppState {
             // uma linha de status aqui apagaria o "Conectado como ..." que o
             // usuario acabou de receber.
             Outcome::Home(home) => {
-                let Home { made_for_you, recent, liked, top_artists, playlists } = *home;
+                let Home { made_for_you, stations, retrospectives, liked, playlists } = *home;
                 self.home_made_for_you = made_for_you;
-                self.recent =
-                    TrackList { origin: QueueOrigin::Custom("Tocadas recentemente".into()), tracks: recent };
+
                 self.liked =
                     TrackList { origin: QueueOrigin::Custom("Musicas curtidas".into()), tracks: liked };
-                self.home_top_artists = top_artists;
+                self.home_stations = stations;
+                self.home_retrospectives = retrospectives;
                 self.home_playlists = playlists;
                 self.resolve_covers();
             }
             Outcome::Library(cards) => {
                 self.library = cards;
                 self.resolve_covers();
+            }
+            Outcome::Detail(detail) => {
+                if detail.tracks.is_empty() {
+                    self.status =
+                        format!("{} nao tem nada que o Morune consiga tocar.", detail.title);
+                    return;
+                }
+
+                // Abrir e um comeco de leitura, nao de reproducao: filtro e
+                // ordenacao da lista anterior nao valem para esta.
+                self.detail_filter.clear();
+                self.detail_sort = SortBy::Original;
+                self.detail_desc = false;
+                self.detail = Some(*detail);
+                self.detail_from = self.page;
+                self.page = Page::Detail;
+                self.status.clear();
+                self.resolve_detail_cover();
             }
             Outcome::Context { origin, title, tracks } => {
                 if tracks.is_empty() {
@@ -265,6 +346,153 @@ impl AppState {
         }
     }
 
+    /// Guarda o texto digitado no filtro da barra lateral.
+    pub fn set_playlist_filter(&mut self, texto: &str) {
+        self.playlist_filter = texto.trim().to_lowercase();
+    }
+
+    /// Playlists da barra lateral, ja filtradas.
+    ///
+    /// A ordem e a que o Spotify mandou, e isso e deliberado: o `rootlist` e a
+    /// barra lateral do cliente oficial, entao aquela e a ordem que o usuario
+    /// arrumou. Reordenar seria descartar informacao real -- e nao ha por que
+    /// reordenar, porque nenhuma playlist traz data.
+    fn sidebar_playlists(&self) -> Vec<&Card> {
+        std::iter::once(&self.liked_card)
+            .chain(self.home_playlists.iter())
+            .filter(|c| {
+                self.playlist_filter.is_empty()
+                    || c.title.to_lowercase().contains(&self.playlist_filter)
+            })
+            .collect()
+    }
+
+    /// Faixas da tela de detalhe, filtradas e ordenadas.
+    ///
+    /// Ordenar por texto usa comparacao sem diferenciar maiuscula: uma lista
+    /// onde "Zebra" vem antes de "abelha" nao parece ordenada para ninguem.
+    fn detail_tracks(&self) -> Vec<&Track> {
+        let Some(detail) = &self.detail else { return Vec::new() };
+
+        let mut tracks: Vec<&Track> = detail
+            .tracks
+            .iter()
+            .filter(|t| self.matches_detail_filter(t))
+            .collect();
+
+        match self.detail_sort {
+            SortBy::Original => {}
+            SortBy::Title => tracks.sort_by_key(|t| t.name.to_lowercase()),
+            SortBy::Artist => tracks.sort_by_key(|t| primeiro_artista(t).to_lowercase()),
+            SortBy::Album => tracks.sort_by_key(|t| nome_do_album(t).to_lowercase()),
+            SortBy::Duration => tracks.sort_by_key(|t| t.duration),
+        }
+
+        // A ordem original ja e uma escolha de quem montou a lista; inverte-la
+        // nao ordena nada.
+        if self.detail_desc && self.detail_sort != SortBy::Original {
+            tracks.reverse();
+        }
+
+        tracks
+    }
+
+    /// `true` quando a faixa combina com o que foi digitado.
+    ///
+    /// Procura em titulo, artista e album de uma vez: quem digita o nome de um
+    /// artista quer as faixas dele, e nao uma tela vazia porque o campo era o
+    /// errado.
+    fn matches_detail_filter(&self, track: &Track) -> bool {
+        if self.detail_filter.is_empty() {
+            return true;
+        }
+        let alvo = &self.detail_filter;
+        track.name.to_lowercase().contains(alvo)
+            || primeiro_artista(track).to_lowercase().contains(alvo)
+            || nome_do_album(track).to_lowercase().contains(alvo)
+    }
+
+    pub fn set_detail_filter(&mut self, texto: &str) {
+        self.detail_filter = texto.trim().to_lowercase();
+    }
+
+    /// Escolhe o criterio de ordenacao.
+    ///
+    /// Escolher o mesmo criterio de novo inverte o sentido, que e o que a
+    /// pessoa espera ao clicar duas vezes no mesmo lugar.
+    pub fn set_detail_sort(&mut self, criterio: i32) {
+        let novo = SortBy::from_i32(criterio);
+        if novo == self.detail_sort && novo != SortBy::Original {
+            self.detail_desc = !self.detail_desc;
+        } else {
+            self.detail_sort = novo;
+            self.detail_desc = false;
+        }
+    }
+
+    /// Fecha a tela de detalhe e volta de onde ela foi aberta.
+    pub fn close_detail(&mut self) {
+        self.page = self.detail_from;
+        self.detail = None;
+    }
+
+    /// Toca a lista aberta a partir da primeira faixa visivel.
+    ///
+    /// "Visivel" e deliberado: com filtro aplicado, tocar tem de tocar o que
+    /// esta na tela, e nao a lista inteira que o usuario acabou de esconder.
+    pub fn play_detail(&mut self) {
+        self.play_detail_from(0);
+    }
+
+    /// Toca a lista aberta a partir de uma faixa.
+    ///
+    /// A fila recebe a lista **como esta na tela** -- filtrada e ordenada --
+    /// porque e isso que a pessoa esta vendo quando aperta. Tocar a ordem
+    /// original depois de ordenar seria ignorar o que ela acabou de pedir.
+    fn play_detail_from(&mut self, index: usize) {
+        let Some(detail) = &self.detail else { return };
+        let origin = detail.origin.clone();
+        let title = detail.title.clone();
+
+        let tracks: Vec<Track> = self.detail_tracks().into_iter().cloned().collect();
+        if tracks.is_empty() {
+            return;
+        }
+
+        self.status = format!("Tocando {title}.");
+        self.queue.set_context(origin, tracks, Some(index));
+        self.play_current();
+    }
+
+    /// Toca a partir da faixa clicada na tela de detalhe.
+    ///
+    /// A posicao e procurada na lista **visivel**: clicar na terceira linha tem
+    /// de tocar a terceira linha, e nao a terceira da lista original que o
+    /// filtro escondeu.
+    pub fn activate_detail(&mut self, tag: &str) {
+        let Some(index) = self
+            .detail_tracks()
+            .iter()
+            .position(|t| t.id.canonical() == tag || t.id.id.as_ref() == tag)
+        else {
+            return;
+        };
+        self.play_detail_from(index);
+    }
+
+    /// Pede a capa da lista aberta.
+    fn resolve_detail_cover(&mut self) {
+        let Some(url) = self.detail.as_ref().map(|d| d.cover.clone()) else { return };
+        if url.is_empty() {
+            return;
+        }
+        let Some(browse) = self.session.browse_mut() else { return };
+        let path = browse.cover(&url);
+        if let Some(detail) = &mut self.detail {
+            detail.cover_path = path;
+        }
+    }
+
     /// Resolve a capa de cada cartao visivel.
     ///
     /// O que ja esta em disco entra no mesmo quadro em que a lista aparece;
@@ -275,7 +503,8 @@ impl AppState {
         // Emprestar cada lista separadamente evita mover os cartoes so para
         // preencher um campo.
         browse.resolve_covers(&mut self.home_made_for_you);
-        browse.resolve_covers(&mut self.home_top_artists);
+        browse.resolve_covers(&mut self.home_stations);
+        browse.resolve_covers(&mut self.home_retrospectives);
         browse.resolve_covers(&mut self.home_playlists);
         browse.resolve_covers(&mut self.library);
     }
@@ -320,13 +549,20 @@ impl AppState {
         }
 
         for ready in prontas {
+            if let Some(detail) = &mut self.detail {
+                if detail.cover == ready.url {
+                    detail.cover_path = Some(ready.path.clone());
+                }
+            }
+
             if ready.url == self.now_cover.0 {
                 self.now_cover.1 = Some(ready.path.clone());
             }
 
             for lista in [
                 &mut self.home_made_for_you,
-                &mut self.home_top_artists,
+                &mut self.home_stations,
+                &mut self.home_retrospectives,
                 &mut self.home_playlists,
                 &mut self.library,
             ] {
@@ -367,7 +603,7 @@ impl AppState {
     /// Clona porque a fila fica dona do contexto; e o mesmo custo que a busca
     /// ja pagava, e vale a pena para o botao de proxima ter para onde ir.
     fn open_lists(&self, id: &morune_core::model::TrackId) -> Option<(QueueOrigin, Vec<Track>, usize)> {
-        [&self.search, &self.liked, &self.recent].into_iter().find_map(|list| {
+        [&self.search, &self.liked].into_iter().find_map(|list| {
             let index = list.tracks.iter().position(|t| t.id == *id)?;
             Some((list.origin.clone(), list.tracks.clone(), index))
         })
@@ -765,9 +1001,9 @@ impl AppState {
         // mostraria a playlist de alguem que nao esta mais conectado.
         self.search = TrackList::default();
         self.liked = TrackList::default();
-        self.recent = TrackList::default();
         self.home_made_for_you.clear();
-        self.home_top_artists.clear();
+        self.home_stations.clear();
+        self.home_retrospectives.clear();
         self.home_playlists.clear();
         self.library.clear();
         self.home_requested = false;
@@ -797,6 +1033,18 @@ impl AppState {
         let current = self.queue.current();
         window.set_has_track(current.is_some());
         window.set_now_cover(cover_image(self.now_cover.1.as_deref()));
+        window.set_sidebar_playlists(card_refs(&self.sidebar_playlists()));
+
+        if let Some(detail) = &self.detail {
+            window.set_detail_title(detail.title.as_str().into());
+            window.set_detail_subtitle(detail.subtitle.as_str().into());
+            window.set_detail_kind(detail.kind.as_str().into());
+            window.set_detail_cover(cover_image(detail.cover_path.as_deref()));
+            window.set_detail_tracks(track_rows(self.detail_tracks(), current));
+            window.set_detail_sort(self.detail_sort as i32);
+            window.set_detail_descending(self.detail_desc);
+            window.set_detail_filtered(!self.detail_filter.is_empty());
+        }
         window.set_playing(snapshot.state == morune_core::PlaybackState::Playing);
         window.set_progress(snapshot.progress());
         window.set_elapsed(format_time(snapshot.position).into());
@@ -818,9 +1066,8 @@ impl AppState {
         window.set_diagnostics(self.diagnostics());
         window.set_home_made_for_you(card_items(&self.home_made_for_you));
         window.set_home_liked(track_rows(self.liked.tracks.iter().collect(), current));
-        window.set_home_recent(track_rows(self.recent.tracks.iter().collect(), current));
-        window.set_home_top_artists(card_items(&self.home_top_artists));
-        window.set_home_playlists(card_items(&self.home_playlists));
+        window.set_home_stations(card_items(&self.home_stations));
+        window.set_home_retrospectives(card_items(&self.home_retrospectives));
         window.set_library_items(card_items(&self.library));
         window.set_search_tracks(track_rows(self.search.tracks.iter().collect(), current));
     }
@@ -890,16 +1137,39 @@ struct TrackList {
 /// bytes do que a tela usa.
 const PLAYER_ARTWORK_WIDTH: u32 = 64;
 
+/// Igual a [`card_items`], para uma lista de referencias.
+///
+/// Existe porque o filtro da barra lateral devolve emprestimos, e copiar os
+/// cartoes so para poder converte-los seria alocar a lista inteira a cada
+/// tecla digitada.
+/// Primeiro artista de uma faixa, ou vazio.
+///
+/// Ordenar por "artista" numa faixa com tres significa ordenar pelo primeiro,
+/// que e o que aparece na linha.
+fn primeiro_artista(track: &Track) -> &str {
+    track.artists.first().map(|a| a.name.as_ref()).unwrap_or_default()
+}
+
+fn nome_do_album(track: &Track) -> &str {
+    track.album.as_ref().map(|a| a.name.as_ref()).unwrap_or_default()
+}
+
+fn card_refs(cards: &[&Card]) -> ModelRc<ui::CardItem> {
+    let items: Vec<ui::CardItem> = cards.iter().map(|c| card_item(c)).collect();
+    ModelRc::new(VecModel::from(items))
+}
+
+fn card_item(c: &Card) -> ui::CardItem {
+    ui::CardItem {
+        id: c.tag.as_str().into(),
+        title: c.title.as_str().into(),
+        subtitle: c.subtitle.as_str().into(),
+        cover: cover_image(c.cover_path.as_deref()),
+    }
+}
+
 fn card_items(cards: &[Card]) -> ModelRc<ui::CardItem> {
-    let items: Vec<ui::CardItem> = cards
-        .iter()
-        .map(|c| ui::CardItem {
-            id: c.tag.as_str().into(),
-            title: c.title.as_str().into(),
-            subtitle: c.subtitle.as_str().into(),
-            cover: cover_image(c.cover_path.as_deref()),
-        })
-        .collect();
+    let items: Vec<ui::CardItem> = cards.iter().map(card_item).collect();
     ModelRc::new(VecModel::from(items))
 }
 

@@ -382,6 +382,10 @@ impl PlaylistDto {
 
         Some(Playlist {
             id: PlaylistId::spotify(id_from_uri(self.uri, "playlist")?.as_str()),
+            // A busca traz o `format`, mas classificar resultado de busca nao
+            // muda nada: eles nunca alimentam prateleira do Inicio nem a barra
+            // lateral, que sao as duas telas que olham o tipo.
+            kind: morune_core::model::PlaylistKind::default(),
             name: Arc::from(self.name.unwrap_or_default().as_str()),
             owner: self
                 .owner
