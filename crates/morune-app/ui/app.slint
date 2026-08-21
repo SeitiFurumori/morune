@@ -2485,5 +2485,209 @@ export component AppWindow inherits Window {
     }
 }
 
+// --- menu da bandeja ---
+
+// Linha de acao do menu da bandeja.
+//
+// O menu nativo do Windows nao aceita estilo: e um HMENU desenhado pelo
+// sistema. Trocado por uma janela propria, cada item volta a ser um retangulo
+// comum -- e o realce de hover passa a ser o mesmo dos itens de navegacao da
+// janela principal, em vez do azul do sistema.
+component TrayMenuItem inherits Rectangle {
+    in property <string> text;
+    in property <string> path;
+    in property <brush> tint: Theme.text;
+    callback clicked();
+
+    height: 34px;
+    border-radius: Theme.radius-sm;
+    background: touch.has-hover ? Theme.hover : transparent;
+
+    animate background { duration: Theme.motion-fast; }
+
+    HorizontalLayout {
+        padding-left: Theme.space-sm;
+        padding-right: Theme.space-sm;
+        spacing: Theme.space-sm;
+
+        Icon {
+            path: root.path;
+            tint: root.tint;
+            size: 16px;
+            y: (parent.height - self.height) / 2;
+        }
+
+        Text {
+            text: root.text;
+            color: root.tint;
+            font-size: Theme.size-md;
+            font-family: Theme.font-family;
+            vertical-alignment: center;
+            horizontal-alignment: left;
+            overflow: elide;
+        }
+    }
+
+    touch := PressableArea {
+        accessible-label: root.text;
+        focus-radius: Theme.radius-sm;
+        clicked => { root.clicked(); }
+    }
+}
+
+// Menu da bandeja, no lugar do menu nativo do Windows.
+//
+// Existe so enquanto esta aberto: o Rust cria a janela ao clique com o botao
+// direito e a descarta ao fechar. Manter viva custaria um segundo contexto
+// OpenGL em repouso, e o orcamento do aplicativo e justamente nao pesar na
+// maquina de quem esta fazendo outra coisa.
+export component TrayMenuWindow inherits Window {
+    in property <string> now-title;
+    in property <string> now-artist;
+    in property <image> now-cover;
+    in property <bool> playing: false;
+    in property <bool> has-track: false;
+
+    callback show-window();
+    callback toggle-play();
+    callback next();
+    callback previous();
+    callback quit();
+    callback dismiss();
+
+    no-frame: true;
+    always-on-top: true;
+    // A janela e do tamanho do cartao: sem moldura, o Windows nao acrescenta
+    // nada em volta, e a sombra fica por conta do proprio Windows.
+    width: 272px;
+    height: root.has-track ? 214px : 158px;
+    background: Theme.surface-raised;
+    default-font-family: Theme.font-family;
+    default-font-size: Theme.size-md;
+    forward-focus: keys;
+
+    keys := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Escape) {
+                root.dismiss();
+                return EventResult.accept;
+            }
+            EventResult.reject
+        }
+    }
+
+    Rectangle {
+        border-radius: Theme.radius-md;
+        border-width: Theme.border-width;
+        border-color: Theme.border;
+        background: Theme.surface-raised;
+
+        VerticalLayout {
+            padding: Theme.space-sm;
+            spacing: Theme.space-xs;
+
+            if root.has-track: HorizontalLayout {
+                padding: Theme.space-xs;
+                spacing: Theme.space-sm;
+
+                Artwork {
+                    width: 44px;
+                    height: 44px;
+                    source: root.now-cover;
+                    seed: root.now-title;
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 2px;
+
+                    Text {
+                        text: root.now-title;
+                        color: Theme.text;
+                        font-size: Theme.size-md;
+                        font-weight: Theme.weight-medium;
+                        overflow: elide;
+                    }
+
+                    Text {
+                        text: root.now-artist;
+                        color: Theme.text-muted;
+                        font-size: Theme.size-sm;
+                        overflow: elide;
+                    }
+                }
+            }
+
+            // Sem faixa nao ha o que controlar, e uma linha de botoes apagados
+            // so ocuparia espaco dizendo que nada funciona.
+            if root.has-track: HorizontalLayout {
+                alignment: center;
+                spacing: Theme.space-sm;
+                padding-top: Theme.space-xs;
+                padding-bottom: Theme.space-xs;
+
+                IconButton {
+                    path: Icons.previous;
+                    filled: true;
+                    clicked => { root.previous(); }
+                }
+
+                Rectangle {
+                    width: 40px;
+                    height: 40px;
+                    border-radius: 20px;
+                    background: Theme.accent;
+
+                    Icon {
+                        path: root.playing ? Icons.pause : Icons.play;
+                        tint: Theme.text-on-accent;
+                        filled: true;
+                        size: 18px;
+                    }
+
+                    PressableArea {
+                        accessible-label: root.playing ? "Pausar" : "Reproduzir";
+                        focus-radius: 20px;
+                        clicked => { root.toggle-play(); }
+                    }
+                }
+
+                IconButton {
+                    path: Icons.next;
+                    filled: true;
+                    clicked => { root.next(); }
+                }
+            }
+
+            if !root.has-track: Text {
+                text: "Nada tocando";
+                color: Theme.text-muted;
+                font-size: Theme.size-sm;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                height: 44px;
+            }
+
+            Rectangle {
+                height: Theme.border-width;
+                background: Theme.border;
+            }
+
+            TrayMenuItem {
+                text: "Abrir Morune";
+                path: Icons.home;
+                clicked => { root.show-window(); }
+            }
+
+            TrayMenuItem {
+                text: "Sair do Morune";
+                path: Icons.close;
+                tint: Theme.danger;
+                clicked => { root.quit(); }
+            }
+        }
+    }
+}
+
 // Reexportados para que o Rust consiga aplicar o tema em tempo de execucao.
 export { Theme, Layout }
