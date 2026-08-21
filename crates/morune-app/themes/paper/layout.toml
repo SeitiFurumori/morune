@@ -22,7 +22,10 @@ items = ["home", "search", "library"]
 
 [player]
 position = "top"
-height = 72.0
+# 88 e nao 72: com a barra de progresso colada na borda, o tempo decorrido vai
+# abaixo dos controles, e em 72 ele nao cabia -- ficava recortado e o tema
+# terminava sem nenhuma indicacao numerica de posicao.
+height = 88.0
 show_artwork = true
 artwork_size = 44.0
 show_progress = true
@@ -37,7 +40,10 @@ center_controls = false
 density = "compact"
 view_mode = "list"
 card_width = 140.0
-row_height = 38.0
+# 46 e o minimo que cabe as duas linhas da faixa neste tema: titulo em 15px e
+# artista em 13px, ambos com entrelinha 1,5, somam 42px. Com 38 o texto
+# transbordava a linha e as faixas se encostavam.
+row_height = 46.0
 max_content_width = 0.0
 show_hero = false
 hero_height = 180.0

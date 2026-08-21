@@ -66,6 +66,8 @@ windows = { version = "0.61.3", features = [
     "Win32_System_Threading",
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
+    # Cantos arredondados da janela. Ver `round_window_corners` em `main.rs`.
+    "Win32_Graphics_Dwm",
 ] }
 
 [build-dependencies]

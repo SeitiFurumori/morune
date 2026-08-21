@@ -41,6 +41,7 @@ mod graphql;
 mod internal;
 mod pathfinder;
 mod runtime;
+mod sink;
 mod token;
 
 pub use auth::{SharedSession, SpotifyAuthenticator};

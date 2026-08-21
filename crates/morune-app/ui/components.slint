@@ -304,6 +304,40 @@ export component Slider inherits Rectangle {
     // A area de toque e maior que o traco desenhado: uma barra de 4px seria
     // dificil de acertar com o mouse.
 
+    // Enquanto o dedo esta na trilha, quem manda no desenho e o ponteiro, e nao
+    // o valor que volta do Rust. Sem isto o preenchimento so anda depois da
+    // volta pelo estado da aplicacao -- e no caso do progresso ele nem chegava
+    // a andar, porque o seek so e enviado ao soltar.
+    private property <float> drag-value;
+    private property <bool> dragging;
+    private property <float> shown: root.dragging
+        ? clamp(root.drag-value, 0.0, 1.0)
+        : clamp(root.value, 0.0, 1.0);
+
+    // `changed` avisa o Rust enquanto se arrasta, e o mouse dita o ritmo: um
+    // mouse gamer reporta ate 1000 posicoes por segundo, e cada aviso atravessa
+    // para a thread do motor e reescreve a barra inteira. Sem limite, o gesto
+    // gastava mais tempo avisando do que desenhando.
+    //
+    // 16 ms e um quadro. O desenho nao depende disto -- ele sai de `drag-value`,
+    // que continua acompanhando o ponteiro em tempo real -- e volume nao muda
+    // de forma audivel mais rapido que um quadro.
+    private property <bool> pending;
+    throttle := Timer {
+        interval: 16ms;
+        running: false;
+        triggered => {
+            if (root.pending) {
+                root.pending = false;
+                root.changed(root.drag-value);
+            } else {
+                // Nada novo desde o ultimo aviso: o gesto parou, e manter o
+                // temporizador vivo so acordaria a interface a toa.
+                self.running = false;
+            }
+        }
+    }
+
     focus := FocusScope {
         accessible-role: slider;
         accessible-label: root.label;
@@ -346,7 +380,7 @@ export component Slider inherits Rectangle {
 
         fill := Rectangle {
             x: 0;
-            width: parent.width * clamp(root.value, 0.0, 1.0);
+            width: parent.width * root.shown;
             height: 100%;
             border-radius: root.thickness / 2;
             background: touch.has-hover || touch.pressed ? Theme.accent-hover : Theme.accent;
@@ -359,7 +393,7 @@ export component Slider inherits Rectangle {
         height: 12px;
         border-radius: 6px;
         background: Theme.text;
-        x: track.width * clamp(root.value, 0.0, 1.0) - self.width / 2;
+        x: track.width * root.shown - self.width / 2;
         y: (parent.height - self.height) / 2;
         visible: root.enabled && (touch.has-hover || touch.pressed);
     }
@@ -372,15 +406,36 @@ export component Slider inherits Rectangle {
 
         moved => {
             if (self.pressed) {
-                root.changed(clamp(self.mouse-x / root.width, 0.0, 1.0));
+                root.drag-value = clamp(self.mouse-x / root.width, 0.0, 1.0);
+                // Primeiro movimento avisa na hora; os seguintes esperam o
+                // quadro. Assim o volume reage ao inicio do gesto sem atraso e
+                // mesmo assim nao passa de um aviso por quadro.
+                if (throttle.running) {
+                    root.pending = true;
+                } else {
+                    throttle.running = true;
+                    root.changed(root.drag-value);
+                }
             }
         }
         pointer-event(event) => {
             if (event.kind == PointerEventKind.down) {
                 focus.focus();
+                root.drag-value = clamp(self.mouse-x / root.width, 0.0, 1.0);
+                root.dragging = true;
             }
             if (event.button == PointerEventButton.left && event.kind == PointerEventKind.up) {
                 root.committed(clamp(self.mouse-x / root.width, 0.0, 1.0));
+            }
+            // Tambem no `cancel`: perder o ponteiro para outra janela nao pode
+            // deixar a barra congelada no ultimo lugar arrastado.
+            if (event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel) {
+                root.dragging = false;
+                // O ultimo movimento nao pode ficar preso no temporizador: o
+                // `committed` acima ja mandou o valor final, entao o que sobrou
+                // e ruido de um quadro.
+                root.pending = false;
+                throttle.running = false;
             }
         }
     }

@@ -17,14 +17,13 @@
 //!   vezes por segundo seria trabalho recorrente para exibir um numero que anda
 //!   sozinho.
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use librespot_core::SpotifyUri;
-use librespot_playback::audio_backend;
 use librespot_playback::config::PlayerConfig;
-use librespot_playback::mixer::VolumeGetter;
+use librespot_playback::mixer::NoOpVolume;
 use librespot_playback::player::{Player, PlayerEvent as LibrespotEvent};
 use morune_core::model::{Track, TrackId};
 use morune_core::playback::{
@@ -49,35 +48,32 @@ const EVENT_CAPACITY: usize = 64;
 /// engasgo por prioridade invertida, que e exatamente o defeito que este
 /// aplicativo promete nao ter.
 #[derive(Debug, Default)]
-struct SharedVolume(AtomicU64);
+pub(crate) struct SharedVolume(AtomicU64);
 
 impl SharedVolume {
     /// Escala usada para guardar `[0.0, 1.0]` em inteiro sem perder resolucao
     /// audivel.
     const SCALE: f64 = 10_000.0;
 
-    fn set(&self, linear: f32) {
+    pub(crate) fn set(&self, linear: f32) {
         let clamped = linear.clamp(0.0, 1.0) as f64;
         self.0.store((clamped * Self::SCALE) as u64, Ordering::Relaxed);
     }
 
-    fn linear(&self) -> f32 {
+    pub(crate) fn linear(&self) -> f32 {
         (self.0.load(Ordering::Relaxed) as f64 / Self::SCALE) as f32
     }
-}
 
-/// Adaptador do volume compartilhado para o misturador da librespot.
-///
-/// Existe porque a regra do orfao proibe implementar um trait de fora para um
-/// `Arc<_>` de fora. O custo e uma linha; a alternativa seria duplicar o estado
-/// do volume, que e pior.
-struct VolumeHandle(Arc<SharedVolume>);
-
-impl VolumeGetter for VolumeHandle {
-    fn attenuation_factor(&self) -> f64 {
-        // Curva cubica: a percepcao de volume nao e linear, e um controle
-        // linear parece "tudo ou nada" nos primeiros 20% do cursor.
-        let linear = self.0.linear() as f64;
+    /// Fator a multiplicar pelo audio.
+    ///
+    /// Curva cubica: a percepcao de volume nao e linear, e um controle linear
+    /// parece "tudo ou nada" nos primeiros 20% do cursor.
+    ///
+    /// Quem aplica isto e o nosso sink, no misturador do rodio, e nao o
+    /// `volume_getter` da librespot -- ver [`crate::sink`]. A librespot recebe
+    /// `NoOpVolume` justamente para o audio nao ser atenuado duas vezes.
+    pub(crate) fn attenuation(&self) -> f64 {
+        let linear = self.linear() as f64;
         linear * linear * linear
     }
 }
@@ -124,6 +120,12 @@ struct Shared {
     snapshot: Mutex<PlayerSnapshot>,
     clock: Mutex<PositionClock>,
     volume: Arc<SharedVolume>,
+    /// Levantado quando o audio ja enfileirado deixou de valer.
+    ///
+    /// So o motor sabe distinguir pausar (a fila continua valendo) de trocar de
+    /// faixa, parar e mover a posicao (a fila virou lixo). O sink ve `stop()`
+    /// nos quatro casos, entao a diferenca chega por aqui.
+    flush: crate::sink::FlushRequest,
 }
 
 impl Shared {
@@ -131,6 +133,14 @@ impl Shared {
     fn update(&self, f: impl FnOnce(&mut PlayerSnapshot)) {
         let mut snapshot = self.snapshot.lock().unwrap();
         f(&mut snapshot);
+    }
+
+    /// Marca o audio ja enfileirado como invalido.
+    ///
+    /// O sink atende antes de deixar sair o proximo audio -- em `start` ou na
+    /// proxima escrita, o que vier primeiro.
+    fn request_flush(&self) {
+        self.flush.store(true, Ordering::Release);
     }
 }
 
@@ -157,27 +167,32 @@ impl SpotifyEngine {
             .get()
             .ok_or(CoreError::NotAuthenticated)?;
 
-        // O backend de audio e escolhido pelo padrao da librespot (rodio no
-        // Windows, sobre WASAPI). Falhar aqui e falha de dispositivo, nao de
-        // rede: a mensagem precisa dizer isso para o usuario nao procurar
-        // problema na internet.
-        let sink_builder = audio_backend::find(None)
-            .ok_or_else(|| CoreError::AudioDevice("nenhum backend de audio disponivel".into()))?;
-
         let volume = Arc::new(SharedVolume::default());
         volume.set(1.0);
+        let flush: crate::sink::FlushRequest = Arc::new(AtomicBool::new(false));
+
+        // A saida de audio e nossa, e nao a `RodioSink` da librespot: a dela
+        // faz todo comando esperar o buffer de meio segundo. O motivo completo
+        // esta em [`crate::sink`]. Abrir aqui, e nao dentro do construtor do
+        // `Player`, e o que permite reportar falha de dispositivo como falha de
+        // dispositivo -- a librespot chamaria `unwrap` e derrubaria o processo.
+        let sink = crate::sink::open(volume.clone(), flush.clone())
+            .map_err(CoreError::AudioDevice)?;
 
         let player = Player::new(
             PlayerConfig::default(),
             live,
-            Box::new(VolumeHandle(volume.clone())),
-            move || sink_builder(None, librespot_playback::config::AudioFormat::default()),
+            // O volume e aplicado pelo nosso sink, depois da fila. Atenuar aqui
+            // tambem faria o audio passar pela curva duas vezes.
+            Box::new(NoOpVolume),
+            move || Box::new(sink),
         );
 
         let shared = Arc::new(Shared {
             snapshot: Mutex::new(PlayerSnapshot::default()),
             clock: Mutex::new(PositionClock::default()),
             volume: volume.clone(),
+            flush,
         });
         let (events, _) = broadcast::channel(EVENT_CAPACITY);
         let (commands, command_rx) = mpsc::unbounded_channel();
@@ -272,22 +287,40 @@ fn apply(
 ) -> bool {
     match command {
         PlayerCommand::Load { track, start_paused } => load(player, &track, start_paused, events, shared),
+        // Adiantar nao mexe no retrato nem pede descarte: a faixa que esta
+        // tocando continua sendo a que toca. A librespot ignora o pedido se ja
+        // tiver essa faixa pronta ou em carregamento, entao repetir e barato.
+        PlayerCommand::Preload(track) => match to_spotify_uri(&track.id) {
+            Ok(uri) => player.preload(uri),
+            // Falha aqui nao vira erro na tela: ninguem pediu esta faixa ainda,
+            // e ela sera reportada de verdade se e quando for tocada.
+            Err(e) => tracing::debug!(error = %e, "faixa nao pode ser adiantada"),
+        },
         PlayerCommand::Play => player.play(),
         PlayerCommand::Pause => player.pause(),
         PlayerCommand::TogglePlay => {
             let playing = shared.snapshot.lock().unwrap().state == PlaybackState::Playing;
             if playing { player.pause() } else { player.play() }
         }
-        PlayerCommand::Stop => player.stop(),
+        PlayerCommand::Stop => {
+            shared.request_flush();
+            player.stop()
+        }
         // Avancar e voltar sao decisao da fila, nao do motor: quem manda o
         // proximo `Load` e a aplicacao. Aceitar em silencio evita que a
         // interface trate erro para um botao que ela mesma ja resolveu.
         PlayerCommand::Next | PlayerCommand::Previous => {}
         PlayerCommand::Seek(position) => {
+            // O audio ja enfileirado e do trecho antigo. Sem descartar, ele
+            // tocaria inteiro antes de o novo comecar -- a librespot nao mexe na
+            // fila ao mover a posicao.
+            shared.request_flush();
             player.seek(position.as_millis() as u32);
             shared.clock.lock().unwrap().set(position, true);
         }
         PlayerCommand::SetVolume(level) => {
+            // Nada mais a fazer: o sink le este valor a cada bloco e o
+            // misturador o reaplica ao audio ja enfileirado.
             shared.volume.set(level);
             let _ = events.send(PlayerEvent::VolumeChanged(shared.volume.linear()));
         }
@@ -318,6 +351,10 @@ fn load(
     // A duracao vem do modelo, e nao de uma consulta de metadados: quem pediu
     // para tocar ja tinha a faixa em maos, e uma requisicao a mais aqui atrasa
     // o inicio do som sem acrescentar nada.
+    // A faixa anterior ainda tem audio enfileirado, e ele nao pode ser ouvido
+    // depois da troca. A librespot pausa o sink aqui, mas nao esvazia a fila.
+    shared.request_flush();
+
     shared.update(|s| {
         s.track = Some(Arc::new(track.clone()));
         s.duration = track.duration;
@@ -416,17 +453,16 @@ mod tests {
     #[test]
     fn volume_curve_is_monotonic_and_bounded() {
         let v = Arc::new(SharedVolume::default());
-        let getter = VolumeHandle(v.clone());
 
         v.set(0.0);
-        assert_eq!(getter.attenuation_factor(), 0.0);
+        assert_eq!(v.attenuation(), 0.0);
         v.set(1.0);
-        assert_eq!(getter.attenuation_factor(), 1.0);
+        assert_eq!(v.attenuation(), 1.0);
 
         v.set(0.25);
-        let quarter = getter.attenuation_factor();
+        let quarter = v.attenuation();
         v.set(0.5);
-        let half = getter.attenuation_factor();
+        let half = v.attenuation();
         assert!(quarter < half, "curva de volume nao e crescente");
         // O ponto da curva cubica: meio cursor nao e meio volume.
         assert!(half < 0.5, "curva linear demais: {half}");
@@ -486,6 +522,7 @@ mod tests {
             snapshot: Mutex::new(PlayerSnapshot::default()),
             clock: Mutex::new(PositionClock::default()),
             volume: Arc::new(SharedVolume::default()),
+            flush: Arc::new(AtomicBool::new(false)),
         });
 
         shared.update(|s| s.repeat = RepeatMode::One);
