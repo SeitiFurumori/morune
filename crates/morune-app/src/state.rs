@@ -1650,6 +1650,36 @@ impl AppState {
         )
     }
 
+    /// Preenche o menu da bandeja com a faixa atual.
+    ///
+    /// O menu e a unica superficie de reproducao visivel com a janela fechada,
+    /// entao ele mostra capa, titulo e artista separados -- e nao a linha unica
+    /// que cabia num item de menu do sistema.
+    pub fn push_to_tray_menu(&self, menu: &ui::TrayMenuWindow) {
+        theme_bridge::apply(
+            &menu.global::<ui::Theme>(),
+            &menu.global::<ui::Layout>(),
+            self.spec(),
+            self.overrides,
+        );
+
+        match self.queue.current() {
+            Some(track) => {
+                menu.set_has_track(true);
+                menu.set_now_title(track.name.as_ref().into());
+                menu.set_now_artist(track.artists_line().into());
+                menu.set_now_cover(cover_image(self.now_cover.1.as_deref()));
+            }
+            None => {
+                menu.set_has_track(false);
+                menu.set_now_title(Default::default());
+                menu.set_now_artist(Default::default());
+            }
+        }
+
+        menu.set_playing(self.engine.snapshot().state == morune_core::PlaybackState::Playing);
+    }
+
     pub fn toggle_sidebar(&mut self) {
         self.overrides.sidebar_collapsed = !self.overrides.sidebar_collapsed;
     }

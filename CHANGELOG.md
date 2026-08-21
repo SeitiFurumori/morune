@@ -7,6 +7,17 @@ Versionamento semantico.
 
 ### Adicionado
 
+**Menu da bandeja**
+- **O menu do icone da bandeja passa a ser o Morune.** Era um `HMENU` do
+  Windows: o sistema o desenhava, e nao havia onde encaixar cor, tipografia ou
+  forma -- o unico pedaco do aplicativo que nao parecia com ele. Agora e uma
+  janela propria, com a capa da faixa, titulo e artista, e a mesma linha de
+  transporte do player, botao de tocar em cor de destaque incluso. Fecha com
+  Esc, com um clique fora ou com um segundo clique no icone.
+- A janela do menu e criada ao abrir e descartada ao fechar. Um segundo
+  contexto grafico vivo em repouso pesaria na maquina de quem esta jogando, que
+  e justamente o que o aplicativo se propoe a nao fazer.
+
 **UX, recuperacao e desktop**
 - Importacao de tema com validacao em area temporaria, preview de metadados,
   confirmacao de substituicao, backup e acao Desfazer.

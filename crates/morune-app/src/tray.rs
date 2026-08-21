@@ -12,10 +12,8 @@
 //!   fechar a janela volta a encerrar o aplicativo -- caso contrario o processo
 //!   ficaria vivo sem nenhuma forma visivel de mata-lo.
 
-use std::cell::RefCell;
 use std::time::Duration;
 
-use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder, TrayIconEvent};
 
 /// O que o usuario pediu pela bandeja.
@@ -23,22 +21,26 @@ use tray_icon::{Icon, TrayIcon, TrayIconBuilder, TrayIconEvent};
 pub enum TrayCommand {
     /// Trazer a janela de volta.
     Show,
-    TogglePlay,
-    Next,
-    Previous,
-    /// Encerrar o aplicativo de verdade.
-    Quit,
+    /// Abrir o menu proprio, ancorado no icone.
+    ///
+    /// As coordenadas sao fisicas e descrevem o retangulo do icone na bandeja,
+    /// que e o que o Windows entrega junto do clique. Quem abre o menu decide
+    /// de que lado do retangulo ele cabe.
+    OpenMenu(IconAnchor),
+}
+
+/// Retangulo do icone na bandeja, em pixels fisicos.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IconAnchor {
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
 }
 
 /// Falha ao criar a bandeja.
-///
-/// As duas bibliotecas envolvidas (icone e menu) tem tipos de erro proprios que
-/// nao se convertem entre si; unifica-los aqui deixa o chamador com uma decisao
-/// so: ha bandeja ou nao ha.
 #[derive(Debug, thiserror::Error)]
 pub enum TrayError {
-    #[error("menu da bandeja: {0}")]
-    Menu(#[from] tray_icon::menu::Error),
     #[error("icone da bandeja: {0}")]
     Icon(#[from] tray_icon::Error),
 }
@@ -47,21 +49,13 @@ pub enum TrayError {
 ///
 /// A bandeja para de existir quando este valor e descartado, por isso ele
 /// precisa viver enquanto o aplicativo viver.
+///
+/// **Sem menu nativo.** Um `HMENU` e desenhado pelo Windows e nao aceita cor,
+/// tipografia nem forma: dentro dele o Morune deixava de parecer o Morune. O
+/// clique com o botao direito passa a ser um evento comum, e quem responde e a
+/// janela de [`crate::tray_menu`].
 pub struct Tray {
     _icon: TrayIcon,
-    id_show: tray_icon::menu::MenuId,
-    id_toggle: tray_icon::menu::MenuId,
-    id_next: tray_icon::menu::MenuId,
-    id_previous: tray_icon::menu::MenuId,
-    id_quit: tray_icon::menu::MenuId,
-    item_toggle: MenuItem,
-    item_now: MenuItem,
-    /// Ultimo estado escrito no menu.
-    ///
-    /// Sem isto, `update` faria meia duzia de chamadas Win32 a cada leitura e o
-    /// custo em repouso deixaria de ser zero -- foi medido: 0,22% de um nucleo
-    /// contra 0,00% com a comparacao.
-    last_shown: RefCell<(Option<String>, bool)>,
 }
 
 impl std::fmt::Debug for Tray {
@@ -82,61 +76,12 @@ impl Tray {
     ///
     /// O icone e o simbolo da marca, fixo -- ver [`ICON_RGBA`].
     pub fn new() -> Result<Self, TrayError> {
-        let item_show = MenuItem::new("Abrir Morune", true, None);
-        let item_now = MenuItem::new("Nada tocando", false, None);
-        let item_toggle = MenuItem::new("Tocar", true, None);
-        let item_previous = MenuItem::new("Anterior", true, None);
-        let item_next = MenuItem::new("Proxima", true, None);
-        let item_quit = MenuItem::new("Sair do Morune", true, None);
-
-        let menu = Menu::new();
-        menu.append_items(&[
-            &item_show,
-            &PredefinedMenuItem::separator(),
-            &item_now,
-            &item_toggle,
-            &item_previous,
-            &item_next,
-            &PredefinedMenuItem::separator(),
-            &item_quit,
-        ])?;
-
         let icon = TrayIconBuilder::new()
             .with_tooltip("Morune")
-            .with_menu(Box::new(menu))
             .with_icon(brand_icon())
             .build()?;
 
-        Ok(Self {
-            id_show: item_show.id().clone(),
-            id_toggle: item_toggle.id().clone(),
-            id_next: item_next.id().clone(),
-            id_previous: item_previous.id().clone(),
-            id_quit: item_quit.id().clone(),
-            item_toggle,
-            last_shown: RefCell::new((Some(String::new()), true)),
-            item_now,
-            _icon: icon,
-        })
-    }
-
-    /// Atualiza o menu com o estado atual da reproducao.
-    ///
-    /// Nao faz nada quando nada mudou, que e o caso na esmagadora maioria das
-    /// leituras.
-    pub fn update(&self, now_playing: Option<&str>, playing: bool) {
-        let mut last = self.last_shown.borrow_mut();
-        if last.0.as_deref() == now_playing && last.1 == playing {
-            return;
-        }
-
-        self.item_now
-            .set_text(now_playing.unwrap_or("Nada tocando"));
-        self.item_toggle
-            .set_text(if playing { "Pausar" } else { "Tocar" });
-        self.item_toggle.set_enabled(now_playing.is_some());
-
-        *last = (now_playing.map(str::to_owned), playing);
+        Ok(Self { _icon: icon })
     }
 
     /// Le os eventos pendentes da bandeja.
@@ -145,32 +90,31 @@ impl Tray {
     pub fn poll(&self) -> Vec<TrayCommand> {
         let mut out = Vec::new();
 
-        while let Ok(event) = MenuEvent::receiver().try_recv() {
-            let command = if event.id == self.id_show {
-                TrayCommand::Show
-            } else if event.id == self.id_toggle {
-                TrayCommand::TogglePlay
-            } else if event.id == self.id_next {
-                TrayCommand::Next
-            } else if event.id == self.id_previous {
-                TrayCommand::Previous
-            } else if event.id == self.id_quit {
-                TrayCommand::Quit
-            } else {
-                continue;
-            };
-            out.push(command);
-        }
-
         while let Ok(event) = TrayIconEvent::receiver().try_recv() {
-            // Clique duplo no icone traz a janela, que e o gesto que as pessoas
-            // ja esperam de qualquer aplicativo de bandeja no Windows.
-            if let TrayIconEvent::DoubleClick {
-                button: tray_icon::MouseButton::Left,
-                ..
-            } = event
-            {
-                out.push(TrayCommand::Show);
+            match event {
+                // Clique duplo no icone traz a janela, que e o gesto que as
+                // pessoas ja esperam de qualquer aplicativo de bandeja.
+                TrayIconEvent::DoubleClick {
+                    button: tray_icon::MouseButton::Left,
+                    ..
+                } => out.push(TrayCommand::Show),
+
+                // O menu abre ao soltar o botao, e nao ao apertar: soltar e o
+                // momento em que o Windows abre os menus de bandeja, e reagir
+                // ao aperto faria o menu nascer sob um botao ainda pressionado.
+                TrayIconEvent::Click {
+                    button: tray_icon::MouseButton::Right,
+                    button_state: tray_icon::MouseButtonState::Up,
+                    rect,
+                    ..
+                } => out.push(TrayCommand::OpenMenu(IconAnchor {
+                    x: rect.position.x as i32,
+                    y: rect.position.y as i32,
+                    width: rect.size.width as i32,
+                    height: rect.size.height as i32,
+                })),
+
+                _ => {}
             }
         }
 

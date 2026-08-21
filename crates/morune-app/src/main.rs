@@ -31,13 +31,15 @@ mod state;
 mod taskbar;
 mod theme_bridge;
 mod tray;
+mod tray_menu;
 
 pub mod ui {
     slint::include_modules!();
 }
 
+use std::cell::RefCell;
 use std::rc::Rc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use slint::ComponentHandle;
 
@@ -493,6 +495,8 @@ fn wire_tray(
     let tray = tray?;
     let weak = window.as_weak();
     let state = state.clone();
+    // O menu so existe enquanto esta aberto. Ver `tray_menu`.
+    let open_menu: Rc<RefCell<Option<tray_menu::TrayMenu>>> = Rc::new(RefCell::new(None));
 
     let timer = slint::Timer::default();
     timer.start(slint::TimerMode::Repeated, tray::POLL_INTERVAL, move || {
@@ -501,29 +505,149 @@ fn wire_tray(
         for command in tray.poll() {
             match command {
                 tray::TrayCommand::Show => {
+                    *open_menu.borrow_mut() = None;
                     if let Err(e) = window.show() {
                         tracing::error!(error = %e, "nao foi possivel reabrir a janela");
                     }
                 }
-                tray::TrayCommand::TogglePlay => state.borrow_mut().toggle_play(),
-                tray::TrayCommand::Next => state.borrow_mut().next_track(),
-                tray::TrayCommand::Previous => state.borrow_mut().previous_track(),
-                tray::TrayCommand::Quit => {
-                    state.borrow().save_config();
-                    let _ = slint::quit_event_loop();
-                    return;
+                tray::TrayCommand::OpenMenu(anchor) => {
+                    // Um segundo clique com o menu aberto fecha, como faria o
+                    // menu do sistema.
+                    if open_menu.borrow().is_some() {
+                        *open_menu.borrow_mut() = None;
+                        continue;
+                    }
+                    match tray_menu::TrayMenu::open(anchor) {
+                        Ok(menu) => {
+                            state.borrow().push_to_tray_menu(menu.window());
+                            wire_tray_menu(&menu, &window, &state, &open_menu);
+                            *open_menu.borrow_mut() = Some(menu);
+
+                            // No proximo giro, e nao daqui a 150 ms: e quando a
+                            // janela do sistema passa a existir, e ate la o
+                            // menu esta na tela sem posicao definida.
+                            let open_menu = open_menu.clone();
+                            slint::Timer::single_shot(Duration::ZERO, move || {
+                                if let Some(menu) = open_menu.borrow_mut().as_mut() {
+                                    menu.attach();
+                                }
+                            });
+                        }
+                        Err(e) => tracing::error!(error = %e, "menu da bandeja nao abriu"),
+                    }
                 }
             }
-            state.borrow().push_to_ui(&window);
         }
 
-        // O menu mostra a faixa atual mesmo com a janela fechada -- e a unica
-        // informacao de reproducao visivel nesse estado.
-        let (now_playing, playing) = state.borrow().tray_status();
-        tray.update(now_playing.as_deref(), playing);
+        // A janela do sistema so nasce depois que o laco gira, entao posicao,
+        // canto e fechamento automatico sao montados aqui, e nao na abertura.
+        if let Some(menu) = open_menu.borrow_mut().as_mut() {
+            menu.attach();
+        }
+
+        // Clique fora fecha o menu; o aviso chega pelo subclass da janela.
+        let dismissed = open_menu
+            .borrow()
+            .as_ref()
+            .is_some_and(tray_menu::TrayMenu::dismiss_requested);
+        if dismissed {
+            *open_menu.borrow_mut() = None;
+        }
+
+        // Com o menu aberto ele e a unica superficie de reproducao visivel:
+        // precisa acompanhar a faixa que entra sozinha no fim da anterior.
+        if let Some(menu) = open_menu.borrow().as_ref() {
+            state.borrow().push_to_tray_menu(menu.window());
+        }
     });
 
     Some(timer)
+}
+
+/// Liga os itens do menu da bandeja as mesmas acoes da janela.
+///
+/// Toda acao fecha o menu, que e o que um menu faz. O fechamento e adiado para
+/// o proximo giro do laco: descartar a janela de dentro do callback dela
+/// mesma derrubaria o componente que ainda esta despachando o evento.
+fn wire_tray_menu(
+    menu: &tray_menu::TrayMenu,
+    window: &ui::AppWindow,
+    state: &Rc<RefCell<AppState>>,
+    open_menu: &Rc<RefCell<Option<tray_menu::TrayMenu>>>,
+) {
+    let ui = menu.window();
+
+    let close = {
+        let open_menu = open_menu.clone();
+        move || {
+            let open_menu = open_menu.clone();
+            // Disparo unico de zero: roda no proximo giro do laco, no mesmo
+            // thread. `invoke_from_event_loop` exigiria `Send`, que um `Rc`
+            // nao e -- e nem precisaria ser, o laco e este mesmo.
+            slint::Timer::single_shot(Duration::ZERO, move || {
+                *open_menu.borrow_mut() = None;
+            });
+        }
+    };
+
+    ui.on_dismiss({
+        let close = close.clone();
+        move || close()
+    });
+
+    ui.on_show_window({
+        let weak = window.as_weak();
+        let close = close.clone();
+        move || {
+            if let Some(window) = weak.upgrade() {
+                if let Err(e) = window.show() {
+                    tracing::error!(error = %e, "nao foi possivel reabrir a janela");
+                }
+            }
+            close();
+        }
+    });
+
+    ui.on_toggle_play({
+        let state = state.clone();
+        let weak = window.as_weak();
+        move || {
+            state.borrow_mut().toggle_play();
+            if let Some(window) = weak.upgrade() {
+                state.borrow().push_to_ui(&window);
+            }
+        }
+    });
+
+    ui.on_next({
+        let state = state.clone();
+        let weak = window.as_weak();
+        move || {
+            state.borrow_mut().next_track();
+            if let Some(window) = weak.upgrade() {
+                state.borrow().push_to_ui(&window);
+            }
+        }
+    });
+
+    ui.on_previous({
+        let state = state.clone();
+        let weak = window.as_weak();
+        move || {
+            state.borrow_mut().previous_track();
+            if let Some(window) = weak.upgrade() {
+                state.borrow().push_to_ui(&window);
+            }
+        }
+    });
+
+    ui.on_quit({
+        let state = state.clone();
+        move || {
+            state.borrow().save_config();
+            let _ = slint::quit_event_loop();
+        }
+    });
 }
 
 /// Mantem os controles de reproducao no preview da barra de tarefas em sincronia.

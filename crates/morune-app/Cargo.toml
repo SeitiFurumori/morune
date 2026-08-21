@@ -66,6 +66,13 @@ windows = { version = "0.61.3", features = [
     "Win32_System_Threading",
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
+    # Area util do monitor onde o icone da bandeja esta, para o menu proprio
+    # nascer onde cabe. Ver `work_area` em `tray_menu.rs`.
+    "Win32_Graphics_Gdi",
+    # `SetFocus`, no caminho que da foco ao menu da bandeja. Sem foco a janela
+    # nunca e desativada, e um menu que nunca desativa nunca fecha ao clicar
+    # fora. Ver `bring_to_front` em `tray_menu.rs`.
+    "Win32_UI_Input_KeyboardAndMouse",
     # Cantos arredondados da janela. Ver `round_window_corners` em `main.rs`.
     "Win32_Graphics_Dwm",
 ] }
