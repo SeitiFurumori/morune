@@ -288,7 +288,7 @@ sempre pode ser reimportado.
 ### Importar
 
 Configuracoes → **Importar tema**. O pacote passa por validacao completa antes
-de qualquer escrita em disco — ver [SECURITY.md](SECURITY.md). Um pacote
+de qualquer escrita em disco — ver [SECURITY.md](../SECURITY.md). Um pacote
 recusado nunca deixa residuo.
 
 ### Voltar atras
@@ -317,7 +317,7 @@ trocar cor. Compare as capturas geradas por `tools/snapshot.ps1`.
 - **Layout arbitrario nao e possivel.** Um tema escolhe entre os eixos
   oferecidos; nao desenha telas novas. Layout livre via `slint-interpreter` esta
   previsto atras do Developer Mode, e o motivo de nao ser o padrao esta em
-  [ADR-0004](docs/adr/0004-temas-declarativos.md).
+[ADR-0004](adr/0004-temas-declarativos.md).
 - **Icones ainda nao sao substituiveis por tema.** Os caminhos vetoriais estao
   na interface. Icones vindos de `assets/` estao no roteiro.
 - **A marca nao e customizavel, e isso e proposital.** O simbolo do Morune tem

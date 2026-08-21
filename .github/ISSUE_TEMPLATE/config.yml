@@ -1,0 +1,6 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Reportar uma vulnerabilidade
+    url: https://github.com/SeitiFurumori/morune/security/advisories/new
+    about: Use o canal privado de segurança, nunca uma issue pública.
+

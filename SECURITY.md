@@ -1,5 +1,12 @@
 # Seguranca
 
+## Versões suportadas
+
+O MORU•NE está em alpha. Correções de segurança são publicadas somente na
+versão mais recente disponível em
+[Releases](https://github.com/SeitiFurumori/morune/releases); versões anteriores
+não recebem manutenção retroativa neste estágio.
+
 ## Modelo de ameaca
 
 Duas superficies importam neste aplicativo:
@@ -138,9 +145,10 @@ descoberta. Um tema cujo `id` diverge do diretorio e ignorado.
 
 ## Superficie de rede
 
-Hoje o aplicativo **nao abre nenhuma conexao**. Nao ha telemetria, nao ha
-verificacao de atualizacao, nao ha analytics. Quando o backend de streaming
-entrar, a unica origem de rede sera o Spotify, via librespot.
+O aplicativo se conecta aos serviços do Spotify para autenticação, catálogo,
+biblioteca, capas e reprodução, usando OAuth com PKCE e librespot. O MORU•NE
+não mantém servidor intermediário, não possui telemetria, analytics ou
+verificação automática de atualizações neste estágio.
 
 ## Superficie de processo
 
@@ -165,6 +173,11 @@ valido.
 
 ## Reportar uma falha
 
-Abra uma issue no repositorio. Se a falha envolver credenciais ou execucao de
-codigo a partir de um pacote de tema, descreva o impacto sem publicar um pacote
-funcional junto.
+Não publique vulnerabilidades em uma issue. Use o formulário privado
+[Report a vulnerability](https://github.com/SeitiFurumori/morune/security/advisories/new)
+na aba **Security** do repositório e inclua versão afetada, impacto e passos de
+reprodução. Não anexe tokens, credenciais reais ou dados pessoais.
+
+Um recebimento será confirmado assim que possível. A correção e a divulgação
+serão coordenadas pelo advisory antes que detalhes exploráveis se tornem
+públicos.
