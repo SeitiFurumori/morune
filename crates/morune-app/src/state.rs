@@ -7,7 +7,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use morune_core::playback::{NullEngine, PlaybackEngine, PlayerCommand, PlayerEvent};
 use morune_core::queue::{Queue, QueueOrigin, RepeatMode};
@@ -99,6 +99,13 @@ pub struct AppState {
     overrides: UserOverrides,
     page: Page,
     status: String,
+    /// A mensagem que o relogio de expiracao esta contando, e desde quando.
+    ///
+    /// Comparar com `status` a cada leitura evita ter que lembrar de reiniciar
+    /// o relogio nos mais de quarenta lugares que escrevem uma mensagem -- e um
+    /// deles esquecido seria uma mensagem que nunca some, que e exatamente o
+    /// defeito que isto conserta.
+    status_seen: (String, Instant),
     undo: Option<UndoAction>,
     retry_available: bool,
     start_with_windows: bool,
@@ -108,6 +115,25 @@ pub struct AppState {
     /// Eventos do motor ativo. Trocado junto com o motor.
     player_events: Option<broadcast::Receiver<PlayerEvent>>,
     volume: f32,
+    /// Temas instalados, lidos do disco uma vez.
+    ///
+    /// Memoizado porque `push_to_ui` roda em todo clique, e `loader::discover`
+    /// faz `read_dir` mais leitura e parse de um TOML por tema. Repetir isso na
+    /// thread da interface a cada acao e o que deixava os controles lentos.
+    /// Recarregado por `refresh_themes` quando o conjunto muda.
+    themes: Vec<loader::ThemeEntry>,
+    /// O que a barra mostra em play/pause.
+    ///
+    /// Otimista: o clique escreve aqui antes de o motor confirmar, para o icone
+    /// trocar no ato. O `StateChanged` do motor continua sendo a verdade e
+    /// corrige este campo quando chega.
+    playing: bool,
+    /// Posicao pedida por um seek que o motor ainda nao confirmou.
+    ///
+    /// O motor vive noutra thread: sem isto, o espelhamento feito logo depois
+    /// do clique leria o retrato antigo e a barra pularia de volta para onde
+    /// estava.
+    seek_target: Option<Duration>,
     /// Listas de faixas visiveis na tela, guardadas inteiras: ativar uma faixa
     /// transforma a lista onde ela esta em contexto da fila, e nao so a faixa
     /// clicada. Sem isso, clicar numa faixa da busca tocaria uma faixa so e o
@@ -152,6 +178,17 @@ pub struct AppState {
     /// acao precisa conhecer a lista inteira (filtro, ordenacao ou fila).
     detail_complete_requested: bool,
     detail_pending_play: Option<PendingDetailPlay>,
+    /// A colecao que esta chegando foi pedida so para encher a fila.
+    ///
+    /// A tela de detalhe carrega, mas o usuario continua onde estava: ele
+    /// clicou numa musica, nao numa lista.
+    detail_silent: bool,
+    /// Faixa a tocar quando as curtidas terminarem de abrir.
+    ///
+    /// A prateleira do Inicio guarda so um punhado de faixas, e usa-la como
+    /// contexto dava uma fila de cinco musicas. Clicar ali passa a abrir a
+    /// colecao inteira por tras, que entra na fila em lotes.
+    pending_liked_play: Option<TrackId>,
     /// De onde a tela de detalhe foi aberta, para o botao de voltar.
     detail_from: Page,
     /// Capa da faixa tocando: a URL pedida e o arquivo, quando ja chegou.
@@ -206,6 +243,8 @@ impl AppState {
             );
         }
 
+        let themes = loader::discover(&paths.themes_dir());
+
         let overrides = UserOverrides {
             font_scale: config.appearance.font_scale_override,
             reduce_motion: config.appearance.reduce_motion,
@@ -229,6 +268,7 @@ impl AppState {
             overrides,
             page: Page::Home,
             status: String::new(),
+            status_seen: (String::new(), Instant::now()),
             undo: None,
             retry_available: false,
             start_with_windows,
@@ -239,6 +279,9 @@ impl AppState {
             engine: Arc::new(NullEngine::new("entre na sua conta para tocar musica")),
             session: Session::new(Arc::from(morune_storage::platform_store()), covers_dir),
             player_events: None,
+            themes,
+            playing: false,
+            seek_target: None,
             search: TrackList::default(),
             search_cards: Vec::new(),
             search_query: String::new(),
@@ -259,6 +302,8 @@ impl AppState {
             detail_loading: false,
             detail_complete_requested: false,
             detail_pending_play: None,
+            detail_silent: false,
+            pending_liked_play: None,
             detail_from: Page::Home,
             liked_card: Card {
                 tag: crate::browse::Target::Liked.tag(),
@@ -403,7 +448,45 @@ impl AppState {
         // aplicada, entao a capa pedida aqui ja e a da faixa certa.
         self.resolve_now_cover();
 
+        // Por ultimo: tudo acima pode ter escrito uma mensagem nova, e o
+        // relogio dela comeca agora, nao no ciclo que vem.
+        changed |= self.expire_status();
+
         changed
+    }
+
+    /// Quanto tempo uma mensagem fica na tela antes de sumir sozinha.
+    ///
+    /// Da para ler uma frase sem pressa e some antes de virar parte do cenario.
+    /// "Conectado como fulano" ficava ate alguem clicar no X.
+    const STATUS_TIMEOUT: Duration = Duration::from_secs(6);
+
+    /// Apaga a mensagem quando ela ja cumpriu o tempo dela.
+    ///
+    /// Mensagem com "Desfazer" ou "Tentar novamente" **nao** expira: ela nao e
+    /// so aviso, e o unico lugar de onde essa acao pode ser feita, e some-la
+    /// tiraria do usuario uma escolha que ele ainda nao fez.
+    fn expire_status(&mut self) -> bool {
+        if self.status.is_empty() {
+            // Esquecer a mensagem antiga aqui e o que faz a *mesma* mensagem,
+            // se voltar, aparecer com o relogio zerado em vez de sumir na hora.
+            self.status_seen.0.clear();
+            return false;
+        }
+
+        if self.status != self.status_seen.0 {
+            self.status_seen = (self.status.clone(), Instant::now());
+            return false;
+        }
+
+        let has_action = self.undo_available() || self.retry_available;
+        if !status_expired(self.status_seen.1.elapsed(), has_action, Self::STATUS_TIMEOUT) {
+            return false;
+        }
+
+        self.status.clear();
+        self.status_seen.0.clear();
+        true
     }
 
     /// Aplica o que a busca ou a biblioteca trouxeram.
@@ -467,6 +550,12 @@ impl AppState {
                 self.resolve_covers();
             }
             Outcome::Detail(detail) => {
+                // Recolhidos aqui, e nao mais abaixo, para que a lista vazia
+                // tambem os apague: um pedido silencioso que sobrevivesse faria
+                // a proxima lista aberta pelo usuario nao mostrar a tela.
+                let silent = std::mem::take(&mut self.detail_silent);
+                let pending_play = self.pending_liked_play.take();
+
                 if detail.tracks.is_empty() && detail.cards.is_empty() {
                     self.status =
                         format!("{} nao tem nada que o Morune consiga tocar.", detail.title);
@@ -483,8 +572,19 @@ impl AppState {
                 self.detail_pending_play = None;
                 self.detail = Some(*detail);
                 self.detail_from = self.page;
-                self.page = Page::Detail;
                 self.status.clear();
+
+                // Pedida so para encher a fila: a lista carrega, a tela nao
+                // muda. Se o usuario abrir o detalhe depois, `detail_from` ja
+                // aponta para onde ele estava e o botao de voltar funciona.
+                if silent {
+                    if let Some(id) = pending_play {
+                        self.play_opened_collection_from(&id);
+                    }
+                } else {
+                    self.page = Page::Detail;
+                }
+
                 self.resolve_detail_cover();
                 self.resolve_detail_cards();
             }
@@ -559,6 +659,10 @@ impl AppState {
                 self.home_requested = false;
                 self.library_requested = false;
                 self.searching = false;
+                // O pedido silencioso morre com a falha. Deixa-lo de pe faria a
+                // proxima lista que o usuario abrisse ser tocada sozinha.
+                self.detail_silent = false;
+                self.pending_liked_play = None;
                 self.status = message;
             }
         }
@@ -598,7 +702,7 @@ impl AppState {
                 if let Some(track) = track {
                     self.liked.tracks.retain(|item| item.id != outcome.id);
                     self.liked.tracks.insert(0, track.clone());
-                    self.liked.tracks.truncate(6);
+                    self.liked.tracks.truncate(crate::browse::SHELF_TRACKS as usize);
                     self.status = format!("{} foi adicionada as Musicas curtidas.", track.name);
                 } else {
                     self.status = "Faixa adicionada as Musicas curtidas do Spotify.".into();
@@ -853,6 +957,27 @@ impl AppState {
         self.request_detail_more();
     }
 
+    /// Comeca a tocar a colecao recem-aberta a partir de uma faixa.
+    ///
+    /// A faixa quase sempre esta na primeira pagina -- a prateleira do Inicio
+    /// mostra as curtidas mais recentes, que sao as primeiras da colecao --, e
+    /// nesse caso o som comeca sem esperar o resto. Quando nao esta, a
+    /// reproducao aguarda a lista completar em vez de tocar a faixa errada.
+    fn play_opened_collection_from(&mut self, id: &TrackId) {
+        match self.detail_tracks().iter().position(|track| track.id == *id) {
+            Some(index) => {
+                self.play_detail_from(index);
+                if self.detail_has_more() {
+                    self.complete_detail();
+                }
+            }
+            None => {
+                self.detail_pending_play = Some(PendingDetailPlay::Track(id.clone()));
+                self.complete_detail();
+            }
+        }
+    }
+
     fn finish_pending_detail_play(&mut self) {
         match self.detail_pending_play.take() {
             Some(PendingDetailPlay::First) => self.play_detail_from(0),
@@ -1049,16 +1174,39 @@ impl AppState {
         &self,
         id: &morune_core::model::TrackId,
     ) -> Option<(QueueOrigin, Vec<Track>, usize)> {
-        let provider_list = [&self.search, &self.liked].into_iter().find_map(|list| {
-            let index = list.tracks.iter().position(|t| t.id == *id)?;
-            Some((list.origin.clone(), list.tracks.clone(), index))
-        });
-        provider_list
+        // So a busca. As curtidas ficam de fora de proposito: a prateleira do
+        // Inicio tem um punhado de faixas, e trata-la como lista completa dava
+        // uma fila de cinco musicas. Elas passam por `play_liked_collection`.
+        let index = self.search.tracks.iter().position(|t| t.id == *id)?;
+        Some((
+            self.search.origin.clone(),
+            self.search.tracks.clone(),
+            index,
+        ))
+    }
+
+    /// Toca uma faixa curtida com a colecao inteira como contexto.
+    ///
+    /// Abre "Musicas curtidas" por tras, sem tirar o usuario de onde ele esta:
+    /// ele clicou numa musica, nao numa lista. A primeira pagina ja comeca a
+    /// tocar e as seguintes entram na fila em lotes, pelo mesmo caminho que a
+    /// tela de detalhe usa.
+    fn play_liked_collection(&mut self, id: TrackId) {
+        let Some(browse) = self.session.browse_mut() else {
+            self.status = "Entre na sua conta do Spotify para tocar.".into();
+            return;
+        };
+        browse.open(Target::Liked);
+        self.detail_silent = true;
+        self.pending_liked_play = Some(id);
+        self.status = format!("Carregando {}...", crate::browse::LIKED_TITLE);
     }
 
     /// Carrega a faixa selecionada na fila e comeca a tocar.
     fn play_current(&mut self) {
         if let Some(track) = self.queue.current().cloned() {
+            self.playing = true;
+            self.seek_target = Some(Duration::ZERO);
             self.send(PlayerCommand::Load {
                 track,
                 start_paused: false,
@@ -1114,6 +1262,7 @@ impl AppState {
                         "Fim da fila.".into()
                     };
                 } else {
+                    self.playing = false;
                     self.status = "Fim da fila.".into();
                 }
                 true
@@ -1122,9 +1271,27 @@ impl AppState {
                 self.status = message;
                 true
             }
-            PlayerEvent::StateChanged(_) | PlayerEvent::TrackChanged(_) => true,
-            // Posicao e volume ja aparecem pelo retrato lido a cada quadro;
-            // repintar por causa deles seria trabalho sem efeito visivel.
+            // O motor e a verdade sobre play/pause. O campo otimista existe so
+            // para o icone nao esperar o round-trip; quando o motor fala, ele
+            // manda -- inclusive para desfazer um `Play` que nao pegou.
+            PlayerEvent::StateChanged(state) => {
+                self.playing = state == morune_core::PlaybackState::Playing;
+                // Qualquer noticia do motor ja vem com o relogio dele acertado,
+                // entao a posicao provisoria perdeu a razao de existir.
+                self.seek_target = None;
+                if self.playing {
+                    self.preload_next();
+                }
+                true
+            }
+            PlayerEvent::TrackChanged(_) => true,
+            // Chega no seek confirmado e na correcao de deriva, nao a cada
+            // quadro: a librespot so corrige acima de um segundo de desvio.
+            // Repintar aqui e o que tira a barra da posicao provisoria.
+            PlayerEvent::Position { .. } => {
+                self.seek_target = None;
+                true
+            }
             _ => false,
         }
     }
@@ -1176,6 +1343,15 @@ impl AppState {
         }
     }
 
+    /// Rele a pasta de temas.
+    ///
+    /// So quando o conjunto muda -- instalar, duplicar, desfazer uma importacao
+    /// ou pedir recarga. Trocar qual tema esta ativo nao precisa disto: a marca
+    /// de ativo sai de `theme_id()` na hora de montar a lista.
+    fn refresh_themes(&mut self) {
+        self.themes = loader::discover(&self.paths.themes_dir());
+    }
+
     pub fn select_theme(&mut self, id: &str) {
         let loaded = loader::load(&self.paths.themes_dir(), id);
         if loaded.fell_back {
@@ -1190,6 +1366,9 @@ impl AppState {
 
     pub fn reload_theme(&mut self) {
         let id = self.config.appearance.theme.clone();
+        // Recarregar existe para pegar o que mudou no disco, entao a lista de
+        // temas instalados tambem tem que ser relida aqui.
+        self.refresh_themes();
         self.theme = loader::load(&self.paths.themes_dir(), &id);
         self.status = if self.theme.is_healthy() {
             "Tema recarregado.".into()
@@ -1220,6 +1399,7 @@ impl AppState {
         match loader::write_theme(&self.paths.theme_dir(&new_id), &spec) {
             Ok(()) => {
                 self.status = format!("Tema duplicado como {new_id}.");
+                self.refresh_themes();
                 self.select_theme(&new_id);
             }
             Err(e) => self.status = format!("Nao foi possivel duplicar o tema: {e}"),
@@ -1324,6 +1504,7 @@ impl AppState {
         match morune_theme::import_pack(&file, &self.paths.themes_dir(), false) {
             Ok(imported) => {
                 let id = imported.manifest.id.clone();
+                self.refresh_themes();
                 self.select_theme(&id);
                 self.status = format!(
                     "Tema {} importado e aplicado ({} arquivos).",
@@ -1582,6 +1763,7 @@ impl AppState {
                         return;
                     }
                 }
+                self.refresh_themes();
                 self.select_theme(&previous_id);
                 self.status = "Importacao desfeita; o tema anterior foi restaurado.".into();
             }
@@ -1744,6 +1926,13 @@ impl AppState {
                 return;
             }
 
+            // Curtida vinda da prateleira do Inicio: o contexto certo e a
+            // colecao inteira, e nao as poucas faixas que cabem na prateleira.
+            if self.liked.tracks.iter().any(|track| track.id == *id) {
+                self.play_liked_collection(id.clone());
+                return;
+            }
+
             // Numa lista aberta: a lista inteira vira o contexto, para que
             // "proxima" continue por ela e nao pare na primeira faixa.
             if let Some((origin, tracks, index)) = self.open_lists(id) {
@@ -1766,33 +1955,95 @@ impl AppState {
         self.status = "Carregando...".into();
     }
 
+    /// `true` quando a barra esta mostrando reproducao em andamento.
+    ///
+    /// E a intencao ja refletida na tela, nao o retrato do motor: quem le isto
+    /// quer saber se ha algo se movendo para o usuario.
+    pub fn is_playing(&self) -> bool {
+        self.playing
+    }
+
+    /// Posicao a mostrar: a de um seek ainda nao confirmado, ou a do motor.
+    fn shown_position(&self, snapshot: &morune_core::playback::PlayerSnapshot) -> Duration {
+        self.seek_target.unwrap_or(snapshot.position)
+    }
+
     pub fn toggle_play(&mut self) {
-        self.send(PlayerCommand::TogglePlay);
+        // Sem faixa nao ha o que alternar, e deixar o icone virar "pausar" sem
+        // som nenhum seria mentir para quem clicou.
+        if self.queue.current().is_none() {
+            return;
+        }
+
+        // Manda a intencao, e nao `TogglePlay`: a interface acaba de decidir o
+        // que vai mostrar, entao ela e quem sabe o alvo. O motor deixa de ter
+        // que ler o proprio retrato para descobrir, e as duas pontas nao podem
+        // discordar quando dois cliques chegam juntos.
+        let target = !self.playing;
+        self.playing = target;
+        self.send(if target {
+            PlayerCommand::Play
+        } else {
+            PlayerCommand::Pause
+        });
     }
 
     pub fn next_track(&mut self) {
         if let Some(track) = self.queue.next(true).cloned() {
+            self.playing = true;
+            self.seek_target = Some(Duration::ZERO);
             self.send(PlayerCommand::Load {
                 track,
                 start_paused: false,
             });
         } else {
+            self.playing = false;
             self.send(PlayerCommand::Stop);
         }
     }
 
+    /// Duracao tocada a partir da qual "anterior" reinicia em vez de voltar.
+    ///
+    /// A conta e a de sempre nos tocadores: no comeco da faixa o gesto quer a
+    /// faixa passada; depois disso quer ouvir esta de novo.
+    const RESTART_THRESHOLD: Duration = Duration::from_secs(3);
+
     pub fn previous_track(&mut self) {
+        // Passado o comeco da faixa, ou sem historico para onde voltar, o botao
+        // reinicia. Antes ele simplesmente nao fazia nada na primeira faixa da
+        // fila, e um botao que nao responde parece um botao lento.
+        let played = self.shown_position(&self.engine.snapshot());
+        if played >= Self::RESTART_THRESHOLD {
+            self.restart_current();
+            return;
+        }
+
         if let Some(track) = self.queue.previous().cloned() {
+            self.playing = true;
+            self.seek_target = Some(Duration::ZERO);
             self.send(PlayerCommand::Load {
                 track,
                 start_paused: false,
             });
+        } else {
+            self.restart_current();
         }
+    }
+
+    fn restart_current(&mut self) {
+        if self.queue.current().is_none() {
+            return;
+        }
+        self.seek_target = Some(Duration::ZERO);
+        self.send(PlayerCommand::Seek(Duration::ZERO));
     }
 
     pub fn seek(&mut self, progress: f32) {
         let duration = self.queue.current().map(|t| t.duration).unwrap_or_default();
         let target = duration.mul_f32(progress.clamp(0.0, 1.0));
+        // Guardado ate o motor confirmar: ele roda noutra thread, e o retrato
+        // lido logo abaixo ainda traria a posicao velha.
+        self.seek_target = Some(target);
         self.send(PlayerCommand::Seek(target));
     }
 
@@ -1816,6 +2067,24 @@ impl AppState {
         let _ = self.engine.send(PlayerCommand::SetRepeat(mode));
     }
 
+    /// Pede ao motor que adiante a proxima faixa da fila.
+    ///
+    /// Chamado quando a atual **comeca a tocar**, e nao quando ela e carregada:
+    /// duas faixas baixando ao mesmo tempo disputariam banda justamente no
+    /// momento em que a que o usuario esta esperando precisa dela.
+    ///
+    /// Sem isto, toda troca de faixa paga chave de audio, CDN e decodificador
+    /// -- mediana de 588 ms e p90 de 996 ms medidos em uso real. Vale tanto
+    /// para o botao de proxima quanto para a emenda no fim da musica.
+    fn preload_next(&self) {
+        let Some(next) = self.queue.upcoming(1).first().map(|track| (*track).clone()) else {
+            return;
+        };
+        // Nao passa por `send`: adiantar e otimizacao, e falhar nisso nao pode
+        // escrever nada na barra de status.
+        let _ = self.engine.send(PlayerCommand::Preload(next));
+    }
+
     fn send(&mut self, command: PlayerCommand) {
         if let Err(e) = self.engine.send(command) {
             self.status = e.to_string();
@@ -1837,6 +2106,8 @@ impl AppState {
         self.player_events = None;
         self.session.logout();
         self.queue.clear();
+        self.playing = false;
+        self.seek_target = None;
         self.autoplay_seed = None;
         // Busca, inicio e biblioteca sao da conta que saiu: deixa-los na tela
         // mostraria a playlist de alguem que nao esta mais conectado.
@@ -1857,6 +2128,8 @@ impl AppState {
         self.detail_loading = false;
         self.detail_complete_requested = false;
         self.detail_pending_play = None;
+        self.detail_silent = false;
+        self.pending_liked_play = None;
         self.home_requested = false;
         self.library_requested = false;
         self.status = "Sessao encerrada.".into();
@@ -1886,10 +2159,9 @@ impl AppState {
         window.set_search_query(self.search_query.as_str().into());
         window.set_searching(self.searching);
 
-        let snapshot = self.engine.snapshot();
+        self.push_playback(window);
+
         let current = self.queue.current();
-        window.set_has_track(current.is_some());
-        window.set_now_cover(cover_image(self.now_cover.1.as_deref()));
         window.set_sidebar_playlists(card_refs(&self.sidebar_playlists()));
 
         if let Some(detail) = &self.detail {
@@ -1911,29 +2183,6 @@ impl AppState {
             window.set_detail_loaded_count(detail.tracks.len() as i32);
             window.set_detail_items(card_items(&detail.cards));
         }
-        window.set_playing(snapshot.state == morune_core::PlaybackState::Playing);
-        window.set_progress(snapshot.progress());
-        window.set_elapsed(format_time(snapshot.position).into());
-        window.set_total(
-            format_time(current.map(|t| t.duration).unwrap_or(snapshot.duration)).into(),
-        );
-        window.set_volume(self.volume);
-        window.set_shuffle(self.queue.shuffle());
-        window.set_repeat(match self.queue.repeat() {
-            RepeatMode::Off => 0,
-            RepeatMode::All => 1,
-            RepeatMode::One => 2,
-        });
-        window.set_now_title(current.map(|t| t.name.as_ref()).unwrap_or("").into());
-        window.set_now_artist(current.map(|t| t.artists_line()).unwrap_or_default().into());
-        window.set_now_id(
-            current
-                .map(|track| Target::Track(track.id.clone()).tag())
-                .unwrap_or_default()
-                .into(),
-        );
-        window.set_now_favorite(current.is_some_and(|track| self.liked_ids.contains(&track.id)));
-
         window.set_queue_manual_tracks(track_rows(
             self.queue.user_queue().take(200).collect(),
             current,
@@ -1955,6 +2204,7 @@ impl AppState {
             &self.track_covers,
             &self.liked_ids,
         ));
+        window.set_home_playlists(card_items(&self.home_playlists));
         window.set_home_stations(card_items(&self.home_stations));
         window.set_home_retrospectives(card_items(&self.home_retrospectives));
         window.set_library_items(card_items(&self.library));
@@ -1967,10 +2217,52 @@ impl AppState {
         ));
     }
 
+    /// Espelha so a barra de reproducao.
+    ///
+    /// Separado de [`AppState::push_to_ui`] porque este e o caminho que o
+    /// usuario sente: volume, seek e play/pause chamam so isto. Sao propriedades
+    /// escalares -- nenhum `VecModel` reconstruido, nenhuma linha de faixa, nada
+    /// de disco -- entao pode rodar a cada quadro de arraste e a cada tique do
+    /// relogio de progresso sem aparecer no medidor de CPU.
+    pub fn push_playback(&self, window: &ui::AppWindow) {
+        let snapshot = self.engine.snapshot();
+        let position = self.shown_position(&snapshot);
+        let current = self.queue.current();
+        let duration = current.map(|t| t.duration).unwrap_or(snapshot.duration);
+
+        window.set_has_track(current.is_some());
+        window.set_now_cover(cover_image(self.now_cover.1.as_deref()));
+        window.set_playing(self.playing);
+        window.set_progress(if duration.is_zero() {
+            0.0
+        } else {
+            (position.as_secs_f32() / duration.as_secs_f32()).clamp(0.0, 1.0)
+        });
+        window.set_elapsed(format_time(position).into());
+        window.set_total(format_time(duration).into());
+        window.set_volume(self.volume);
+        window.set_shuffle(self.queue.shuffle());
+        window.set_repeat(match self.queue.repeat() {
+            RepeatMode::Off => 0,
+            RepeatMode::All => 1,
+            RepeatMode::One => 2,
+        });
+        window.set_now_title(current.map(|t| t.name.as_ref()).unwrap_or("").into());
+        window.set_now_artist(current.map(|t| t.artists_line()).unwrap_or_default().into());
+        window.set_now_id(
+            current
+                .map(|track| Target::Track(track.id.clone()).tag())
+                .unwrap_or_default()
+                .into(),
+        );
+        window.set_now_favorite(current.is_some_and(|track| self.liked_ids.contains(&track.id)));
+    }
+
     fn theme_items(&self) -> ModelRc<ui::ThemeItem> {
         let active = self.theme_id();
-        let items: Vec<ui::ThemeItem> = loader::discover(&self.paths.themes_dir())
-            .into_iter()
+        let items: Vec<ui::ThemeItem> = self
+            .themes
+            .iter()
             .map(|entry| ui::ThemeItem {
                 id: entry.manifest.id.as_str().into(),
                 name: entry.manifest.name.as_str().into(),
@@ -2000,6 +2292,15 @@ impl AppState {
         }));
         ModelRc::new(VecModel::from(items))
     }
+}
+
+/// `true` quando a mensagem na tela ja pode sumir sozinha.
+///
+/// Separado do estado para a regra ficar sob teste: `has_action` marca a
+/// mensagem que carrega "Desfazer" ou "Tentar novamente", e essa nunca expira
+/// -- e o unico lugar de onde a acao pode ser feita.
+fn status_expired(age: Duration, has_action: bool, timeout: Duration) -> bool {
+    !has_action && age >= timeout
 }
 
 fn track_rows(
@@ -2105,26 +2406,51 @@ fn card_items(cards: &[Card]) -> ModelRc<ui::CardItem> {
     ModelRc::new(VecModel::from(items))
 }
 
+thread_local! {
+    /// Capas ja convertidas em `slint::Image`, indexadas pelo caminho.
+    ///
+    /// **Nao e cache de decodificacao** -- o Slint ja tem o dele. E cache da
+    /// *chamada*: `Image::load_from_path` monta a chave do cache com
+    /// `CachedPath::new`, que faz um `std::fs::metadata` **a cada chamada**,
+    /// inclusive quando a imagem ja esta decodificada. Medido nesta maquina:
+    /// 229 us por `stat`. Com a barra de volume espelhando a cada movimento do
+    /// mouse -- e um mouse gamer reporta ate 1000 vezes por segundo -- isso
+    /// sozinho consumia a thread da interface. Uma lista de fila de 400 linhas
+    /// pagava 400 desses por espelhamento.
+    ///
+    /// Guardar pelo caminho e seguro porque o arquivo tem o hash do conteudo no
+    /// nome: caminho igual significa imagem igual, e nunca ha versao nova no
+    /// mesmo lugar. A falha tambem fica guardada, pelo mesmo motivo -- um JPEG
+    /// truncado nao vai decodificar na proxima tentativa, e repetir o `stat`
+    /// para descobrir isso e o que se quer evitar.
+    static COVER_CACHE: std::cell::RefCell<HashMap<std::path::PathBuf, slint::Image>> =
+        std::cell::RefCell::new(HashMap::new());
+}
+
 /// Carrega a capa do arquivo, ou devolve uma imagem vazia.
 ///
 /// Imagem vazia nao e falta de tratamento: e o que faz o cartao mostrar o
 /// bloco neutro no lugar, sem mudar o layout quando a capa de verdade chegar.
-///
-/// A decodificacao acontece na thread da interface, e e barata o bastante para
-/// isso: sao arquivos de 300 px que o Slint mantem em cache proprio depois do
-/// primeiro carregamento.
 fn cover_image(path: Option<&std::path::Path>) -> slint::Image {
     let Some(path) = path else {
         return slint::Image::default();
     };
 
-    slint::Image::load_from_path(path).unwrap_or_else(|e| {
+    if let Some(cached) = COVER_CACHE.with(|c| c.borrow().get(path).cloned()) {
+        return cached;
+    }
+
+    let image = slint::Image::load_from_path(path).unwrap_or_else(|e| {
         // Arquivo truncado ou formato inesperado: o cartao fica sem capa e o
         // aplicativo segue. Trocar isto por `expect` derrubaria a tela por
         // causa de um JPEG ruim.
         tracing::debug!(path = %path.display(), error = ?e, "capa nao decodificou");
         slint::Image::default()
-    })
+    });
+    COVER_CACHE.with(|c| {
+        c.borrow_mut().insert(path.to_path_buf(), image.clone());
+    });
+    image
 }
 
 /// Formata uma duracao como `m:ss`, ou `h:mm:ss` quando passa de uma hora.
@@ -2180,6 +2506,18 @@ mod tests {
         assert_eq!(format_time(Duration::from_secs(599)), "9:59");
         assert_eq!(format_time(Duration::from_secs(3600)), "1:00:00");
         assert_eq!(format_time(Duration::from_secs(3661)), "1:01:01");
+    }
+
+    #[test]
+    fn a_message_with_an_action_never_expires_on_its_own() {
+        let timeout = Duration::from_secs(6);
+
+        assert!(!status_expired(Duration::from_secs(1), false, timeout));
+        assert!(status_expired(Duration::from_secs(6), false, timeout));
+
+        // "Desfazer" e "Tentar novamente" vivem dentro do aviso: some-lo
+        // tiraria do usuario uma escolha que ele ainda nao fez.
+        assert!(!status_expired(Duration::from_secs(600), true, timeout));
     }
 
     #[test]

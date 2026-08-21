@@ -75,6 +75,7 @@ fn main() -> anyhow::Result<()> {
     let paths = morune_storage::AppPaths::discover();
     let _ = paths.ensure();
     init_logging(&paths);
+    log_panics();
     tracing::info!(versao = env!("CARGO_PKG_VERSION"), log = %paths.log_file().display(), "Morune iniciando");
 
     let mut state = AppState::load();
@@ -121,6 +122,7 @@ fn main() -> anyhow::Result<()> {
     wire_mini_player(&window);
     let _tray_poll = wire_tray(&window, &state, tray.clone());
     let _backend_poll = wire_backend(&window, &state);
+    let _progress_tick = wire_progress_tick(&window, &state);
     let _window_state_poll = wire_window_state(&window, &state);
     wire_close_behavior(&window, &state, tray.is_some());
 
@@ -187,6 +189,10 @@ fn main() -> anyhow::Result<()> {
     // continua vivo, tocando. Quem termina o laco e `quit_event_loop`, chamado
     // pelo item "Sair" da bandeja ou quando a bandeja nao existe.
     window.show()?;
+    // Primeira tentativa. Pode nao pegar -- o HWND as vezes ainda nao existe
+    // aqui --, e nesse caso quem resolve e o temporizador de estado da janela.
+    #[cfg(windows)]
+    ensure_rounded_corners(window.window());
     #[cfg(windows)]
     let _taskbar_poll = wire_taskbar(&window, &state);
     if started_with_windows && tray.is_some() {
@@ -204,6 +210,84 @@ fn main() -> anyhow::Result<()> {
 /// A interface envia deltas em pixels logicos; `Window::position` trabalha em
 /// pixels fisicos. Multiplicar pelo fator de escala evita que o ponteiro se
 /// afaste da title bar em 125%, 150% ou 200% de DPI.
+/// Garante que a janela esteja com os cantos arredondados.
+///
+/// A janela e `no-frame`, entao o Windows nao desenha borda nem canto: sem
+/// isto ela e um retangulo de canto vivo, que destoa de tudo no Windows 11.
+///
+/// Quem arredonda e o gerenciador de janelas, e nao o Slint. A diferenca
+/// importa: o DWM recorta a **regiao** da janela, entao o conteudo desenhado
+/// tambem sai recortado e a sombra acompanha a curva. Um `border-radius` no
+/// retangulo raiz so pintaria o canto de outra cor, com o pixel quadrado da
+/// janela continuando ali por baixo.
+///
+/// Sem efeito no Windows 10, que nao conhece este atributo: a chamada devolve
+/// erro, o canto continua vivo e nada mais muda. Por isso a falha so vai para o
+/// log -- nao ha o que o usuario possa fazer a respeito.
+///
+/// **Chamada repetidamente, de proposito.** Logo depois de `show()` o backend
+/// do Slint ainda pode nao ter criado o HWND -- o mesmo motivo que faz a
+/// integracao com a barra de tarefas nascer num temporizador --, e a primeira
+/// tentativa simplesmente nao encontra janela para configurar. Alem disso,
+/// esconder e reabrir a janela pode recria-la, e a janela nova volta com o
+/// canto padrao. Ler antes de escrever mantem o custo em duas chamadas baratas
+/// quando ja esta certo, que e o caso comum.
+#[cfg(windows)]
+fn ensure_rounded_corners(window: &slint::Window) {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::Graphics::Dwm::{
+        DwmGetWindowAttribute, DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
+    };
+
+    let handle = window.window_handle();
+    let Ok(handle) = handle.window_handle() else {
+        return;
+    };
+    let RawWindowHandle::Win32(raw) = handle.as_raw() else {
+        return;
+    };
+    let hwnd = HWND(raw.hwnd.get() as *mut std::ffi::c_void);
+
+    // `DWMWCP_ROUND` e o raio padrao do sistema, o mesmo das outras janelas do
+    // Windows 11. Escolher um numero proprio faria o Morune ser o unico
+    // aplicativo com canto diferente na tela.
+    let preference = DWMWCP_ROUND;
+
+    // Ler primeiro: no caso comum a janela ja esta configurada e nao ha nada a
+    // fazer. Isto e o que permite chamar esta funcao a cada meio segundo.
+    let mut applied = 0i32;
+    // SAFETY: `hwnd` vem da janela viva, e o ponteiro aponta para um inteiro do
+    // tamanho declarado, vivo durante a chamada.
+    let read = unsafe {
+        DwmGetWindowAttribute(
+            hwnd,
+            DWMWA_WINDOW_CORNER_PREFERENCE,
+            std::ptr::addr_of_mut!(applied).cast(),
+            std::mem::size_of_val(&applied) as u32,
+        )
+    };
+    if read.is_ok() && applied == preference.0 {
+        return;
+    }
+
+    // SAFETY: mesmas condicoes da leitura acima.
+    let written = unsafe {
+        DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_WINDOW_CORNER_PREFERENCE,
+            std::ptr::addr_of!(preference).cast(),
+            std::mem::size_of_val(&preference) as u32,
+        )
+    };
+    match written {
+        Ok(()) => tracing::info!(pedido = preference.0, "cantos da janela arredondados"),
+        Err(error) => {
+            tracing::debug!(%error, "cantos arredondados indisponiveis nesta versao do Windows")
+        }
+    }
+}
+
 fn wire_window_chrome(window: &ui::AppWindow) {
     let weak = window.as_weak();
     window.on_move_window(move |delta_x, delta_y| {
@@ -238,6 +322,11 @@ fn wire_window_state(
         std::time::Duration::from_millis(500),
         move || {
             let Some(window) = weak.upgrade() else { return };
+            // Antes do desvio do mini-player: o canto arredondado vale para as
+            // duas formas da janela. No caso comum sao duas chamadas baratas
+            // que confirmam que ja esta certo.
+            #[cfg(windows)]
+            ensure_rounded_corners(window.window());
             if window.get_mini_player() {
                 return;
             }
@@ -356,6 +445,45 @@ fn wire_backend(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState>>
     timer
 }
 
+/// Intervalo do relogio de progresso.
+///
+/// 250 ms da quatro atualizacoes por segundo: a barra anda visivelmente e o
+/// tempo decorrido nunca fica mais de um quarto de segundo atrasado, sem
+/// repintar a tela na taxa do monitor.
+const PROGRESS_TICK: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// Faz a barra de progresso andar sozinha.
+///
+/// **Por que existe:** `wire_backend` so espelha a interface quando
+/// `poll_backend` acusa mudanca, e reproducao estavel nao produz evento nenhum
+/// -- a posicao vive num relogio interpolado do motor, que ninguem lia. Sem
+/// este temporizador a barra e o tempo decorrido ficam parados enquanto a
+/// musica toca, e um seek parece nao ter efeito.
+///
+/// Pausado nao custa nada: o tique sai antes de tocar na interface, entao o
+/// numero de CPU em repouso de `docs/PERFORMANCE.md` nao se mexe.
+///
+/// O temporizador devolvido precisa continuar vivo.
+fn wire_progress_tick(
+    window: &ui::AppWindow,
+    state: &Rc<std::cell::RefCell<AppState>>,
+) -> slint::Timer {
+    let weak = window.as_weak();
+    let state = state.clone();
+
+    let timer = slint::Timer::default();
+    timer.start(slint::TimerMode::Repeated, PROGRESS_TICK, move || {
+        let Some(window) = weak.upgrade() else { return };
+        let state = state.borrow();
+        if !state.is_playing() {
+            return;
+        }
+        state.push_playback(&window);
+    });
+
+    timer
+}
+
 /// Devolve o temporizador de leitura, que precisa continuar vivo: descartado,
 /// a bandeja para de responder.
 fn wire_tray(
@@ -462,6 +590,35 @@ const LOG_MAX_BYTES: u64 = 4 * 1024 * 1024;
 /// Escrever e sincrono, sob trava. No nivel padrao (`info`) sao poucas linhas
 /// por sessao; `MORUNE_LOG=debug` custa I/O e e opcional, para quem esta
 /// investigando.
+/// Manda todo panic para o log antes do processo morrer.
+///
+/// **Por que existe:** o release e `panic = "abort"` e
+/// `windows_subsystem = "windows"`. Sem console, a mensagem que o Rust escreve
+/// em `stderr` some, e o processo desaparece sem deixar uma linha sequer -- foi
+/// exatamente o que aconteceu numa queda relatada e nao houve o que investigar.
+/// O gancho roda antes do abort, entao a mensagem chega ao arquivo.
+///
+/// Precisa ser instalado depois de `init_logging`: antes dele nao ha para onde
+/// escrever.
+fn log_panics() {
+    let anterior = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let local = info
+            .location()
+            .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+            .unwrap_or_else(|| "local desconhecido".into());
+        // O `Display` do `PanicHookInfo` ja traz a mensagem e a localizacao no
+        // formato que o Rust usa no console; registrar os dois separados torna
+        // o log pesquisavel por arquivo.
+        tracing::error!(
+            local = %local,
+            thread = ?std::thread::current().name(),
+            "panic: {info}"
+        );
+        anterior(info);
+    }));
+}
+
 fn init_logging(paths: &morune_storage::AppPaths) {
     use tracing_subscriber::filter::EnvFilter;
 
@@ -681,39 +838,46 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
         s.push_to_ui(&w);
     });
 
+    // Os controles da barra espelham so a barra. Reconstruir inicio, busca,
+    // biblioteca e fila a cada clique -- e a cada quadro de arraste do volume
+    // -- e o que fazia o botao responder devagar.
     on!(on_toggle_play, |w, s| {
         s.toggle_play();
-        s.push_to_ui(&w);
+        s.push_playback(&w);
     });
 
+    // Trocar de faixa tambem move o marcador da linha que esta tocando, mas
+    // isso pode chegar um tique depois: o `TrackChanged` do motor forca o
+    // espelhamento completo em ate 100 ms. Segurar o clique ate reconstruir
+    // inicio, busca, biblioteca e fila e o que se sentia como botao lento.
     on!(on_next_track, |w, s| {
         s.next_track();
-        s.push_to_ui(&w);
+        s.push_playback(&w);
     });
 
     on!(on_previous_track, |w, s| {
         s.previous_track();
-        s.push_to_ui(&w);
+        s.push_playback(&w);
     });
 
     on!(on_seek, |w, s, position: f32| {
         s.seek(position);
-        s.push_to_ui(&w);
+        s.push_playback(&w);
     });
 
     on!(on_set_volume, |w, s, volume: f32| {
         s.set_volume(volume);
-        s.push_to_ui(&w);
+        s.push_playback(&w);
     });
 
     on!(on_toggle_shuffle, |w, s| {
         s.toggle_shuffle();
-        s.push_to_ui(&w);
+        s.push_playback(&w);
     });
 
     on!(on_cycle_repeat, |w, s| {
         s.cycle_repeat();
-        s.push_to_ui(&w);
+        s.push_playback(&w);
     });
 
     on!(on_login, |w, s| {

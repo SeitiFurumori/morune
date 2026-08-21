@@ -30,8 +30,12 @@ const SEARCH_LIMIT: u32 = 50;
 /// Quantos itens cada secao de biblioteca traz de uma vez.
 const SECTION_LIMIT: u32 = 50;
 
-/// Quantas faixas aparecem numa prateleira do Inicio.
-const SHELF_TRACKS: u32 = 6;
+/// Quantas faixas aparecem na prateleira de curtidas do Inicio.
+///
+/// A prateleira e um bloco com rolagem propria, e nao um recorte de amostra:
+/// serve para achar e escolher uma musica sem sair do Inicio. 50 e o lote que o
+/// provedor entrega numa requisicao, entao pedir isso nao custa nada a mais.
+pub(crate) const SHELF_TRACKS: u32 = 50;
 
 /// Titulo da lista de curtidas, num lugar so.
 ///

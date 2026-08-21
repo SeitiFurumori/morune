@@ -946,6 +946,17 @@ component PlayerBar inherits Rectangle {
                     }
                 }
 
+                // Com a barra colada na borda nao ha onde por os tempos ao lado
+                // dela, e antes disto o `show_times` do tema era simplesmente
+                // ignorado: nao havia nenhuma indicacao de posicao na tela.
+                if Layout.player-progress && Layout.player-progress-edge && Layout.player-times: Text {
+                    text: root.elapsed + " / " + root.total;
+                    color: Theme.text-muted;
+                    font-size: Theme.size-xs;
+                    font-family: Theme.font-family;
+                    horizontal-alignment: Layout.player-center-controls ? center : left;
+                }
+
                 if Layout.player-progress && !Layout.player-progress-edge: HorizontalLayout {
                     spacing: Theme.space-sm;
 
@@ -1020,31 +1031,12 @@ component PlayerBar inherits Rectangle {
     }
 }
 
-// Uma secao do Inicio: titulo e uma fileira de cards.
+// Faixa horizontal de cards.
 //
-// Nao rola sozinha. O Inicio inteiro e um visor so, e um visor dentro do outro
-// rouba o gesto de rolagem de quem esta so passando o olho. Quantos cards
-// aparecem e decisao de quem preenche a lista, nao daqui.
-component CardShelf inherits VerticalLayout {
-    in property <string> title;
-    in property <[CardItem]> items;
-    in property <int> columns: 5;
-    callback activated(string);
-
-    spacing: Theme.space-sm;
-    vertical-stretch: 0;
-
-    SectionTitle { text: root.title; }
-
-    CardCollection {
-        items: root.items;
-        columns: root.columns;
-        activated(id) => { root.activated(id); }
-    }
-}
-
-// Discografias podem ter dezenas de albuns. A faixa horizontal mantem as
-// capas legiveis sem empurrar as musicas populares para fora da tela.
+// Rola de lado, e nao quebra em varias linhas: uma prateleira com trinta itens
+// empurraria tudo que vem depois para fora da tela. O gesto nao briga com o do
+// Inicio porque os eixos sao diferentes -- a pagina rola na vertical, a
+// prateleira na horizontal.
 component ScrollableCardShelf inherits VerticalLayout {
     in property <string> title;
     in property <[CardItem]> items;
@@ -1072,6 +1064,10 @@ component ScrollableCardShelf inherits VerticalLayout {
 }
 
 // Uma secao do Inicio feita de faixas, para o que se ouve e nao se navega.
+//
+// Rola por dentro, com altura fixa. A alternativa -- listar tudo e deixar o
+// Inicio crescer -- empurraria as prateleiras de cards para muito abaixo da
+// dobra so para mostrar musicas curtidas.
 component TrackShelf inherits VerticalLayout {
     in property <string> title;
     in property <[TrackRow]> tracks;
@@ -1080,23 +1076,34 @@ component TrackShelf inherits VerticalLayout {
     callback play-next(string);
     callback enqueue(string);
     in property <bool> queue-actions: true;
+    // Oito linhas: o bastante para procurar sem tomar a tela inteira. Sai do
+    // token de altura de linha para acompanhar a densidade do tema.
+    in property <length> visible-height: Layout.row-height * 8;
 
     spacing: Theme.space-sm;
     vertical-stretch: 0;
 
     SectionTitle { text: root.title; }
 
-    VerticalLayout {
-        spacing: Theme.space-xs;
+    Flickable {
+        // Lista curta nao ganha area vazia: o bloco encolhe para caber nela.
+        height: min(root.visible-height, rows.preferred-height);
+        viewport-height: rows.preferred-height;
+        viewport-width: self.width;
 
-        for track[i] in root.tracks: TrackListRow {
-            track: track;
-            index: i;
-            queue-actions: root.queue-actions;
-            activated => { root.activated(track.id); }
-            favorite-toggled => { root.favorite-toggled(track.id); }
-            play-next => { root.play-next(track.id); }
-            enqueue => { root.enqueue(track.id); }
+        rows := VerticalLayout {
+            spacing: Theme.space-xs;
+            alignment: start;
+
+            for track[i] in root.tracks: TrackListRow {
+                track: track;
+                index: i;
+                queue-actions: root.queue-actions;
+                activated => { root.activated(track.id); }
+                favorite-toggled => { root.favorite-toggled(track.id); }
+                play-next => { root.play-next(track.id); }
+                enqueue => { root.enqueue(track.id); }
+            }
         }
     }
 }
@@ -1105,9 +1112,9 @@ component HomePage inherits Flickable {
     in property <[CardItem]> made-for-you;
     in property <[CardItem]> stations;
     in property <[CardItem]> retrospectives;
+    in property <[CardItem]> playlists;
     in property <[TrackRow]> liked;
     in property <bool> logged-in;
-    in property <int> grid-columns: 5;
     callback activated(string);
     callback favorite-toggled(string);
     callback play-next(string);
@@ -1117,7 +1124,8 @@ component HomePage inherits Flickable {
     // Verdadeiro enquanto nenhuma secao tem conteudo: antes do login, e nos
     // segundos entre entrar e as listas chegarem.
     property <bool> empty: root.made-for-you.length == 0 && root.stations.length == 0
-        && root.retrospectives.length == 0 && root.liked.length == 0;
+        && root.retrospectives.length == 0 && root.liked.length == 0
+        && root.playlists.length == 0;
 
     viewport-height: sections.preferred-height;
 
@@ -1146,24 +1154,29 @@ component HomePage inherits Flickable {
             enqueue(id) => { root.enqueue(id); }
         }
 
-        if root.made-for-you.length > 0: CardShelf {
+        // Antes das prateleiras recomendadas: o que o usuario montou vem antes
+        // do que o Spotify sugeriu.
+        if root.playlists.length > 0: ScrollableCardShelf {
+            title: "Suas playlists";
+            items: root.playlists;
+            activated(id) => { root.activated(id); }
+        }
+
+        if root.made-for-you.length > 0: ScrollableCardShelf {
             title: "Feito para voce";
             items: root.made-for-you;
-            columns: root.grid-columns;
             activated(id) => { root.activated(id); }
         }
 
-        if root.stations.length > 0: CardShelf {
+        if root.stations.length > 0: ScrollableCardShelf {
             title: "Estacoes recomendadas";
             items: root.stations;
-            columns: root.grid-columns;
             activated(id) => { root.activated(id); }
         }
 
-        if root.retrospectives.length > 0: CardShelf {
+        if root.retrospectives.length > 0: ScrollableCardShelf {
             title: "Seus mais ouvidos";
             items: root.retrospectives;
-            columns: root.grid-columns;
             activated(id) => { root.activated(id); }
         }
     }
@@ -1965,6 +1978,7 @@ export component AppWindow inherits Window {
     in property <[CardItem]> home-made-for-you;
     in property <[CardItem]> home-stations;
     in property <[CardItem]> home-retrospectives;
+    in property <[CardItem]> home-playlists;
     in property <[TrackRow]> home-liked;
     in property <[TrackRow]> search-tracks;
     in property <[CardItem]> search-items;
@@ -2163,9 +2177,9 @@ export component AppWindow inherits Window {
                         made-for-you: root.home-made-for-you;
                         stations: root.home-stations;
                         retrospectives: root.home-retrospectives;
+                        playlists: root.home-playlists;
                         liked: root.home-liked;
                         logged-in: root.logged-in;
-                        grid-columns: root.grid-columns;
                         login => { root.login(); }
                         activated(id) => { root.play-track(id); }
                         favorite-toggled(id) => { root.toggle-favorite(id); }

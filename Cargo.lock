@@ -4037,6 +4037,7 @@ dependencies = [
  "librespot-protocol",
  "morune-core",
  "protobuf",
+ "rodio",
  "serde",
  "serde_json",
  "thiserror 2.0.20",

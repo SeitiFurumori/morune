@@ -188,7 +188,7 @@ Versionamento semantico.
   mudanca no pipeline.
 - `.sha256` publicado ao lado do instalador, e impresso no fim do build. E o
   unico jeito de conferir o download enquanto nao ha assinatura.
-- [docs/assinatura.md](docs/assinatura.md): por que o SmartScreen avisa, o que
+- [docs/SIGNING.md](docs/SIGNING.md): por que o SmartScreen avisa, o que
   assinatura resolve e o que nao resolve, e as quatro formas de assinar — duas
   delas gratuitas (SignPath Foundation e Microsoft Store), com requisitos,
   precos das pagas e fontes conferidas em 18/08/2026.
@@ -200,14 +200,102 @@ Login, reconexao, reproducao, busca, playlists, curtidas, artistas seguidos,
 capas e telas de detalhe foram verificados contra uma conta Premium real em
 19/08/2026. Radio/autoplay, capas nas linhas e a tela completa de artista foram
 implementados depois dessa rodada e aguardam a reverificacao final descrita em
-[docs/HANDOFF.md](docs/HANDOFF.md).
+[handoff histórico](docs/archive/PROJECT_HANDOFF_2026-08.md).
+
+### Adicionado (desempenho)
+- **A proxima faixa da fila e adiantada.** Comecar uma faixa custa buscar a
+  chave de audio, abrir o fluxo na CDN e montar o decodificador: mediana de
+  588 ms, p90 de 996 ms e maximo de 1,7 s, medidos em 41 trocas de uso real. A
+  librespot tem `Player::preload` e o caminho de carga a consome direto — inicia
+  a reproducao sem ir a rede — mas o Morune nunca chamava. Agora, assim que uma
+  faixa comeca a tocar, a seguinte e adiantada. Vale para o botao de proxima e
+  para a emenda no fim da musica. O disparo e no inicio da reproducao, e nao no
+  carregamento, para duas faixas nao disputarem banda no momento em que a que o
+  usuario espera precisa dela.
+
+### Alterado (Inicio)
+- **Musicas curtidas viraram um bloco com rolagem propria.** Eram seis faixas
+  fixas, o suficiente para dizer "voce curtiu isto" e insuficiente para achar
+  algo. Passam a 50, num bloco de oito linhas que rola por dentro. Lista curta
+  nao ganha area vazia: o bloco encolhe para caber nela.
+- **Suas playlists aparecem no Inicio.** As que voce criou e segue existiam so
+  na barra lateral. Ganharam prateleira propria, antes das recomendadas: o que
+  o usuario montou vem antes do que o Spotify sugeriu.
+- **As prateleiras do Inicio rolam de lado** em vez de quebrar em varias linhas.
+  Uma prateleira com trinta itens empurrava tudo que vinha depois para fora da
+  tela. O gesto nao briga com o da pagina porque os eixos sao diferentes.
+
+### Corrigido
+- **Tema Paper renderizava quebrado.** Tres defeitos somados: `row_height = 38`
+  nao cabia as duas linhas da faixa (titulo 15px e artista 13px, entrelinha 1,5,
+  somam 42px), entao o texto transbordava e as linhas se encostavam; a trilha da
+  barra de progresso usa a cor `border`, e a 9% de preto com 2px ela sumia no
+  fundo claro; e `show_times` era ignorado em silencio quando
+  `progress_edge_to_edge` estava ligado, deixando o tema sem indicacao alguma de
+  posicao. Os dois primeiros sao valores do tema; o terceiro era falha da
+  interface, que agora mostra o tempo abaixo dos controles nesse modo.
 
 ### Alterado
+- **Cantos da janela arredondados.** A janela e `no-frame`, entao o Windows nao
+  desenhava borda nem canto e ela ficava um retangulo de canto vivo. Passa a
+  pedir ao gerenciador de janelas o raio padrao do sistema, o mesmo das demais
+  janelas do Windows 11 — ele recorta a regiao, entao conteudo e sombra
+  acompanham a curva. Sem efeito no Windows 10, que nao conhece o atributo. O
+  pedido e refeito pelo temporizador de estado da janela, e nao uma vez so: logo
+  depois de `show()` o HWND as vezes ainda nao existe -- o mesmo motivo que faz
+  a barra de tarefas nascer num temporizador --, e esconder e reabrir a janela
+  pode recria-la com o canto padrao.
+- **Tocar uma curtida do Inicio usa a colecao inteira como fila.** A prateleira
+  guarda seis faixas, e era essa lista que virava o contexto: a fila nascia com
+  cinco musicas pela frente. Agora clicar ali abre "Musicas curtidas" por tras,
+  sem tirar o usuario do Inicio; a primeira pagina ja comeca a tocar e as
+  seguintes entram na fila em lotes.
+- **O aviso do canto some sozinho depois de 6 segundos.** "Conectado como
+  fulano" e as demais confirmacoes ficavam na tela ate alguem clicar no X, e
+  viravam parte do cenario. Aviso que carrega "Desfazer" ou "Tentar novamente"
+  continua ate ser respondido: ele nao e so aviso, e o unico lugar de onde essa
+  acao pode ser feita.
+- **Saida de audio propria, no lugar da `RodioSink` da librespot.** O atraso que
+  sobrava nos controles nao era da interface: era o buffer de audio. A
+  `RodioSink` mantem cerca de meio segundo decodificado e fazia todo comando
+  esperar por ele — `stop()` chamava `sleep_until_end()` antes de pausar, o
+  volume era aplicado antes da fila (o audio enfileirado continuava no volume
+  antigo) e `seek` nem tocava na fila. O buffer continua do mesmo tamanho, que e
+  a folga contra falha de audio com um jogo rodando; o que mudou e que os
+  comandos deixaram de esperar por ele. Volume passa a ser aplicado no
+  misturador do rodio, que o reaplica ao audio ja enfileirado a cada 5 ms;
+  pausar silencia no ato **sem** descartar a fila, entao voltar continua de onde
+  o som parou; e trocar de faixa, parar e mover a posicao descartam a fila antes
+  do proximo audio sair. Ver `crates/morune-spotify/src/sink.rs`.
+- **Controles de reproducao deixaram de esperar.** Volume, tocar/pausar, faixa
+  anterior e proxima, e clicar ou arrastar a barra de progresso respondem no
+  gesto. Quatro causas somadas explicavam o atraso: cada clique reconstruia a
+  interface inteira -- inicio, busca, biblioteca, fila -- e, no meio disso, relia
+  a pasta de temas do disco; o slider do volume repetia esse trabalho a cada
+  movimento do mouse; tocar/pausar e seek so apareciam depois da ida e volta ate
+  a librespot; e a barra de progresso nao andava sozinha, o que fazia um seek
+  parecer sem efeito. Agora os controles espelham so a barra, a lista de temas e
+  memoizada, a intencao do clique aparece na hora e um relogio de 250 ms mantem
+  progresso e tempo decorrido em movimento enquanto ha musica.
+- **Capas deixaram de custar um `stat` por espelhamento.**
+  `slint::Image::load_from_path` chama `std::fs::metadata` em toda invocacao,
+  mesmo com a imagem ja decodificada — e parte da chave do cache do Slint. Sao
+  229 us medidos nesta maquina, pagos uma vez por linha de lista e uma vez por
+  movimento do mouse na barra de volume. As capas ja convertidas passam a ser
+  guardadas pelo caminho, que identifica o conteudo porque o nome do arquivo e o
+  hash dele.
+- **Arrastar o volume avisa o Rust no maximo uma vez por quadro.** O desenho
+  continua acompanhando o ponteiro sem limite; o que passou a ser limitado e o
+  aviso que atravessa para o motor. Um mouse de 1000 Hz gerava mil avisos por
+  segundo, cada um reescrevendo a barra inteira.
+- **"Anterior" reinicia a faixa** passados tres segundos, ou quando nao ha
+  historico para onde voltar. Antes o botao nao fazia nada na primeira faixa da
+  fila.
 - **Criterio de desempenho redefinido.** A meta de "RAM em repouso < 70 MB" saiu:
   numa maquina com 16 GB, 70 ou 90 MB nao muda nada para ninguem. O criterio
   passa a ser nao atrapalhar quem esta jogando — CPU e GPU em segundo plano e
   interface que nunca trava. As tres metricas que passam a mandar ainda nao
-  foram medidas, e isso esta dito em [PERFORMANCE.md](PERFORMANCE.md).
+  foram medidas, e isso esta dito em [Performance](docs/PERFORMANCE.md).
 - **Licenca do Slint escolhida explicitamente.** O Slint e
   `GPL-3.0-only OR LicenseRef-Slint-Royalty-free-2.0 OR LicenseRef-Slint-Software-3.0`
   e o Morune nao escolhia nenhuma das tres, o que deixava a licenca do
@@ -220,7 +308,7 @@ implementados depois dessa rodada e aguardam a reverificacao final descrita em
   destaque: agora e o simbolo da marca, fixo. Cor de tema continua valendo para
   tudo dentro da janela.
 - Binario de 9,15 MB para 9,39 MB e instalador de 3,83 MB para 4,00 MB, com o
-  detalhamento medido em [PERFORMANCE.md](PERFORMANCE.md).
+  detalhamento medido em [Performance](docs/PERFORMANCE.md).
 
 ### A fazer antes da v1
 - Reverificar radio/autoplay e artista contra a conta Premium.

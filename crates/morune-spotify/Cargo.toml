@@ -37,5 +37,11 @@ protobuf = "3"
 # comando e os backends de audio que nao usamos.
 librespot-core = "0.8"
 librespot-playback = { version = "0.8", default-features = false, features = ["rodio-backend"] }
+
+# O Morune tem a propria saida de audio, no lugar da `RodioSink` da librespot:
+# ver `src/sink.rs`. Versao e features iguais as que a librespot ja pede, para
+# ser a mesma instancia do crate e o mesmo `cpal` -- que o rodio reexporta,
+# dispensando depender dele aqui.
+rodio = { version = "0.21", default-features = false, features = ["playback"] }
 librespot-metadata = "0.8"
 librespot-oauth = "0.8"
