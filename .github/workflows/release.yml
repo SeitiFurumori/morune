@@ -1,9 +1,26 @@
 name: Publicar instalador
 
+# Duas portas de entrada:
+#
+# - uma tag `v*` compila, empacota e publica a release;
+# - `workflow_dispatch` ensaia o mesmo caminho sem publicar nada, para que um
+#   erro de empacotamento apareca sem custar uma tag. Apontado para uma tag ja
+#   existente e com `dry_run` desligado, republica os arquivos daquela versao.
+#
+# Os testes nao estao aqui: rodam em `ci.yml`, a cada push em main. Compilar o
+# grafo em debug so para rodar 136 testes de 0,4 segundo custava 44 minutos
+# dentro da publicacao, e o commit que recebe a tag ja passou por eles.
+
 on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Ensaio: compila e empacota, mas nao publica"
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -14,11 +31,9 @@ concurrency:
 
 jobs:
   windows:
-    name: Testar, empacotar e publicar
+    name: Empacotar e publicar
     runs-on: windows-latest
-    # O primeiro runner compila o grafo duas vezes: testes em debug e o binario
-    # final com LTO. Sem cache, os testes sozinhos levam cerca de 44 minutos.
-    timeout-minutes: 120
+    timeout-minutes: 90
 
     env:
       CARGO_TERM_COLOR: always
@@ -27,26 +42,57 @@ jobs:
       - name: Baixar o codigo
         uses: actions/checkout@v4
 
-      - name: Validar a tag e a versao
+      - name: Definir a versao e o destino
         shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          $tag = "${{ github.ref_name }}"
-          if ($tag -notmatch '^v(?<version>\d+\.\d+\.\d+)(?:-[0-9A-Za-z.-]+)?$') {
-            throw "Tag invalida: $tag. Use v0.1.0 ou v0.1.0-alpha.1."
-          }
-          $version = $Matches.version
-
           $manifest = Get-Content Cargo.toml -Raw
           if ($manifest -notmatch '(?ms)\[workspace\.package\].*?^version\s*=\s*"(?<version>[^"]+)"') {
             throw "Nao foi possivel ler workspace.package.version do Cargo.toml."
           }
-          if ($Matches.version -ne $version) {
-            throw "A tag $tag nao corresponde a versao $($Matches.version) do Cargo.toml."
+          $version = $Matches.version
+
+          # Um ensaio disparado a mao so publica quando `dry_run` esta desligado
+          # E o alvo e uma tag de verdade: a partir de um branch nao haveria tag
+          # para anexar, e `gh release create --verify-tag` recusaria -- depois
+          # de vinte minutos de compilacao. Melhor recusar agora.
+          $publish = $env:EVENT_NAME -eq "push"
+          if ($env:EVENT_NAME -eq "workflow_dispatch" -and $env:DRY_RUN -ne "true") {
+            if ($env:REF_TYPE -ne "tag") {
+              throw "Para publicar por workflow_dispatch, escolha uma tag em 'Use workflow from'. Recebido: $($env:REF_TYPE) '$($env:REF_NAME)'."
+            }
+            $publish = $true
+          }
+
+          if ($env:REF_TYPE -eq "tag") {
+            $tag = $env:REF_NAME
+            if ($tag -notmatch '^v(?<version>\d+\.\d+\.\d+)(?:-[0-9A-Za-z.-]+)?$') {
+              throw "Tag invalida: $tag. Use v0.1.0 ou v0.1.0-alpha.1."
+            }
+            if ($Matches.version -ne $version) {
+              throw "A tag $tag nao corresponde a versao $version do Cargo.toml."
+            }
+            "MORUNE_TAG=$tag" >> $env:GITHUB_ENV
+            "MORUNE_PRERELEASE=$($tag.Contains('-').ToString().ToLowerInvariant())" >> $env:GITHUB_ENV
+            "MORUNE_LABEL=$tag" >> $env:GITHUB_ENV
+          } else {
+            "MORUNE_TAG=" >> $env:GITHUB_ENV
+            "MORUNE_PRERELEASE=true" >> $env:GITHUB_ENV
+            "MORUNE_LABEL=ensaio-$version-$($env:GITHUB_SHA.Substring(0, 7))" >> $env:GITHUB_ENV
           }
 
           "MORUNE_VERSION=$version" >> $env:GITHUB_ENV
-          "MORUNE_TAG=$tag" >> $env:GITHUB_ENV
-          "MORUNE_PRERELEASE=$($tag.Contains('-').ToString().ToLowerInvariant())" >> $env:GITHUB_ENV
+          "MORUNE_PUBLISH=$($publish.ToString().ToLowerInvariant())" >> $env:GITHUB_ENV
+
+          if ($publish) {
+            Write-Host "versao $version -- a release sera publicada."
+          } else {
+            Write-Host "versao $version -- ensaio: nada sera publicado."
+          }
 
       - name: Preparar MinGW para Windows
         uses: msys2/setup-msys2@v2
@@ -64,23 +110,28 @@ jobs:
           "C:\msys64\mingw64\bin" >> $env:GITHUB_PATH
           rustc --version --verbose
 
+      # Guarda o registro e as dependencias compiladas, e descarta os artefatos
+      # do proprio workspace -- esses recompilam de todo jeito, e eram parte do
+      # 1,85 GB que o cache anterior levava quase seis minutos para gravar.
       - name: Restaurar cache do Cargo
-        uses: actions/cache@v4
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: windows-gnu-release-${{ hashFiles('Cargo.lock') }}
-          restore-keys: windows-gnu-release-
+          key: release-gnu
 
-      - name: Instalar NSIS
+      # O runner windows-latest costuma trazer NSIS pre-instalado. Baixar de
+      # novo custa tempo e uma dependencia de rede que pode falhar sozinha.
+      - name: Garantir o NSIS
         shell: pwsh
-        run: choco install nsis --yes --no-progress
-
-      - name: Executar testes automatizados
-        shell: pwsh
-        run: cargo test --locked -p morune-core -p morune-spotify -p morune-app
+        run: |
+          $makensis = @(
+            "C:\Program Files (x86)\NSIS\makensis.exe",
+            "C:\Program Files\NSIS\makensis.exe"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if ($makensis) {
+            Write-Host "NSIS ja presente em $makensis"
+          } else {
+            choco install nsis --yes --no-progress
+          }
 
       - name: Compilar o executavel
         shell: pwsh
@@ -97,7 +148,7 @@ jobs:
       - name: Guardar artefatos do build
         uses: actions/upload-artifact@v4
         with:
-          name: Morune-Windows-${{ github.ref_name }}
+          name: Morune-Windows-${{ env.MORUNE_LABEL }}
           path: |
             dist/Morune-*-setup.exe
             dist/Morune-*-setup.exe.sha256
@@ -105,6 +156,7 @@ jobs:
           retention-days: 14
 
       - name: Escrever notas da release
+        if: env.MORUNE_PUBLISH == 'true'
         shell: pwsh
         run: |
           @"
@@ -123,6 +175,7 @@ jobs:
           "@ | Set-Content release-notes.md -Encoding utf8
 
       - name: Criar a release do GitHub
+        if: env.MORUNE_PUBLISH == 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -131,6 +184,30 @@ jobs:
             "dist/Morune-$env:MORUNE_VERSION-setup.exe",
             "dist/Morune-$env:MORUNE_VERSION-setup.exe.sha256"
           )
+
+          # Uma tag reexecutada pode ja ter release: anexar por cima e o que
+          # permite consertar uma publicacao que falhou no ultimo passo, sem
+          # gastar um numero de versao novo so para isso.
+          #
+          # "release nao existe" e a resposta esperada desta consulta, e nao uma
+          # falha do passo. O `try` cobre as versoes de PowerShell que promovem
+          # codigo de saida de comando nativo a erro terminante; o
+          # `$LASTEXITCODE`, as que nao promovem.
+          $jaExiste = $false
+          try {
+            gh release view $env:MORUNE_TAG *> $null
+            $jaExiste = ($LASTEXITCODE -eq 0)
+          } catch {
+            $jaExiste = $false
+          }
+
+          if ($jaExiste) {
+            Write-Host "a release $env:MORUNE_TAG ja existe -- substituindo os arquivos."
+            gh release upload $env:MORUNE_TAG @assets --clobber
+            if ($LASTEXITCODE -ne 0) { throw "gh release upload falhou" }
+            exit 0
+          }
+
           $arguments = @(
             "release", "create", $env:MORUNE_TAG
           ) + $assets + @(
@@ -144,3 +221,4 @@ jobs:
             $arguments += "--latest"
           }
           gh @arguments
+          if ($LASTEXITCODE -ne 0) { throw "gh release create falhou" }

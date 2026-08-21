@@ -44,6 +44,20 @@ debug = 1
 [profile.dev.package."*"]
 opt-level = 2
 
+# Perfil das verificacoes de CI. O perfil `dev` compila as dependencias com
+# `opt-level = 2` de proposito -- e o que mantem o aplicativo utilizavel
+# enquanto se desenvolve. Num runner, porem, esse mesmo ajuste fazia o build de
+# teste custar mais que o de release, para rodar 136 testes em 0,4 segundo.
+# Aqui nada precisa ser rapido em tempo de execucao, so de compilacao.
+[profile.ci]
+inherits = "dev"
+debug = 0
+
+# `inherits` copia tambem os ajustes por pacote do perfil de origem, entao
+# desligar a otimizacao das dependencias exige dize-lo outra vez.
+[profile.ci.package."*"]
+opt-level = 0
+
 # Perfil de release: otimizado para tamanho + velocidade, alvo do performance budget.
 [profile.release]
 opt-level = "z"

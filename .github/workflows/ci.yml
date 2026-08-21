@@ -1,0 +1,79 @@
+name: Verificacao continua
+
+# Formato, lint e testes a cada mudanca em main e em todo pull request.
+# Estas mesmas tres verificacoes estao prometidas no CONTRIBUTING.md, e ate
+# aqui nenhum robo as rodava: o unico workflow do repositorio disparava por
+# tag. Rodar antes da tag tambem tira `cargo test` do caminho da publicacao,
+# onde ele custava 44 minutos de compilacao para 0,4 segundo de teste.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    name: Formato, lint e testes
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    env:
+      CARGO_TERM_COLOR: always
+
+    steps:
+      - name: Baixar o codigo
+        uses: actions/checkout@v4
+
+      # Mesmo alvo do instalador publicado. Um erro que so aparece em GNU
+      # precisa aparecer aqui, e nao uma hora depois, no meio de uma release.
+      - name: Preparar MinGW para Windows
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: mingw-w64-x86_64-gcc
+          path-type: inherit
+
+      # A 1.92 e a versao minima declarada no Cargo.toml, e e nela que clippy e
+      # os testes rodam -- e o que prova que o projeto compila onde ele diz que
+      # compila. O rustfmt vem da stable de proposito: a formatacao do rustfmt
+      # muda entre versoes, e um CI que discorda do rustfmt da maquina de quem
+      # escreve o codigo so produz reprovacao que ninguem consegue reproduzir.
+      - name: Preparar Rust para Windows GNU
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.92.0-x86_64-pc-windows-gnu --profile minimal -c clippy
+          rustup toolchain install stable-x86_64-pc-windows-gnu --profile minimal -c rustfmt
+          rustup default 1.92.0-x86_64-pc-windows-gnu
+          "C:\msys64\mingw64\bin" >> $env:GITHUB_PATH
+          rustc --version --verbose
+
+      # Guarda so o registro e as dependencias compiladas, nunca os artefatos
+      # do proprio workspace -- esses recompilam de todo jeito. Pull requests
+      # aproveitam o cache de main sem gravar o seu, para nao disputar o limite
+      # de 10 GB do repositorio.
+      - name: Restaurar cache do Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ci-gnu
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Conferir a formatacao
+        shell: pwsh
+        run: cargo +stable fmt --all -- --check
+
+      - name: Rodar o clippy
+        shell: pwsh
+        run: cargo clippy --locked --profile ci --workspace --all-targets -- -D warnings
+
+      - name: Executar os testes
+        shell: pwsh
+        run: cargo test --locked --profile ci --workspace --features morune-theme/hot-reload
