@@ -57,7 +57,7 @@ O ciclo que transforma isto num player.
    playlists. O coracao sincroniza com as Musicas curtidas do Spotify e so
    muda visualmente depois da confirmacao remota. As playlists que o Spotify monta para a conta
    vem pelo protocolo interno, porque o Web API deixou de entrega-las em 2024 —
-   ver [docs/HANDOFF.md](docs/HANDOFF.md).
+ver o [handoff histórico](archive/PROJECT_HANDOFF_2026-08.md).
 5. `[escrito]` **Radio e autoplay configuravel** pelo caminho interno, anexando
    recomendacoes ao contexto sem apagar historico nem repetir faixas. Falta a
    rodada final contra a conta real.
@@ -78,10 +78,11 @@ O ciclo que transforma isto num player.
 recurso novo ainda nao passou pela conta real. O restante do ciclo foi
 verificado em 19/08/2026.
 
-O roteiro de reverificacao esta em [docs/HANDOFF.md](docs/HANDOFF.md).
+O roteiro de reverificação original está no
+[handoff histórico](archive/PROJECT_HANDOFF_2026-08.md).
 
 Risco conhecido: librespot 0.8 exige `vergen` fixado em 9.0.x no `Cargo.lock`
-— ver [ADR-0002](docs/adr/0002-toolchain-windows-gnu.md).
+— ver [ADR-0002](adr/0002-toolchain-windows-gnu.md).
 
 ## Ciclo 3 — Developer Mode e customizacao viva
 

@@ -4,8 +4,13 @@ Documento de retomada. Escrito em 18/08/2026 ao fim do ciclo 1, revisto em
 19/08/2026 quando o backend de Spotify ficou de pe, e de novo no mesmo dia
 quando ele **precisou ser refeito** -- ver a secao do Web API.
 
-Quem chegar aqui numa sessao nova deve ler este arquivo primeiro, depois
-[ARCHITECTURE.md](../ARCHITECTURE.md) e [ROADMAP.md](../ROADMAP.md).
+> [!NOTE]
+> Documento histórico. Para o estado atual, comece pelo
+> [README do projeto](../../README.md) e pelo
+> [índice de documentação](../README.md).
+
+Na época deste registro, a leitura continuava em
+[Arquitetura](../ARCHITECTURE.md) e [Roadmap](../ROADMAP.md).
 
 ---
 
@@ -40,7 +45,7 @@ silencio. Agora vai para `%APPDATA%\morune\Morune\data\morune.log`, com teto
 de 4 MB e rotacao. **E o primeiro lugar a olhar quando algo falhar.**
 
 **Copia da librespot em `vendor/`.** Um metodo alterado, para que conta
-gratuita nao encerre o processo. Ver [vendor/README.md](../vendor/README.md).
+gratuita nao encerre o processo. Ver [vendor/README.md](../../vendor/README.md).
 
 **Catalogo sobre o protocolo interno.** `webapi.rs` e `dto.rs` deixaram de
 existir. Busca vai pelo `pathfinder`; playlists, metadado, colecao, capas e
@@ -93,7 +98,7 @@ O ambiente de build **nao** esta no `PATH` por padrao. Toda sessao comeca com:
 ```
 
 Sem isso o `cargo` nao existe, ou existe e falha ao linkar. Detalhes e o porque
-em [ADR-0002](adr/0002-toolchain-windows-gnu.md).
+em [ADR-0002](../adr/0002-toolchain-windows-gnu.md).
 
 ### Armadilha conhecida
 
@@ -209,7 +214,7 @@ Resolvido com uma copia pontual de `librespot-core` em `vendor/`, ligada por
 `[patch.crates-io]`. `check_catalogue` apenas registra o plano no log; o Morune
 continua aberto e explica a limitacao quando a reproducao e recusada. O motivo,
 a alteracao exata e o procedimento de atualizacao estao em
-[`vendor/README.md`](../vendor/README.md).
+[`vendor/README.md`](../../vendor/README.md).
 
 ---
 
@@ -311,7 +316,7 @@ backend -- nesta ordem, porque cada passo depende do anterior.
 14. Fechar a janela com "continuar tocando ao fechar" ligado: o som continua e
     a bandeja mostra a faixa.
 15. **Medir de novo** com `.\tools\measure.ps1` e atualizar
-    [PERFORMANCE.md](../PERFORMANCE.md) -- agora com CPU e GPU **tocando**, que
+[Performance](../PERFORMANCE.md) -- agora com CPU e GPU **tocando**, que
     e o criterio que passou a valer. **Ainda nao foi feito.**
 
 ---
@@ -364,7 +369,7 @@ Nenhuma delas bloqueia o ciclo 2; todas bloqueiam a publicacao.
 **Licenca — resolvida em 18/08/2026.** O Morune e MIT (`LICENSE`), e o Slint e
 usado sob a `LicenseRef-Slint-Royalty-free-2.0`, nao sob a GPL, com atribuicao
 pelo badge no README. O porque das duas escolhas esta na
-[ADR-0005](adr/0005-licenca-e-slint-royalty-free.md). Os avisos das 339
+[ADR-0005](../adr/0005-licenca-e-slint-royalty-free.md). Os avisos das 339
 dependencias vao em `THIRD-PARTY-LICENSES.txt`, gerado por `tools/licenses.ps1`
 e instalado junto do aplicativo.
 
@@ -388,7 +393,7 @@ Duas consequencias praticas, e as duas valem para o ciclo 2:
 - as metricas que passam a mandar sao **CPU e GPU em segundo plano** e a
   ausencia de travamento da interface. Nenhuma delas foi medida ainda, porque
   nenhuma faz sentido sem reproducao real. Ver o criterio em
-  [PERFORMANCE.md](../PERFORMANCE.md).
+[Performance](../PERFORMANCE.md).
 
 **Publicacao — decidida em 19/08/2026.** O repositorio fica privado ate haver uma
 **v1 pronta**. Nao e indefinicao: e a ordem certa, porque publicar cedo demais
@@ -408,7 +413,7 @@ O pipeline ja esta pronto para qualquer caminho: `build-installer.ps1` chama
 `tools/sign.ps1` no executavel e no instalador, e basta definir
 `MORUNE_SIGN_THUMBPRINT`. Enquanto nao ha assinatura, os dois arquivos ja
 declaram nome, versao e copyright, e o build publica um `.sha256` ao lado do
-instalador. Opcoes, precos e requisitos em [assinatura.md](assinatura.md).
+instalador. Opções, preços e requisitos em [assinatura digital](../SIGNING.md).
 
 ---
 
@@ -489,4 +494,4 @@ especificas. As capturas saem em `bench-out/`, que nao entra no git.
   customizar — isso e bug, nao omissao.
 - **Um tema quebrado nunca impede o aplicativo de abrir.** Vale tambem para
   configuracao corrompida e para bandeja indisponivel.
-- **Temas sao dados, nunca codigo.** Ver [ADR-0004](adr/0004-temas-declarativos.md).
+- **Temas sao dados, nunca codigo.** Ver [ADR-0004](../adr/0004-temas-declarativos.md).

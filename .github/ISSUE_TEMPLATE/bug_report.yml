@@ -1,0 +1,54 @@
+name: Relatar um problema
+description: Informe um erro reproduzível no MORU•NE
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Obrigado por ajudar a melhorar o MORU•NE. Não inclua tokens, credenciais ou dados pessoais.
+  - type: input
+    id: version
+    attributes:
+      label: Versão do MORU•NE
+      description: A versão aparece em Configurações ou no nome do instalador.
+      placeholder: v0.1.0-alpha.5
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Versão do Windows
+      placeholder: Windows 11 24H2
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: O que aconteceu?
+      description: Explique o resultado observado e o que você esperava.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Como reproduzir
+      placeholder: |
+        1. Abra...
+        2. Clique...
+        3. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidências
+      description: Adicione capturas, vídeo ou logs sem informações sensíveis, se houver.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Verificações
+      options:
+        - label: Procurei por uma issue igual antes de abrir esta.
+          required: true
+        - label: Removi tokens, credenciais e dados pessoais das evidências.
+          required: true

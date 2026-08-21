@@ -129,7 +129,7 @@ some dessa condicao aos poucos. O conjunto de globais cobre os eixos que
 importam (posicao, tamanho, densidade, forma, movimento, visibilidade de cada
 peca) com um formato que e inequivocamente dado. Layout arbitrario via
 `slint-interpreter` esta previsto atras do Developer Mode — ver
-[ADR-0004](docs/adr/0004-temas-declarativos.md).
+[ADR-0004](adr/0004-temas-declarativos.md).
 
 ---
 

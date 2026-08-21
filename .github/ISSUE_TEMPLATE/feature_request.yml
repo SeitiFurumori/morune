@@ -1,0 +1,37 @@
+name: Sugerir uma melhoria
+description: Proponha uma melhoria de produto ou experiência
+title: "[Ideia]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Qual problema isso resolve?
+      description: Descreva a dificuldade do usuário, não apenas a funcionalidade desejada.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Solução sugerida
+      description: Explique como imagina a experiência e quais alternativas considerou.
+    validations:
+      required: true
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: Com que frequência isso ajudaria?
+      options:
+        - Em praticamente todo uso
+        - Algumas vezes por semana
+        - Ocasionalmente
+        - É uma necessidade avançada
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Verificação
+      options:
+        - label: Procurei por uma sugestão igual antes de abrir esta.
+          required: true
