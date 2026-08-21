@@ -3,12 +3,12 @@
 //! Uma segunda abertura traz a janela existente para frente em vez de criar
 //! outro player, outra bandeja e outro escritor do arquivo de configuracao.
 
-use windows::Win32::Foundation::{CloseHandle, ERROR_ALREADY_EXISTS, GetLastError, HANDLE};
+use windows::core::w;
+use windows::Win32::Foundation::{CloseHandle, GetLastError, ERROR_ALREADY_EXISTS, HANDLE};
 use windows::Win32::System::Threading::CreateMutexW;
 use windows::Win32::UI::WindowsAndMessaging::{
-    FindWindowW, SW_RESTORE, SetForegroundWindow, ShowWindow,
+    FindWindowW, SetForegroundWindow, ShowWindow, SW_RESTORE,
 };
-use windows::core::w;
 
 pub struct SingleInstance(HANDLE);
 

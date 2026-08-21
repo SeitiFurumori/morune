@@ -54,7 +54,10 @@ pub struct ThemeWarning {
 
 impl ThemeWarning {
     pub fn new(field: impl Into<String>, message: impl Into<String>) -> Self {
-        Self { field: field.into(), message: message.into() }
+        Self {
+            field: field.into(),
+            message: message.into(),
+        }
     }
 }
 
@@ -81,10 +84,16 @@ impl ThemeSpec {
         if !(0.5..=3.0).contains(&self.typography.scale) || !self.typography.scale.is_finite() {
             warnings.push(ThemeWarning::new(
                 "typography.scale",
-                format!("{} fora da faixa [0.5, 3.0], ajustado", self.typography.scale),
+                format!(
+                    "{} fora da faixa [0.5, 3.0], ajustado",
+                    self.typography.scale
+                ),
             ));
-            self.typography.scale =
-                if self.typography.scale.is_finite() { self.typography.scale.clamp(0.5, 3.0) } else { 1.0 };
+            self.typography.scale = if self.typography.scale.is_finite() {
+                self.typography.scale.clamp(0.5, 3.0)
+            } else {
+                1.0
+            };
         }
         for (name, size) in [
             ("size_xs", &mut self.typography.size_xs),
@@ -99,12 +108,19 @@ impl ThemeSpec {
                     format!("typography.{name}"),
                     format!("{size} fora da faixa [6, 96], ajustado"),
                 ));
-                *size = if size.is_finite() { size.clamp(6.0, 96.0) } else { 14.0 };
+                *size = if size.is_finite() {
+                    size.clamp(6.0, 96.0)
+                } else {
+                    14.0
+                };
             }
         }
         if !(1.0..=2.5).contains(&self.typography.line_height) {
             self.typography.line_height = self.typography.line_height.clamp(1.0, 2.5);
-            warnings.push(ThemeWarning::new("typography.line_height", "ajustado para [1.0, 2.5]"));
+            warnings.push(ThemeWarning::new(
+                "typography.line_height",
+                "ajustado para [1.0, 2.5]",
+            ));
         }
 
         // Efeitos: uma janela quase transparente deixa o aplicativo
@@ -114,7 +130,10 @@ impl ThemeSpec {
         {
             warnings.push(ThemeWarning::new(
                 "effects.window_opacity",
-                format!("{} fora da faixa [0.2, 1.0], ajustado", self.effects.window_opacity),
+                format!(
+                    "{} fora da faixa [0.2, 1.0], ajustado",
+                    self.effects.window_opacity
+                ),
             ));
             self.effects.window_opacity = if self.effects.window_opacity.is_finite() {
                 self.effects.window_opacity.clamp(0.2, 1.0)
@@ -126,7 +145,10 @@ impl ThemeSpec {
         self.effects.artwork_tint_strength = self.effects.artwork_tint_strength.clamp(0.0, 1.0);
         if !(0.0..=64.0).contains(&self.effects.backdrop_blur) {
             self.effects.backdrop_blur = self.effects.backdrop_blur.clamp(0.0, 64.0);
-            warnings.push(ThemeWarning::new("effects.backdrop_blur", "ajustado para [0, 64]"));
+            warnings.push(ThemeWarning::new(
+                "effects.backdrop_blur",
+                "ajustado para [0, 64]",
+            ));
         }
 
         // Movimento.
@@ -152,7 +174,11 @@ impl ThemeSpec {
             ("radius_artwork", &mut self.shape.radius_artwork, 999.0),
             ("radius_avatar", &mut self.shape.radius_avatar, 999.0),
             ("border_width", &mut self.shape.border_width, 8.0),
-            ("progress_thickness", &mut self.shape.progress_thickness, 32.0),
+            (
+                "progress_thickness",
+                &mut self.shape.progress_thickness,
+                32.0,
+            ),
             ("scrollbar_width", &mut self.shape.scrollbar_width, 40.0),
         ] {
             if !(0.0..=max).contains(v) || !v.is_finite() {
@@ -160,7 +186,11 @@ impl ThemeSpec {
                     format!("shape.{name}"),
                     format!("{v} fora da faixa [0, {max}], ajustado"),
                 ));
-                *v = if v.is_finite() { v.clamp(0.0, max) } else { 0.0 };
+                *v = if v.is_finite() {
+                    v.clamp(0.0, max)
+                } else {
+                    0.0
+                };
             }
         }
 
@@ -206,7 +236,10 @@ mod tests {
     fn builtin_theme_is_clean() {
         let mut t = ThemeSpec::default();
         let warnings = t.sanitize();
-        assert!(warnings.is_empty(), "tema embutido deveria estar limpo: {warnings:?}");
+        assert!(
+            warnings.is_empty(),
+            "tema embutido deveria estar limpo: {warnings:?}"
+        );
         assert!(t.validate_manifest().is_ok());
     }
 
@@ -258,7 +291,10 @@ mod tests {
         let first = t.sanitize();
         assert!(!first.is_empty());
         let second = t.sanitize();
-        assert!(second.is_empty(), "segunda passada ainda reclamou: {second:?}");
+        assert!(
+            second.is_empty(),
+            "segunda passada ainda reclamou: {second:?}"
+        );
     }
 
     #[test]

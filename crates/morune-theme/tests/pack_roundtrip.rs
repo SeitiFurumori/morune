@@ -82,12 +82,19 @@ fn imports_a_well_formed_pack() {
     assert_eq!(imported.manifest.id, "importado");
     assert_eq!(imported.files_written, 3);
     assert!(themes.join("importado").join("theme.toml").is_file());
-    assert!(themes.join("importado").join("assets").join("capa.png").is_file());
+    assert!(themes
+        .join("importado")
+        .join("assets")
+        .join("capa.png")
+        .is_file());
 
     // E o tema importado precisa carregar de verdade, nao so existir em disco.
     let loaded = morune_theme::load(&themes, "importado");
     assert!(loaded.is_healthy(), "{:?}", loaded.errors);
-    assert_eq!(loaded.spec.colors.accent, morune_theme::Color::rgb(0xff, 0x00, 0x66));
+    assert_eq!(
+        loaded.spec.colors.accent,
+        morune_theme::Color::rgb(0xff, 0x00, 0x66)
+    );
 }
 
 #[test]
@@ -117,8 +124,16 @@ fn export_then_import_round_trips() {
     let imported = import_pack(&pack, &destino, false).unwrap();
 
     assert_eq!(imported.manifest.id, "origem");
-    assert!(destino.join("origem").join("assets").join("x.png").is_file());
-    assert!(!destino.join("origem").join("assets").join("payload.exe").exists());
+    assert!(destino
+        .join("origem")
+        .join("assets")
+        .join("x.png")
+        .is_file());
+    assert!(!destino
+        .join("origem")
+        .join("assets")
+        .join("payload.exe")
+        .exists());
 }
 
 #[test]
@@ -137,7 +152,10 @@ fn refuses_path_traversal_and_writes_nothing() {
     );
 
     let err = import_pack(&pack, &themes, false).unwrap_err();
-    assert!(matches!(err, PackError::UnsafePath(_)), "erro inesperado: {err}");
+    assert!(
+        matches!(err, PackError::UnsafePath(_)),
+        "erro inesperado: {err}"
+    );
 
     // Nada foi escrito: nem o alvo, nem a pasta temporaria de importacao.
     assert!(!dir.path().join("fora.toml").exists());
@@ -154,7 +172,10 @@ fn refuses_executable_payloads() {
 
     write_zip(
         &pack,
-        &[("manifest.toml", MANIFEST.as_bytes()), ("assets/instalar.exe", b"MZ")],
+        &[
+            ("manifest.toml", MANIFEST.as_bytes()),
+            ("assets/instalar.exe", b"MZ"),
+        ],
     );
 
     assert!(matches!(
@@ -175,11 +196,17 @@ fn refuses_a_compression_bomb() {
     let zeros = vec![0u8; 4 * 1024 * 1024];
     write_zip(
         &pack,
-        &[("manifest.toml", MANIFEST.as_bytes()), ("assets/grande.png", &zeros)],
+        &[
+            ("manifest.toml", MANIFEST.as_bytes()),
+            ("assets/grande.png", &zeros),
+        ],
     );
 
     let err = import_pack(&pack, &themes, false).unwrap_err();
-    assert!(matches!(err, PackError::CompressionBomb(_, _)), "erro inesperado: {err}");
+    assert!(
+        matches!(err, PackError::CompressionBomb(_, _)),
+        "erro inesperado: {err}"
+    );
     assert_eq!(fs::read_dir(&themes).unwrap().count(), 0);
 }
 

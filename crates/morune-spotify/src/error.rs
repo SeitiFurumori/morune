@@ -5,8 +5,8 @@
 //! outra vez, ou se e definitivo. Manter essa traducao num lugar so e o que
 //! garante que um erro novo nao vire "erro desconhecido" na tela.
 
-use librespot_core::Error as LibrespotError;
 use librespot_core::error::ErrorKind;
+use librespot_core::Error as LibrespotError;
 use morune_core::CoreError;
 
 /// Converte um erro da librespot preservando a decisao que a UI precisa tomar.

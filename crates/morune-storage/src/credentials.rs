@@ -81,7 +81,14 @@ mod windows_impl {
 
             // SAFETY: `target` e uma string terminada em nulo valida; em caso
             // de sucesso `raw` recebe um ponteiro que liberamos com CredFree.
-            let result = unsafe { CredReadW(PWSTR(target.as_ptr() as *mut u16), CRED_TYPE_GENERIC, None, &mut raw) };
+            let result = unsafe {
+                CredReadW(
+                    PWSTR(target.as_ptr() as *mut u16),
+                    CRED_TYPE_GENERIC,
+                    None,
+                    &mut raw,
+                )
+            };
 
             if let Err(e) = result {
                 return if e.code() == ERROR_NOT_FOUND.to_hresult() {
@@ -109,7 +116,8 @@ mod windows_impl {
         fn delete(&self, key: &str) -> CoreResult<()> {
             let target = wide(&target_name(key));
             // SAFETY: string valida terminada em nulo.
-            let result = unsafe { CredDeleteW(PWSTR(target.as_ptr() as *mut u16), CRED_TYPE_GENERIC, None) };
+            let result =
+                unsafe { CredDeleteW(PWSTR(target.as_ptr() as *mut u16), CRED_TYPE_GENERIC, None) };
             match result {
                 Ok(()) => Ok(()),
                 // Apagar o que nao existe e sucesso: o estado desejado ja vale.
@@ -166,7 +174,10 @@ mod tests {
             let _ = store.delete(&k);
 
             store.store(&k, b"token-de-teste").unwrap();
-            assert_eq!(store.load(&k).unwrap().as_deref(), Some(&b"token-de-teste"[..]));
+            assert_eq!(
+                store.load(&k).unwrap().as_deref(),
+                Some(&b"token-de-teste"[..])
+            );
 
             store.delete(&k).unwrap();
             assert!(store.load(&k).unwrap().is_none());

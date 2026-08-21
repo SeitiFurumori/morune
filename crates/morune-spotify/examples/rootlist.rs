@@ -18,7 +18,11 @@ fn main() {
     };
 
     let resumos = morune_spotify::debug_rootlist(&bytes).expect("rootlist ilegivel");
-    println!("{} playlists lidas de {} bytes\n", resumos.len(), bytes.len());
+    println!(
+        "{} playlists lidas de {} bytes\n",
+        resumos.len(),
+        bytes.len()
+    );
 
     for (nome, dono, tamanho, formato) in resumos.iter().take(40) {
         let marca = if !formato.is_empty() || dono.eq_ignore_ascii_case("spotify") {

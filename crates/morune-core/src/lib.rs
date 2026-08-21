@@ -21,7 +21,9 @@ pub mod model;
 pub mod playback;
 pub mod queue;
 
+pub use catalog::Artwork;
 pub use error::{CoreError, CoreResult, ErrorKind};
+pub use model::PlaylistKind;
 pub use model::{
     Album, AlbumId, AlbumRef, Artist, ArtistId, ArtistRef, ImageRef, ImageSet, Playlist,
     PlaylistId, Provider, Track, TrackId,
@@ -30,8 +32,6 @@ pub use playback::{
     EngineCapabilities, NullEngine, PlaybackEngine, PlaybackState, PlayerCommand, PlayerEvent,
     PlayerSnapshot,
 };
-pub use catalog::Artwork;
-pub use model::PlaylistKind;
 pub use queue::{Queue, QueueOrigin, RepeatMode};
 
 /// Versao da crate, exposta para telas de "sobre" e para log de diagnostico.

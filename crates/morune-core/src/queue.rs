@@ -195,7 +195,9 @@ impl Queue {
                 .take(max)
                 .collect()
         } else {
-            tail.filter_map(|&i| self.context.get(i)).take(max).collect()
+            tail.filter_map(|&i| self.context.get(i))
+                .take(max)
+                .collect()
         }
     }
 
@@ -633,7 +635,10 @@ mod tests {
 
         assert!(q.move_user_queue(2, 0));
         assert_eq!(q.user_queue().next().unwrap().name.as_ref(), "Track 70");
-        assert_eq!(q.remove_from_user_queue(1).unwrap().name.as_ref(), "Track 50");
+        assert_eq!(
+            q.remove_from_user_queue(1).unwrap().name.as_ref(),
+            "Track 50"
+        );
         q.clear_user_queue();
         assert_eq!(q.user_queue_len(), 0);
     }

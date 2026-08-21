@@ -65,7 +65,11 @@ fn apply_typography(t: &UiTheme<'_>, s: &ThemeSpec, over: UserOverrides) {
     // A escala do usuario, quando definida, substitui a do tema em vez de
     // multiplicar: dois multiplicadores empilhados produzem tamanhos
     // imprevisiveis quando a pessoa troca de tema.
-    let scale = if over.font_scale > 0.0 { over.font_scale } else { typo.scale };
+    let scale = if over.font_scale > 0.0 {
+        over.font_scale
+    } else {
+        typo.scale
+    };
     let sized = |base: f32| ((base * scale) * 2.0).round() / 2.0;
 
     t.set_font_family(SharedString::from(typo.family.as_str()));
@@ -177,7 +181,10 @@ fn apply_layout(l: &UiLayout<'_>, s: &ThemeSpec, over: UserOverrides) {
 /// Aplicado uma unica vez na abertura: redimensionar a janela do usuario a cada
 /// troca de tema seria hostil.
 pub fn initial_window_size(spec: &ThemeSpec) -> (f32, f32) {
-    (spec.layout.window.default_width, spec.layout.window.default_height)
+    (
+        spec.layout.window.default_width,
+        spec.layout.window.default_height,
+    )
 }
 
 #[cfg(test)]
@@ -187,10 +194,19 @@ mod tests {
     #[test]
     fn reduce_motion_zeroes_every_duration() {
         let spec = ThemeSpec::default();
-        let over = UserOverrides { reduce_motion: true, ..Default::default() };
+        let over = UserOverrides {
+            reduce_motion: true,
+            ..Default::default()
+        };
         // `apply_motion` e testado atraves do calculo que ele usa; a chamada
         // real precisa de uma janela viva, entao aqui verificamos a regra.
-        let d = |base: i32| if over.reduce_motion { 0 } else { spec.motion.effective(base) };
+        let d = |base: i32| {
+            if over.reduce_motion {
+                0
+            } else {
+                spec.motion.effective(base)
+            }
+        };
         assert_eq!(d(spec.motion.duration_fast), 0);
         assert_eq!(d(spec.motion.duration_slow), 0);
     }
@@ -199,8 +215,15 @@ mod tests {
     fn user_font_scale_replaces_theme_scale() {
         let mut spec = ThemeSpec::default();
         spec.typography.scale = 2.0;
-        let over = UserOverrides { font_scale: 1.5, ..Default::default() };
-        let scale = if over.font_scale > 0.0 { over.font_scale } else { spec.typography.scale };
+        let over = UserOverrides {
+            font_scale: 1.5,
+            ..Default::default()
+        };
+        let scale = if over.font_scale > 0.0 {
+            over.font_scale
+        } else {
+            spec.typography.scale
+        };
         assert_eq!(scale, 1.5);
     }
 
@@ -209,7 +232,11 @@ mod tests {
         let mut spec = ThemeSpec::default();
         spec.typography.scale = 1.25;
         let over = UserOverrides::default();
-        let scale = if over.font_scale > 0.0 { over.font_scale } else { spec.typography.scale };
+        let scale = if over.font_scale > 0.0 {
+            over.font_scale
+        } else {
+            spec.typography.scale
+        };
         assert_eq!(scale, 1.25);
     }
 

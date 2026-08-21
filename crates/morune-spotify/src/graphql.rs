@@ -245,10 +245,7 @@ impl SearchDataDto {
     }
 }
 
-fn unwrap<T, U>(
-    list: Option<ItemsDto<WrapperDto<T>>>,
-    map: impl Fn(T) -> Option<U>,
-) -> Vec<U> {
+fn unwrap<T, U>(list: Option<ItemsDto<WrapperDto<T>>>, map: impl Fn(T) -> Option<U>) -> Vec<U> {
     list.unwrap_or_default()
         .present()
         .into_iter()
@@ -283,7 +280,11 @@ fn image_set(cover: Option<CoverDto>) -> ImageSet {
         .unwrap_or_default()
         .sources
         .into_iter()
-        .map(|s| ImageRef { url: Arc::from(s.url.as_str()), width: s.width, height: s.height })
+        .map(|s| ImageRef {
+            url: Arc::from(s.url.as_str()),
+            width: s.width,
+            height: s.height,
+        })
         .collect();
     // O contrato do `ImageSet` e menor primeiro, e o GraphQL entrega em ordem
     // arbitraria -- na amostra veio 300, 64, 640.
@@ -298,9 +299,7 @@ fn artist_refs(list: Option<ItemsDto<ArtistRefDto>>) -> Vec<ArtistRef> {
         .filter_map(|a| {
             Some(ArtistRef {
                 id: ArtistId::spotify(id_from_uri(a.uri, "artist")?.as_str()),
-                name: Arc::from(
-                    a.profile.and_then(|p| p.name).unwrap_or_default().as_str(),
-                ),
+                name: Arc::from(a.profile.and_then(|p| p.name).unwrap_or_default().as_str()),
             })
         })
         .collect()
@@ -310,7 +309,10 @@ impl TrackDto {
     pub(crate) fn into_track(self) -> Option<Track> {
         // Faixa e o unico tipo que traz `id` proprio; a URI cobre o caso de ele
         // faltar.
-        let id = self.id.filter(|i| !i.is_empty()).or_else(|| id_from_uri(self.uri, "track"))?;
+        let id = self
+            .id
+            .filter(|i| !i.is_empty())
+            .or_else(|| id_from_uri(self.uri, "track"))?;
 
         Some(Track {
             id: TrackId::spotify(id.as_str()),
@@ -333,7 +335,10 @@ impl TrackDto {
 
 impl AlbumRefDto {
     fn into_ref(self) -> Option<AlbumRef> {
-        let id = self.id.filter(|i| !i.is_empty()).or_else(|| id_from_uri(self.uri, "album"))?;
+        let id = self
+            .id
+            .filter(|i| !i.is_empty())
+            .or_else(|| id_from_uri(self.uri, "album"))?;
         Some(AlbumRef {
             id: AlbumId::spotify(id.as_str()),
             name: Arc::from(self.name.unwrap_or_default().as_str()),
@@ -349,7 +354,10 @@ impl AlbumDto {
             name: Arc::from(self.name.unwrap_or_default().as_str()),
             artists: artist_refs(self.artists),
             images: image_set(self.cover),
-            release_date: self.date.and_then(|d| d.year).map(|y| Arc::from(y.to_string().as_str())),
+            release_date: self
+                .date
+                .and_then(|d| d.year)
+                .map(|y| Arc::from(y.to_string().as_str())),
             // A busca lista albuns; quantas faixas cada um tem e assunto da
             // tela de album, que pede o metadado pelo protocolo interno.
             total_tracks: None,
@@ -363,7 +371,10 @@ impl ArtistDto {
         Some(Artist {
             id: ArtistId::spotify(id_from_uri(self.uri, "artist")?.as_str()),
             name: Arc::from(
-                self.profile.and_then(|p| p.name).unwrap_or_default().as_str(),
+                self.profile
+                    .and_then(|p| p.name)
+                    .unwrap_or_default()
+                    .as_str(),
             ),
             images: image_set(self.visuals.and_then(|v| v.avatar)),
             genres: Vec::new(),
@@ -392,7 +403,10 @@ impl PlaylistDto {
                 .and_then(|o| o.name)
                 .filter(|n| !n.is_empty())
                 .map(|n| Arc::from(n.as_str())),
-            description: self.description.filter(|d| !d.is_empty()).map(|d| Arc::from(d.as_str())),
+            description: self
+                .description
+                .filter(|d| !d.is_empty())
+                .map(|d| Arc::from(d.as_str())),
             images: image_set(cover),
             total_tracks: None,
             tracks: Vec::new(),
@@ -430,7 +444,10 @@ mod tests {
         assert_eq!(r.tracks[0].name.as_ref(), "Bohemian Rhapsody");
         assert_eq!(r.tracks[0].duration, Duration::from_millis(355154));
         assert_eq!(r.tracks[0].artists[0].name.as_ref(), "Queen");
-        assert_eq!(r.tracks[0].album.as_ref().unwrap().name.as_ref(), "A Night At The Opera");
+        assert_eq!(
+            r.tracks[0].album.as_ref().unwrap().name.as_ref(),
+            "A Night At The Opera"
+        );
         assert!(!r.tracks[0].explicit);
         assert!(r.tracks[0].playable);
     }

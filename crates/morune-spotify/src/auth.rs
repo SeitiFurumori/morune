@@ -45,7 +45,7 @@ use morune_core::catalog::BoxFuture;
 use morune_core::{CoreError, CoreResult};
 
 use crate::error::{from_librespot, from_oauth};
-use crate::token::{REDIRECT_URI, TokenSource};
+use crate::token::{TokenSource, REDIRECT_URI};
 
 /// Sessao ativa da librespot, compartilhada entre autenticador e motor.
 ///
@@ -73,7 +73,11 @@ impl SharedSession {
     /// Spotify derruba sessao ociosa, e a rede cai sozinha. Quem le isto e o
     /// aplicativo, para reconectar sem pedir nada ao usuario.
     pub fn is_lost(&self) -> bool {
-        self.0.lock().unwrap().as_ref().is_some_and(|s| s.is_invalid())
+        self.0
+            .lock()
+            .unwrap()
+            .as_ref()
+            .is_some_and(|s| s.is_invalid())
     }
 
     /// Esquece a sessao morta, para que a proxima tentativa comece limpa.
@@ -91,7 +95,9 @@ impl SharedSession {
 
 impl std::fmt::Debug for SharedSession {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SharedSession").field("conectada", &self.get().is_some()).finish()
+        f.debug_struct("SharedSession")
+            .field("conectada", &self.get().is_some())
+            .finish()
     }
 }
 
@@ -105,7 +111,9 @@ pub struct SpotifyAuthenticator {
 
 impl std::fmt::Debug for SpotifyAuthenticator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SpotifyAuthenticator").field("session", &self.session).finish()
+        f.debug_struct("SpotifyAuthenticator")
+            .field("session", &self.session)
+            .finish()
     }
 }
 
@@ -115,7 +123,11 @@ impl SpotifyAuthenticator {
     }
 
     pub(crate) fn with_tokens(tokens: Arc<TokenSource>, session: SharedSession) -> Self {
-        Self { tokens, session, pending: Mutex::new(None) }
+        Self {
+            tokens,
+            session,
+            pending: Mutex::new(None),
+        }
     }
 
     /// Abre a sessao da librespot com um token de acesso e devolve o perfil.
@@ -136,7 +148,9 @@ impl SpotifyAuthenticator {
         self.tokens.adopt(token.clone()).await;
 
         let session = Session::new(SessionConfig::default(), None);
-        if let Err(e) = session.connect(Credentials::with_access_token(&token.access_token), false).await
+        if let Err(e) = session
+            .connect(Credentials::with_access_token(&token.access_token), false)
+            .await
         {
             self.tokens.forget().await.ok();
             return Err(from_librespot(e));

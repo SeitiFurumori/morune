@@ -110,8 +110,18 @@ mod tests {
         for theme in THEMES {
             let loaded = morune_theme::load(&dir, theme.id);
             assert!(!loaded.fell_back, "{} caiu para o embutido", theme.id);
-            assert!(loaded.errors.is_empty(), "{}: {:?}", theme.id, loaded.errors);
-            assert!(loaded.warnings.is_empty(), "{}: {:?}", theme.id, loaded.warnings);
+            assert!(
+                loaded.errors.is_empty(),
+                "{}: {:?}",
+                theme.id,
+                loaded.errors
+            );
+            assert!(
+                loaded.warnings.is_empty(),
+                "{}: {:?}",
+                theme.id,
+                loaded.warnings
+            );
             assert_eq!(loaded.spec.manifest.id, theme.id);
         }
 
@@ -127,9 +137,15 @@ mod tests {
         let paper = morune_theme::load(&dir, "paper").spec;
 
         assert_ne!(paper.colors.background, builtin.colors.background);
-        assert_ne!(paper.layout.sidebar.position, builtin.layout.sidebar.position);
+        assert_ne!(
+            paper.layout.sidebar.position,
+            builtin.layout.sidebar.position
+        );
         assert_ne!(paper.layout.player.position, builtin.layout.player.position);
-        assert_ne!(paper.layout.content.view_mode, builtin.layout.content.view_mode);
+        assert_ne!(
+            paper.layout.content.view_mode,
+            builtin.layout.content.view_mode
+        );
         assert_ne!(paper.shape.radius_md, builtin.shape.radius_md);
 
         let _ = std::fs::remove_dir_all(&dir);

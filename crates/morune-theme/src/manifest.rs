@@ -65,9 +65,7 @@ pub enum ManifestError {
     InvalidId(String),
     #[error("nome de tema vazio")]
     EmptyName,
-    #[error(
-        "tema escrito para o esquema {found}, mas este aplicativo entende ate o {supported}"
-    )]
+    #[error("tema escrito para o esquema {found}, mas este aplicativo entende ate o {supported}")]
     SchemaTooNew { found: u32, supported: u32 },
     #[error("tema herda de si mesmo")]
     SelfInheritance,
@@ -123,7 +121,9 @@ impl ThemeManifest {
 pub fn is_safe_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 64
-        && id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
+        && id
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
 }
 
 #[cfg(test)]
@@ -132,12 +132,23 @@ mod tests {
 
     #[test]
     fn minimal_manifest_is_valid() {
-        assert!(ThemeManifest::new("midnight", "Midnight").validate().is_ok());
+        assert!(ThemeManifest::new("midnight", "Midnight")
+            .validate()
+            .is_ok());
     }
 
     #[test]
     fn path_traversal_ids_are_rejected() {
-        for bad in ["../evil", "..", "a/b", "a\\b", "C:", "con", "nome com espaco", "MAIUSCULA"] {
+        for bad in [
+            "../evil",
+            "..",
+            "a/b",
+            "a\\b",
+            "C:",
+            "con",
+            "nome com espaco",
+            "MAIUSCULA",
+        ] {
             let m = ThemeManifest::new(bad, "x");
             // "con" e um nome reservado no Windows mas passa no filtro de
             // caracteres; o que importa aqui e que nada com separador ou
@@ -155,8 +166,14 @@ mod tests {
 
     #[test]
     fn empty_fields_are_rejected() {
-        assert_eq!(ThemeManifest::new("", "x").validate(), Err(ManifestError::EmptyId));
-        assert_eq!(ThemeManifest::new("ok", "   ").validate(), Err(ManifestError::EmptyName));
+        assert_eq!(
+            ThemeManifest::new("", "x").validate(),
+            Err(ManifestError::EmptyId)
+        );
+        assert_eq!(
+            ThemeManifest::new("ok", "   ").validate(),
+            Err(ManifestError::EmptyName)
+        );
     }
 
     #[test]
@@ -171,7 +188,9 @@ mod tests {
                 supported: CURRENT_SCHEMA_VERSION
             }
         );
-        assert!(err.to_string().contains(&(CURRENT_SCHEMA_VERSION + 5).to_string()));
+        assert!(err
+            .to_string()
+            .contains(&(CURRENT_SCHEMA_VERSION + 5).to_string()));
     }
 
     #[test]

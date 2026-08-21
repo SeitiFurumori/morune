@@ -36,7 +36,10 @@ macro_rules! resource_id {
 
         impl $name {
             pub fn new(provider: Provider, id: impl Into<Arc<str>>) -> Self {
-                Self { provider, id: id.into() }
+                Self {
+                    provider,
+                    id: id.into(),
+                }
             }
 
             pub fn spotify(id: impl Into<Arc<str>>) -> Self {
@@ -76,11 +79,19 @@ pub struct ImageRef {
 
 impl ImageRef {
     pub fn new(url: impl Into<Arc<str>>) -> Self {
-        Self { url: url.into(), width: None, height: None }
+        Self {
+            url: url.into(),
+            width: None,
+            height: None,
+        }
     }
 
     pub fn sized(url: impl Into<Arc<str>>, width: u32, height: u32) -> Self {
-        Self { url: url.into(), width: Some(width), height: Some(height) }
+        Self {
+            url: url.into(),
+            width: Some(width),
+            height: Some(height),
+        }
     }
 }
 
@@ -136,7 +147,11 @@ pub struct Track {
 impl Track {
     /// Nome dos artistas para exibicao, ja concatenado.
     pub fn artists_line(&self) -> String {
-        self.artists.iter().map(|a| a.name.as_ref()).collect::<Vec<_>>().join(", ")
+        self.artists
+            .iter()
+            .map(|a| a.name.as_ref())
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 }
 

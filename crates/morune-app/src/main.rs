@@ -25,8 +25,8 @@ mod instance;
 mod session;
 #[cfg(feature = "snapshot")]
 mod snapshot;
-mod state;
 mod startup;
+mod state;
 #[cfg(windows)]
 mod taskbar;
 mod theme_bridge;
@@ -54,19 +54,18 @@ fn main() -> anyhow::Result<()> {
     }
 
     #[cfg(windows)]
-    let _single_instance = if cfg!(feature = "snapshot")
-        && std::env::var_os("MORUNE_SNAPSHOT").is_some()
-    {
-        // A ferramenta visual precisa coexistir com o aplicativo que o dono
-        // esta usando. Isto nao entra no build normal porque a feature fica
-        // desligada em release.
-        None
-    } else {
-        let Some(instance) = instance::SingleInstance::acquire()? else {
-            return Ok(());
+    let _single_instance =
+        if cfg!(feature = "snapshot") && std::env::var_os("MORUNE_SNAPSHOT").is_some() {
+            // A ferramenta visual precisa coexistir com o aplicativo que o dono
+            // esta usando. Isto nao entra no build normal porque a feature fica
+            // desligada em release.
+            None
+        } else {
+            let Some(instance) = instance::SingleInstance::acquire()? else {
+                return Ok(());
+            };
+            Some(instance)
         };
-        Some(instance)
-    };
 
     let started = Instant::now();
     let started_with_windows = std::env::args_os().any(|arg| arg == "--startup");

@@ -131,7 +131,10 @@ impl Default for SidebarLayout {
             show_labels: true,
             show_playlists: true,
             playlist_height: 40.0,
-            items: ["home", "search", "library"].iter().map(|s| s.to_string()).collect(),
+            items: ["home", "search", "library"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
         }
     }
 }
@@ -229,7 +232,11 @@ impl LayoutSpec {
         let mut clamp = |name: &str, value: &mut f32, min: f32, max: f32| {
             if *value < min || *value > max || !value.is_finite() {
                 let old = *value;
-                *value = if value.is_finite() { value.clamp(min, max) } else { min };
+                *value = if value.is_finite() {
+                    value.clamp(min, max)
+                } else {
+                    min
+                };
                 warnings.push(format!(
                     "{name}: {old} fora da faixa [{min}, {max}], ajustado para {}",
                     *value
@@ -237,23 +244,78 @@ impl LayoutSpec {
             }
         };
 
-        clamp("window.default_width", &mut self.window.default_width, 480.0, 8000.0);
-        clamp("window.default_height", &mut self.window.default_height, 360.0, 8000.0);
-        clamp("window.min_width", &mut self.window.min_width, 480.0, 4000.0);
-        clamp("window.min_height", &mut self.window.min_height, 360.0, 4000.0);
+        clamp(
+            "window.default_width",
+            &mut self.window.default_width,
+            480.0,
+            8000.0,
+        );
+        clamp(
+            "window.default_height",
+            &mut self.window.default_height,
+            360.0,
+            8000.0,
+        );
+        clamp(
+            "window.min_width",
+            &mut self.window.min_width,
+            480.0,
+            4000.0,
+        );
+        clamp(
+            "window.min_height",
+            &mut self.window.min_height,
+            360.0,
+            4000.0,
+        );
         clamp("sidebar.width", &mut self.sidebar.width, 120.0, 600.0);
-        clamp("sidebar.collapsed_width", &mut self.sidebar.collapsed_width, 40.0, 200.0);
+        clamp(
+            "sidebar.collapsed_width",
+            &mut self.sidebar.collapsed_width,
+            40.0,
+            200.0,
+        );
         // Abaixo de 24 a capa some; acima de 96 cabem meia duzia de playlists
         // na barra inteira, o que a torna inutil como navegacao.
-        clamp("sidebar.playlist_height", &mut self.sidebar.playlist_height, 24.0, 96.0);
+        clamp(
+            "sidebar.playlist_height",
+            &mut self.sidebar.playlist_height,
+            24.0,
+            96.0,
+        );
         // Abaixo de 64 a capa nao serve de cabecalho; acima de 320 ela empurra a
         // lista inteira para fora da primeira tela.
-        clamp("detail.cover_size", &mut self.detail.cover_size, 64.0, 320.0);
+        clamp(
+            "detail.cover_size",
+            &mut self.detail.cover_size,
+            64.0,
+            320.0,
+        );
         clamp("player.height", &mut self.player.height, 48.0, 260.0);
-        clamp("player.artwork_size", &mut self.player.artwork_size, 0.0, 240.0);
-        clamp("content.card_width", &mut self.content.card_width, 80.0, 480.0);
-        clamp("content.row_height", &mut self.content.row_height, 24.0, 120.0);
-        clamp("content.hero_height", &mut self.content.hero_height, 0.0, 600.0);
+        clamp(
+            "player.artwork_size",
+            &mut self.player.artwork_size,
+            0.0,
+            240.0,
+        );
+        clamp(
+            "content.card_width",
+            &mut self.content.card_width,
+            80.0,
+            480.0,
+        );
+        clamp(
+            "content.row_height",
+            &mut self.content.row_height,
+            24.0,
+            120.0,
+        );
+        clamp(
+            "content.hero_height",
+            &mut self.content.hero_height,
+            0.0,
+            600.0,
+        );
 
         if self.content.page_size == 0 || self.content.page_size > 1000 {
             warnings.push(format!(
