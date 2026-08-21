@@ -130,8 +130,10 @@ impl Tray {
             return;
         }
 
-        self.item_now.set_text(now_playing.unwrap_or("Nada tocando"));
-        self.item_toggle.set_text(if playing { "Pausar" } else { "Tocar" });
+        self.item_now
+            .set_text(now_playing.unwrap_or("Nada tocando"));
+        self.item_toggle
+            .set_text(if playing { "Pausar" } else { "Tocar" });
         self.item_toggle.set_enabled(now_playing.is_some());
 
         *last = (now_playing.map(str::to_owned), playing);
@@ -163,7 +165,11 @@ impl Tray {
         while let Ok(event) = TrayIconEvent::receiver().try_recv() {
             // Clique duplo no icone traz a janela, que e o gesto que as pessoas
             // ja esperam de qualquer aplicativo de bandeja no Windows.
-            if let TrayIconEvent::DoubleClick { button: tray_icon::MouseButton::Left, .. } = event {
+            if let TrayIconEvent::DoubleClick {
+                button: tray_icon::MouseButton::Left,
+                ..
+            } = event
+            {
                 out.push(TrayCommand::Show);
             }
         }
@@ -210,7 +216,10 @@ mod tests {
         let transparent = alpha.iter().filter(|&&a| a < 5).count();
 
         assert!(opaque > 50, "quase nada opaco: {opaque} px");
-        assert!(transparent > 300, "quase nada transparente: {transparent} px");
+        assert!(
+            transparent > 300,
+            "quase nada transparente: {transparent} px"
+        );
     }
 
     #[test]

@@ -81,12 +81,18 @@ impl std::fmt::Debug for TokenSource {
 
 impl TokenSource {
     pub(crate) fn new(credentials: Arc<dyn CredentialStore>) -> Self {
-        Self { credentials, current: Mutex::new(None) }
+        Self {
+            credentials,
+            current: Mutex::new(None),
+        }
     }
 
     /// Cliente OAuth que abre o navegador. So o login usa.
     pub(crate) fn interactive_client() -> CoreResult<OAuthClient> {
-        Self::builder().open_in_browser().build().map_err(from_oauth)
+        Self::builder()
+            .open_in_browser()
+            .build()
+            .map_err(from_oauth)
     }
 
     /// Cliente OAuth silencioso, para renovar sem interromper o usuario.
@@ -146,7 +152,10 @@ impl TokenSource {
         if token.refresh_token.is_empty() {
             return;
         }
-        if let Err(e) = self.credentials.store(REFRESH_KEY, token.refresh_token.as_bytes()) {
+        if let Err(e) = self
+            .credentials
+            .store(REFRESH_KEY, token.refresh_token.as_bytes())
+        {
             // Falhar aqui custa um login a mais na proxima abertura, e nada
             // mais: nao vale derrubar uma sessao que ja esta funcionando.
             tracing::warn!(error = %e, "nao foi possivel guardar o refresh token");
@@ -190,14 +199,21 @@ mod tests {
     #[tokio::test]
     async fn adopting_a_token_stores_the_refresh_secret() {
         let (store, tokens) = source();
-        tokens.adopt(token("segredo", Duration::from_secs(3600))).await;
-        assert_eq!(store.load(REFRESH_KEY).unwrap().as_deref(), Some(&b"segredo"[..]));
+        tokens
+            .adopt(token("segredo", Duration::from_secs(3600)))
+            .await;
+        assert_eq!(
+            store.load(REFRESH_KEY).unwrap().as_deref(),
+            Some(&b"segredo"[..])
+        );
     }
 
     #[tokio::test]
     async fn forgetting_clears_memory_and_the_vault() {
         let (store, tokens) = source();
-        tokens.adopt(token("segredo", Duration::from_secs(3600))).await;
+        tokens
+            .adopt(token("segredo", Duration::from_secs(3600)))
+            .await;
         tokens.forget().await.unwrap();
 
         assert!(store.load(REFRESH_KEY).unwrap().is_none());
@@ -209,7 +225,8 @@ mod tests {
         let renewed = TokenSource::keeping_refresh(token("", Duration::from_secs(60)), "antigo");
         assert_eq!(renewed.refresh_token, "antigo");
 
-        let rotated = TokenSource::keeping_refresh(token("novo", Duration::from_secs(60)), "antigo");
+        let rotated =
+            TokenSource::keeping_refresh(token("novo", Duration::from_secs(60)), "antigo");
         assert_eq!(rotated.refresh_token, "novo");
     }
 
@@ -226,7 +243,10 @@ mod tests {
         // A tela de consentimento mostra cada escopo. Pedir escrita sem usar
         // custa confianca do usuario e nao entrega nada.
         for scope in SCOPES {
-            assert!(!scope.contains("modify"), "escopo de escrita pedido sem uso: {scope}");
+            assert!(
+                !scope.contains("modify"),
+                "escopo de escrita pedido sem uso: {scope}"
+            );
         }
     }
 }

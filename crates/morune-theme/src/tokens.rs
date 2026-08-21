@@ -278,10 +278,16 @@ mod tests {
 
     #[test]
     fn typography_scale_rounds_to_half_pixel() {
-        let t = TypographyTokens { scale: 1.1, ..Default::default() };
+        let t = TypographyTokens {
+            scale: 1.1,
+            ..Default::default()
+        };
         assert_eq!(t.scaled(14.0), 15.5);
 
-        let t = TypographyTokens { scale: 1.0, ..Default::default() };
+        let t = TypographyTokens {
+            scale: 1.0,
+            ..Default::default()
+        };
         assert_eq!(t.scaled(14.0), 14.0);
     }
 
@@ -295,10 +301,16 @@ mod tests {
 
     #[test]
     fn motion_speed_is_clamped_to_a_sane_range() {
-        let fast = MotionTokens { speed: 100.0, ..Default::default() };
+        let fast = MotionTokens {
+            speed: 100.0,
+            ..Default::default()
+        };
         assert_eq!(fast.effective(100), 500);
 
-        let negative = MotionTokens { speed: -1.0, ..Default::default() };
+        let negative = MotionTokens {
+            speed: -1.0,
+            ..Default::default()
+        };
         assert_eq!(negative.effective(100), 0);
     }
 
@@ -331,6 +343,9 @@ mod tests {
     #[test]
     fn unknown_token_is_rejected_so_typos_are_visible() {
         let err = toml::from_str::<ColorTokens>(r##"acccent = "#ff0066""##).unwrap_err();
-        assert!(err.to_string().contains("acccent"), "erro pouco util: {err}");
+        assert!(
+            err.to_string().contains("acccent"),
+            "erro pouco util: {err}"
+        );
     }
 }

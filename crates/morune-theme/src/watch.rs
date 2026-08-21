@@ -75,7 +75,10 @@ impl ThemeWatcher {
             })
             .map_err(notify::Error::io)?;
 
-        Ok(Self { _watcher: watcher, _thread: thread })
+        Ok(Self {
+            _watcher: watcher,
+            _thread: thread,
+        })
     }
 }
 
@@ -104,7 +107,11 @@ mod tests {
     use notify::event::{AccessKind, CreateKind, ModifyKind};
 
     fn event(kind: EventKind, path: &str) -> Event {
-        Event { kind, paths: vec![PathBuf::from(path)], attrs: Default::default() }
+        Event {
+            kind,
+            paths: vec![PathBuf::from(path)],
+            attrs: Default::default(),
+        }
     }
 
     #[test]
@@ -126,14 +133,23 @@ mod tests {
             "C:/t/midnight/.theme.toml.swp",
             "C:/t/midnight/theme.toml.tmp",
         ] {
-            assert!(!is_relevant(&event(EventKind::Modify(ModifyKind::Any), p)), "{p}");
+            assert!(
+                !is_relevant(&event(EventKind::Modify(ModifyKind::Any), p)),
+                "{p}"
+            );
         }
     }
 
     #[test]
     fn unrelated_files_are_ignored() {
-        assert!(!is_relevant(&event(EventKind::Modify(ModifyKind::Any), "C:/t/midnight/notes.md")));
-        assert!(!is_relevant(&event(EventKind::Modify(ModifyKind::Any), "C:/t/midnight/x.exe")));
+        assert!(!is_relevant(&event(
+            EventKind::Modify(ModifyKind::Any),
+            "C:/t/midnight/notes.md"
+        )));
+        assert!(!is_relevant(&event(
+            EventKind::Modify(ModifyKind::Any),
+            "C:/t/midnight/x.exe"
+        )));
     }
 
     #[test]

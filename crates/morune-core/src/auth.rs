@@ -45,7 +45,11 @@ pub struct AccessToken {
 
 impl AccessToken {
     pub fn new(secret: impl Into<String>, expires_in: Duration, scopes: Vec<String>) -> Self {
-        Self { secret: secret.into(), expires_at: SystemTime::now() + expires_in, scopes }
+        Self {
+            secret: secret.into(),
+            expires_at: SystemTime::now() + expires_in,
+            scopes,
+        }
     }
 
     /// Acesso explicito ao segredo. O nome longo e proposital: chamadas a este
@@ -55,11 +59,17 @@ impl AccessToken {
     }
 
     pub fn redacted(&self) -> String {
-        format!("<token {} chars, expira em {:?}>", self.secret.len(), self.remaining())
+        format!(
+            "<token {} chars, expira em {:?}>",
+            self.secret.len(),
+            self.remaining()
+        )
     }
 
     pub fn remaining(&self) -> Duration {
-        self.expires_at.duration_since(SystemTime::now()).unwrap_or(Duration::ZERO)
+        self.expires_at
+            .duration_since(SystemTime::now())
+            .unwrap_or(Duration::ZERO)
     }
 
     /// Considera expirado com margem, para nao emitir requisicao com token que
@@ -116,7 +126,10 @@ pub struct MemoryCredentialStore {
 
 impl CredentialStore for MemoryCredentialStore {
     fn store(&self, key: &str, secret: &[u8]) -> CoreResult<()> {
-        self.entries.lock().unwrap().insert(key.to_string(), secret.to_vec());
+        self.entries
+            .lock()
+            .unwrap()
+            .insert(key.to_string(), secret.to_vec());
         Ok(())
     }
 

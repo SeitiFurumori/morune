@@ -57,7 +57,8 @@ impl SharedVolume {
 
     pub(crate) fn set(&self, linear: f32) {
         let clamped = linear.clamp(0.0, 1.0) as f64;
-        self.0.store((clamped * Self::SCALE) as u64, Ordering::Relaxed);
+        self.0
+            .store((clamped * Self::SCALE) as u64, Ordering::Relaxed);
     }
 
     pub(crate) fn linear(&self) -> f32 {
@@ -92,7 +93,11 @@ struct PositionClock {
 
 impl Default for PositionClock {
     fn default() -> Self {
-        Self { anchor: Duration::ZERO, since: Instant::now(), running: false }
+        Self {
+            anchor: Duration::ZERO,
+            since: Instant::now(),
+            running: false,
+        }
     }
 }
 
@@ -110,7 +115,11 @@ impl PositionClock {
     }
 
     fn now(&self) -> Duration {
-        if self.running { self.anchor + self.since.elapsed() } else { self.anchor }
+        if self.running {
+            self.anchor + self.since.elapsed()
+        } else {
+            self.anchor
+        }
     }
 }
 
@@ -153,7 +162,9 @@ pub struct SpotifyEngine {
 
 impl std::fmt::Debug for SpotifyEngine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SpotifyEngine").field("snapshot", &self.snapshot()).finish()
+        f.debug_struct("SpotifyEngine")
+            .field("snapshot", &self.snapshot())
+            .finish()
     }
 }
 
@@ -163,9 +174,7 @@ impl SpotifyEngine {
     /// `handle` e o runtime onde a librespot vai viver -- o mesmo que executou
     /// o login, para nao haver dois runtimes disputando as mesmas conexoes.
     pub fn new(session: SharedSession, handle: tokio::runtime::Handle) -> CoreResult<Self> {
-        let live = session
-            .get()
-            .ok_or(CoreError::NotAuthenticated)?;
+        let live = session.get().ok_or(CoreError::NotAuthenticated)?;
 
         let volume = Arc::new(SharedVolume::default());
         volume.set(1.0);
@@ -176,8 +185,8 @@ impl SpotifyEngine {
         // esta em [`crate::sink`]. Abrir aqui, e nao dentro do construtor do
         // `Player`, e o que permite reportar falha de dispositivo como falha de
         // dispositivo -- a librespot chamaria `unwrap` e derrubaria o processo.
-        let sink = crate::sink::open(volume.clone(), flush.clone())
-            .map_err(CoreError::AudioDevice)?;
+        let sink =
+            crate::sink::open(volume.clone(), flush.clone()).map_err(CoreError::AudioDevice)?;
 
         let player = Player::new(
             PlayerConfig::default(),
@@ -199,7 +208,11 @@ impl SpotifyEngine {
 
         handle.spawn(run(player, command_rx, events.clone(), shared.clone()));
 
-        Ok(Self { commands, events, shared })
+        Ok(Self {
+            commands,
+            events,
+            shared,
+        })
     }
 }
 
@@ -286,7 +299,10 @@ fn apply(
     shared: &Arc<Shared>,
 ) -> bool {
     match command {
-        PlayerCommand::Load { track, start_paused } => load(player, &track, start_paused, events, shared),
+        PlayerCommand::Load {
+            track,
+            start_paused,
+        } => load(player, &track, start_paused, events, shared),
         // Adiantar nao mexe no retrato nem pede descarte: a faixa que esta
         // tocando continua sendo a que toca. A librespot ignora o pedido se ja
         // tiver essa faixa pronta ou em carregamento, entao repetir e barato.
@@ -300,7 +316,11 @@ fn apply(
         PlayerCommand::Pause => player.pause(),
         PlayerCommand::TogglePlay => {
             let playing = shared.snapshot.lock().unwrap().state == PlaybackState::Playing;
-            if playing { player.pause() } else { player.play() }
+            if playing {
+                player.pause()
+            } else {
+                player.play()
+            }
         }
         PlayerCommand::Stop => {
             shared.request_flush();
@@ -371,11 +391,7 @@ fn load(
 }
 
 /// Traduz um evento da librespot para o vocabulario do core.
-fn translate(
-    event: LibrespotEvent,
-    events: &broadcast::Sender<PlayerEvent>,
-    shared: &Arc<Shared>,
-) {
+fn translate(event: LibrespotEvent, events: &broadcast::Sender<PlayerEvent>, shared: &Arc<Shared>) {
     match event {
         LibrespotEvent::Playing { position_ms, .. } => {
             let position = Duration::from_millis(position_ms as u64);
@@ -397,7 +413,11 @@ fn translate(
             let _ = events.send(PlayerEvent::StateChanged(PlaybackState::Paused));
         }
         LibrespotEvent::Loading { position_ms, .. } => {
-            shared.clock.lock().unwrap().set(Duration::from_millis(position_ms as u64), false);
+            shared
+                .clock
+                .lock()
+                .unwrap()
+                .set(Duration::from_millis(position_ms as u64), false);
             shared.update(|s| {
                 s.state = PlaybackState::Loading;
                 s.buffering = true;
@@ -417,7 +437,13 @@ fn translate(
             // Quem decide a proxima faixa e a fila. O motor so avisa que esta
             // acabou -- e `Queue::next(false)` sabe que o avanco foi automatico,
             // que e o que faz "repetir uma" funcionar.
-            let ended = shared.snapshot.lock().unwrap().track.as_ref().map(|t| t.id.clone());
+            let ended = shared
+                .snapshot
+                .lock()
+                .unwrap()
+                .track
+                .as_ref()
+                .map(|t| t.id.clone());
             shared.clock.lock().unwrap().pause();
             if let Some(id) = ended {
                 let _ = events.send(PlayerEvent::EndOfTrack(id));
@@ -506,7 +532,10 @@ mod tests {
     fn track_ids_become_spotify_uris() {
         let id = TrackId::spotify("4cOdK2wGLETKBW3PvgPWqT");
         let uri = to_spotify_uri(&id).expect("id valido");
-        assert_eq!(uri.to_uri().unwrap(), "spotify:track:4cOdK2wGLETKBW3PvgPWqT");
+        assert_eq!(
+            uri.to_uri().unwrap(),
+            "spotify:track:4cOdK2wGLETKBW3PvgPWqT"
+        );
     }
 
     #[test]

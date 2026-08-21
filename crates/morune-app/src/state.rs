@@ -480,7 +480,11 @@ impl AppState {
         }
 
         let has_action = self.undo_available() || self.retry_available;
-        if !status_expired(self.status_seen.1.elapsed(), has_action, Self::STATUS_TIMEOUT) {
+        if !status_expired(
+            self.status_seen.1.elapsed(),
+            has_action,
+            Self::STATUS_TIMEOUT,
+        ) {
             return false;
         }
 
@@ -597,13 +601,10 @@ impl AppState {
                 self.detail_loading = false;
                 let queue_can_follow = self.detail_filter.is_empty()
                     && self.detail_sort == SortBy::Original
-                    && self
-                        .detail
-                        .as_ref()
-                        .is_some_and(|detail| {
-                            self.queue.origin() == &detail.origin
-                                && self.queue.len() == detail.tracks.len()
-                        });
+                    && self.detail.as_ref().is_some_and(|detail| {
+                        self.queue.origin() == &detail.origin
+                            && self.queue.len() == detail.tracks.len()
+                    });
 
                 let mut accepted = false;
                 if let Some(detail) = &mut self.detail {
@@ -702,7 +703,9 @@ impl AppState {
                 if let Some(track) = track {
                     self.liked.tracks.retain(|item| item.id != outcome.id);
                     self.liked.tracks.insert(0, track.clone());
-                    self.liked.tracks.truncate(crate::browse::SHELF_TRACKS as usize);
+                    self.liked
+                        .tracks
+                        .truncate(crate::browse::SHELF_TRACKS as usize);
                     self.status = format!("{} foi adicionada as Musicas curtidas.", track.name);
                 } else {
                     self.status = "Faixa adicionada as Musicas curtidas do Spotify.".into();
@@ -714,14 +717,13 @@ impl AppState {
                 if let Some(detail) = &mut self.detail {
                     if detail.title == crate::browse::LIKED_TITLE {
                         detail.tracks.retain(|item| item.id != outcome.id);
-                        detail.total_tracks = detail.total_tracks.map(|total| total.saturating_sub(1));
+                        detail.total_tracks =
+                            detail.total_tracks.map(|total| total.saturating_sub(1));
                     }
                 }
                 self.status = track
                     .map(|track| format!("{} foi removida das Musicas curtidas.", track.name))
-                    .unwrap_or_else(|| {
-                        "Faixa removida das Musicas curtidas do Spotify.".into()
-                    });
+                    .unwrap_or_else(|| "Faixa removida das Musicas curtidas do Spotify.".into());
             }
             Err(message) => {
                 self.status = format!("Nao consegui atualizar o Spotify. {message}");
@@ -964,7 +966,11 @@ impl AppState {
     /// nesse caso o som comeca sem esperar o resto. Quando nao esta, a
     /// reproducao aguarda a lista completar em vez de tocar a faixa errada.
     fn play_opened_collection_from(&mut self, id: &TrackId) {
-        match self.detail_tracks().iter().position(|track| track.id == *id) {
+        match self
+            .detail_tracks()
+            .iter()
+            .position(|track| track.id == *id)
+        {
             Some(index) => {
                 self.play_detail_from(index);
                 if self.detail_has_more() {
@@ -1337,7 +1343,12 @@ impl AppState {
     /// redimensionamento continuo.
     pub fn remember_window_state(&mut self, width: f32, height: f32, maximized: bool) {
         self.config.window.maximized = maximized;
-        if !maximized && width.is_finite() && height.is_finite() && width >= 480.0 && height >= 320.0 {
+        if !maximized
+            && width.is_finite()
+            && height.is_finite()
+            && width >= 480.0
+            && height >= 320.0
+        {
             self.config.window.width = width;
             self.config.window.height = height;
         }

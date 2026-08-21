@@ -27,7 +27,7 @@
 //! busca quebrada nao derruba Inicio, Biblioteca nem reproducao.
 
 use bytes::Bytes;
-use http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderName};
+use http::header::{HeaderName, ACCEPT, AUTHORIZATION, CONTENT_TYPE};
 use http::{Method, Request};
 use morune_core::catalog::{SearchKind, SearchResults};
 use morune_core::model::{Provider, TrackId};
@@ -74,7 +74,9 @@ pub(crate) struct Pathfinder {
 
 impl std::fmt::Debug for Pathfinder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Pathfinder").field("session", &self.session).finish()
+        f.debug_struct("Pathfinder")
+            .field("session", &self.session)
+            .finish()
     }
 }
 
@@ -176,8 +178,16 @@ impl Pathfinder {
         // Os dois vem da sessao e sao renovados por ela. Pedir aqui, e nao
         // guardar, e o que evita mandar token vencido depois de o aplicativo
         // ficar horas aberto.
-        let token = session.login5().auth_token().await.map_err(from_librespot)?;
-        let client_token = session.spclient().client_token().await.map_err(from_librespot)?;
+        let token = session
+            .login5()
+            .auth_token()
+            .await
+            .map_err(from_librespot)?;
+        let client_token = session
+            .spclient()
+            .client_token()
+            .await
+            .map_err(from_librespot)?;
 
         let corpo = serde_json::json!({
             "operationName": operacao,
@@ -189,15 +199,21 @@ impl Pathfinder {
         let request = Request::builder()
             .method(Method::POST)
             .uri(endpoint)
-            .header(AUTHORIZATION, format!("{} {}", token.token_type, token.access_token))
+            .header(
+                AUTHORIZATION,
+                format!("{} {}", token.token_type, token.access_token),
+            )
             .header(CLIENT_TOKEN, client_token)
             .header(CONTENT_TYPE, "application/json")
             .header(ACCEPT, "application/json")
             .body(Bytes::from(corpo))
             .map_err(|e| CoreError::InvalidState(format!("requisicao invalida: {e}")))?;
 
-        let body =
-            session.http_client().request_body(request).await.map_err(from_librespot)?;
+        let body = session
+            .http_client()
+            .request_body(request)
+            .await
+            .map_err(from_librespot)?;
 
         serde_json::from_slice(&body).map_err(|e| {
             // O corpo bruto vai para o log e nao para a tela: traz o que o

@@ -43,7 +43,13 @@ const ALLOWED_EXTENSIONS: &[&str] = &[
 ];
 
 /// Arquivos aceitos na raiz do pacote.
-const ROOT_FILES: &[&str] = &["manifest.toml", "theme.toml", "layout.toml", "README.md", "LICENSE.txt"];
+const ROOT_FILES: &[&str] = &[
+    "manifest.toml",
+    "theme.toml",
+    "layout.toml",
+    "README.md",
+    "LICENSE.txt",
+];
 
 /// Diretorios aceitos no pacote.
 const ALLOWED_DIRS: &[&str] = &["assets", "fonts"];
@@ -69,7 +75,11 @@ pub enum PackError {
     ForbiddenFile(String),
 
     #[error("pacote grande demais: {what} ({value} > {limit})")]
-    TooLarge { what: &'static str, value: u64, limit: u64 },
+    TooLarge {
+        what: &'static str,
+        value: u64,
+        limit: u64,
+    },
 
     #[error("possivel bomba de compressao: {0:?} expande {1}x")]
     CompressionBomb(String, u64),
@@ -116,7 +126,10 @@ pub fn sanitize_entry_path(raw: &str) -> Result<PathBuf, PackError> {
         match component {
             Component::Normal(part) => {
                 let part = part.to_str().ok_or_else(unsafe_path)?;
-                if part == "." || part.starts_with(' ') || part.ends_with(' ') || part.ends_with('.')
+                if part == "."
+                    || part.starts_with(' ')
+                    || part.ends_with(' ')
+                    || part.ends_with('.')
                 {
                     return Err(unsafe_path());
                 }
@@ -136,7 +149,10 @@ pub fn sanitize_entry_path(raw: &str) -> Result<PathBuf, PackError> {
 /// Verifica se o caminho relativo tem lugar e tipo permitidos no pacote.
 pub fn check_entry_allowed(path: &Path) -> Result<(), PackError> {
     let display = path.to_string_lossy().to_string();
-    let components: Vec<&str> = path.components().filter_map(|c| c.as_os_str().to_str()).collect();
+    let components: Vec<&str> = path
+        .components()
+        .filter_map(|c| c.as_os_str().to_str())
+        .collect();
 
     match components.len() {
         1 => {
@@ -178,8 +194,8 @@ pub fn import_pack(
 ) -> Result<ImportedTheme, PackError> {
     let file = fs::File::open(pack_path)?;
     let compressed_len = file.metadata()?.len();
-    let mut archive =
-        zip::ZipArchive::new(io::BufReader::new(file)).map_err(|e| PackError::Zip(e.to_string()))?;
+    let mut archive = zip::ZipArchive::new(io::BufReader::new(file))
+        .map_err(|e| PackError::Zip(e.to_string()))?;
 
     if archive.len() > MAX_ENTRIES {
         return Err(PackError::TooLarge {
@@ -195,7 +211,9 @@ pub fn import_pack(
     let mut seen = HashSet::new();
 
     for i in 0..archive.len() {
-        let entry = archive.by_index(i).map_err(|e| PackError::Zip(e.to_string()))?;
+        let entry = archive
+            .by_index(i)
+            .map_err(|e| PackError::Zip(e.to_string()))?;
         if entry.is_dir() {
             continue;
         }
@@ -219,7 +237,10 @@ pub fn import_pack(
         }
         let packed = entry.compressed_size().max(1);
         if size / packed > MAX_COMPRESSION_RATIO {
-            return Err(PackError::CompressionBomb(entry.name().to_string(), size / packed));
+            return Err(PackError::CompressionBomb(
+                entry.name().to_string(),
+                size / packed,
+            ));
         }
 
         total = total.saturating_add(size);
@@ -255,7 +276,9 @@ pub fn import_pack(
             .read_to_string(&mut raw)?;
         let manifest: ThemeManifest =
             toml::from_str(&raw).map_err(|e| PackError::BadManifest(e.to_string()))?;
-        manifest.validate().map_err(|e| PackError::BadManifest(e.to_string()))?;
+        manifest
+            .validate()
+            .map_err(|e| PackError::BadManifest(e.to_string()))?;
         manifest
     };
 
@@ -278,8 +301,9 @@ pub fn import_pack(
             if let Some(parent) = target.parent() {
                 fs::create_dir_all(parent)?;
             }
-            let mut entry =
-                archive.by_index(*index).map_err(|e| PackError::Zip(e.to_string()))?;
+            let mut entry = archive
+                .by_index(*index)
+                .map_err(|e| PackError::Zip(e.to_string()))?;
             let mut out = io::BufWriter::new(fs::File::create(&target)?);
             // Copia limitada: se o cabecalho do ZIP mentiu sobre o tamanho, o
             // limite corta antes de encher o disco.
@@ -320,7 +344,12 @@ pub fn import_pack(
     }
     fs::rename(&staging, &destination)?;
 
-    Ok(ImportedTheme { manifest, path: destination, files_written, bytes_written })
+    Ok(ImportedTheme {
+        manifest,
+        path: destination,
+        files_written,
+        bytes_written,
+    })
 }
 
 /// Exporta a pasta de um tema como `.musicpack`.
@@ -360,7 +389,8 @@ pub fn export_pack(theme_dir: &Path, output: &Path) -> Result<u64, PackError> {
             }
 
             let zip_name = relative.to_string_lossy().replace('\\', "/");
-            zip.start_file(zip_name, options).map_err(|e| PackError::Zip(e.to_string()))?;
+            zip.start_file(zip_name, options)
+                .map_err(|e| PackError::Zip(e.to_string()))?;
             let mut source = fs::File::open(entry.path())?;
             io::copy(&mut source, &mut zip)?;
             count += 1;
@@ -392,7 +422,12 @@ mod tests {
 
     #[test]
     fn rejects_absolute_and_drive_paths() {
-        for bad in ["/etc/passwd", "C:/windows/x.toml", "C:x.toml", "//server/share/x.toml"] {
+        for bad in [
+            "/etc/passwd",
+            "C:/windows/x.toml",
+            "C:x.toml",
+            "//server/share/x.toml",
+        ] {
             assert!(
                 matches!(sanitize_entry_path(bad), Err(PackError::UnsafePath(_))),
                 "aceitou {bad:?}"
@@ -422,7 +457,10 @@ mod tests {
 
     #[test]
     fn accepts_ordinary_pack_paths() {
-        assert_eq!(sanitize_entry_path("manifest.toml").unwrap(), Path::new("manifest.toml"));
+        assert_eq!(
+            sanitize_entry_path("manifest.toml").unwrap(),
+            Path::new("manifest.toml")
+        );
         assert_eq!(
             sanitize_entry_path("assets/icons/play.svg").unwrap(),
             Path::new("assets").join("icons").join("play.svg")

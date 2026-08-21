@@ -202,5 +202,10 @@ pub(crate) fn open(volume: Arc<SharedVolume>, flush: FlushRequest) -> Result<Mor
     let sink = rodio::Sink::connect_new(stream.mixer());
     sink.set_volume(volume.attenuation() as f32);
 
-    Ok(MoruneSink { stream, sink, volume, flush })
+    Ok(MoruneSink {
+        stream,
+        sink,
+        volume,
+        flush,
+    })
 }

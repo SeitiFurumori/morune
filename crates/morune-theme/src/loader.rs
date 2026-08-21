@@ -38,11 +38,21 @@ impl LoadedTheme {
         let mut spec = ThemeSpec::default();
         let warnings = spec.sanitize();
         debug_assert!(warnings.is_empty(), "tema embutido invalido: {warnings:?}");
-        Self { spec, source: None, warnings, errors: Vec::new(), fell_back: false }
+        Self {
+            spec,
+            source: None,
+            warnings,
+            errors: Vec::new(),
+            fell_back: false,
+        }
     }
 
     fn fallback_with(errors: Vec<String>) -> Self {
-        Self { fell_back: true, errors, ..Self::builtin() }
+        Self {
+            fell_back: true,
+            errors,
+            ..Self::builtin()
+        }
     }
 
     pub fn is_healthy(&self) -> bool {
@@ -88,7 +98,11 @@ pub fn discover(themes_dir: &Path) -> Vec<ThemeEntry> {
                     );
                     continue;
                 }
-                found.push(ThemeEntry { manifest, path, builtin: false });
+                found.push(ThemeEntry {
+                    manifest,
+                    path,
+                    builtin: false,
+                });
             }
             Err(e) => tracing::warn!(theme = dir_name, error = %e, "tema ignorado"),
         }
@@ -134,7 +148,9 @@ const MAX_INHERITANCE_DEPTH: usize = 4;
 
 fn load_from_dir(dir: &Path, themes_dir: &Path, depth: usize) -> Result<LoadedTheme, String> {
     if depth > MAX_INHERITANCE_DEPTH {
-        return Err(format!("cadeia de heranca de temas maior que {MAX_INHERITANCE_DEPTH}"));
+        return Err(format!(
+            "cadeia de heranca de temas maior que {MAX_INHERITANCE_DEPTH}"
+        ));
     }
 
     let manifest = read_manifest(dir)?;
@@ -239,8 +255,7 @@ impl PartialTheme {
 pub fn write_theme(dir: &Path, spec: &ThemeSpec) -> Result<(), String> {
     fs::create_dir_all(dir).map_err(|e| e.to_string())?;
 
-    let manifest =
-        toml::to_string_pretty(&spec.manifest).map_err(|e| e.to_string())?;
+    let manifest = toml::to_string_pretty(&spec.manifest).map_err(|e| e.to_string())?;
     fs::write(dir.join("manifest.toml"), manifest).map_err(|e| e.to_string())?;
 
     #[derive(serde::Serialize)]
@@ -277,7 +292,8 @@ mod tests {
 
     impl TempDir {
         fn new(name: &str) -> Self {
-            let p = std::env::temp_dir().join(format!("morune-theme-test-{name}-{}", std::process::id()));
+            let p = std::env::temp_dir()
+                .join(format!("morune-theme-test-{name}-{}", std::process::id()));
             let _ = fs::remove_dir_all(&p);
             fs::create_dir_all(&p).unwrap();
             Self(p)
@@ -347,7 +363,11 @@ mod tests {
     #[test]
     fn broken_theme_toml_degrades_to_defaults_instead_of_failing() {
         let dir = TempDir::new("broken");
-        dir.theme("quebrado", &manifest_toml("quebrado"), Some("[color\naccent = nao-e-toml"));
+        dir.theme(
+            "quebrado",
+            &manifest_toml("quebrado"),
+            Some("[color\naccent = nao-e-toml"),
+        );
         let loaded = load(dir.path(), "quebrado");
         // O manifesto era valido, entao o tema carrega -- so os tokens caem
         // para o padrao, e o erro fica registrado.
@@ -388,8 +408,16 @@ mod tests {
     #[test]
     fn inheritance_cycle_terminates() {
         let dir = TempDir::new("cycle");
-        dir.theme("a", &format!("{}based_on = \"b\"\n", manifest_toml("a")), None);
-        dir.theme("b", &format!("{}based_on = \"a\"\n", manifest_toml("b")), None);
+        dir.theme(
+            "a",
+            &format!("{}based_on = \"b\"\n", manifest_toml("a")),
+            None,
+        );
+        dir.theme(
+            "b",
+            &format!("{}based_on = \"a\"\n", manifest_toml("b")),
+            None,
+        );
         // Nao deve travar nem estourar a pilha: a profundidade e limitada e o
         // excedente cai para o embutido.
         let loaded = load(dir.path(), "a");
@@ -408,7 +436,10 @@ mod tests {
         let found = discover(dir.path());
         let ids: Vec<&str> = found.iter().map(|t| t.manifest.id.as_str()).collect();
         assert!(ids.contains(&"bom"));
-        assert!(ids.contains(&"midnight"), "embutido deveria estar sempre presente");
+        assert!(
+            ids.contains(&"midnight"),
+            "embutido deveria estar sempre presente"
+        );
         assert!(!ids.contains(&"ruim"));
         assert!(!ids.contains(&"outro"));
         assert_eq!(found.len(), 2);
@@ -424,8 +455,10 @@ mod tests {
     #[test]
     fn write_then_load_round_trips() {
         let dir = TempDir::new("write");
-        let mut spec =
-            ThemeSpec { manifest: ThemeManifest::new("copia", "Copia"), ..Default::default() };
+        let mut spec = ThemeSpec {
+            manifest: ThemeManifest::new("copia", "Copia"),
+            ..Default::default()
+        };
         spec.colors.accent = Color::rgb(1, 2, 3);
         spec.layout.sidebar.width = 300.0;
 

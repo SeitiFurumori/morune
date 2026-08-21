@@ -18,8 +18,8 @@ use morune_core::catalog::{Artwork, Catalog, Library};
 use morune_core::playback::PlaybackEngine;
 use morune_core::{CoreError, CoreResult};
 
-use crate::auth::{SharedSession, SpotifyAuthenticator};
 use crate::artwork::SpotifyArtwork;
+use crate::auth::{SharedSession, SpotifyAuthenticator};
 use crate::catalog::SpotifyCatalog;
 use crate::engine::SpotifyEngine;
 use crate::token::TokenSource;
@@ -44,7 +44,9 @@ pub struct SpotifyBackend {
 
 impl std::fmt::Debug for SpotifyBackend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SpotifyBackend").field("session", &self.session).finish()
+        f.debug_struct("SpotifyBackend")
+            .field("session", &self.session)
+            .finish()
     }
 }
 
@@ -68,12 +70,20 @@ impl SpotifyBackend {
         // token, e por causa do refresh no cofre do Windows.
         let session = SharedSession::default();
         let tokens = Arc::new(TokenSource::new(credentials));
-        let authenticator =
-            Arc::new(SpotifyAuthenticator::with_tokens(tokens.clone(), session.clone()));
+        let authenticator = Arc::new(SpotifyAuthenticator::with_tokens(
+            tokens.clone(),
+            session.clone(),
+        ));
         let catalog = Arc::new(SpotifyCatalog::new(session.clone()));
         let artwork = Arc::new(SpotifyArtwork::new(session.clone()));
 
-        Ok(Self { runtime, authenticator, catalog, artwork, session })
+        Ok(Self {
+            runtime,
+            authenticator,
+            catalog,
+            artwork,
+            session,
+        })
     }
 
     /// Autenticador, para a aplicacao ligar aos botoes de entrar e sair.
@@ -181,8 +191,9 @@ mod tests {
         // Buscar por nada nao e erro nem requisicao: e uma lista vazia.
         let backend = backend();
         let catalog = backend.catalog();
-        let results =
-            backend.block_on(catalog.search("   ", Default::default(), 10)).expect("sem rede");
+        let results = backend
+            .block_on(catalog.search("   ", Default::default(), 10))
+            .expect("sem rede");
         assert!(results.is_empty());
     }
 

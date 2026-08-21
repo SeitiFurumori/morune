@@ -26,7 +26,7 @@
 use std::path::Path;
 
 use bytes::Bytes;
-use http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderName};
+use http::header::{HeaderName, ACCEPT, AUTHORIZATION, CONTENT_TYPE};
 use http::{Method, Request};
 use librespot_core::authentication::Credentials;
 use librespot_core::http_client::HttpClient;
@@ -152,13 +152,7 @@ fn main() {
     });
 }
 
-async fn pathfinder(
-    http: &HttpClient,
-    bearer: &str,
-    client_token: &str,
-    nome: &str,
-    corpo: &str,
-) {
+async fn pathfinder(http: &HttpClient, bearer: &str, client_token: &str, nome: &str, corpo: &str) {
     let mut builder = Request::builder()
         .method(Method::POST)
         .uri("https://api-partner.spotify.com/pathfinder/v1/query")
@@ -170,7 +164,14 @@ async fn pathfinder(
         builder = builder.header(HeaderName::from_static("client-token"), client_token);
     }
 
-    match http.request_body(builder.body(Bytes::copy_from_slice(corpo.as_bytes())).unwrap()).await {
+    match http
+        .request_body(
+            builder
+                .body(Bytes::copy_from_slice(corpo.as_bytes()))
+                .unwrap(),
+        )
+        .await
+    {
         Ok(body) => grava(&format!("{nome}.json"), &body),
         Err(e) => println!("  {nome:<22} FALHOU: {e}"),
     }

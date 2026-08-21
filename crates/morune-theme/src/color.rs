@@ -41,10 +41,7 @@ impl Color {
 
     /// Empacota como `0xAARRGGBB`, formato aceito diretamente pela UI.
     pub const fn to_argb_u32(self) -> u32 {
-        ((self.a as u32) << 24)
-            | ((self.r as u32) << 16)
-            | ((self.g as u32) << 8)
-            | (self.b as u32)
+        ((self.a as u32) << 24) | ((self.r as u32) << 16) | ((self.g as u32) << 8) | (self.b as u32)
     }
 
     pub fn with_alpha(self, a: u8) -> Self {
@@ -56,7 +53,9 @@ impl Color {
     /// Usado pelos temas para derivar estados (hover, disabled) a partir de uma
     /// cor base, em vez de obrigar o autor a declarar cada variacao.
     pub fn scale_alpha(self, factor: f32) -> Self {
-        let a = (self.a as f32 * factor.clamp(0.0, 1.0)).round().clamp(0.0, 255.0);
+        let a = (self.a as f32 * factor.clamp(0.0, 1.0))
+            .round()
+            .clamp(0.0, 255.0);
         Self { a: a as u8, ..self }
     }
 
@@ -173,8 +172,9 @@ fn parse_rgba(inner: &str, original: &str) -> Result<Color, ColorParseError> {
     }
 
     let channel = |s: &str| -> Result<u8, ColorParseError> {
-        let v: i64 =
-            s.parse().map_err(|_| ColorParseError::Unrecognized(original.to_string()))?;
+        let v: i64 = s
+            .parse()
+            .map_err(|_| ColorParseError::Unrecognized(original.to_string()))?;
         u8::try_from(v).map_err(|_| ColorParseError::OutOfRange(original.to_string()))
     };
 
@@ -183,8 +183,9 @@ fn parse_rgba(inner: &str, original: &str) -> Result<Color, ColorParseError> {
         Some(s) => {
             // Alfa aceita tanto 0-255 quanto 0.0-1.0, porque os dois formatos
             // aparecem naturalmente em temas escritos a mao.
-            let f: f32 =
-                s.parse().map_err(|_| ColorParseError::Unrecognized(original.to_string()))?;
+            let f: f32 = s
+                .parse()
+                .map_err(|_| ColorParseError::Unrecognized(original.to_string()))?;
             if s.contains('.') {
                 if !(0.0..=1.0).contains(&f) {
                     return Err(ColorParseError::OutOfRange(original.to_string()));
@@ -196,7 +197,12 @@ fn parse_rgba(inner: &str, original: &str) -> Result<Color, ColorParseError> {
         }
     };
 
-    Ok(Color { r: channel(parts[0])?, g: channel(parts[1])?, b: channel(parts[2])?, a: alpha })
+    Ok(Color {
+        r: channel(parts[0])?,
+        g: channel(parts[1])?,
+        b: channel(parts[2])?,
+        a: alpha,
+    })
 }
 
 impl fmt::Display for Color {
@@ -204,7 +210,11 @@ impl fmt::Display for Color {
         if self.a == 255 {
             write!(f, "#{:02x}{:02x}{:02x}", self.r, self.g, self.b)
         } else {
-            write!(f, "#{:02x}{:02x}{:02x}{:02x}", self.r, self.g, self.b, self.a)
+            write!(
+                f,
+                "#{:02x}{:02x}{:02x}{:02x}",
+                self.r, self.g, self.b, self.a
+            )
         }
     }
 }
@@ -230,26 +240,59 @@ mod tests {
     fn parses_every_supported_hex_form() {
         assert_eq!("#fff".parse::<Color>().unwrap(), Color::rgb(255, 255, 255));
         assert_eq!("#000".parse::<Color>().unwrap(), Color::rgb(0, 0, 0));
-        assert_eq!("#1a2b3c".parse::<Color>().unwrap(), Color::rgb(0x1a, 0x2b, 0x3c));
-        assert_eq!("#1a2b3c80".parse::<Color>().unwrap(), Color::rgba(0x1a, 0x2b, 0x3c, 0x80));
-        assert_eq!("#f00f".parse::<Color>().unwrap(), Color::rgba(255, 0, 0, 255));
+        assert_eq!(
+            "#1a2b3c".parse::<Color>().unwrap(),
+            Color::rgb(0x1a, 0x2b, 0x3c)
+        );
+        assert_eq!(
+            "#1a2b3c80".parse::<Color>().unwrap(),
+            Color::rgba(0x1a, 0x2b, 0x3c, 0x80)
+        );
+        assert_eq!(
+            "#f00f".parse::<Color>().unwrap(),
+            Color::rgba(255, 0, 0, 255)
+        );
     }
 
     #[test]
     fn parses_rgb_and_rgba_functions() {
-        assert_eq!("rgb(12, 34, 56)".parse::<Color>().unwrap(), Color::rgb(12, 34, 56));
-        assert_eq!("rgba(12,34,56,128)".parse::<Color>().unwrap(), Color::rgba(12, 34, 56, 128));
-        assert_eq!("rgba(0, 0, 0, 0.5)".parse::<Color>().unwrap(), Color::rgba(0, 0, 0, 128));
+        assert_eq!(
+            "rgb(12, 34, 56)".parse::<Color>().unwrap(),
+            Color::rgb(12, 34, 56)
+        );
+        assert_eq!(
+            "rgba(12,34,56,128)".parse::<Color>().unwrap(),
+            Color::rgba(12, 34, 56, 128)
+        );
+        assert_eq!(
+            "rgba(0, 0, 0, 0.5)".parse::<Color>().unwrap(),
+            Color::rgba(0, 0, 0, 128)
+        );
     }
 
     #[test]
     fn rejects_malformed_colors_with_a_useful_error() {
         assert_eq!("".parse::<Color>(), Err(ColorParseError::Empty));
-        assert!(matches!("#gg0000".parse::<Color>(), Err(ColorParseError::InvalidHex(_))));
-        assert!(matches!("#12345".parse::<Color>(), Err(ColorParseError::Unrecognized(_))));
-        assert!(matches!("periwinkle".parse::<Color>(), Err(ColorParseError::Unrecognized(_))));
-        assert!(matches!("rgb(300, 0, 0)".parse::<Color>(), Err(ColorParseError::OutOfRange(_))));
-        assert!(matches!("rgba(0,0,0,2.0)".parse::<Color>(), Err(ColorParseError::OutOfRange(_))));
+        assert!(matches!(
+            "#gg0000".parse::<Color>(),
+            Err(ColorParseError::InvalidHex(_))
+        ));
+        assert!(matches!(
+            "#12345".parse::<Color>(),
+            Err(ColorParseError::Unrecognized(_))
+        ));
+        assert!(matches!(
+            "periwinkle".parse::<Color>(),
+            Err(ColorParseError::Unrecognized(_))
+        ));
+        assert!(matches!(
+            "rgb(300, 0, 0)".parse::<Color>(),
+            Err(ColorParseError::OutOfRange(_))
+        ));
+        assert!(matches!(
+            "rgba(0,0,0,2.0)".parse::<Color>(),
+            Err(ColorParseError::OutOfRange(_))
+        ));
     }
 
     #[test]
@@ -263,7 +306,10 @@ mod tests {
 
     #[test]
     fn argb_packing_matches_channel_order() {
-        assert_eq!(Color::rgba(0x11, 0x22, 0x33, 0x44).to_argb_u32(), 0x4411_2233);
+        assert_eq!(
+            Color::rgba(0x11, 0x22, 0x33, 0x44).to_argb_u32(),
+            0x4411_2233
+        );
     }
 
     #[test]

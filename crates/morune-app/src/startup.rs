@@ -8,13 +8,13 @@
 mod platform {
     use std::os::windows::ffi::OsStrExt;
 
+    use windows::core::{w, PCWSTR};
     use windows::Win32::Foundation::{ERROR_FILE_NOT_FOUND, ERROR_SUCCESS};
     use windows::Win32::System::Registry::{
-        HKEY, HKEY_CURRENT_USER, KEY_QUERY_VALUE, KEY_SET_VALUE, REG_OPTION_NON_VOLATILE, REG_SZ,
         RegCloseKey, RegCreateKeyExW, RegDeleteValueW, RegOpenKeyExW, RegQueryValueExW,
-        RegSetValueExW,
+        RegSetValueExW, HKEY, HKEY_CURRENT_USER, KEY_QUERY_VALUE, KEY_SET_VALUE,
+        REG_OPTION_NON_VOLATILE, REG_SZ,
     };
-    use windows::core::{PCWSTR, w};
 
     const RUN_KEY: PCWSTR = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
     const VALUE_NAME: PCWSTR = w!("Morune");
@@ -22,15 +22,8 @@ mod platform {
     pub fn is_enabled() -> bool {
         let mut key = HKEY::default();
         // SAFETY: ponteiro de saida valido e caminho/flags constantes.
-        let opened = unsafe {
-            RegOpenKeyExW(
-                HKEY_CURRENT_USER,
-                RUN_KEY,
-                None,
-                KEY_QUERY_VALUE,
-                &mut key,
-            )
-        };
+        let opened =
+            unsafe { RegOpenKeyExW(HKEY_CURRENT_USER, RUN_KEY, None, KEY_QUERY_VALUE, &mut key) };
         if opened != ERROR_SUCCESS {
             return false;
         }
@@ -74,9 +67,8 @@ mod platform {
         }
 
         // REG_SZ recebe bytes UTF-16 incluindo o terminador nulo.
-        let bytes = unsafe {
-            std::slice::from_raw_parts(command.as_ptr().cast::<u8>(), command.len() * 2)
-        };
+        let bytes =
+            unsafe { std::slice::from_raw_parts(command.as_ptr().cast::<u8>(), command.len() * 2) };
         // SAFETY: chave valida, nome constante e buffer vivo durante a chamada.
         let written = unsafe { RegSetValueExW(key, VALUE_NAME, None, REG_SZ, Some(bytes)) };
         // SAFETY: fecha exatamente a chave criada/aberta acima.
@@ -99,15 +91,8 @@ mod platform {
     fn disable() -> Result<(), StartupError> {
         let mut key = HKEY::default();
         // SAFETY: abre somente a chave Run do usuario atual para escrita.
-        let opened = unsafe {
-            RegOpenKeyExW(
-                HKEY_CURRENT_USER,
-                RUN_KEY,
-                None,
-                KEY_SET_VALUE,
-                &mut key,
-            )
-        };
+        let opened =
+            unsafe { RegOpenKeyExW(HKEY_CURRENT_USER, RUN_KEY, None, KEY_SET_VALUE, &mut key) };
         if opened == ERROR_FILE_NOT_FOUND {
             return Ok(());
         }
@@ -140,9 +125,7 @@ mod platform {
 
         #[test]
         fn startup_command_quotes_paths_with_spaces_and_marks_the_launch() {
-            let command = command_for(std::path::Path::new(
-                r"D:\Apps de musica\Morune\morune.exe",
-            ));
+            let command = command_for(std::path::Path::new(r"D:\Apps de musica\Morune\morune.exe"));
             let decoded = String::from_utf16(&command[..command.len() - 1]).unwrap();
             assert_eq!(
                 decoded,

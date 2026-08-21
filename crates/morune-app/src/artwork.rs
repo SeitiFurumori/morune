@@ -88,7 +88,10 @@ impl ArtworkCache {
             // aparecem, o que e melhor que nao abrir.
             tracing::warn!(dir = %dir.display(), error = %e, "cache de capas indisponivel");
         }
-        Self { dir, pedidas: HashMap::new() }
+        Self {
+            dir,
+            pedidas: HashMap::new(),
+        }
     }
 
     /// Caminho da capa, se ela ja estiver em disco.
@@ -107,7 +110,8 @@ impl ArtworkCache {
             .map(|ext| self.caminho(url, ext))
             .find(|path| path.is_file())?;
 
-        self.pedidas.insert(url.to_string(), Estado::Pronta(achado.clone()));
+        self.pedidas
+            .insert(url.to_string(), Estado::Pronta(achado.clone()));
         Some(achado)
     }
 
@@ -162,7 +166,8 @@ impl ArtworkCache {
 
     /// Registra o resultado que a interface recolheu.
     pub fn settle(&mut self, ready: &Ready) {
-        self.pedidas.insert(ready.url.clone(), Estado::Pronta(ready.path.clone()));
+        self.pedidas
+            .insert(ready.url.clone(), Estado::Pronta(ready.path.clone()));
     }
 
     fn caminho(&self, url: &str, extensao: &str) -> PathBuf {
@@ -195,7 +200,9 @@ fn hash(texto: &str) -> u64 {
     const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
     const PRIME: u64 = 0x0000_0100_0000_01b3;
 
-    texto.bytes().fold(OFFSET, |acc, b| (acc ^ u64::from(b)).wrapping_mul(PRIME))
+    texto
+        .bytes()
+        .fold(OFFSET, |acc, b| (acc ^ u64::from(b)).wrapping_mul(PRIME))
 }
 
 /// Descarta as capas menos usadas recentemente quando o teto e ultrapassado.
@@ -207,17 +214,24 @@ fn hash(texto: &str) -> u64 {
 /// nunca errado: o que sai continua sendo o que sera baixado de novo mais
 /// tarde.
 fn limpar_se_passou_do_teto(dir: &Path) {
-    let Ok(entradas) = std::fs::read_dir(dir) else { return };
+    let Ok(entradas) = std::fs::read_dir(dir) else {
+        return;
+    };
 
     let mut arquivos: Vec<(PathBuf, u64, std::time::SystemTime)> = Vec::new();
     let mut total = 0u64;
 
     for entrada in entradas.flatten() {
-        let Ok(meta) = entrada.metadata() else { continue };
+        let Ok(meta) = entrada.metadata() else {
+            continue;
+        };
         if !meta.is_file() {
             continue;
         }
-        let quando = meta.accessed().or_else(|_| meta.modified()).unwrap_or(std::time::UNIX_EPOCH);
+        let quando = meta
+            .accessed()
+            .or_else(|_| meta.modified())
+            .unwrap_or(std::time::UNIX_EPOCH);
         total += meta.len();
         arquivos.push((entrada.path(), meta.len(), quando));
     }
@@ -287,7 +301,12 @@ mod tests {
         let path = cache.caminho("https://i.scdn.co/image/ab67616d/../../senha", "jpg");
 
         assert_eq!(path.parent(), Some(dir.path()));
-        assert!(path.file_name().unwrap().to_str().unwrap().ends_with(".jpg"));
+        assert!(path
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with(".jpg"));
     }
 
     #[test]
@@ -339,7 +358,10 @@ mod tests {
             .collect();
 
         // O mais antigo saiu, e o cache voltou para dentro do teto.
-        assert!(!restantes.contains(&"a.jpg".to_string()), "restaram: {restantes:?}");
+        assert!(
+            !restantes.contains(&"a.jpg".to_string()),
+            "restaram: {restantes:?}"
+        );
         assert!(restantes.len() < 3);
     }
 
@@ -349,7 +371,10 @@ mod tests {
         // Gravar um JPEG como `.img` fazia todas as capas falharem ao abrir,
         // mesmo com os bytes corretos em disco.
         assert_eq!(formato(&[0xff, 0xd8, 0xff, 0xe0, 0, 0]), Some("jpg"));
-        assert_eq!(formato(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0]), Some("png"));
+        assert_eq!(
+            formato(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0]),
+            Some("png")
+        );
         // Formato que o Slint nao desenha nao vira arquivo: ocuparia teto do
         // cache para nunca abrir.
         assert_eq!(formato(b"GIF89a..."), None);

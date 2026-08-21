@@ -37,7 +37,10 @@ impl PlaybackState {
 #[derive(Debug, Clone, PartialEq)]
 pub enum PlayerCommand {
     /// Carrega uma faixa. `start_paused` permite pre-carregar sem tocar.
-    Load { track: Track, start_paused: bool },
+    Load {
+        track: Track,
+        start_paused: bool,
+    },
     /// Adianta o trabalho de carregar uma faixa que ainda nao foi pedida.
     ///
     /// Existe porque comecar uma faixa custa buscar a chave de audio, abrir o
@@ -111,7 +114,10 @@ impl PlayerSnapshot {
 pub enum PlayerEvent {
     StateChanged(PlaybackState),
     TrackChanged(Option<TrackId>),
-    Position { position: Duration, duration: Duration },
+    Position {
+        position: Duration,
+        duration: Duration,
+    },
     VolumeChanged(f32),
     Buffering(bool),
     /// A faixa chegou ao fim naturalmente; quem controla a fila decide o proximo.
@@ -132,10 +138,18 @@ pub struct EngineCapabilities {
 }
 
 impl EngineCapabilities {
-    pub const NONE: Self =
-        Self { seek: false, volume: false, gapless: false, precise_position: false };
-    pub const FULL: Self =
-        Self { seek: true, volume: true, gapless: true, precise_position: true };
+    pub const NONE: Self = Self {
+        seek: false,
+        volume: false,
+        gapless: false,
+        precise_position: false,
+    };
+    pub const FULL: Self = Self {
+        seek: true,
+        volume: true,
+        gapless: true,
+        precise_position: true,
+    };
 }
 
 /// Contrato do motor de reproducao.

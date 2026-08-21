@@ -49,16 +49,26 @@ fn embed_brand_pixels() {
 
 /// Decodifica um PNG para RGBA de 8 bits.
 fn decode_png(path: &Path) -> (Vec<u8>, u32, u32) {
-    let file = std::fs::File::open(path)
-        .unwrap_or_else(|e| panic!("abrir {}: {e}", path.display()));
+    let file =
+        std::fs::File::open(path).unwrap_or_else(|e| panic!("abrir {}: {e}", path.display()));
     let decoder = png::Decoder::new(std::io::BufReader::new(file));
     let mut reader = decoder.read_info().expect("ler cabecalho do PNG");
     let mut buffer = vec![0; reader.output_buffer_size().expect("tamanho do PNG")];
     let info = reader.next_frame(&mut buffer).expect("ler pixels do PNG");
     buffer.truncate(info.buffer_size());
 
-    assert_eq!(info.color_type, png::ColorType::Rgba, "{} nao e RGBA", path.display());
-    assert_eq!(info.bit_depth, png::BitDepth::Eight, "{} nao e de 8 bits", path.display());
+    assert_eq!(
+        info.color_type,
+        png::ColorType::Rgba,
+        "{} nao e RGBA",
+        path.display()
+    );
+    assert_eq!(
+        info.bit_depth,
+        png::BitDepth::Eight,
+        "{} nao e de 8 bits",
+        path.display()
+    );
 
     (buffer, info.width, info.height)
 }
@@ -140,7 +150,11 @@ fn version_info() -> String {
 
     // VS_FF_DEBUG marca o binario de depuracao, para que ninguem confunda um
     // build local com o que foi distribuido.
-    let flags = if std::env::var("PROFILE").as_deref() == Ok("debug") { "0x1L" } else { "0x0L" };
+    let flags = if std::env::var("PROFILE").as_deref() == Ok("debug") {
+        "0x1L"
+    } else {
+        "0x0L"
+    };
 
     format!(
         r#"1 VERSIONINFO

@@ -50,7 +50,9 @@ pub(crate) struct SpotifyArtwork {
 
 impl std::fmt::Debug for SpotifyArtwork {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SpotifyArtwork").field("session", &self.session).finish()
+        f.debug_struct("SpotifyArtwork")
+            .field("session", &self.session)
+            .finish()
     }
 }
 
@@ -106,7 +108,9 @@ fn host_permitido(url: &str) -> bool {
     let host = resto.split('/').next().unwrap_or_default();
 
     host == HOST_IMAGENS
-        || host.strip_suffix(DOMINIO_CDN).is_some_and(|prefixo| prefixo.ends_with('.'))
+        || host
+            .strip_suffix(DOMINIO_CDN)
+            .is_some_and(|prefixo| prefixo.ends_with('.'))
 }
 
 #[cfg(test)]
@@ -121,9 +125,15 @@ mod tests {
         // Todos vistos numa conta real. Listar host a host quebrava a cada tipo
         // novo de playlist.
         assert!(aceita("https://i.scdn.co/image/ab67"));
-        assert!(aceita("https://pickasso.spotifycdn.com/image/ab67c0de/dt/v1/img"));
-        assert!(aceita("https://blend-playlist-covers.spotifycdn.com/group-blends-v1/x.jpg"));
-        assert!(aceita("https://wrapped-images.spotifycdn.com/image/yts-2023/x.jpg"));
+        assert!(aceita(
+            "https://pickasso.spotifycdn.com/image/ab67c0de/dt/v1/img"
+        ));
+        assert!(aceita(
+            "https://blend-playlist-covers.spotifycdn.com/group-blends-v1/x.jpg"
+        ));
+        assert!(aceita(
+            "https://wrapped-images.spotifycdn.com/image/yts-2023/x.jpg"
+        ));
     }
 
     #[test]

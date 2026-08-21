@@ -9,8 +9,8 @@
 //! O tipo tambem existe para manter `AppState` legivel: sem ele, cada acao de
 //! sessao viraria tres campos soltos e uma maquina de estados implicita.
 
-use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
+use std::sync::Arc;
 
 use morune_core::auth::UserProfile;
 use morune_core::playback::PlaybackEngine;
@@ -39,9 +39,10 @@ impl SessionState {
     /// Nome para mostrar na barra lateral.
     pub fn account_name(&self) -> &str {
         match self {
-            SessionState::LoggedIn(profile) => {
-                profile.display_name.as_deref().unwrap_or(profile.id.as_str())
-            }
+            SessionState::LoggedIn(profile) => profile
+                .display_name
+                .as_deref()
+                .unwrap_or(profile.id.as_str()),
             _ => "",
         }
     }
@@ -135,7 +136,9 @@ impl Session {
     /// Devolve `true` quando comecou uma tentativa. O refresh token esta no
     /// cofre, entao a volta e silenciosa: sem navegador, sem clique.
     pub fn reconnect_if_lost(&mut self) -> bool {
-        let Some(backend) = &self.backend else { return false };
+        let Some(backend) = &self.backend else {
+            return false;
+        };
         if self.pending.is_some() || !backend.session_lost() {
             return false;
         }
@@ -236,7 +239,10 @@ impl Session {
                 None
             }
             Outcome::Restored(Ok(Some(profile))) | Outcome::LoggedIn(Ok(profile)) => {
-                let name = profile.display_name.clone().unwrap_or_else(|| profile.id.clone());
+                let name = profile
+                    .display_name
+                    .clone()
+                    .unwrap_or_else(|| profile.id.clone());
                 self.state = SessionState::LoggedIn(profile);
                 Some(SessionChange {
                     message: format!("Conectado como {name}."),
@@ -250,7 +256,10 @@ impl Session {
                 tracing::error!(error = %e, "login no Spotify falhou");
                 let message = describe(&e);
                 self.state = SessionState::Failed(message.clone());
-                Some(SessionChange { message, engine: None })
+                Some(SessionChange {
+                    message,
+                    engine: None,
+                })
             }
         }
     }
@@ -301,7 +310,10 @@ mod tests {
     use morune_core::auth::MemoryCredentialStore;
 
     fn session() -> Session {
-        Session::new(Arc::new(MemoryCredentialStore::default()), std::env::temp_dir())
+        Session::new(
+            Arc::new(MemoryCredentialStore::default()),
+            std::env::temp_dir(),
+        )
     }
 
     #[test]
