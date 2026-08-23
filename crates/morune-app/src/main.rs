@@ -30,8 +30,10 @@ mod state;
 #[cfg(windows)]
 mod taskbar;
 mod theme_bridge;
+mod tint;
 mod tray;
 mod tray_menu;
+mod wallpaper;
 
 pub mod ui {
     slint::include_modules!();
@@ -195,7 +197,30 @@ fn main() -> anyhow::Result<()> {
     #[cfg(windows)]
     ensure_rounded_corners(window.window());
     #[cfg(windows)]
+    {
+        let (opacity, acrylic) = state.borrow().window_effects();
+        ensure_window_effects(window.window(), opacity, acrylic);
+    }
+    #[cfg(windows)]
     let _taskbar_poll = wire_taskbar(&window, &state);
+    // Recriado a cada troca do interruptor, e nao so aqui: por isso vive numa
+    // celula em vez de numa variavel local.
+    #[cfg(feature = "hot-reload")]
+    let theme_watch = Rc::new(RefCell::new(wire_theme_watch(&window, &state)));
+    #[cfg(feature = "hot-reload")]
+    {
+        let weak = window.as_weak();
+        let state = state.clone();
+        let cell = theme_watch.clone();
+        window.on_set_hot_reload(move |on| {
+            let Some(window) = weak.upgrade() else { return };
+            state.borrow_mut().set_hot_reload(on);
+            *cell.borrow_mut() = wire_theme_watch(&window, &state);
+            state.borrow().push_to_ui(&window);
+        });
+    }
+    #[cfg(not(feature = "hot-reload"))]
+    window.on_set_hot_reload(|_| {});
     if started_with_windows && tray.is_some() {
         window.hide()?;
         tracing::info!("inicializacao do Windows concluida na bandeja");
@@ -289,6 +314,150 @@ fn ensure_rounded_corners(window: &slint::Window) {
     }
 }
 
+/// Aplica opacidade e fundo acrilico da janela, pedidos pelo tema.
+///
+/// Os dois vinham sendo validados e documentados sem nunca chegar a janela:
+/// `theme_bridge` aplicava metade dos `EffectTokens` e o resto era letra morta.
+///
+/// **Acrilico e composicao do sistema, nao do aplicativo.** Quem desenha o
+/// borrado atras da janela e o DWM, uma vez, e nao o Morune a cada quadro --
+/// que e a unica forma aceitavel dado que isto toca enquanto a pessoa joga.
+/// Para o efeito aparecer, a cor de fundo do tema precisa ter alfa: um
+/// `background` opaco cobre o acrilico e o resultado e uma janela normal.
+///
+/// **Opacidade usa janela em camada.** Um aviso honesto: janela em camada
+/// convive mal com renderizador por OpenGL em alguns drivers. Se a janela
+/// ficar preta com `window_opacity < 1`, a causa e essa, e a saida e o
+/// renderizador por software (`SLINT_BACKEND=winit-software`).
+///
+/// Chamada repetidamente pelo mesmo motivo de `ensure_rounded_corners`: o HWND
+/// pode nao existir logo depois de `show()`, e reabrir a janela a recria.
+#[cfg(windows)]
+fn ensure_window_effects(window: &slint::Window, opacity: f32, acrylic: bool) {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use windows::Win32::Foundation::{COLORREF, HWND};
+    use windows::Win32::Graphics::Dwm::{
+        DwmSetWindowAttribute, DWMSBT_NONE, DWMSBT_TRANSIENTWINDOW, DWMWA_SYSTEMBACKDROP_TYPE,
+    };
+    use windows::Win32::Graphics::Gdi::{
+        RedrawWindow, RDW_ALLCHILDREN, RDW_ERASE, RDW_FRAME, RDW_INVALIDATE,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetWindowLongPtrW, SetLayeredWindowAttributes, SetWindowLongPtrW, GWL_EXSTYLE, LWA_ALPHA,
+        WINDOW_EX_STYLE, WS_EX_LAYERED,
+    };
+
+    let handle = window.window_handle();
+    let Ok(handle) = handle.window_handle() else {
+        return;
+    };
+    let RawWindowHandle::Win32(raw) = handle.as_raw() else {
+        return;
+    };
+    let hwnd = HWND(raw.hwnd.get() as *mut std::ffi::c_void);
+
+    let backdrop = if acrylic {
+        DWMSBT_TRANSIENTWINDOW
+    } else {
+        DWMSBT_NONE
+    };
+    // SAFETY: `hwnd` vem da janela viva; o ponteiro aponta para um inteiro do
+    // tamanho declarado, vivo durante a chamada.
+    let written = unsafe {
+        DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_SYSTEMBACKDROP_TYPE,
+            std::ptr::addr_of!(backdrop).cast(),
+            std::mem::size_of_val(&backdrop) as u32,
+        )
+    };
+    if let Err(error) = written {
+        // Windows 10 nao conhece este atributo. Nao ha o que o usuario possa
+        // fazer, entao fica so no log.
+        tracing::debug!(%error, "fundo acrilico indisponivel nesta versao do Windows");
+    }
+
+    // A janela so vira "em camada" quando o tema realmente pede transparencia.
+    // Ligar o estilo a toa custaria o caminho de composicao mais lento para
+    // todo mundo, inclusive para quem nunca mexeu nisso.
+    //
+    // Quando o tema **nao** pede, o estilo tem de ser removido, e nao apenas
+    // ignorado: sem isso a transparencia de um tema sobrevivia a troca para um
+    // tema opaco e contaminava todos os outros ate fechar o aplicativo.
+    let alpha = (opacity.clamp(0.0, 1.0) * 255.0).round() as u8;
+
+    // SAFETY: `hwnd` e valido; ler e escrever o estilo estendido de uma janela
+    // propria e a forma documentada de ligar e desligar `WS_EX_LAYERED`.
+    unsafe {
+        let atual = WINDOW_EX_STYLE(GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32);
+        let em_camada = atual.contains(WS_EX_LAYERED);
+
+        if alpha == 255 {
+            if em_camada {
+                SetWindowLongPtrW(hwnd, GWL_EXSTYLE, (atual & !WS_EX_LAYERED).0 as isize);
+                // Sem repintar, a janela fica com o ultimo quadro composto pelo
+                // caminho em camada e so volta ao normal no proximo redesenho.
+                let _ = RedrawWindow(
+                    Some(hwnd),
+                    None,
+                    None,
+                    RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN,
+                );
+                tracing::info!("transparencia da janela desligada");
+            }
+            return;
+        }
+
+        if !em_camada {
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, (atual | WS_EX_LAYERED).0 as isize);
+        }
+        if let Err(error) = SetLayeredWindowAttributes(hwnd, COLORREF(0), alpha, LWA_ALPHA) {
+            tracing::debug!(%error, "opacidade da janela nao aplicada");
+        }
+    }
+}
+
+/// Liga o observador de temas, se a pessoa pediu recarga ao salvar.
+///
+/// O observador chama exatamente o mesmo caminho do botao **Recarregar temas**
+/// -- nao ha um segundo caminho de recarga para manter em pe. Fica atras da
+/// feature `hot-reload` porque custa uma thread e alguns handles do sistema, e
+/// a maioria das pessoas nunca edita um tema.
+///
+/// O retorno precisa ficar vivo: soltar o `ThemeWatcher` para de observar.
+#[cfg(feature = "hot-reload")]
+fn wire_theme_watch(
+    window: &ui::AppWindow,
+    state: &Rc<RefCell<AppState>>,
+) -> Option<morune_theme::watch::ThemeWatcher> {
+    let (ligado, dir) = {
+        let s = state.borrow();
+        (s.hot_reload(), s.themes_dir())
+    };
+    if !ligado {
+        return None;
+    }
+
+    // `Weak` atravessa threads; `Rc<RefCell<AppState>>` nao. Por isso o
+    // observador nao toca o estado: ele so pede a janela, ja no laco de
+    // eventos, para disparar a recarga que ja existe.
+    let weak = window.as_weak();
+    match morune_theme::watch::ThemeWatcher::new(&dir, move |_| {
+        let _ = weak.upgrade_in_event_loop(|window| window.invoke_reload_theme());
+    }) {
+        Ok(watcher) => {
+            tracing::info!(dir = %dir.display(), "recarga de tema ao salvar ligada");
+            Some(watcher)
+        }
+        Err(error) => {
+            // Pasta inexistente ou limite de observadores do sistema. Nao ha o
+            // que o usuario possa fazer, e o botao Recarregar continua ali.
+            tracing::warn!(%error, "observador de temas indisponivel");
+            None
+        }
+    }
+}
+
 fn wire_window_chrome(window: &ui::AppWindow) {
     let weak = window.as_weak();
     window.on_move_window(move |delta_x, delta_y| {
@@ -328,6 +497,11 @@ fn wire_window_state(
             // que confirmam que ja esta certo.
             #[cfg(windows)]
             ensure_rounded_corners(window.window());
+            #[cfg(windows)]
+            {
+                let (opacity, acrylic) = state.borrow().window_effects();
+                ensure_window_effects(window.window(), opacity, acrylic);
+            }
             if window.get_mini_player() {
                 return;
             }
@@ -973,6 +1147,11 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
     // isso pode chegar um tique depois: o `TrackChanged` do motor forca o
     // espelhamento completo em ate 100 ms. Segurar o clique ate reconstruir
     // inicio, busca, biblioteca e fila e o que se sentia como botao lento.
+    on!(on_stop_playback, |w, s| {
+        s.stop();
+        s.push_playback(&w);
+    });
+
     on!(on_next_track, |w, s| {
         s.next_track();
         s.push_playback(&w);
@@ -1025,6 +1204,68 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
 
     on!(on_set_autoplay, |w, s, on: bool| {
         s.set_autoplay(on);
+        s.push_to_ui(&w);
+    });
+
+    // Aparencia. Cada um destes reprepara o fundo e reaplica o tema, porque
+    // sao exatamente os ajustes que mudam o que a janela desenha.
+    on!(on_choose_background, |w, s| {
+        s.choose_background_via_dialog();
+        s.apply_theme_to(&w);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_clear_background, |w, s| {
+        s.clear_background();
+        s.apply_theme_to(&w);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_set_background_fit, |w, s, v: i32| {
+        s.set_background_fit(v);
+        s.apply_theme_to(&w);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_set_background_opacity, |w, s, v: f32| {
+        s.set_background_opacity(v);
+        s.apply_theme_to(&w);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_set_background_tint, |w, s, v: f32| {
+        s.set_background_tint(v);
+        s.apply_theme_to(&w);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_set_background_blur, |w, s, v: f32| {
+        s.set_background_blur(v);
+        s.apply_theme_to(&w);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_set_font_scale, |w, s, v: f32| {
+        s.set_font_scale(v);
+        s.apply_theme_to(&w);
+        s.push_to_ui(&w);
+    });
+
+    // Aplicada na hora, e nao no temporizador de meio segundo: arrastar um
+    // slider e esperar a proxima batida parece um controle emperrado.
+    on!(on_set_window_opacity, |w, s, v: f32| {
+        s.set_window_opacity(v);
+        #[cfg(windows)]
+        {
+            let (opacidade, acrilico) = s.window_effects();
+            ensure_window_effects(w.window(), opacidade, acrilico);
+        }
+        s.push_to_ui(&w);
+    });
+
+    on!(on_set_reduce_motion, |w, s, on: bool| {
+        s.set_reduce_motion(on);
+        s.apply_theme_to(&w);
         s.push_to_ui(&w);
     });
 }
