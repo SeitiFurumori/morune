@@ -3,6 +3,7 @@ use std::fs;
 use std::path::Path;
 
 use morune_core::queue::RepeatMode;
+use morune_theme::BackgroundFit;
 use serde::{Deserialize, Serialize};
 
 /// Versao do arquivo de configuracao.
@@ -55,6 +56,30 @@ pub struct AppearanceConfig {
     pub font_scale_override: f32,
     /// Desliga animacoes independentemente do tema.
     pub reduce_motion: bool,
+
+    /// Imagem de fundo escolhida pelo usuario.
+    ///
+    /// Vazio = usa a do tema, se houver. Quando preenchida, **substitui** a do
+    /// tema e leva junto os ajustes abaixo -- mesma regra de
+    /// `font_scale_override`: preferencia de pessoa sobrevive a troca de tema,
+    /// e misturar a imagem de um lado com o encaixe do outro daria um resultado
+    /// que ninguem escolheu.
+    ///
+    /// Guardada como caminho absoluto para dentro da pasta do aplicativo: a
+    /// imagem e copiada na hora de escolher, entao mover ou apagar o original
+    /// nao deixa a janela sem fundo.
+    pub background_image: String,
+    pub background_fit: BackgroundFit,
+    pub background_opacity: f32,
+    /// Intensidade do veu de legibilidade sobre a imagem, em `[0.0, 1.0]`.
+    pub background_tint_strength: f32,
+    pub background_blur: f32,
+
+    /// Sobrepoe a opacidade da janela pedida pelo tema, em `[0.2, 1.0]`.
+    ///
+    /// `0` = usa o valor do tema. Mesma convencao de `font_scale_override`, e
+    /// pelo mesmo motivo: preferencia de pessoa sobrevive a troca de tema.
+    pub window_opacity_override: f32,
 }
 
 impl Default for AppearanceConfig {
@@ -63,6 +88,16 @@ impl Default for AppearanceConfig {
             theme: "midnight".into(),
             font_scale_override: 0.0,
             reduce_motion: false,
+            background_image: String::new(),
+            background_fit: BackgroundFit::Cover,
+            background_opacity: 1.0,
+            // Escurecimento generoso por padrao. Quem poe foto quase sempre poe
+            // uma que apagaria o texto, e descobrir isso depois de aplicar e
+            // pior que comecar mais escuro do que o necessario. O valor saiu de
+            // olhar: a 55% o texto secundario sobre foto clara ficava ilegivel.
+            background_tint_strength: 0.70,
+            background_blur: 0.0,
+            window_opacity_override: 0.0,
         }
     }
 }

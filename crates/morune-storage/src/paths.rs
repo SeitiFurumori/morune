@@ -76,6 +76,14 @@ impl AppPaths {
         self.cache_dir.join("artwork")
     }
 
+    /// Imagens de fundo escolhidas pelo usuario.
+    ///
+    /// Fica em `data_dir`, e nao em `cache_dir`: e escolha da pessoa, e limpar
+    /// o cache nao pode deixar a janela sem fundo.
+    pub fn backgrounds_dir(&self) -> PathBuf {
+        self.data_dir.join("backgrounds")
+    }
+
     /// Cache de audio do backend de streaming.
     pub fn audio_cache_dir(&self) -> PathBuf {
         self.cache_dir.join("audio")
