@@ -24,6 +24,9 @@ export global Theme {
     in-out property <brush> accent-hover: #87e4b2;
 
     in-out property <brush> border: #ffffff14;
+    // Aresta superior das superficies. Chega igual a `border` quando o tema nao
+    // pede realce, entao quem desenha nunca precisa checar se existe.
+    in-out property <brush> border-highlight: #ffffff14;
     in-out property <brush> hover: #ffffff0d;
     in-out property <brush> selected: #ffffff1a;
     in-out property <brush> focus-ring: #6dd49e;
@@ -63,6 +66,29 @@ export global Theme {
     in-out property <length> progress-thickness: 4px;
     in-out property <length> scrollbar-width: 10px;
 
+    // --- fundo ---
+    // A imagem chega decodificada, reduzida e ja desfocada do Rust. Aqui ela e
+    // so um bitmap: nada nesta camada recalcula nada por quadro.
+    in-out property <image> background-image;
+    // 0 = cover, 1 = contain, 2 = center, 3 = stretch
+    in-out property <int> background-fit: 0;
+    in-out property <float> background-opacity: 1.0;
+    in-out property <brush> background-tint: #00000000;
+    in-out property <float> background-tint-strength: 0.0;
+
+    // --- controles ---
+    // Medida do alvo que a pessoa clica, separada das formas porque responde a
+    // outra pergunta. `icon-stroke` esta em unidades do viewbox 24x24 do icone,
+    // nao em pixels: e o que faz o traco acompanhar o tamanho do desenho.
+    in-out property <length> control-button-size: 32px;
+    in-out property <length> control-button-radius: 999px;
+    in-out property <length> control-primary-size: 40px;
+    in-out property <length> control-icon-size: 18px;
+    in-out property <length> control-icon-size-primary: 22px;
+    in-out property <float> control-icon-stroke: 2.0;
+    in-out property <length> control-slider-knob: 12px;
+    in-out property <length> control-tooltip-height: 28px;
+
     // --- movimento ---
     // Duracoes ja resolvidas no Rust: `enabled = false` chega aqui como 0ms,
     // entao a interface nao precisa checar se animacao esta ligada.
@@ -72,8 +98,13 @@ export global Theme {
 
     // --- efeitos ---
     in-out property <float> shadow-strength: 0.5;
+    in-out property <float> gloss: 0.0;
     in-out property <bool> artwork-tint: true;
     in-out property <float> artwork-tint-strength: 0.35;
+    // Cor dominante da capa que esta tocando, calculada no Rust uma vez por
+    // faixa. Quando nao ha capa, chega igual a `player-background`, e o veu
+    // some sozinho sem ninguem precisar checar.
+    in-out property <color> artwork-color: #0f1219;
 }
 
 // Composicao da tela, tambem vinda do tema.
@@ -116,6 +147,7 @@ export global Layout {
     in-out property <bool> player-volume: true;
     in-out property <bool> player-shuffle-repeat: true;
     in-out property <bool> player-queue-button: true;
+    in-out property <bool> player-stop-button: false;
     in-out property <bool> player-times: true;
     in-out property <bool> player-center-controls: true;
 

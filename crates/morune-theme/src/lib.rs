@@ -18,6 +18,7 @@
 #![warn(missing_debug_implementations, rust_2018_idioms)]
 
 pub mod color;
+pub mod icons;
 pub mod layout;
 pub mod loader;
 pub mod manifest;
@@ -29,15 +30,19 @@ pub mod tokens;
 pub mod watch;
 
 pub use color::Color;
+pub use icons::{ICONS_SUBDIR, ICON_NAMES};
 pub use layout::{
     ContentLayout, Density, LayoutSpec, PlayerLayout, PlayerPosition, SidebarLayout,
     SidebarPosition, ViewMode, WindowLayout,
 };
-pub use loader::{discover, load, LoadedTheme, ThemeEntry};
+pub use loader::{discover, load, LoadedTheme, ThemeEntry, ThemePreview};
 pub use manifest::{Appearance, ThemeManifest, CURRENT_SCHEMA_VERSION};
 pub use pack::{export_pack, import_pack, ImportedTheme, PackError};
 pub use spec::{ThemeSpec, ThemeWarning};
-pub use tokens::{ColorTokens, Easing, EffectTokens, MotionTokens, ShapeTokens, TypographyTokens};
+pub use tokens::{
+    BackgroundFit, BackgroundTokens, ColorTokens, ControlTokens, Easing, EffectTokens,
+    MotionTokens, ShapeTokens, TypographyTokens,
+};
 
 /// Extensao dos pacotes de tema.
 pub const PACK_EXTENSION: &str = "musicpack";

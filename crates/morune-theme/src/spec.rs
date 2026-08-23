@@ -3,7 +3,10 @@ use serde::{Deserialize, Serialize};
 use crate::color::Color;
 use crate::layout::LayoutSpec;
 use crate::manifest::{ManifestError, ThemeManifest};
-use crate::tokens::{ColorTokens, EffectTokens, MotionTokens, ShapeTokens, TypographyTokens};
+use crate::tokens::{
+    BackgroundTokens, ColorTokens, ControlTokens, EffectTokens, MotionTokens, ShapeTokens,
+    TypographyTokens,
+};
 
 /// Um tema resolvido e pronto para ser aplicado na interface.
 ///
@@ -20,10 +23,14 @@ pub struct ThemeSpec {
     pub typography: TypographyTokens,
     #[serde(rename = "shape")]
     pub shape: ShapeTokens,
+    #[serde(rename = "control")]
+    pub control: ControlTokens,
     #[serde(rename = "motion")]
     pub motion: MotionTokens,
     #[serde(rename = "effects")]
     pub effects: EffectTokens,
+    #[serde(rename = "background")]
+    pub background: BackgroundTokens,
     #[serde(rename = "layout")]
     pub layout: LayoutSpec,
 }
@@ -35,8 +42,10 @@ impl Default for ThemeSpec {
             colors: ColorTokens::default(),
             typography: TypographyTokens::default(),
             shape: ShapeTokens::default(),
+            control: ControlTokens::default(),
             motion: MotionTokens::default(),
             effects: EffectTokens::default(),
+            background: BackgroundTokens::default(),
             layout: LayoutSpec::default(),
         }
     }
@@ -142,6 +151,11 @@ impl ThemeSpec {
             };
         }
         self.effects.shadow_strength = self.effects.shadow_strength.clamp(0.0, 1.0);
+        self.effects.gloss = if self.effects.gloss.is_finite() {
+            self.effects.gloss.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
         self.effects.artwork_tint_strength = self.effects.artwork_tint_strength.clamp(0.0, 1.0);
         if !(0.0..=64.0).contains(&self.effects.backdrop_blur) {
             self.effects.backdrop_blur = self.effects.backdrop_blur.clamp(0.0, 64.0);
@@ -194,6 +208,85 @@ impl ThemeSpec {
             }
         }
 
+        // Fundo. Um caminho que escapa do diretorio do tema e apagado em vez de
+        // recusado: o tema continua valido, so nao tem imagem -- mesma postura
+        // do resto do carregamento, que nunca deixa de aplicar um tema.
+        if self.background.image.contains("..")
+            || self.background.image.starts_with('/')
+            || self.background.image.starts_with('\\')
+            || self.background.image.contains(':')
+        {
+            warnings.push(ThemeWarning::new(
+                "background.image",
+                format!(
+                    "{:?} nao e um caminho relativo dentro do tema, ignorado",
+                    self.background.image
+                ),
+            ));
+            self.background.image.clear();
+        }
+        self.background.opacity = if self.background.opacity.is_finite() {
+            self.background.opacity.clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+        self.background.tint_strength = if self.background.tint_strength.is_finite() {
+            self.background.tint_strength.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        if !(0.0..=64.0).contains(&self.background.blur) || !self.background.blur.is_finite() {
+            warnings.push(ThemeWarning::new(
+                "background.blur",
+                format!("{} fora da faixa [0, 64], ajustado", self.background.blur),
+            ));
+            self.background.blur = if self.background.blur.is_finite() {
+                self.background.blur.clamp(0.0, 64.0)
+            } else {
+                0.0
+            };
+        }
+
+        // Controles. Os pisos existem para que um tema nao consiga produzir um
+        // alvo pequeno demais para acertar com o mouse enquanto se joga.
+        for (name, v, min, max) in [
+            ("button_size", &mut self.control.button_size, 20.0, 96.0),
+            ("button_radius", &mut self.control.button_radius, 0.0, 999.0),
+            (
+                "primary_button_size",
+                &mut self.control.primary_button_size,
+                24.0,
+                128.0,
+            ),
+            ("icon_size", &mut self.control.icon_size, 8.0, 64.0),
+            (
+                "icon_size_primary",
+                &mut self.control.icon_size_primary,
+                8.0,
+                64.0,
+            ),
+            ("icon_stroke", &mut self.control.icon_stroke, 0.5, 6.0),
+            ("slider_knob", &mut self.control.slider_knob, 0.0, 48.0),
+            (
+                "tooltip_height",
+                &mut self.control.tooltip_height,
+                16.0,
+                64.0,
+            ),
+        ] {
+            if !(min..=max).contains(v) || !v.is_finite() {
+                warnings.push(ThemeWarning::new(
+                    format!("control.{name}"),
+                    format!("{v} fora da faixa [{min}, {max}], ajustado"),
+                ));
+                *v = if v.is_finite() {
+                    v.clamp(min, max)
+                } else {
+                    min
+                };
+            }
+        }
+
         warnings.extend(self.contrast_warnings());
         warnings
     }
@@ -202,20 +295,48 @@ impl ThemeSpec {
     pub fn contrast_warnings(&self) -> Vec<ThemeWarning> {
         let c = &self.colors;
         let mut out = Vec::new();
-        let mut check = |field: &str, fg: Color, bg: Color| {
-            let ratio = fg.contrast_ratio(bg);
-            if ratio < MIN_TEXT_CONTRAST {
+
+        // Superficies com alfa nao tem contraste proprio: dependem do que esta
+        // atras, e o que esta atras e o fundo da janela -- que por sua vez pode
+        // ser translucido e deixar passar a area de trabalho, que nao da para
+        // conhecer daqui.
+        //
+        // Entao a conta e feita nos **dois piores casos**, area de trabalho
+        // branca e preta, e vale o pior dos dois. Para um tema opaco nada muda
+        // (compor sobre qualquer coisa devolve a propria cor); para um tema de
+        // vidro e a diferenca entre um aviso falso e a leitura real.
+        let branco = Color::rgb(0xff, 0xff, 0xff);
+        let preto = Color::rgb(0x00, 0x00, 0x00);
+
+        // `None` = o texto cai direto sobre o fundo da janela; `Some(cor)` = ha
+        // uma regiao pintada por cima dele. A distincao existe porque a janela
+        // pinta `background` uma vez so: empilhar o fundo sobre ele mesmo daria
+        // um alfa efetivo que o aplicativo nao desenha.
+        let mut check = |field: &str, fg: Color, regiao: Option<Color>| {
+            let pior = [branco, preto]
+                .into_iter()
+                .map(|desktop| {
+                    let base = c.background.over(desktop);
+                    let atras = match regiao {
+                        Some(cor) => cor.over(base),
+                        None => base,
+                    };
+                    fg.over(atras).contrast_ratio(atras)
+                })
+                .fold(f32::INFINITY, f32::min);
+
+            if pior < MIN_TEXT_CONTRAST {
                 out.push(ThemeWarning::new(
                     field,
-                    format!("contraste {ratio:.2}:1 abaixo do minimo {MIN_TEXT_CONTRAST}:1"),
+                    format!("contraste {pior:.2}:1 abaixo do minimo {MIN_TEXT_CONTRAST}:1"),
                 ));
             }
         };
-        check("color.text", c.text, c.background);
-        check("color.text_muted", c.text_muted, c.background);
-        check("color.text_on_accent", c.text_on_accent, c.accent);
-        check("color.sidebar_text", c.text, c.sidebar_background);
-        check("color.player_text", c.text, c.player_background);
+        check("color.text", c.text, None);
+        check("color.text_muted", c.text_muted, None);
+        check("color.text_on_accent", c.text_on_accent, Some(c.accent));
+        check("color.sidebar_text", c.text, Some(c.sidebar_background));
+        check("color.player_text", c.text, Some(c.player_background));
         out
     }
 
@@ -241,6 +362,86 @@ mod tests {
             "tema embutido deveria estar limpo: {warnings:?}"
         );
         assert!(t.validate_manifest().is_ok());
+    }
+
+    #[test]
+    fn um_tema_de_vidro_legivel_nao_e_acusado_de_contraste_ruim() {
+        // Regressao: superficies de branco translucido eram lidas como branco
+        // puro, e um tema perfeitamente legivel acusava 1.00:1.
+        let mut t = ThemeSpec::default();
+        t.colors.background = Color::rgba(0x0b, 0x0b, 0x12, 0xb3);
+        t.colors.sidebar_background = Color::rgba(0xff, 0xff, 0xff, 0x0d);
+        t.colors.player_background = Color::rgba(0xff, 0xff, 0xff, 0x14);
+        t.colors.text = Color::rgb(0xff, 0xff, 0xff);
+        // Um tema de vidro precisa de secundario mais claro que um tema opaco:
+        // sobre vidro fino a area de trabalho clareia o fundo, e o cinza medio
+        // que serve num fundo escuro deixa de servir.
+        t.colors.text_muted = Color::rgb(0xe0, 0xe0, 0xe6);
+        let avisos = t.contrast_warnings();
+        assert!(avisos.is_empty(), "{avisos:?}");
+    }
+
+    #[test]
+    fn vidro_transparente_demais_continua_sendo_pego() {
+        // A outra metade: o verificador nao pode virar carimbo. Com o fundo
+        // quase transparente, uma area de trabalho branca apaga o texto branco
+        // -- e e exatamente isso que ele tem de dizer.
+        let mut t = ThemeSpec::default();
+        t.colors.background = Color::rgba(0x0b, 0x0b, 0x12, 0x1a);
+        t.colors.text = Color::rgb(0xff, 0xff, 0xff);
+        let avisos = t.contrast_warnings();
+        assert!(
+            avisos.iter().any(|w| w.field == "color.text"),
+            "deveria acusar: {avisos:?}"
+        );
+    }
+
+    #[test]
+    fn background_image_escaping_the_theme_is_dropped() {
+        for escape in [
+            "../../windows/win.ini",
+            "/etc/passwd",
+            r"C:\Windows\win.ini",
+        ] {
+            let mut t = ThemeSpec::default();
+            t.background.image = escape.into();
+            let w = t.sanitize();
+            assert!(
+                t.background.image.is_empty(),
+                "{escape} deveria ter sido descartado"
+            );
+            assert!(w.iter().any(|w| w.field == "background.image"));
+        }
+    }
+
+    #[test]
+    fn a_relative_background_image_survives_sanitize() {
+        let mut t = ThemeSpec::default();
+        t.background.image = "assets/backgrounds/fundo.jpg".into();
+        let w = t.sanitize();
+        assert_eq!(t.background.image, "assets/backgrounds/fundo.jpg");
+        assert!(w.is_empty(), "{w:?}");
+    }
+
+    #[test]
+    fn absurd_background_blur_is_clamped() {
+        let mut t = ThemeSpec::default();
+        t.background.blur = 4_000.0;
+        let w = t.sanitize();
+        assert_eq!(t.background.blur, 64.0);
+        assert!(w.iter().any(|w| w.field == "background.blur"));
+    }
+
+    #[test]
+    fn a_control_too_small_to_click_is_pulled_back() {
+        let mut t = ThemeSpec::default();
+        t.control.button_size = 2.0;
+        t.control.icon_stroke = 0.0;
+        let w = t.sanitize();
+        assert_eq!(t.control.button_size, 20.0);
+        assert_eq!(t.control.icon_stroke, 0.5);
+        assert!(w.iter().any(|w| w.field == "control.button_size"));
+        assert!(w.iter().any(|w| w.field == "control.icon_stroke"));
     }
 
     #[test]

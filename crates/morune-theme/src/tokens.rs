@@ -35,6 +35,13 @@ pub struct ColorTokens {
 
     /// Separadores e contornos.
     pub border: Color,
+    /// Realce da aresta superior das superficies -- o brilho especular que da a
+    /// impressao de espessura no vidro.
+    ///
+    /// Totalmente transparente (o padrao) faz a aresta usar `border`, e a
+    /// interface fica como sempre foi. So vale a pena num tema translucido: num
+    /// tema opaco a luz nao teria de onde vir.
+    pub border_highlight: Color,
     /// Realce de item sob o cursor.
     pub hover: Color,
     /// Realce de item selecionado.
@@ -68,6 +75,7 @@ impl Default for ColorTokens {
             accent: Color::rgb(0x6d, 0xd4, 0x9e),
             accent_hover: Color::rgb(0x87, 0xe4, 0xb2),
             border: Color::rgba(0xff, 0xff, 0xff, 0x14),
+            border_highlight: Color::rgba(0x00, 0x00, 0x00, 0x00),
             hover: Color::rgba(0xff, 0xff, 0xff, 0x0d),
             selected: Color::rgba(0xff, 0xff, 0xff, 0x1a),
             focus_ring: Color::rgb(0x6d, 0xd4, 0x9e),
@@ -253,6 +261,17 @@ pub struct EffectTokens {
     pub shadow_strength: f32,
     /// Desfoque de fundo atras de modais, em pixels. `0` desliga.
     pub backdrop_blur: f32,
+    /// Brilho na superficie dos paineis, em `[0.0, 1.0]`. `0` desliga.
+    ///
+    /// Um degrade claro que nasce no topo do painel e some antes do meio -- o
+    /// reflexo difuso que acompanha o realce da aresta (`border_highlight`).
+    /// A aresta sozinha desenha o contorno do vidro; isto desenha a luz **sobre**
+    /// ele, e e a diferenca entre painel contornado e painel que parece vidro.
+    ///
+    /// Estatico: e preenchimento, resolvido na pintura como qualquer cor
+    /// chapada. Nao custa nada por quadro, e por isso nao esbarra no criterio
+    /// de nao atrapalhar quem esta jogando.
+    pub gloss: f32,
     /// Usa a capa do album para tingir o fundo da tela de reproducao.
     pub artwork_tint: bool,
     /// Intensidade do tingimento, em `[0.0, 1.0]`.
@@ -266,8 +285,114 @@ impl Default for EffectTokens {
             acrylic: false,
             shadow_strength: 0.5,
             backdrop_blur: 0.0,
+            gloss: 0.0,
             artwork_tint: true,
             artwork_tint_strength: 0.35,
+        }
+    }
+}
+
+/// Como a imagem de fundo preenche a janela.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum BackgroundFit {
+    /// Cobre a janela inteira, cortando o excesso. Preserva a proporcao.
+    #[default]
+    Cover,
+    /// Cabe inteira na janela, sobrando fundo nas bordas. Preserva a proporcao.
+    Contain,
+    /// Centralizada no tamanho original.
+    Center,
+    /// Esticada ate a janela, sem preservar a proporcao.
+    Stretch,
+}
+
+/// Imagem de fundo da janela.
+///
+/// Para o fundo aparecer, as cores de superficie precisam ter alfa: um tema com
+/// `sidebar_background` opaco cobre a imagem e o resultado e o mesmo de nao ter
+/// posto imagem nenhuma. Isso e escolha do autor do tema, nao um efeito
+/// separado -- `Color` ja aceita `#rrggbbaa`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct BackgroundTokens {
+    /// Caminho relativo ao diretorio do tema. Vazio = sem imagem.
+    ///
+    /// Sempre relativo: um caminho absoluto num `.musicpack` importado
+    /// apontaria para a maquina de quem exportou.
+    pub image: String,
+    pub fit: BackgroundFit,
+    /// Opacidade da propria imagem, em `[0.0, 1.0]`.
+    pub opacity: f32,
+    /// Cor sobreposta a imagem, para o texto continuar legivel.
+    pub tint: Color,
+    /// Quanto da cor acima e aplicado, em `[0.0, 1.0]`. `0` desliga o veu.
+    pub tint_strength: f32,
+    /// Desfoque em pixels, aplicado **uma vez** no carregamento.
+    ///
+    /// Nunca por quadro: o Morune toca enquanto a pessoa joga, e um desfoque
+    /// vivo atras da janela custaria GPU a cada repaint sem nenhum ganho -- a
+    /// imagem e estatica, entao o resultado tambem e.
+    pub blur: f32,
+}
+
+impl Default for BackgroundTokens {
+    fn default() -> Self {
+        Self {
+            image: String::new(),
+            fit: BackgroundFit::Cover,
+            opacity: 1.0,
+            tint: Color::rgba(0x00, 0x00, 0x00, 0x00),
+            tint_strength: 0.0,
+            blur: 0.0,
+        }
+    }
+}
+
+/// Medidas dos controles interativos.
+///
+/// Existem separados de [`ShapeTokens`] porque respondem a uma pergunta
+/// diferente: `shape` diz como uma superficie e recortada, `control` diz o
+/// tamanho do alvo que a pessoa clica. Sem estes tokens os botoes do player
+/// ficavam com medida literal dentro da interface -- exatamente o que a regra
+/// no topo de `theme.slint` proibe.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ControlTokens {
+    /// Diametro do botao de icone comum.
+    pub button_size: f32,
+    /// Raio do botao de icone. Valor alto vira circulo.
+    pub button_radius: f32,
+    /// Diametro do botao primario do player (play/pause).
+    pub primary_button_size: f32,
+    /// Tamanho do icone dentro de um botao comum.
+    pub icon_size: f32,
+    /// Tamanho do icone dentro do botao primario.
+    pub icon_size_primary: f32,
+    /// Espessura do traco dos icones de contorno, em **unidades do viewbox
+    /// 24x24**, nao em pixels.
+    ///
+    /// E a unica forma de o traco acompanhar o tamanho do icone: um valor em
+    /// pixels engorda desproporcionalmente os icones pequenos, que foi o
+    /// defeito que isto corrige.
+    pub icon_stroke: f32,
+    /// Diametro do puxador do slider.
+    pub slider_knob: f32,
+    /// Altura do rotulo flutuante dos botoes de icone.
+    pub tooltip_height: f32,
+}
+
+impl Default for ControlTokens {
+    fn default() -> Self {
+        Self {
+            button_size: 32.0,
+            button_radius: 999.0,
+            primary_button_size: 40.0,
+            icon_size: 18.0,
+            icon_size_primary: 22.0,
+            icon_stroke: 2.0,
+            slider_knob: 12.0,
+            tooltip_height: 28.0,
         }
     }
 }
@@ -345,6 +470,29 @@ mod tests {
         let err = toml::from_str::<ColorTokens>(r##"acccent = "#ff0066""##).unwrap_err();
         assert!(
             err.to_string().contains("acccent"),
+            "erro pouco util: {err}"
+        );
+    }
+
+    #[test]
+    fn control_tokens_round_trip_through_toml() {
+        let c = ControlTokens::default();
+        let text = toml::to_string(&c).unwrap();
+        assert_eq!(toml::from_str::<ControlTokens>(&text).unwrap(), c);
+    }
+
+    #[test]
+    fn partial_control_table_fills_in_defaults() {
+        let c: ControlTokens = toml::from_str("button_size = 48.0").unwrap();
+        assert_eq!(c.button_size, 48.0);
+        assert_eq!(c.icon_size, ControlTokens::default().icon_size);
+    }
+
+    #[test]
+    fn unknown_control_token_is_rejected_so_typos_are_visible() {
+        let err = toml::from_str::<ControlTokens>("buton_size = 48.0").unwrap_err();
+        assert!(
+            err.to_string().contains("buton_size"),
             "erro pouco util: {err}"
         );
     }
