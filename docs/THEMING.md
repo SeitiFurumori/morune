@@ -70,6 +70,14 @@ de travar.
 
 ---
 
+
+> **Armadilha:** declarar uma secao substitui a **secao inteira**, e os campos
+> que voce nao listar vem do **padrao embutido**, nao do tema pai. Um tema com
+> `based_on = "pulse"` e um `[color]` de tres linhas nao herda as outras cores
+> do Pulse -- ele herda as do tema embutido, e o resultado quase nunca e o que
+> se queria. Para mudar poucas cores de um tema pai, copie a secao `[color]`
+> dele inteira e altere o que precisa.
+
 ## theme.toml
 
 ### `[color]`
@@ -90,6 +98,7 @@ e nada acima precisa saber disso.
 | `accent` | cor de marca: botao primario, progresso |
 | `accent_hover` | destaque sob o cursor |
 | `border` | separadores e contornos |
+| `border_highlight` | realce da aresta superior (gloss). Transparente = usa `border` |
 | `hover` | realce sob o cursor |
 | `selected` | realce de item selecionado |
 | `focus_ring` | anel de foco de teclado |
@@ -150,6 +159,87 @@ progress_thickness = 4.0
 scrollbar_width = 10.0
 ```
 
+### `[control]`
+
+Medida dos alvos que a pessoa clica. Vive separado de `[shape]` porque responde
+a outra pergunta: `shape` diz como uma superficie e recortada, `control` diz o
+tamanho do botao.
+
+```toml
+button_size = 32.0          # diametro do botao de icone
+button_radius = 999.0       # alto = circular
+primary_button_size = 40.0  # play/pause
+icon_size = 16.0
+icon_size_primary = 18.0
+icon_stroke = 2.0           # unidades do viewbox 24x24, NAO pixels
+slider_knob = 12.0
+tooltip_height = 28.0
+```
+
+`icon_stroke` esta em unidades de desenho de proposito: assim o traco acompanha
+o tamanho do icone. Um valor em pixels engordaria desproporcionalmente os
+icones pequenos.
+
+Os pisos existem para que nenhum tema consiga produzir um alvo pequeno demais
+para acertar com o mouse enquanto se joga: `button_size` fica em `[20, 96]`,
+`icon_stroke` em `[0.5, 6]`.
+
+### Fonte que vem com o tema
+
+Ponha o arquivo em `fonts/` dentro do tema e cite **so o nome do arquivo**:
+
+```toml
+[typography]
+bundled_font = "MinhaFonte.ttf"
+family = "Minha Fonte"
+```
+
+`family` precisa ser o **nome interno da fonte**, nao o nome do arquivo:
+registrar `MinhaFonte.ttf` nao cria uma familia chamada "MinhaFonte". Se o texto
+sair na fonte padrao, e quase sempre isso.
+
+**So empacote fonte que voce tem direito de redistribuir.** OFL, Apache e CC0
+permitem; fontes compradas e fontes que vem com um sistema operacional nao. As
+fontes SF da Apple estao explicitamente fora -- ver
+[Direitos em temas](DIREITOS-EM-TEMAS.md).
+
+Formatos aceitos no pacote: `.ttf`, `.otf`, `.woff2`. Uma fonte registrada fica
+ate o aplicativo fechar -- o Slint nao tem como remove-la --, entao trocar de
+tema varias vezes acumula fontes na memoria do processo. E aceitavel: o custo e
+o arquivo, e ninguem troca de tema mil vezes numa sessao.
+
+### `[background]`
+
+Imagem de fundo da janela.
+
+```toml
+image = "assets/backgrounds/fundo.jpg"  # relativo ao tema; vazio = sem imagem
+fit = "cover"          # cover | contain | center | stretch
+opacity = 1.0
+tint = "#0b0d12"       # cor sobreposta a imagem
+tint_strength = 0.55   # quanto do veu acima e aplicado
+blur = 0.0             # px, aplicado UMA VEZ no carregamento
+```
+
+**Para o fundo aparecer, as cores de superficie precisam de alfa.** Nao existe
+um modo "transparencia": um tema com `sidebar_background` opaco cobre a imagem,
+e o resultado e o mesmo de nao ter posto imagem nenhuma. Use `#rrggbbaa`:
+
+```toml
+[color]
+sidebar_background = "#0d1016cc"
+player_background = "#0f1219d9"
+surface = "#12151dbf"
+```
+
+O caminho e sempre relativo ao diretorio do tema. Caminho absoluto ou com `..` e
+descartado com aviso -- num `.musicpack` importado ele apontaria para a maquina
+de quem exportou.
+
+`blur` custa uma vez, no carregamento, e nunca por quadro. A imagem tambem e
+reduzida se passar de 3840 px de lado. As duas coisas existem pelo mesmo motivo:
+o Morune toca enquanto a pessoa joga, e nada aqui pode disputar GPU com o jogo.
+
 ### `[motion]`
 
 ```toml
@@ -170,6 +260,7 @@ chega como zero, e nenhuma tela precisa checar a preferencia.
 window_opacity = 1.0        # 0.2 .. 1.0
 acrylic = false             # fundo translucido estilo Windows, quando disponivel
 shadow_strength = 0.5       # 0.0 .. 1.0
+gloss = 0.0                 # brilho na superficie dos paineis, 0 desliga
 backdrop_blur = 0.0         # px atras de modais, 0 desliga
 artwork_tint = true         # tinge o fundo com a capa
 artwork_tint_strength = 0.35
@@ -177,6 +268,43 @@ artwork_tint_strength = 0.35
 
 O piso de `window_opacity` e alto de proposito: uma janela quase transparente
 deixaria o aplicativo irrecuperavel pelo proprio usuario.
+
+## Vidro: as duas metades
+
+`color.border_highlight` e o realce da aresta superior -- a linha clara na quina
+de cima que da a impressao de espessura. Transparente (o padrao) faz a aresta
+usar `border`, e a interface fica como sempre foi.
+
+`effects.gloss` e o par dele: um degrade claro que nasce no topo do painel e
+some antes do meio. A aresta desenha o **contorno** do vidro; o gloss desenha a
+**luz caindo sobre ele**. Um sem o outro parece painel contornado; os dois
+juntos parecem vidro.
+
+Os dois so fazem sentido num tema translucido -- num tema opaco a luz nao teria
+de onde vir, e por isso ambos nascem desligados.
+
+Nenhum dos dois custa por quadro: sao preenchimento estatico, resolvidos na
+pintura como qualquer cor chapada.
+
+`acrylic` e composicao do **sistema**, feita pelo DWM, e nao um efeito que o
+Morune desenha: nao custa nada por quadro. Como a imagem de fundo, ele so
+aparece se a cor de fundo do tema tiver alfa. Em Windows 10 o atributo nao
+existe e a janela fica opaca, sem erro.
+
+`window_opacity` e do tema, mas a pessoa pode sobrepor pelo slider
+**Transparencia da janela** em Configuracoes > Aparencia. Como todo ajuste
+daquela secao, a escolha dela vence a do tema e sobrevive a troca de tema.
+Trocar para um tema opaco **desliga** a transparencia; um tema nao deixa
+sequela no seguinte.
+
+`artwork_tint` **funciona**: a cor dominante da capa que esta tocando vaza para
+dentro da barra de reproducao, num degrade que morre antes dos controles. A cor
+e calculada uma vez por faixa -- nao por quadro -- e o criterio e quantidade
+vezes saturacao, com quase-preto e quase-branco descartados: um encarte de fundo
+preto devolve a cor do disco, e nao o preto.
+
+`backdrop_blur` continua **reservado**: esta no esquema e e validado, mas nada
+o consome ainda.
 
 ---
 
@@ -223,6 +351,7 @@ progress_edge_to_edge = false   # barra colada na borda da janela
 show_volume = true
 show_shuffle_repeat = true
 show_queue_button = true
+show_stop_button = false    # botao de parar entre pause e proxima
 show_times = true
 center_controls = true
 ```
@@ -271,6 +400,19 @@ tela utilizavel.
 
 ## Fluxo de trabalho
 
+### Recarregar ao salvar
+
+Ligue **Recarregar tema ao salvar** em Configuracoes > Temas. O Morune passa a
+observar a pasta de temas e aplica o tema assim que voce salva o arquivo, sem
+clicar em nada.
+
+O observador agrupa eventos numa janela de 180 ms -- editores gravam um arquivo
+em varias operacoes, e sem isso um unico salvamento dispararia tres recargas --
+e ignora temporarios de editor (`.swp`, `theme.toml~`, `.tmp`).
+
+Ele custa uma thread e alguns handles do sistema, por isso nasce desligado.
+O botao **Recarregar temas** continua funcionando do mesmo jeito.
+
 ### Criar um tema
 
 1. Configuracoes → **Duplicar** num tema existente. A copia e completa e nao
@@ -306,9 +448,80 @@ codigo.
 | `midnight` | tema embutido. Escuro, verde, cantos medios, grade, sidebar a esquerda, player embaixo |
 | `paper` | o contrario em todos os eixos: claro, serifado, cantos retos, lista, sidebar a **direita**, player em **cima**, progresso de ponta a ponta, densidade compacta |
 | `pulse` | tema **derivado**: herda a composicao do `midnight` e muda so cor, forma e movimento. E o exemplo minimo para quem for escrever o proprio |
+| `cristal` | vidro: superficies de branco translucido, acrilico do sistema, cantos generosos. Mostra `[effects]` e alfa nas cores trabalhando juntos |
+| `bruma` | vidro **sobre a area de trabalho**: neutro, azul frio, com `gloss` e `border_highlight` ligados. E o exemplo de como as duas metades do vidro se somam |
 
 `paper` existe justamente para tornar visivel que a customizacao vai alem de
 trocar cor. Compare as capturas geradas por `tools/snapshot.ps1`.
+
+`cristal` pede a fonte **Inter** sem traze-la junto: ela nao vem dentro do
+Morune, e sem ela o Windows cai na fonte padrao e o tema continua inteiro. O
+porque esta comentado no proprio `theme.toml` e em
+[Direitos em temas](DIREITOS-EM-TEMAS.md).
+
+**O Slint aceita um nome de familia, nao uma lista.** `family = "Inter, Segoe
+UI"` e lido como um nome unico que nao existe -- medido, nao suposto. Nao ha
+como declarar uma cadeia de reserva num tema.
+
+---
+
+## A previa na lista de temas
+
+Cada tema aparece com uma miniatura da janela do Morune pintada com as cores
+dele: barra lateral, conteudo, barra de reproducao e o botao primario em
+destaque.
+
+Nao e uma captura de tela. E um desenho de cinco retangulos a partir de
+`background`, `surface`, `sidebar_background`, `player_background`, `accent` e
+`text` -- entao ela esta sempre atualizada, inclusive no instante seguinte a
+voce salvar o TOML, e nao custa render nenhum.
+
+Consequencia pratica para quem escreve tema: **a previa mostra exatamente a
+relacao entre essas seis cores**. Se duas delas forem quase iguais, a miniatura
+vai parecer chapada -- e a janela de verdade tambem.
+
+---
+
+## Icones
+
+Um tema substitui qualquer icone pondo um **`.svg`** de mesmo nome em
+`assets/icons/`. O que nao for substituido continua com o desenho embutido.
+
+```
+meu-tema/
+  manifest.toml
+  theme.toml
+  assets/
+    icons/
+      play.svg
+      pause.svg
+```
+
+Os nomes aceitos sao exatamente estes:
+
+```
+home  search  library  settings
+play  pause  stop  next  previous  shuffle  repeat  repeat-one
+queue  queue-add  queue-next  mini-player  volume  heart
+chevron-left  chevron-right  chevron-up  chevron-down  close
+minimize-window  maximize-window  restore-window
+```
+
+Um arquivo com nome fora da lista e ignorado, e o aviso aparece no log -- a
+alternativa seria um erro de digitacao virar silencio, com o icone
+simplesmente nao trocando e ninguem sabendo por que.
+
+**O icone do tema continua obedecendo a cor do tema.** Ele e tingido com a
+mesma cor que o desenho embutido receberia, entao um SVG multicolorido sai
+chapado. Desenhe em uma cor so; a paleta e do tema, nao do icone.
+
+Desenhe num viewbox de **24x24**, com o conteudo dentro de `5..19` -- e a grade
+otica que os icones embutidos usam, e sair dela deixa o icone trocado com peso
+visivelmente diferente dos vizinhos.
+
+Nao ha substituicao para a marca do Morune: ver o item sobre isso nos limites
+abaixo. Icones de terceiros seguem a mesma regra das fontes -- ver
+[Direitos em temas](DIREITOS-EM-TEMAS.md).
 
 ---
 
@@ -318,16 +531,15 @@ trocar cor. Compare as capturas geradas por `tools/snapshot.ps1`.
   oferecidos; nao desenha telas novas. Layout livre via `slint-interpreter` esta
   previsto atras do Developer Mode, e o motivo de nao ser o padrao esta em
 [ADR-0004](adr/0004-temas-declarativos.md).
-- **Icones ainda nao sao substituiveis por tema.** Os caminhos vetoriais estao
-  na interface. Icones vindos de `assets/` estao no roteiro.
 - **A marca nao e customizavel, e isso e proposital.** O simbolo do Morune tem
   geometria e cor fixas (`#8B63F6 → #6937EC`), fora do esquema de tema: aparece
   na barra lateral, na janela, na barra de tarefas, na bandeja e no instalador.
   Um tema muda tudo o que o usuario ve, menos o que diz de qual aplicativo se
   trata. A especificacao esta em
   `assets/brand/morune-logo-system/SPECIFICATION.md`.
-- **Fontes empacotadas ainda nao sao registradas.** O campo `bundled_font` ja
-  existe no esquema, mas o carregamento nao foi implementado; fontes instaladas
-  no sistema funcionam normalmente por `family`.
-- **Recarga a quente** existe na crate (`morune-theme`, feature `hot-reload`)
-  mas ainda nao esta ligada ao Developer Mode na interface. Use **Recarregar**.
+- **Fontes empacotadas dependem de uma API instavel do Slint.** `bundled_font`
+  funciona e vem ligado por padrao (feature `bundled-fonts`), mas o Slint 1.17
+  nao tem API estavel para registrar fonte em tempo de execucao -- a unica via
+  e `slint::fontique_010`, que o proprio Slint marca como instavel. Uma
+  atualizacao do Slint pode quebrar a compilacao desse trecho. E uma quebra
+  visivel no build, nunca silenciosa em execucao.

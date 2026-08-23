@@ -1,0 +1,439 @@
+<!-- @dsCard group="Telas" -->
+<!doctype html>
+<meta charset="utf-8">
+<title>Morune — janela</title>
+<style>
+/* morune.css embutido: cada cartao precisa renderizar sozinho,
+   sem depender de arquivo vizinho. A copia canonica fica em morune.css. */
+/* Morune -- contrato de tema.
+ *
+ * Cada variavel aqui corresponde a UMA chave do theme.toml, com o mesmo nome.
+ * `--color-surface-raised` e `[color] surface_raised`. Nao ha excecao.
+ *
+ * Propor um tema = trocar os valores deste bloco. Nada fora dele e
+ * implementavel no aplicativo.
+ */
+
+:root {
+  /* ---- [color] : 19 cores, todas aceitam #rrggbbaa ---- */
+  --color-background: #0b0d12;
+  --color-surface: #12151d;
+  --color-surface-raised: #1a1e29;
+  --color-player-background: #0f1219;
+  --color-sidebar-background: #0d1016;
+
+  --color-text: #eceff4;
+  --color-text-muted: #939cb0;
+  --color-text-on-accent: #080a0e;
+
+  --color-accent: #6dd49e;
+  --color-accent-hover: #87e4b2;
+
+  --color-border: #ffffff14;
+  --color-border-highlight: #ffffff14;
+  --color-hover: #ffffff0d;
+  --color-selected: #ffffff1a;
+  --color-focus-ring: #6dd49e;
+
+  --color-success: #5cc98a;
+  --color-warning: #e4b35c;
+  --color-danger: #e46d6d;
+
+  --color-shadow: #00000080;
+  --color-scrollbar: #ffffff24;
+
+  /* ---- [typography] ---- */
+  --typography-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --typography-size-xs: 11px;
+  --typography-size-sm: 12px;
+  --typography-size-md: 14px;
+  --typography-size-lg: 17px;
+  --typography-size-xl: 22px;
+  --typography-size-display: 32px;
+  --typography-weight-normal: 400;
+  --typography-weight-medium: 500;
+  --typography-weight-bold: 700;
+  --typography-line-height: 1.4;
+  --typography-letter-spacing: 0px;
+
+  /* ---- [shape] ---- */
+  --shape-radius-sm: 4px;
+  --shape-radius-md: 8px;
+  --shape-radius-lg: 14px;
+  --shape-radius-artwork: 6px;
+  --shape-radius-avatar: 999px;
+  --shape-spacing-xs: 4px;
+  --shape-spacing-sm: 8px;
+  --shape-spacing-md: 12px;
+  --shape-spacing-lg: 20px;
+  --shape-spacing-xl: 32px;
+  --shape-border-width: 1px;
+  --shape-progress-thickness: 4px;
+  --shape-scrollbar-width: 10px;
+
+  /* ---- [control] ---- */
+  --control-button-size: 32px;
+  --control-button-radius: 999px;
+  --control-primary-button-size: 40px;
+  --control-icon-size: 18px;
+  --control-icon-size-primary: 22px;
+  --control-icon-stroke: 2; /* unidades do viewbox 24x24, NAO px */
+  --control-slider-knob: 12px;
+  --control-tooltip-height: 28px;
+
+  /* ---- [effects] + [background] ----
+   * Nao ha como reproduzir acrilico do Windows nem opacidade de janela em
+   * HTML. Estao aqui so como valor declarado, para o tema proposto poder
+   * pedi-los. Ver o cartao "Contrato".
+   */
+  --effects-gloss: 0;
+  --effects-window-opacity: 1;
+  --effects-acrylic: 0;
+  --effects-artwork-tint-strength: 0.35;
+  --background-tint: #00000000;
+  --background-tint-strength: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Daqui para baixo e so andaime para desenhar os cartoes. Nada disto  */
+/* vira token: sao as regras que o proprio aplicativo ja aplica.        */
+/* ------------------------------------------------------------------ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #191922;
+  color: var(--color-text);
+  font-family: var(--typography-family);
+  font-size: var(--typography-size-md);
+  letter-spacing: var(--typography-letter-spacing);
+  line-height: var(--typography-line-height);
+  padding: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.janela {
+  width: 1180px;
+  height: 760px;
+  background: var(--color-background);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 18px 50px #00000066;
+}
+
+.titlebar {
+  height: 36px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  border-bottom: var(--shape-border-width) solid var(--color-border);
+}
+.titlebar span {
+  width: 44px; height: 36px;
+  display: grid; place-items: center;
+  color: var(--color-text-muted);
+}
+
+.corpo { flex: 1; display: flex; min-height: 0; }
+
+.sidebar {
+  width: 232px;
+  flex: 0 0 auto;
+  background: var(--color-sidebar-background);
+  padding: var(--shape-spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--shape-spacing-xs);
+  border-right: var(--shape-border-width) solid var(--color-border);
+}
+
+.marca {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px var(--shape-spacing-md) 18px;
+  font-size: var(--typography-size-lg);
+  font-weight: var(--typography-weight-bold);
+}
+.marca b { color: var(--color-text); }
+
+.nav {
+  display: flex; align-items: center; gap: var(--shape-spacing-md);
+  height: 40px;
+  padding: 0 var(--shape-spacing-md);
+  border-radius: var(--shape-radius-md);
+  color: var(--color-text-muted);
+}
+.nav.ativo { background: var(--color-selected); color: var(--color-text); }
+
+.campo {
+  height: 36px;
+  margin-top: var(--shape-spacing-sm);
+  padding: 0 var(--shape-spacing-md);
+  display: flex; align-items: center; gap: var(--shape-spacing-sm);
+  border-radius: var(--shape-radius-md);
+  border: var(--shape-border-width) solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--typography-size-md);
+}
+
+.conteudo {
+  flex: 1;
+  min-width: 0;
+  background: var(--color-background);
+  padding: var(--shape-spacing-lg);
+  overflow: hidden;
+}
+
+.titulo-tela {
+  font-size: var(--typography-size-xl);
+  font-weight: var(--typography-weight-bold);
+  margin-bottom: var(--shape-spacing-md);
+}
+
+.cartao {
+  background: var(--color-surface);
+  border-radius: var(--shape-radius-md);
+  padding: var(--shape-spacing-md);
+  width: var(--layout-card-width, 168px);
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+.cartao b, .cartao span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.capa {
+  aspect-ratio: 1;
+  border-radius: var(--shape-radius-artwork);
+  background: var(--color-surface-raised);
+  margin-bottom: var(--shape-spacing-sm);
+  display: grid; place-items: center;
+  color: var(--color-border);
+}
+
+.player {
+  height: 88px;
+  flex: 0 0 auto;
+  background: var(--color-player-background);
+  border-top: var(--shape-border-width) solid var(--color-border);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--shape-spacing-md);
+  gap: var(--shape-spacing-md);
+}
+
+.btn-icone {
+  width: var(--control-button-size);
+  height: var(--control-button-size);
+  border-radius: var(--control-button-radius);
+  display: grid; place-items: center;
+  color: var(--color-text);
+  flex: 0 0 auto;
+}
+.btn-icone.apagado { color: var(--color-text-muted); }
+.btn-icone.ligado { color: var(--color-accent); background: var(--color-selected); }
+
+.btn-primario {
+  width: var(--control-primary-button-size);
+  height: var(--control-primary-button-size);
+  border-radius: var(--control-button-radius);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  display: grid; place-items: center;
+  flex: 0 0 auto;
+}
+
+.btn-texto {
+  height: 34px;
+  padding: 0 18px;
+  border-radius: var(--shape-radius-md);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-size: var(--typography-size-sm);
+  font-weight: var(--typography-weight-medium);
+  display: inline-grid; place-items: center;
+}
+.btn-fantasma {
+  height: 32px;
+  padding: 0 var(--shape-spacing-md);
+  border-radius: var(--shape-radius-md);
+  border: var(--shape-border-width) solid var(--color-border);
+  color: var(--color-text);
+  font-size: var(--typography-size-sm);
+  display: inline-grid; place-items: center;
+}
+
+.trilha {
+  height: var(--shape-progress-thickness);
+  border-radius: calc(var(--shape-progress-thickness) / 2);
+  background: var(--color-border);
+  position: relative;
+  flex: 1;
+}
+.trilha i {
+  position: absolute; inset: 0 auto 0 0;
+  width: 45%;
+  border-radius: inherit;
+  background: var(--color-accent);
+}
+.trilha b {
+  position: absolute;
+  left: 45%; top: 50%;
+  width: var(--control-slider-knob);
+  height: var(--control-slider-knob);
+  margin: calc(var(--control-slider-knob) / -2) 0 0 calc(var(--control-slider-knob) / -2);
+  border-radius: 999px;
+  background: var(--color-text);
+}
+
+.mono { font-variant-numeric: tabular-nums; color: var(--color-text-muted); font-size: var(--typography-size-xs); }
+.muted { color: var(--color-text-muted); }
+.elide { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+svg { display: block; }
+.ico { width: var(--control-icon-size); height: var(--control-icon-size); }
+.ico-p { width: var(--control-icon-size-primary); height: var(--control-icon-size-primary); }
+.linha { fill: none; stroke: currentColor; stroke-width: var(--control-icon-stroke); stroke-linecap: round; stroke-linejoin: round; }
+.cheio { fill: currentColor; stroke: none; }
+
+</style>
+<style>
+  .faixa { display: flex; gap: var(--shape-spacing-md); overflow: hidden; }
+  .secao { font-size: var(--typography-size-lg); font-weight: var(--typography-weight-bold); margin: 0 0 var(--shape-spacing-md); }
+  .cartao b { display: block; font-size: var(--typography-size-md); font-weight: var(--typography-weight-medium); }
+  .cartao span { display: block; font-size: var(--typography-size-xs); color: var(--color-text-muted); margin-top: 2px; }
+  .esquerda { width: 26%; display: flex; align-items: center; gap: var(--shape-spacing-md); min-width: 0; }
+  .centro { flex: 1; display: flex; flex-direction: column; align-items: center; gap: var(--shape-spacing-xs); }
+  .transporte { display: flex; align-items: center; gap: var(--shape-spacing-sm); }
+  .tempos { display: flex; align-items: center; gap: var(--shape-spacing-sm); width: 100%; max-width: 520px; }
+  .direita { width: 26%; display: flex; align-items: center; justify-content: flex-end; gap: var(--shape-spacing-sm); }
+  .capa-player { width: 56px; height: 56px; border-radius: var(--shape-radius-artwork); background: var(--color-surface-raised); flex: 0 0 auto; }
+  .volume { width: 96px; }
+</style>
+
+<div class="janela">
+  <div class="titlebar">
+    <span><svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 5 12 L 19 12"/></svg></span>
+    <span><svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 5 5 L 19 5 L 19 19 L 5 19 Z"/></svg></span>
+    <span><svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 5 5 L 19 19 M 19 5 L 5 19"/></svg></span>
+  </div>
+
+  <div class="corpo">
+    <div class="sidebar">
+      <div class="marca">
+        <svg width="26" height="26" viewBox="0 0 32 32">
+          <path fill="none" stroke="#8b63f6" stroke-width="3" stroke-linecap="round"
+                d="M10 20.5 C10 15 10 7.25 12 7.25 C14.5 7.25 13.5 24.75 16 24.75 C18.5 24.75 17.5 7.25 20 7.25 C22 7.25 22 15 22 20.5"/>
+          <path fill="none" stroke="#7a4df1" stroke-width="2" stroke-linecap="round" d="M6.75 13.5 V18.5 M25.25 13.5 V18.5"/>
+        </svg>
+        <b>Morune</b>
+      </div>
+
+      <div class="nav ativo">
+        <svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 3 11 L 12 3 L 21 11 L 21 21 L 14 21 L 14 15 L 10 15 L 10 21 L 3 21 Z"/></svg>
+        Inicio
+      </div>
+      <div class="nav">
+        <svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 10 2 a 8 8 0 1 0 0 16 a 8 8 0 0 0 0 -16 M 16 16 L 22 22"/></svg>
+        Buscar
+      </div>
+      <div class="nav">
+        <svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 5 5 L 5 19 M 11 5 L 11 19 M 16 5 L 20 19"/></svg>
+        Biblioteca
+      </div>
+
+      <div class="campo">
+        <svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 10 2 a 8 8 0 1 0 0 16 a 8 8 0 0 0 0 -16 M 16 16 l 6 6"/></svg>
+        Filtrar playlists
+      </div>
+
+      <div class="nav" style="height:40px;margin-top:8px">
+        <span style="width:24px;height:24px;border-radius:var(--shape-radius-sm);background:var(--color-surface-raised)"></span>
+        Musicas curtidas
+      </div>
+      <div class="nav" style="height:40px">
+        <span style="width:24px;height:24px;border-radius:var(--shape-radius-sm);background:var(--color-surface-raised)"></span>
+        Foco profundo
+      </div>
+
+      <div style="flex:1"></div>
+
+      <div class="nav">
+        <svg class="ico" viewBox="0 0 24 24"><circle class="linha" cx="12" cy="12" r="4"/><path class="linha" d="M 12 2 L 13 5 L 16 4 L 17 7 L 20 8 L 19 11 L 22 12 L 19 13 L 20 16 L 17 17 L 16 20 L 13 19 L 12 22 L 11 19 L 8 20 L 7 17 L 4 16 L 5 13 L 2 12 L 5 11 L 4 8 L 7 7 L 8 4 L 11 5 Z"/></svg>
+        Configuracoes
+      </div>
+    </div>
+
+    <div class="conteudo">
+      <div class="titulo-tela">Boa noite</div>
+
+      <div class="secao muted" style="font-size:var(--typography-size-md)">Feito para voce</div>
+      <div class="faixa" style="margin-bottom:var(--shape-spacing-xl)">
+        <div class="cartao"><div class="capa">♪</div><b>Daily Mix 1</b><span>Radiohead, Portishead</span></div>
+        <div class="cartao"><div class="capa">♪</div><b>Daily Mix 2</b><span>Chet Baker, Bill Evans</span></div>
+        <div class="cartao"><div class="capa">♪</div><b>Descobertas</b><span>Toda segunda</span></div>
+        <div class="cartao"><div class="capa">♪</div><b>Radar</b><span>Novidades para voce</span></div>
+        <div class="cartao"><div class="capa">♪</div><b>Foco</b><span>Instrumental</span></div>
+      </div>
+
+      <div class="secao muted" style="font-size:var(--typography-size-md)">Estacoes</div>
+      <div class="faixa">
+        <div class="cartao"><div class="capa">♪</div><b>Jazz noturno</b><span>Estacao</span></div>
+        <div class="cartao"><div class="capa">♪</div><b>Lo-fi</b><span>Estacao</span></div>
+        <div class="cartao"><div class="capa">♪</div><b>Anos 90</b><span>Estacao</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="player">
+    <div class="esquerda">
+      <div class="capa-player"></div>
+      <div style="min-width:0">
+        <div class="elide">Weird Fishes / Arpeggi</div>
+        <div class="elide mono" style="font-size:var(--typography-size-sm)">Radiohead · In Rainbows</div>
+      </div>
+      <div class="btn-icone apagado">
+        <svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 12 21 C 10 18 4 15 4 9 C 4 5 9 3 12 7 C 15 3 20 5 20 9 C 20 15 14 18 12 21 Z"/></svg>
+      </div>
+    </div>
+
+    <div class="centro">
+      <div class="transporte">
+        <div class="btn-icone apagado">
+          <svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 3 6 L 7 6 L 16 18 L 21 18 M 18 15 L 21 18 L 18 21 M 3 18 L 7 18 L 10 14 M 14 9 L 16 6 L 21 6 M 18 3 L 21 6 L 18 9"/></svg>
+        </div>
+        <div class="btn-icone">
+          <svg class="ico" viewBox="0 0 24 24"><path class="cheio" d="M 19 5 L 11 12 L 19 19 Z M 5 5 L 8 5 L 8 19 L 5 19 Z"/></svg>
+        </div>
+        <div class="btn-primario">
+          <svg class="ico-p" viewBox="0 0 24 24"><path class="cheio" d="M 6 5 L 10 5 L 10 19 L 6 19 Z M 14 5 L 18 5 L 18 19 L 14 19 Z"/></svg>
+        </div>
+        <div class="btn-icone">
+          <svg class="ico" viewBox="0 0 24 24"><path class="cheio" d="M 5 5 L 13 12 L 5 19 Z M 16 5 L 19 5 L 19 19 L 16 19 Z"/></svg>
+        </div>
+        <div class="btn-icone apagado">
+          <svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 4 9 L 4 6 L 17 6 L 17 3 L 21 7 L 17 11 L 17 8 M 20 15 L 20 18 L 7 18 L 7 21 L 3 17 L 7 13 L 7 16"/></svg>
+        </div>
+      </div>
+      <div class="tempos">
+        <span class="mono" style="width:40px;text-align:right">2:31</span>
+        <div class="trilha"><i></i><b></b></div>
+        <span class="mono" style="width:40px">5:18</span>
+      </div>
+    </div>
+
+    <div class="direita">
+      <div class="btn-icone apagado">
+        <svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 4 6 L 20 6 L 20 18 L 4 18 Z M 8 14 L 16 14"/></svg>
+      </div>
+      <div class="btn-icone apagado">
+        <svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 3 6 L 15 6 M 3 12 L 15 12 M 3 18 L 11 18 M 17 10 L 17 19 M 17 10 L 21 9 L 21 7 L 17 8"/></svg>
+      </div>
+      <div class="btn-icone apagado">
+        <svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 4 9 L 7 9 L 12 5 L 12 19 L 7 15 L 4 15 Z M 15 9 a 5 5 0 0 1 0 6 M 18 6 a 9 9 0 0 1 0 12"/></svg>
+      </div>
+      <div class="trilha volume" style="flex:0 0 auto"><i style="width:62%"></i></div>
+    </div>
+  </div>
+</div>

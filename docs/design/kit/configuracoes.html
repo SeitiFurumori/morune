@@ -1,0 +1,432 @@
+<!-- @dsCard group="Telas" -->
+<!doctype html>
+<meta charset="utf-8">
+<title>Morune — configurações</title>
+<style>
+/* morune.css embutido: cada cartao precisa renderizar sozinho,
+   sem depender de arquivo vizinho. A copia canonica fica em morune.css. */
+/* Morune -- contrato de tema.
+ *
+ * Cada variavel aqui corresponde a UMA chave do theme.toml, com o mesmo nome.
+ * `--color-surface-raised` e `[color] surface_raised`. Nao ha excecao.
+ *
+ * Propor um tema = trocar os valores deste bloco. Nada fora dele e
+ * implementavel no aplicativo.
+ */
+
+:root {
+  /* ---- [color] : 19 cores, todas aceitam #rrggbbaa ---- */
+  --color-background: #0b0d12;
+  --color-surface: #12151d;
+  --color-surface-raised: #1a1e29;
+  --color-player-background: #0f1219;
+  --color-sidebar-background: #0d1016;
+
+  --color-text: #eceff4;
+  --color-text-muted: #939cb0;
+  --color-text-on-accent: #080a0e;
+
+  --color-accent: #6dd49e;
+  --color-accent-hover: #87e4b2;
+
+  --color-border: #ffffff14;
+  --color-border-highlight: #ffffff14;
+  --color-hover: #ffffff0d;
+  --color-selected: #ffffff1a;
+  --color-focus-ring: #6dd49e;
+
+  --color-success: #5cc98a;
+  --color-warning: #e4b35c;
+  --color-danger: #e46d6d;
+
+  --color-shadow: #00000080;
+  --color-scrollbar: #ffffff24;
+
+  /* ---- [typography] ---- */
+  --typography-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --typography-size-xs: 11px;
+  --typography-size-sm: 12px;
+  --typography-size-md: 14px;
+  --typography-size-lg: 17px;
+  --typography-size-xl: 22px;
+  --typography-size-display: 32px;
+  --typography-weight-normal: 400;
+  --typography-weight-medium: 500;
+  --typography-weight-bold: 700;
+  --typography-line-height: 1.4;
+  --typography-letter-spacing: 0px;
+
+  /* ---- [shape] ---- */
+  --shape-radius-sm: 4px;
+  --shape-radius-md: 8px;
+  --shape-radius-lg: 14px;
+  --shape-radius-artwork: 6px;
+  --shape-radius-avatar: 999px;
+  --shape-spacing-xs: 4px;
+  --shape-spacing-sm: 8px;
+  --shape-spacing-md: 12px;
+  --shape-spacing-lg: 20px;
+  --shape-spacing-xl: 32px;
+  --shape-border-width: 1px;
+  --shape-progress-thickness: 4px;
+  --shape-scrollbar-width: 10px;
+
+  /* ---- [control] ---- */
+  --control-button-size: 32px;
+  --control-button-radius: 999px;
+  --control-primary-button-size: 40px;
+  --control-icon-size: 18px;
+  --control-icon-size-primary: 22px;
+  --control-icon-stroke: 2; /* unidades do viewbox 24x24, NAO px */
+  --control-slider-knob: 12px;
+  --control-tooltip-height: 28px;
+
+  /* ---- [effects] + [background] ----
+   * Nao ha como reproduzir acrilico do Windows nem opacidade de janela em
+   * HTML. Estao aqui so como valor declarado, para o tema proposto poder
+   * pedi-los. Ver o cartao "Contrato".
+   */
+  --effects-gloss: 0;
+  --effects-window-opacity: 1;
+  --effects-acrylic: 0;
+  --effects-artwork-tint-strength: 0.35;
+  --background-tint: #00000000;
+  --background-tint-strength: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Daqui para baixo e so andaime para desenhar os cartoes. Nada disto  */
+/* vira token: sao as regras que o proprio aplicativo ja aplica.        */
+/* ------------------------------------------------------------------ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #191922;
+  color: var(--color-text);
+  font-family: var(--typography-family);
+  font-size: var(--typography-size-md);
+  letter-spacing: var(--typography-letter-spacing);
+  line-height: var(--typography-line-height);
+  padding: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.janela {
+  width: 1180px;
+  height: 760px;
+  background: var(--color-background);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 18px 50px #00000066;
+}
+
+.titlebar {
+  height: 36px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  border-bottom: var(--shape-border-width) solid var(--color-border);
+}
+.titlebar span {
+  width: 44px; height: 36px;
+  display: grid; place-items: center;
+  color: var(--color-text-muted);
+}
+
+.corpo { flex: 1; display: flex; min-height: 0; }
+
+.sidebar {
+  width: 232px;
+  flex: 0 0 auto;
+  background: var(--color-sidebar-background);
+  padding: var(--shape-spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--shape-spacing-xs);
+  border-right: var(--shape-border-width) solid var(--color-border);
+}
+
+.marca {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px var(--shape-spacing-md) 18px;
+  font-size: var(--typography-size-lg);
+  font-weight: var(--typography-weight-bold);
+}
+.marca b { color: var(--color-text); }
+
+.nav {
+  display: flex; align-items: center; gap: var(--shape-spacing-md);
+  height: 40px;
+  padding: 0 var(--shape-spacing-md);
+  border-radius: var(--shape-radius-md);
+  color: var(--color-text-muted);
+}
+.nav.ativo { background: var(--color-selected); color: var(--color-text); }
+
+.campo {
+  height: 36px;
+  margin-top: var(--shape-spacing-sm);
+  padding: 0 var(--shape-spacing-md);
+  display: flex; align-items: center; gap: var(--shape-spacing-sm);
+  border-radius: var(--shape-radius-md);
+  border: var(--shape-border-width) solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--typography-size-md);
+}
+
+.conteudo {
+  flex: 1;
+  min-width: 0;
+  background: var(--color-background);
+  padding: var(--shape-spacing-lg);
+  overflow: hidden;
+}
+
+.titulo-tela {
+  font-size: var(--typography-size-xl);
+  font-weight: var(--typography-weight-bold);
+  margin-bottom: var(--shape-spacing-md);
+}
+
+.cartao {
+  background: var(--color-surface);
+  border-radius: var(--shape-radius-md);
+  padding: var(--shape-spacing-md);
+  width: var(--layout-card-width, 168px);
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+.cartao b, .cartao span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.capa {
+  aspect-ratio: 1;
+  border-radius: var(--shape-radius-artwork);
+  background: var(--color-surface-raised);
+  margin-bottom: var(--shape-spacing-sm);
+  display: grid; place-items: center;
+  color: var(--color-border);
+}
+
+.player {
+  height: 88px;
+  flex: 0 0 auto;
+  background: var(--color-player-background);
+  border-top: var(--shape-border-width) solid var(--color-border);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--shape-spacing-md);
+  gap: var(--shape-spacing-md);
+}
+
+.btn-icone {
+  width: var(--control-button-size);
+  height: var(--control-button-size);
+  border-radius: var(--control-button-radius);
+  display: grid; place-items: center;
+  color: var(--color-text);
+  flex: 0 0 auto;
+}
+.btn-icone.apagado { color: var(--color-text-muted); }
+.btn-icone.ligado { color: var(--color-accent); background: var(--color-selected); }
+
+.btn-primario {
+  width: var(--control-primary-button-size);
+  height: var(--control-primary-button-size);
+  border-radius: var(--control-button-radius);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  display: grid; place-items: center;
+  flex: 0 0 auto;
+}
+
+.btn-texto {
+  height: 34px;
+  padding: 0 18px;
+  border-radius: var(--shape-radius-md);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-size: var(--typography-size-sm);
+  font-weight: var(--typography-weight-medium);
+  display: inline-grid; place-items: center;
+}
+.btn-fantasma {
+  height: 32px;
+  padding: 0 var(--shape-spacing-md);
+  border-radius: var(--shape-radius-md);
+  border: var(--shape-border-width) solid var(--color-border);
+  color: var(--color-text);
+  font-size: var(--typography-size-sm);
+  display: inline-grid; place-items: center;
+}
+
+.trilha {
+  height: var(--shape-progress-thickness);
+  border-radius: calc(var(--shape-progress-thickness) / 2);
+  background: var(--color-border);
+  position: relative;
+  flex: 1;
+}
+.trilha i {
+  position: absolute; inset: 0 auto 0 0;
+  width: 45%;
+  border-radius: inherit;
+  background: var(--color-accent);
+}
+.trilha b {
+  position: absolute;
+  left: 45%; top: 50%;
+  width: var(--control-slider-knob);
+  height: var(--control-slider-knob);
+  margin: calc(var(--control-slider-knob) / -2) 0 0 calc(var(--control-slider-knob) / -2);
+  border-radius: 999px;
+  background: var(--color-text);
+}
+
+.mono { font-variant-numeric: tabular-nums; color: var(--color-text-muted); font-size: var(--typography-size-xs); }
+.muted { color: var(--color-text-muted); }
+.elide { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+svg { display: block; }
+.ico { width: var(--control-icon-size); height: var(--control-icon-size); }
+.ico-p { width: var(--control-icon-size-primary); height: var(--control-icon-size-primary); }
+.linha { fill: none; stroke: currentColor; stroke-width: var(--control-icon-stroke); stroke-linecap: round; stroke-linejoin: round; }
+.cheio { fill: currentColor; stroke: none; }
+
+</style>
+<style>
+  .grupo { font-size: var(--typography-size-md); font-weight: var(--typography-weight-bold); margin: var(--shape-spacing-lg) 0 var(--shape-spacing-sm); }
+  .grupo:first-of-type { margin-top: 0; }
+  .linha { display: flex; align-items: center; gap: var(--shape-spacing-md); height: 44px; }
+  .linha > div:first-child { flex: 1; min-width: 0; }
+  .rot { font-size: var(--typography-size-md); }
+  .dica { font-size: var(--typography-size-xs); color: var(--color-text-muted); }
+  .chave { width: 40px; height: 22px; border-radius: 999px; background: var(--color-border); position: relative; flex: 0 0 auto; }
+  .chave.on { background: var(--color-accent); }
+  .chave i { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 999px; background: var(--color-text); }
+  .chave.on i { left: 21px; background: var(--color-text-on-accent); }
+  .val { font-size: var(--typography-size-sm); color: var(--color-text-muted); width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+  .tema { display: flex; align-items: center; gap: var(--shape-spacing-md); height: 56px; padding: 0 var(--shape-spacing-md); border-radius: var(--shape-radius-md); background: var(--color-surface); margin-bottom: var(--shape-spacing-xs); }
+  .tema.ativo { background: var(--color-selected); }
+  .chip { width: 56px; height: 38px; border-radius: var(--shape-radius-sm); border: var(--shape-border-width) solid var(--color-border); position: relative; overflow: hidden; flex: 0 0 auto; }
+  .botoes { display: flex; gap: var(--shape-spacing-sm); margin: var(--shape-spacing-sm) 0; }
+</style>
+
+<div class="janela">
+  <div class="titlebar">
+    <span><svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 5 12 L 19 12"/></svg></span>
+    <span><svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 5 5 L 19 5 L 19 19 L 5 19 Z"/></svg></span>
+    <span><svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 5 5 L 19 19 M 19 5 L 5 19"/></svg></span>
+  </div>
+
+  <div class="corpo">
+    <div class="sidebar">
+      <div class="marca">
+        <svg width="26" height="26" viewBox="0 0 32 32">
+          <path fill="none" stroke="#8b63f6" stroke-width="3" stroke-linecap="round"
+                d="M10 20.5 C10 15 10 7.25 12 7.25 C14.5 7.25 13.5 24.75 16 24.75 C18.5 24.75 17.5 7.25 20 7.25 C22 7.25 22 15 22 20.5"/>
+        </svg>
+        <b>Morune</b>
+      </div>
+      <div class="nav"><svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 3 11 L 12 3 L 21 11 L 21 21 L 14 21 L 14 15 L 10 15 L 10 21 L 3 21 Z"/></svg>Inicio</div>
+      <div class="nav"><svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 10 2 a 8 8 0 1 0 0 16 a 8 8 0 0 0 0 -16 M 16 16 L 22 22"/></svg>Buscar</div>
+      <div class="nav"><svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 5 5 L 5 19 M 11 5 L 11 19 M 16 5 L 20 19"/></svg>Biblioteca</div>
+      <div style="flex:1"></div>
+      <div class="nav ativo"><svg class="ico" viewBox="0 0 24 24"><circle class="linha" cx="12" cy="12" r="4"/></svg>Configuracoes</div>
+    </div>
+
+    <div class="conteudo" style="overflow-y:auto">
+      <div class="titulo-tela">Configuracoes</div>
+
+      <div class="grupo">Comportamento</div>
+      <div class="linha">
+        <div><div class="rot">Continuar com radio</div><div class="dica">Quando a fila acabar, toca uma estacao baseada na ultima faixa.</div></div>
+        <div class="chave on"><i></i></div>
+      </div>
+      <div class="linha">
+        <div><div class="rot">Continuar tocando ao fechar</div><div class="dica">Fechar a janela esconde o Morune na bandeja em vez de encerrar.</div></div>
+        <div class="chave on"><i></i></div>
+      </div>
+
+      <div class="grupo">Aparencia</div>
+      <div class="dica" style="margin-bottom:var(--shape-spacing-sm)">Estes ajustes sao seus, nao do tema: trocar de tema nao desfaz nenhum deles.</div>
+      <div class="linha">
+        <div><div class="rot">Imagem de fundo</div><div class="dica">Nenhuma. O tema decide o fundo da janela.</div></div>
+        <span class="btn-fantasma">Escolher...</span>
+      </div>
+      <div class="linha">
+        <div><div class="rot">Transparencia da janela</div><div class="dica">Deixa ver o que esta atras. Vale para qualquer tema.</div></div>
+        <span class="val">0%</span>
+        <div class="trilha" style="flex:0 0 auto;width:140px"><i style="width:0"></i><b style="left:0"></b></div>
+      </div>
+      <div class="linha">
+        <div><div class="rot">Tamanho da interface</div><div class="dica">Multiplica todos os textos. A escala do Windows continua valendo por cima.</div></div>
+        <span class="val">100%</span>
+        <div class="trilha" style="flex:0 0 auto;width:140px"><i style="width:25%"></i><b style="left:25%"></b></div>
+      </div>
+      <div class="linha">
+        <div><div class="rot">Reduzir animacoes</div><div class="dica">Desliga as transicoes, mesmo que o tema peca por elas.</div></div>
+        <div class="chave"><i></i></div>
+      </div>
+
+      <div class="grupo">Temas</div>
+      <div class="linha">
+        <div><div class="rot">Recarregar tema ao salvar</div><div class="dica">Observa a pasta de temas e aplica assim que voce salva o arquivo.</div></div>
+        <div class="chave"><i></i></div>
+      </div>
+      <div class="botoes">
+        <span class="btn-texto">Importar tema</span>
+        <span class="btn-fantasma">Abrir pasta de temas</span>
+        <span class="btn-fantasma">Usar tema padrao</span>
+      </div>
+
+      <div class="tema ativo">
+        <div class="chip">
+          <span style="position:absolute;inset:0;background:#0b0d12"></span>
+          <span style="position:absolute;left:0;top:0;bottom:0;width:16px;background:#0d1016"></span>
+          <span style="position:absolute;left:16px;top:0;bottom:0;width:1px;background:#eceff4;opacity:.18"></span>
+          <span style="position:absolute;left:21px;top:7px;width:28px;height:6px;border-radius:2px;background:#12151d"></span>
+          <span style="position:absolute;left:21px;top:16px;width:18px;height:6px;border-radius:2px;background:#eceff4;opacity:.55"></span>
+          <span style="position:absolute;left:0;right:0;bottom:0;height:11px;background:#0f1219"></span>
+          <span style="position:absolute;left:25px;bottom:2px;width:7px;height:7px;border-radius:999px;background:#6dd49e"></span>
+        </div>
+        <div style="flex:1"><div class="rot">Midnight</div><div class="dica">Embutido</div></div>
+        <span class="btn-fantasma">Duplicar</span>
+      </div>
+
+      <div class="tema">
+        <div class="chip">
+          <span style="position:absolute;inset:0;background:#faf8fc"></span>
+          <span style="position:absolute;left:0;top:0;bottom:0;width:16px;background:#ffffff"></span>
+          <span style="position:absolute;left:16px;top:0;bottom:0;width:1px;background:#1a1226;opacity:.18"></span>
+          <span style="position:absolute;left:21px;top:7px;width:28px;height:6px;border-radius:2px;background:#f0edf5"></span>
+          <span style="position:absolute;left:21px;top:16px;width:18px;height:6px;border-radius:2px;background:#1a1226;opacity:.55"></span>
+          <span style="position:absolute;left:0;right:0;bottom:0;height:11px;background:#ffffff"></span>
+          <span style="position:absolute;left:25px;bottom:2px;width:7px;height:7px;border-radius:999px;background:#7b2fd6"></span>
+        </div>
+        <div style="flex:1"><div class="rot">Paper</div><div class="dica">Morune</div></div>
+        <span class="btn-fantasma">Duplicar</span>
+        <span class="btn-fantasma">Exportar</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="player">
+    <div style="width:26%;display:flex;align-items:center;gap:var(--shape-spacing-md)">
+      <div style="width:56px;height:56px;border-radius:var(--shape-radius-artwork);background:var(--color-surface-raised)"></div>
+      <div class="muted">Nada tocando</div>
+    </div>
+    <div style="flex:1;display:flex;justify-content:center;gap:var(--shape-spacing-sm)">
+      <div class="btn-icone apagado"><svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 3 6 L 7 6 L 16 18 L 21 18 M 18 15 L 21 18 L 18 21 M 3 18 L 7 18 L 10 14 M 14 9 L 16 6 L 21 6 M 18 3 L 21 6 L 18 9"/></svg></div>
+      <div class="btn-icone apagado"><svg class="ico" viewBox="0 0 24 24"><path class="cheio" d="M 19 5 L 11 12 L 19 19 Z M 5 5 L 8 5 L 8 19 L 5 19 Z"/></svg></div>
+      <div class="btn-primario" style="opacity:.45"><svg class="ico-p" viewBox="0 0 24 24"><path class="cheio" d="M 8 5 L 19 12 L 8 19 Z"/></svg></div>
+      <div class="btn-icone apagado"><svg class="ico" viewBox="0 0 24 24"><path class="cheio" d="M 5 5 L 13 12 L 5 19 Z M 16 5 L 19 5 L 19 19 L 16 19 Z"/></svg></div>
+      <div class="btn-icone apagado"><svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 4 9 L 4 6 L 17 6 L 17 3 L 21 7 L 17 11 L 17 8 M 20 15 L 20 18 L 7 18 L 7 21 L 3 17 L 7 13 L 7 16"/></svg></div>
+    </div>
+    <div style="width:26%"></div>
+  </div>
+</div>

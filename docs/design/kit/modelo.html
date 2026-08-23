@@ -1,0 +1,474 @@
+<!-- @dsCard group="Contrato" -->
+<!doctype html>
+<meta charset="utf-8">
+<title>Morune — o que a proposta devolve</title>
+<style>
+/* morune.css embutido: cada cartao precisa renderizar sozinho,
+   sem depender de arquivo vizinho. A copia canonica fica em morune.css. */
+/* Morune -- contrato de tema.
+ *
+ * Cada variavel aqui corresponde a UMA chave do theme.toml, com o mesmo nome.
+ * `--color-surface-raised` e `[color] surface_raised`. Nao ha excecao.
+ *
+ * Propor um tema = trocar os valores deste bloco. Nada fora dele e
+ * implementavel no aplicativo.
+ */
+
+:root {
+  /* ---- [color] : 19 cores, todas aceitam #rrggbbaa ---- */
+  --color-background: #0b0d12;
+  --color-surface: #12151d;
+  --color-surface-raised: #1a1e29;
+  --color-player-background: #0f1219;
+  --color-sidebar-background: #0d1016;
+
+  --color-text: #eceff4;
+  --color-text-muted: #939cb0;
+  --color-text-on-accent: #080a0e;
+
+  --color-accent: #6dd49e;
+  --color-accent-hover: #87e4b2;
+
+  --color-border: #ffffff14;
+  --color-border-highlight: #ffffff14;
+  --color-hover: #ffffff0d;
+  --color-selected: #ffffff1a;
+  --color-focus-ring: #6dd49e;
+
+  --color-success: #5cc98a;
+  --color-warning: #e4b35c;
+  --color-danger: #e46d6d;
+
+  --color-shadow: #00000080;
+  --color-scrollbar: #ffffff24;
+
+  /* ---- [typography] ---- */
+  --typography-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --typography-size-xs: 11px;
+  --typography-size-sm: 12px;
+  --typography-size-md: 14px;
+  --typography-size-lg: 17px;
+  --typography-size-xl: 22px;
+  --typography-size-display: 32px;
+  --typography-weight-normal: 400;
+  --typography-weight-medium: 500;
+  --typography-weight-bold: 700;
+  --typography-line-height: 1.4;
+  --typography-letter-spacing: 0px;
+
+  /* ---- [shape] ---- */
+  --shape-radius-sm: 4px;
+  --shape-radius-md: 8px;
+  --shape-radius-lg: 14px;
+  --shape-radius-artwork: 6px;
+  --shape-radius-avatar: 999px;
+  --shape-spacing-xs: 4px;
+  --shape-spacing-sm: 8px;
+  --shape-spacing-md: 12px;
+  --shape-spacing-lg: 20px;
+  --shape-spacing-xl: 32px;
+  --shape-border-width: 1px;
+  --shape-progress-thickness: 4px;
+  --shape-scrollbar-width: 10px;
+
+  /* ---- [control] ---- */
+  --control-button-size: 32px;
+  --control-button-radius: 999px;
+  --control-primary-button-size: 40px;
+  --control-icon-size: 18px;
+  --control-icon-size-primary: 22px;
+  --control-icon-stroke: 2; /* unidades do viewbox 24x24, NAO px */
+  --control-slider-knob: 12px;
+  --control-tooltip-height: 28px;
+
+  /* ---- [effects] + [background] ----
+   * Nao ha como reproduzir acrilico do Windows nem opacidade de janela em
+   * HTML. Estao aqui so como valor declarado, para o tema proposto poder
+   * pedi-los. Ver o cartao "Contrato".
+   */
+  --effects-gloss: 0;
+  --effects-window-opacity: 1;
+  --effects-acrylic: 0;
+  --effects-artwork-tint-strength: 0.35;
+  --background-tint: #00000000;
+  --background-tint-strength: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Daqui para baixo e so andaime para desenhar os cartoes. Nada disto  */
+/* vira token: sao as regras que o proprio aplicativo ja aplica.        */
+/* ------------------------------------------------------------------ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #191922;
+  color: var(--color-text);
+  font-family: var(--typography-family);
+  font-size: var(--typography-size-md);
+  letter-spacing: var(--typography-letter-spacing);
+  line-height: var(--typography-line-height);
+  padding: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.janela {
+  width: 1180px;
+  height: 760px;
+  background: var(--color-background);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 18px 50px #00000066;
+}
+
+.titlebar {
+  height: 36px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  border-bottom: var(--shape-border-width) solid var(--color-border);
+}
+.titlebar span {
+  width: 44px; height: 36px;
+  display: grid; place-items: center;
+  color: var(--color-text-muted);
+}
+
+.corpo { flex: 1; display: flex; min-height: 0; }
+
+.sidebar {
+  width: 232px;
+  flex: 0 0 auto;
+  background: var(--color-sidebar-background);
+  padding: var(--shape-spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--shape-spacing-xs);
+  border-right: var(--shape-border-width) solid var(--color-border);
+}
+
+.marca {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px var(--shape-spacing-md) 18px;
+  font-size: var(--typography-size-lg);
+  font-weight: var(--typography-weight-bold);
+}
+.marca b { color: var(--color-text); }
+
+.nav {
+  display: flex; align-items: center; gap: var(--shape-spacing-md);
+  height: 40px;
+  padding: 0 var(--shape-spacing-md);
+  border-radius: var(--shape-radius-md);
+  color: var(--color-text-muted);
+}
+.nav.ativo { background: var(--color-selected); color: var(--color-text); }
+
+.campo {
+  height: 36px;
+  margin-top: var(--shape-spacing-sm);
+  padding: 0 var(--shape-spacing-md);
+  display: flex; align-items: center; gap: var(--shape-spacing-sm);
+  border-radius: var(--shape-radius-md);
+  border: var(--shape-border-width) solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--typography-size-md);
+}
+
+.conteudo {
+  flex: 1;
+  min-width: 0;
+  background: var(--color-background);
+  padding: var(--shape-spacing-lg);
+  overflow: hidden;
+}
+
+.titulo-tela {
+  font-size: var(--typography-size-xl);
+  font-weight: var(--typography-weight-bold);
+  margin-bottom: var(--shape-spacing-md);
+}
+
+.cartao {
+  background: var(--color-surface);
+  border-radius: var(--shape-radius-md);
+  padding: var(--shape-spacing-md);
+  width: var(--layout-card-width, 168px);
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+.cartao b, .cartao span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.capa {
+  aspect-ratio: 1;
+  border-radius: var(--shape-radius-artwork);
+  background: var(--color-surface-raised);
+  margin-bottom: var(--shape-spacing-sm);
+  display: grid; place-items: center;
+  color: var(--color-border);
+}
+
+.player {
+  height: 88px;
+  flex: 0 0 auto;
+  background: var(--color-player-background);
+  border-top: var(--shape-border-width) solid var(--color-border);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--shape-spacing-md);
+  gap: var(--shape-spacing-md);
+}
+
+.btn-icone {
+  width: var(--control-button-size);
+  height: var(--control-button-size);
+  border-radius: var(--control-button-radius);
+  display: grid; place-items: center;
+  color: var(--color-text);
+  flex: 0 0 auto;
+}
+.btn-icone.apagado { color: var(--color-text-muted); }
+.btn-icone.ligado { color: var(--color-accent); background: var(--color-selected); }
+
+.btn-primario {
+  width: var(--control-primary-button-size);
+  height: var(--control-primary-button-size);
+  border-radius: var(--control-button-radius);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  display: grid; place-items: center;
+  flex: 0 0 auto;
+}
+
+.btn-texto {
+  height: 34px;
+  padding: 0 18px;
+  border-radius: var(--shape-radius-md);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-size: var(--typography-size-sm);
+  font-weight: var(--typography-weight-medium);
+  display: inline-grid; place-items: center;
+}
+.btn-fantasma {
+  height: 32px;
+  padding: 0 var(--shape-spacing-md);
+  border-radius: var(--shape-radius-md);
+  border: var(--shape-border-width) solid var(--color-border);
+  color: var(--color-text);
+  font-size: var(--typography-size-sm);
+  display: inline-grid; place-items: center;
+}
+
+.trilha {
+  height: var(--shape-progress-thickness);
+  border-radius: calc(var(--shape-progress-thickness) / 2);
+  background: var(--color-border);
+  position: relative;
+  flex: 1;
+}
+.trilha i {
+  position: absolute; inset: 0 auto 0 0;
+  width: 45%;
+  border-radius: inherit;
+  background: var(--color-accent);
+}
+.trilha b {
+  position: absolute;
+  left: 45%; top: 50%;
+  width: var(--control-slider-knob);
+  height: var(--control-slider-knob);
+  margin: calc(var(--control-slider-knob) / -2) 0 0 calc(var(--control-slider-knob) / -2);
+  border-radius: 999px;
+  background: var(--color-text);
+}
+
+.mono { font-variant-numeric: tabular-nums; color: var(--color-text-muted); font-size: var(--typography-size-xs); }
+.muted { color: var(--color-text-muted); }
+.elide { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+svg { display: block; }
+.ico { width: var(--control-icon-size); height: var(--control-icon-size); }
+.ico-p { width: var(--control-icon-size-primary); height: var(--control-icon-size-primary); }
+.linha { fill: none; stroke: currentColor; stroke-width: var(--control-icon-stroke); stroke-linecap: round; stroke-linejoin: round; }
+.cheio { fill: currentColor; stroke: none; }
+
+</style>
+<style>
+  body { display: block; max-width: 1180px; margin: 0 auto; }
+  h1 { font-size: 24px; margin-bottom: 6px; }
+  h2 { font-size: 16px; margin: 26px 0 8px; }
+  p { color: var(--color-text-muted); max-width: 76ch; margin-bottom: 10px; }
+  pre { background: var(--color-surface); border-radius: var(--shape-radius-md); padding: 16px 18px; overflow-x: auto;
+        font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; line-height: 1.65; color: var(--color-text); }
+  .c { color: var(--color-text-muted); }
+  .k { color: var(--color-accent); }
+  code { font-family: ui-monospace, Consolas, monospace; color: var(--color-text); }
+</style>
+
+<h1>O que a proposta precisa devolver</h1>
+<p>
+  Um <code>theme.toml</code> preenchido. Nada além disso é implementável — e nada
+  além disso é necessário: estes valores controlam a interface inteira.
+  Copie o bloco abaixo e troque os números.
+</p>
+
+<h2>Modelo completo</h2>
+<pre><span class="c"># manifest.toml -- arquivo separado, ao lado do theme.toml</span>
+<span class="c">#   schema_version = 1</span>
+<span class="c">#   id = "meu-tema"        (minusculas, sem espaco; tem de bater com o nome da pasta)</span>
+<span class="c">#   name = "Meu Tema"</span>
+<span class="c">#   author = "Seu nome"</span>
+<span class="c">#   appearance = "dark"    (dark | light)</span>
+<span class="c">#   based_on = "midnight"  (opcional -- CUIDADO: declarar uma secao substitui a</span>
+<span class="c">#                           secao INTEIRA, e o que faltar vem do padrao embutido,</span>
+<span class="c">#                           nao do pai. Para derivar, copie a secao toda.)</span>
+
+<span class="k">[color]</span>
+<span class="c"># Todas aceitam #rrggbb ou #rrggbbaa. Alfa e o que faz o vidro e o wallpaper</span>
+<span class="c"># aparecerem: com cor opaca, o tema cobre a imagem de fundo e o acrilico.</span>
+background        = "#0b0d12"
+surface           = "#12151d"
+surface_raised    = "#1a1e29"
+player_background = "#0f1219"
+sidebar_background = "#0d1016"
+
+text           = "#eceff4"
+text_muted     = "#939cb0"
+text_on_accent = "#080a0e"
+
+accent       = "#6dd49e"
+accent_hover = "#87e4b2"
+
+border      = "#ffffff14"   <span class="c"># toda linha da interface. Contraste vem daqui, nunca de sombra</span>
+border_highlight = "#00000000" <span class="c"># aresta superior das superficies (gloss). Transparente = usa border</span>
+hover       = "#ffffff0d"
+selected    = "#ffffff1a"
+focus_ring  = "#6dd49e"     <span class="c"># nunca pode ficar invisivel: o app e navegavel por teclado</span>
+
+success = "#5cc98a"
+warning = "#e4b35c"
+danger  = "#e46d6d"
+
+shadow    = "#00000080"
+scrollbar = "#ffffff24"
+
+<span class="k">[typography]</span>
+family     = ""      <span class="c"># vazio = fonte do sistema. UM nome de familia; lista com virgula NAO funciona</span>
+scale      = 1.0     <span class="c"># 0.5 a 3.0, multiplica todos os tamanhos</span>
+size_xs      = 11.0
+size_sm      = 12.0
+size_md      = 14.0
+size_lg      = 17.0
+size_xl      = 22.0
+size_display = 32.0
+weight_normal = 400
+weight_medium = 500
+weight_bold   = 700
+line_height    = 1.4
+letter_spacing = 0.0
+
+<span class="k">[shape]</span>
+radius_sm      = 4.0
+radius_md      = 8.0
+radius_lg      = 14.0
+radius_artwork = 6.0     <span class="c"># 0 deixa a capa quadrada</span>
+radius_avatar  = 999.0
+spacing_xs = 4.0
+spacing_sm = 8.0
+spacing_md = 12.0
+spacing_lg = 20.0
+spacing_xl = 32.0
+border_width       = 1.0
+progress_thickness = 4.0
+scrollbar_width    = 10.0
+
+<span class="k">[control]</span>
+button_size         = 32.0   <span class="c"># piso 20: abaixo disso nao da para acertar com o mouse</span>
+button_radius       = 999.0
+primary_button_size = 40.0
+icon_size           = 18.0
+icon_size_primary   = 22.0
+icon_stroke         = 2.0    <span class="c"># unidades do viewbox 24x24, NAO pixels</span>
+slider_knob         = 12.0
+tooltip_height      = 28.0
+
+<span class="k">[motion]</span>
+enabled         = true
+speed           = 1.0
+duration_fast   = 120   <span class="c"># hover e foco</span>
+duration_normal = 200
+duration_slow   = 320
+easing          = "ease-in-out"
+
+<span class="k">[effects]</span>
+window_opacity        = 1.0    <span class="c"># 0.2 a 1.0. Abaixo de 0.6 o texto morre sobre desktop claro</span>
+acrylic               = false  <span class="c"># vidro do Windows 11; so aparece com alfa nas cores</span>
+shadow_strength       = 0.5
+gloss                 = 0.0    <span class="c"># brilho na superficie dos paineis. So faz sentido com alfa nas cores</span>
+backdrop_blur         = 0.0    <span class="c"># reservado, ainda sem efeito</span>
+artwork_tint          = true   <span class="c"># a cor da capa vaza na barra de reproducao</span>
+artwork_tint_strength = 0.35
+
+<span class="k">[background]</span>
+image         = ""        <span class="c"># relativo ao tema, ex "assets/backgrounds/fundo.jpg"</span>
+fit           = "cover"   <span class="c"># cover | contain | center | stretch</span>
+opacity       = 1.0
+tint          = "#00000000"
+tint_strength = 0.0
+blur          = 0.0       <span class="c"># px, assado uma vez ao carregar</span>
+</pre>
+
+<h2>layout.toml — opcional, muda a composição</h2>
+<p>Só se a proposta quiser mexer em posição. Fora destes eixos, não há como mover nada.</p>
+<pre><span class="k">[sidebar]</span>
+position = "left"      <span class="c"># left | right | hidden</span>
+width = 232.0
+show_icons = true
+show_labels = true
+show_playlists = true
+
+<span class="k">[player]</span>
+position = "bottom"    <span class="c"># bottom | top | sidebar</span>
+height = 88.0
+show_artwork = true
+artwork_size = 56.0
+show_progress = true
+progress_edge_to_edge = false
+show_volume = true
+show_shuffle_repeat = true
+show_queue_button = true
+show_stop_button = false
+show_times = true
+center_controls = true
+
+<span class="k">[content]</span>
+view_mode = "grid"     <span class="c"># grid | list | compact</span>
+density = "normal"     <span class="c"># compact | normal | comfortable</span>
+card_width = 168.0
+row_height = 44.0
+show_hero = true
+</pre>
+
+<h2>Como a proposta é avaliada</h2>
+<p>
+  <strong>1. Contraste.</strong> <code>text</code> sobre os três fundos e
+  <code>text_on_accent</code> sobre <code>accent</code>, mínimo 3:1. Com cores
+  translúcidas, medido nos dois piores casos de área de trabalho.
+</p>
+<p>
+  <strong>2. Custo de quadro.</strong> Nada que precise ser recalculado enquanto a
+  pessoa joga. Desfoque e imagem são processados uma vez, ao carregar.
+</p>
+<p>
+  <strong>3. Alvos clicáveis.</strong> <code>button_size</code> abaixo de 20 é
+  corrigido automaticamente, com aviso.
+</p>
+<p>
+  <strong>4. Sem arquivo de terceiros</strong> sem direito de redistribuir — fonte
+  ou ícone. Fontes SIL OFL podem; fontes de sistema e compradas não.
+</p>
