@@ -1,5 +1,5 @@
 import { Theme, Layout } from "theme.slint";
-import { Icon, IconButton, PrimaryButton, GhostButton, SearchField, Slider, Artwork, PressableArea, Toggle, Logo } from "components.slint";
+import { GlassEdge, Gloss, Icon, IconRef, IconButton, PrimaryButton, GhostButton, SearchField, Slider, Artwork, PressableArea, Toggle, Logo } from "components.slint";
 import { ListView } from "std-widgets.slint";
 
 // O Slint exige que um componente esteja declarado antes de ser usado, entao
@@ -34,6 +34,13 @@ export struct ThemeItem {
     author: string,
     builtin: bool,
     active: bool,
+    // Cores da previa. Vem do tema ja resolvido, com heranca aplicada.
+    preview-background: color,
+    preview-surface: color,
+    preview-sidebar: color,
+    preview-player: color,
+    preview-accent: color,
+    preview-text: color,
 }
 
 export struct Diagnostic {
@@ -42,32 +49,66 @@ export struct Diagnostic {
     message: string,
 }
 
-global Icons {
-    out property <string> home: "M 3 11 L 12 3 L 21 11 L 21 21 L 14 21 L 14 15 L 10 15 L 10 21 L 3 21 Z";
-    out property <string> search: "M 10 2 a 8 8 0 1 0 0 16 a 8 8 0 0 0 0 -16 M 16 16 L 22 22";
-    out property <string> library: "M 4 3 L 7 3 L 7 21 L 4 21 Z M 10 3 L 13 3 L 13 21 L 10 21 Z M 16 4 L 19 5 L 15 21 L 12 20 Z";
-    out property <string> settings: "M 12 8 a 4 4 0 1 0 0 8 a 4 4 0 0 0 0 -8 M 12 2 L 13 5 L 16 4 L 17 7 L 20 8 L 19 11 L 22 12 L 19 13 L 20 16 L 17 17 L 16 20 L 13 19 L 12 22 L 11 19 L 8 20 L 7 17 L 4 16 L 5 13 L 2 12 L 5 11 L 4 8 L 7 7 L 8 4 L 11 5 Z";
-    out property <string> play: "M 7 4 L 20 12 L 7 20 Z";
-    out property <string> pause: "M 7 4 L 11 4 L 11 20 L 7 20 Z M 13 4 L 17 4 L 17 20 L 13 20 Z";
-    out property <string> next: "M 5 4 L 16 12 L 5 20 Z M 17 4 L 20 4 L 20 20 L 17 20 Z";
-    out property <string> previous: "M 19 4 L 8 12 L 19 20 Z M 4 4 L 7 4 L 7 20 L 4 20 Z";
-    out property <string> shuffle: "M 3 5 L 8 5 L 16 19 L 21 19 M 17 15 L 21 19 L 17 23 M 3 19 L 8 19 L 11 14 M 15 8 L 16 5 L 21 5 M 17 1 L 21 5 L 17 9";
-    out property <string> repeat: "M 4 9 L 4 6 L 17 6 L 17 3 L 21 7 L 17 11 L 17 8 M 20 15 L 20 18 L 7 18 L 7 21 L 3 17 L 7 13 L 7 16";
-    out property <string> repeat-one: "M 4 9 L 4 6 L 17 6 L 17 3 L 21 7 L 17 11 L 17 8 M 20 15 L 20 18 L 7 18 L 7 21 L 3 17 L 7 13 L 7 16 M 11 12 L 12 12 L 12 17";
-    out property <string> queue: "M 3 6 L 15 6 M 3 12 L 15 12 M 3 18 L 11 18 M 17 10 L 17 19 M 17 10 L 21 9 L 21 7 L 17 8";
-    out property <string> mini-player: "M 4 6 L 20 6 L 20 18 L 4 18 Z M 8 14 L 16 14";
-    out property <string> volume: "M 4 9 L 7 9 L 12 5 L 12 19 L 7 15 L 4 15 Z M 15 9 a 5 5 0 0 1 0 6 M 18 6 a 9 9 0 0 1 0 12";
-    out property <string> chevron-left: "M 15 5 L 8 12 L 15 19";
-    out property <string> chevron-right: "M 9 5 L 16 12 L 9 19";
-    out property <string> close: "M 5 5 L 19 19 M 19 5 L 5 19";
-    out property <string> heart: "M 12 21 C 10 18 4 15 4 9 C 4 5 9 3 12 7 C 15 3 20 5 20 9 C 20 15 14 18 12 21 Z";
-    out property <string> queue-add: "M 3 6 L 14 6 M 3 12 L 14 12 M 3 18 L 10 18 M 18 13 L 18 21 M 14 17 L 22 17";
-    out property <string> queue-next: "M 3 6 L 14 6 M 3 12 L 14 12 M 3 18 L 10 18 M 18 12 L 18 21 M 14 16 L 18 12 L 22 16";
-    out property <string> chevron-up: "M 5 15 L 12 8 L 19 15";
-    out property <string> chevron-down: "M 5 9 L 12 16 L 19 9";
-    out property <string> minimize-window: "M 5 12 L 19 12";
-    out property <string> maximize-window: "M 5 5 L 19 5 L 19 19 L 5 19 Z";
-    out property <string> restore-window: "M 8 5 L 19 5 L 19 16 M 5 8 L 16 8 L 16 19 L 5 19 Z";
+// `export` para o Rust conseguir instalar os substitutos do tema.
+export global Icons {
+    // Cada icone e o desenho embutido mais o arquivo que um tema pode por no
+    // lugar. O substituto chega do Rust em `custom-*`; vazio = desenho
+    // embutido. Quem desenha a tela le so `Icons.play` e nao precisa saber
+    // qual dos dois esta valendo.
+    in property <image> custom-home;
+    out property <IconRef> home: { commands: "M 3 11 L 12 3 L 21 11 L 21 21 L 14 21 L 14 15 L 10 15 L 10 21 L 3 21 Z", source: root.custom-home };
+    in property <image> custom-search;
+    out property <IconRef> search: { commands: "M 10 2 a 8 8 0 1 0 0 16 a 8 8 0 0 0 0 -16 M 16 16 L 22 22", source: root.custom-search };
+    in property <image> custom-library;
+    out property <IconRef> library: { commands: "M 5 5 L 5 19 M 11 5 L 11 19 M 16 5 L 20 19", source: root.custom-library };
+    in property <image> custom-settings;
+    out property <IconRef> settings: { commands: "M 12 8 a 4 4 0 1 0 0 8 a 4 4 0 0 0 0 -8 M 12 2 L 13 5 L 16 4 L 17 7 L 20 8 L 19 11 L 22 12 L 19 13 L 20 16 L 17 17 L 16 20 L 13 19 L 12 22 L 11 19 L 8 20 L 7 17 L 4 16 L 5 13 L 2 12 L 5 11 L 4 8 L 7 7 L 8 4 L 11 5 Z", source: root.custom-settings };
+    in property <image> custom-play;
+    out property <IconRef> play: { commands: "M 8 5 L 19 12 L 8 19 Z", source: root.custom-play };
+    in property <image> custom-pause;
+    out property <IconRef> pause: { commands: "M 6 5 L 10 5 L 10 19 L 6 19 Z M 14 5 L 18 5 L 18 19 L 14 19 Z", source: root.custom-pause };
+    // Quadrado de verdade, e nao a barra do pause alargada: 12x12 centrado
+    // pesa o mesmo que as duas barras do pause ao lado dele.
+    in property <image> custom-stop;
+    out property <IconRef> stop: { commands: "M 6 6 L 18 6 L 18 18 L 6 18 Z", source: root.custom-stop };
+    in property <image> custom-next;
+    out property <IconRef> next: { commands: "M 5 5 L 13 12 L 5 19 Z M 16 5 L 19 5 L 19 19 L 16 19 Z", source: root.custom-next };
+    in property <image> custom-previous;
+    out property <IconRef> previous: { commands: "M 19 5 L 11 12 L 19 19 Z M 5 5 L 8 5 L 8 19 L 5 19 Z", source: root.custom-previous };
+    in property <image> custom-shuffle;
+    out property <IconRef> shuffle: { commands: "M 3 6 L 7 6 L 16 18 L 21 18 M 18 15 L 21 18 L 18 21 M 3 18 L 7 18 L 10 14 M 14 9 L 16 6 L 21 6 M 18 3 L 21 6 L 18 9", source: root.custom-shuffle };
+    in property <image> custom-repeat;
+    out property <IconRef> repeat: { commands: "M 4 9 L 4 6 L 17 6 L 17 3 L 21 7 L 17 11 L 17 8 M 20 15 L 20 18 L 7 18 L 7 21 L 3 17 L 7 13 L 7 16", source: root.custom-repeat };
+    in property <image> custom-repeat-one;
+    out property <IconRef> repeat-one: { commands: "M 4 9 L 4 6 L 17 6 L 17 3 L 21 7 L 17 11 L 17 8 M 20 15 L 20 18 L 7 18 L 7 21 L 3 17 L 7 13 L 7 16 M 11 12 L 12 12 L 12 17", source: root.custom-repeat-one };
+    in property <image> custom-queue;
+    out property <IconRef> queue: { commands: "M 3 6 L 15 6 M 3 12 L 15 12 M 3 18 L 11 18 M 17 10 L 17 19 M 17 10 L 21 9 L 21 7 L 17 8", source: root.custom-queue };
+    in property <image> custom-mini-player;
+    out property <IconRef> mini-player: { commands: "M 4 6 L 20 6 L 20 18 L 4 18 Z M 8 14 L 16 14", source: root.custom-mini-player };
+    in property <image> custom-volume;
+    out property <IconRef> volume: { commands: "M 4 9 L 7 9 L 12 5 L 12 19 L 7 15 L 4 15 Z M 15 9 a 5 5 0 0 1 0 6 M 18 6 a 9 9 0 0 1 0 12", source: root.custom-volume };
+    in property <image> custom-chevron-left;
+    out property <IconRef> chevron-left: { commands: "M 15 5 L 8 12 L 15 19", source: root.custom-chevron-left };
+    in property <image> custom-chevron-right;
+    out property <IconRef> chevron-right: { commands: "M 9 5 L 16 12 L 9 19", source: root.custom-chevron-right };
+    in property <image> custom-close;
+    out property <IconRef> close: { commands: "M 5 5 L 19 19 M 19 5 L 5 19", source: root.custom-close };
+    in property <image> custom-heart;
+    out property <IconRef> heart: { commands: "M 12 21 C 10 18 4 15 4 9 C 4 5 9 3 12 7 C 15 3 20 5 20 9 C 20 15 14 18 12 21 Z", source: root.custom-heart };
+    in property <image> custom-queue-add;
+    out property <IconRef> queue-add: { commands: "M 3 6 L 14 6 M 3 12 L 14 12 M 3 18 L 10 18 M 18 13 L 18 21 M 14 17 L 22 17", source: root.custom-queue-add };
+    in property <image> custom-queue-next;
+    out property <IconRef> queue-next: { commands: "M 3 6 L 14 6 M 3 12 L 14 12 M 3 18 L 10 18 M 18 12 L 18 21 M 14 16 L 18 12 L 22 16", source: root.custom-queue-next };
+    in property <image> custom-chevron-up;
+    out property <IconRef> chevron-up: { commands: "M 5 15 L 12 8 L 19 15", source: root.custom-chevron-up };
+    in property <image> custom-chevron-down;
+    out property <IconRef> chevron-down: { commands: "M 5 9 L 12 16 L 19 9", source: root.custom-chevron-down };
+    in property <image> custom-minimize-window;
+    out property <IconRef> minimize-window: { commands: "M 5 12 L 19 12", source: root.custom-minimize-window };
+    in property <image> custom-maximize-window;
+    out property <IconRef> maximize-window: { commands: "M 5 5 L 19 5 L 19 19 L 5 19 Z", source: root.custom-maximize-window };
+    in property <image> custom-restore-window;
+    out property <IconRef> restore-window: { commands: "M 8 5 L 19 5 L 19 16 M 5 8 L 16 8 L 16 19 L 5 19 Z", source: root.custom-restore-window };
 }
 
 component SectionTitle inherits Text {
@@ -115,7 +156,7 @@ component EmptyState inherits VerticalLayout {
 // perder o botao (Lei de Fitts).
 component WindowControl inherits Rectangle {
     in property <string> label;
-    in property <string> path;
+    in property <IconRef> glyph;
     in property <bool> danger: false;
     callback clicked();
 
@@ -127,13 +168,13 @@ component WindowControl inherits Rectangle {
     animate background { duration: Theme.motion-fast; }
 
     Path {
-        width: Theme.size-md;
+        width: Theme.control-icon-size;
         height: self.width;
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
         viewbox-width: 24;
         viewbox-height: 24;
-        commands: root.path;
+        commands: root.glyph.commands;
         fill: transparent;
         stroke: root.danger && touch.has-hover ? Theme.text-on-accent : Theme.text-muted;
         stroke-width: 1.5px;
@@ -232,19 +273,19 @@ component AppTitleBar inherits Rectangle {
 
         WindowControl {
             label: "Minimizar janela";
-            path: Icons.minimize-window;
+            glyph: Icons.minimize-window;
             clicked => { root.minimize(); }
         }
 
         WindowControl {
             label: root.maximized ? "Restaurar janela" : "Maximizar janela";
-            path: root.maximized ? Icons.restore-window : Icons.maximize-window;
+            glyph: root.maximized ? Icons.restore-window : Icons.maximize-window;
             clicked => { root.toggle-maximize(); }
         }
 
         WindowControl {
             label: "Fechar janela";
-            path: Icons.close;
+            glyph: Icons.close;
             danger: true;
             clicked => { root.close(); }
         }
@@ -259,7 +300,7 @@ component AppTitleBar inherits Rectangle {
 
 component NavItem inherits Rectangle {
     in property <string> label;
-    in property <string> icon;
+    in property <IconRef> icon;
     in property <bool> active;
     callback clicked();
 
@@ -275,9 +316,9 @@ component NavItem inherits Rectangle {
         alignment: Layout.sidebar-labels-shown ? LayoutAlignment.start : LayoutAlignment.center;
 
         if Layout.sidebar-icons-shown: Icon {
-            path: root.icon;
+            glyph: root.icon;
             tint: root.active ? Theme.text : Theme.text-muted;
-            size: 18px;
+            size: Theme.control-icon-size-primary;
             y: (parent.height - self.size) / 2;
         }
 
@@ -393,7 +434,7 @@ component TrackListRow inherits Rectangle {
         label: root.track.favorite
             ? "Remover " + root.track.title + " das Musicas curtidas do Spotify"
             : "Adicionar " + root.track.title + " as Musicas curtidas do Spotify";
-        path: Icons.heart;
+        glyph: Icons.heart;
         filled: root.track.favorite;
         active: root.track.favorite;
         checkable: true;
@@ -405,7 +446,7 @@ component TrackListRow inherits Rectangle {
         x: favorite-button.x - Theme.space-md - self.width;
         y: favorite-button.y;
         label: "Adicionar " + root.track.title + " ao fim da fila";
-        path: Icons.queue-add;
+        glyph: Icons.queue-add;
         tint: Theme.text-muted;
         clicked => { root.enqueue(); }
     }
@@ -414,7 +455,7 @@ component TrackListRow inherits Rectangle {
         x: favorite-button.x - Theme.space-md * 2 - self.width * 2;
         y: favorite-button.y;
         label: "Tocar " + root.track.title + " a seguir";
-        path: Icons.queue-next;
+        glyph: Icons.queue-next;
         tint: Theme.text-muted;
         clicked => { root.play-next(); }
     }
@@ -423,7 +464,7 @@ component TrackListRow inherits Rectangle {
         x: favorite-button.x - Theme.space-md - self.width;
         y: favorite-button.y;
         label: "Remover " + root.track.title + " da fila";
-        path: Icons.close;
+        glyph: Icons.close;
         tint: Theme.text-muted;
         clicked => { root.remove-queued(); }
     }
@@ -432,7 +473,7 @@ component TrackListRow inherits Rectangle {
         x: favorite-button.x - Theme.space-md * 2 - self.width * 2;
         y: favorite-button.y;
         label: "Mover " + root.track.title + " para baixo";
-        path: Icons.chevron-down;
+        glyph: Icons.chevron-down;
         enabled: root.can-move-down;
         tint: Theme.text-muted;
         clicked => { root.move-down(); }
@@ -442,7 +483,7 @@ component TrackListRow inherits Rectangle {
         x: favorite-button.x - Theme.space-md * 3 - self.width * 3;
         y: favorite-button.y;
         label: "Mover " + root.track.title + " para cima";
-        path: Icons.chevron-up;
+        glyph: Icons.chevron-up;
         enabled: root.can-move-up;
         tint: Theme.text-muted;
         clicked => { root.move-up(); }
@@ -655,7 +696,7 @@ component Sidebar inherits Rectangle {
 
             if Layout.sidebar-collapsible: IconButton {
                 label: "Recolher barra lateral";
-                path: Icons.chevron-left;
+                glyph: Icons.chevron-left;
                 tint: Theme.text-muted;
                 button-size: 28px;
                 y: (parent.height - self.height) / 2;
@@ -683,7 +724,7 @@ component Sidebar inherits Rectangle {
                 alignment: center;
                 IconButton {
                     label: "Expandir barra lateral";
-                    path: Icons.chevron-right;
+                    glyph: Icons.chevron-right;
                     tint: Theme.text-muted;
                     button-size: 28px;
                     clicked => { root.toggle-sidebar(); }
@@ -787,6 +828,7 @@ component PlayerBar inherits Rectangle {
     in property <image> cover;
 
     callback toggle-play();
+    callback stop();
     callback next();
     callback previous();
     callback seek(float);
@@ -800,12 +842,24 @@ component PlayerBar inherits Rectangle {
     height: Layout.player-height;
     background: Theme.player-background;
 
-    Rectangle {
-        y: 0;
-        height: Theme.border-width;
+    // A cor da capa vazando para dentro da barra.
+    //
+    // Degrade horizontal em vez de tingir a barra inteira: a cor sai de onde a
+    // capa esta e some antes dos controles, entao ela ambienta sem competir com
+    // o botao de play nem mudar o contraste do texto do centro. Um `Rectangle`
+    // com preenchimento -- nao ha nada a recalcular por quadro.
+    if Theme.artwork-tint && root.has-track: Rectangle {
         width: 100%;
-        background: Theme.border;
+        height: 100%;
+        opacity: Theme.artwork-tint-strength;
+        background: @linear-gradient(90deg,
+            Theme.artwork-color 0%,
+            Theme.artwork-color 12%,
+            transparent 62%);
     }
+
+    Gloss { }
+    GlassEdge { }
 
     VerticalLayout {
         padding-left: Layout.player-progress-edge ? 0px : Theme.space-lg;
@@ -865,7 +919,7 @@ component PlayerBar inherits Rectangle {
                     label: root.favorite
                         ? "Remover faixa atual das Musicas curtidas do Spotify"
                         : "Adicionar faixa atual as Musicas curtidas do Spotify";
-                    path: Icons.heart;
+                    glyph: Icons.heart;
                     filled: root.favorite;
                     active: root.favorite;
                     checkable: true;
@@ -889,7 +943,7 @@ component PlayerBar inherits Rectangle {
 
                     if Layout.player-shuffle-repeat: IconButton {
                         label: root.shuffle ? "Desligar modo aleatorio" : "Ligar modo aleatorio";
-                        path: Icons.shuffle;
+                        glyph: Icons.shuffle;
                         active: root.shuffle;
                         checkable: true;
                         tint: Theme.text-muted;
@@ -898,37 +952,45 @@ component PlayerBar inherits Rectangle {
 
                     IconButton {
                         label: "Faixa anterior";
-                        path: Icons.previous;
+                        glyph: Icons.previous;
                         filled: true;
                         enabled: root.has-track;
                         clicked => { root.previous(); }
                     }
 
                     Rectangle {
-                        width: 40px;
-                        height: 40px;
-                        border-radius: 20px;
+                        width: Theme.control-primary-size;
+                        height: self.width;
+                        border-radius: self.width / 2;
                         background: Theme.accent;
                         opacity: root.has-track ? 1.0 : 0.45;
 
                         Icon {
-                            path: root.playing ? Icons.pause : Icons.play;
+                            glyph: root.playing ? Icons.pause : Icons.play;
                             tint: Theme.text-on-accent;
                             filled: true;
-                            size: 18px;
+                            size: Theme.control-icon-size-primary;
                         }
 
                         PressableArea {
                             enabled-input: root.has-track;
                             accessible-label: root.playing ? "Pausar" : "Reproduzir";
-                            focus-radius: 20px;
+                            focus-radius: Theme.control-primary-size / 2;
                             clicked => { root.toggle-play(); }
                         }
                     }
 
+                    if Layout.player-stop-button: IconButton {
+                        label: "Parar";
+                        glyph: Icons.stop;
+                        filled: true;
+                        enabled: root.has-track;
+                        clicked => { root.stop(); }
+                    }
+
                     IconButton {
                         label: "Proxima faixa";
-                        path: Icons.next;
+                        glyph: Icons.next;
                         filled: true;
                         enabled: root.has-track;
                         clicked => { root.next(); }
@@ -938,7 +1000,7 @@ component PlayerBar inherits Rectangle {
                         label: root.repeat == 0
                             ? "Ligar repeticao da fila"
                             : (root.repeat == 1 ? "Repetir esta faixa" : "Desligar repeticao");
-                        path: root.repeat == 2 ? Icons.repeat-one : Icons.repeat;
+                        glyph: root.repeat == 2 ? Icons.repeat-one : Icons.repeat;
                         active: root.repeat != 0;
                         checkable: true;
                         tint: Theme.text-muted;
@@ -996,7 +1058,7 @@ component PlayerBar inherits Rectangle {
 
                 IconButton {
                     label: root.mini-player ? "Sair do mini-player" : "Abrir mini-player";
-                    path: Icons.mini-player;
+                    glyph: Icons.mini-player;
                     active: root.mini-player;
                     tint: Theme.text-muted;
                     y: (parent.height - self.height) / 2;
@@ -1005,16 +1067,16 @@ component PlayerBar inherits Rectangle {
 
                 if !root.mini-player && Layout.player-queue-button: IconButton {
                     label: "Abrir fila";
-                    path: Icons.queue;
+                    glyph: Icons.queue;
                     tint: Theme.text-muted;
                     y: (parent.height - self.height) / 2;
                     clicked => { root.open-queue(); }
                 }
 
                 if !root.mini-player && Layout.player-volume: Icon {
-                    path: Icons.volume;
+                    glyph: Icons.volume;
                     tint: Theme.text-muted;
-                    size: 16px;
+                    size: Theme.control-icon-size;
                     y: (parent.height - self.size) / 2;
                 }
 
@@ -1633,6 +1695,97 @@ component QueuePage inherits Flickable {
     }
 }
 
+// Previa de um tema: uma janela do Morune em miniatura, pintada com as cores
+// do proprio tema.
+//
+// **Nao e uma captura de tela.** Renderizar cada tema fora da tela exigiria o
+// codificador de PNG no executavel -- deliberadamente fora do build de release
+// para nao engordar o instalador -- e uma janela por tema na abertura. Este
+// desenho custa cinco retangulos, esta sempre atualizado (inclusive logo depois
+// de a pessoa salvar o TOML) e mostra o que importa na hora de escolher: a
+// relacao entre fundo, painel, barra e destaque.
+component ThemePreviewChip inherits Rectangle {
+    in property <ThemeItem> item;
+
+    width: 56px;
+    height: 38px;
+    border-radius: Theme.radius-sm;
+    border-width: Theme.border-width;
+    border-color: Theme.border;
+    background: root.item.preview-background;
+    clip: true;
+
+    // Barra lateral, com um fio a separar.
+    //
+    // O fio existe porque quase todo tema usa fundo e barra lateral em tons
+    // vizinhos: sem ele a previa vira um retangulo chapado e nao se ve que ha
+    // uma barra ali. E o mesmo recurso que a interface de verdade usa -- linha
+    // em vez de sombra.
+    Rectangle {
+        x: 0;
+        y: 0;
+        width: 16px;
+        height: 100%;
+        background: root.item.preview-sidebar;
+    }
+
+    Rectangle {
+        x: 16px;
+        y: 0;
+        width: 1px;
+        height: 100%;
+        background: root.item.preview-text;
+        opacity: 0.18;
+    }
+
+    // Duas linhas de conteudo, para a cor de superficie aparecer.
+    Rectangle {
+        x: 21px;
+        y: 7px;
+        width: 28px;
+        height: 6px;
+        border-radius: 2px;
+        background: root.item.preview-surface;
+    }
+
+    Rectangle {
+        x: 21px;
+        y: 16px;
+        width: 18px;
+        height: 6px;
+        border-radius: 2px;
+        background: root.item.preview-text;
+        opacity: 0.55;
+    }
+
+    // Barra de reproducao, com o botao primario em destaque.
+    Rectangle {
+        x: 0;
+        y: parent.height - 11px;
+        width: 100%;
+        height: 11px;
+        background: root.item.preview-player;
+    }
+
+    Rectangle {
+        x: 0;
+        y: parent.height - 11px;
+        width: 100%;
+        height: 1px;
+        background: root.item.preview-text;
+        opacity: 0.18;
+    }
+
+    Rectangle {
+        x: 25px;
+        y: parent.height - 9px;
+        width: 7px;
+        height: 7px;
+        border-radius: 3.5px;
+        background: root.item.preview-accent;
+    }
+}
+
 component ThemeRow inherits Rectangle {
     in property <ThemeItem> item;
     callback selected();
@@ -1660,6 +1813,11 @@ component ThemeRow inherits Rectangle {
         padding-left: Theme.space-md;
         padding-right: Theme.space-md;
         spacing: Theme.space-md;
+
+        ThemePreviewChip {
+            item: root.item;
+            y: (parent.height - self.height) / 2;
+        }
 
         VerticalLayout {
             alignment: center;
@@ -1756,6 +1914,62 @@ component SettingRow inherits Rectangle {
     }
 }
 
+// Ajuste continuo, no mesmo molde do `SettingRow`: rotulo, explicacao e o
+// controle a direita. O valor aparece escrito porque um slider sozinho nao diz
+// onde esta -- e estes mexem em aparencia, que a pessoa vai querer repetir.
+component SettingSlider inherits Rectangle {
+    in property <string> label;
+    in property <string> hint;
+    in property <string> value-text;
+    in property <float> value;
+    callback changed(float);
+
+    height: 44px;
+
+    HorizontalLayout {
+        spacing: Theme.space-md;
+
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+
+            Text {
+                text: root.label;
+                color: Theme.text;
+                font-size: Theme.size-md;
+                font-family: Theme.font-family;
+            }
+
+            Text {
+                text: root.hint;
+                color: Theme.text-muted;
+                font-size: Theme.size-xs;
+                font-family: Theme.font-family;
+                overflow: elide;
+            }
+        }
+
+        Text {
+            text: root.value-text;
+            color: Theme.text-muted;
+            font-size: Theme.size-sm;
+            font-family: Theme.font-family;
+            vertical-alignment: center;
+            width: 44px;
+            horizontal-alignment: right;
+        }
+
+        Slider {
+            label: root.label;
+            width: 140px;
+            value: root.value;
+            y: (parent.height - self.height) / 2;
+            changed(v) => { root.changed(v); }
+            committed(v) => { root.changed(v); }
+        }
+    }
+}
+
 component SettingsPage inherits VerticalLayout {
     in property <[ThemeItem]> themes;
     in property <[Diagnostic]> diagnostics;
@@ -1765,6 +1979,29 @@ component SettingsPage inherits VerticalLayout {
     in property <bool> close-to-tray;
     in property <bool> autoplay;
     in property <bool> start-with-windows;
+
+    in property <bool> has-background;
+    in property <string> background-name;
+    // 0 = cover, 1 = contain, 2 = center, 3 = stretch
+    in property <int> background-fit;
+    in property <float> background-opacity;
+    in property <float> background-tint;
+    in property <float> background-blur;
+    in property <float> font-scale;
+    in property <float> window-opacity;
+    in property <bool> reduce-motion;
+    in property <bool> hot-reload;
+
+    callback choose-background();
+    callback clear-background();
+    callback set-background-fit(int);
+    callback set-background-opacity(float);
+    callback set-background-tint(float);
+    callback set-background-blur(float);
+    callback set-font-scale(float);
+    callback set-window-opacity(float);
+    callback set-reduce-motion(bool);
+    callback set-hot-reload(bool);
 
     callback set-close-to-tray(bool);
     callback set-autoplay(bool);
@@ -1781,185 +2018,324 @@ component SettingsPage inherits VerticalLayout {
 
     spacing: Theme.space-md;
 
-    // Cabecalho e controles ficam num layout proprio com `alignment: start`.
+    // A pagina inteira rola.
     //
-    // Sem essa separacao o VerticalLayout externo reparte a altura sobrando
-    // entre todos os filhos, e cada titulo de secao ganha uma faixa vazia de
-    // ~90 px. Com `alignment: start` no bloco fixo e `vertical-stretch: 1` na
-    // lista, a sobra vai toda para a lista, que e quem sabe crescer.
-    VerticalLayout {
-        spacing: Theme.space-md;
-        alignment: start;
-        vertical-stretch: 0;
+    // Antes eram duas areas: um bloco fixo em cima e a lista de temas rolando
+    // embaixo. Com a secao de Aparencia o bloco fixo passou a pedir mais altura
+    // que a janela tem, comeu a lista inteira e nao havia como chegar nela --
+    // dois visores de rolagem na mesma tela tambem deixavam ambiguo qual deles
+    // a roda do mouse move. Um visor so resolve as duas coisas.
+    Flickable {
+        viewport-height: pagina.preferred-height;
 
-        SectionTitle { text: "Configuracoes"; }
+        pagina := VerticalLayout {
+            spacing: Theme.space-md;
+            alignment: start;
 
-        HorizontalLayout {
-            spacing: Theme.space-sm;
-            height: 34px;
+            SectionTitle { text: "Configuracoes"; }
 
-            Text {
-                text: root.logged-in ? root.account-name : "Nao conectado";
-                color: Theme.text-muted;
-                font-size: Theme.size-md;
-                font-family: Theme.font-family;
-                vertical-alignment: center;
-                horizontal-stretch: 1;
-            }
-
-            if !root.logged-in: PrimaryButton {
-                label: "Entrar no Spotify";
-                clicked => { root.login(); }
-            }
-
-            if root.logged-in: GhostButton {
-                label: "Sair";
-                danger: true;
-                clicked => { root.logout(); }
-            }
-        }
-
-        Text {
-            text: "Comportamento";
-            color: Theme.text;
-            font-size: Theme.size-md;
-            font-weight: Theme.weight-bold;
-            font-family: Theme.font-family;
-        }
-
-        SettingRow {
-            label: "Continuar com radio";
-            hint: "Quando a fila acabar, toca uma estacao baseada na ultima faixa.";
-            checked: root.autoplay;
-            toggled(v) => { root.set-autoplay(v); }
-        }
-
-        Rectangle {
-            height: 44px;
             HorizontalLayout {
-                VerticalLayout {
-                    alignment: center;
-                    horizontal-stretch: 1;
-                    Text { text: "Saida de audio"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
-                    Text { text: "Segue o dispositivo escolhido no Windows."; color: Theme.text-muted; font-size: Theme.size-xs; font-family: Theme.font-family; }
-                }
+                spacing: Theme.space-sm;
+                height: 34px;
+
                 Text {
-                    text: "Padrao do Windows";
+                    text: root.logged-in ? root.account-name : "Nao conectado";
                     color: Theme.text-muted;
-                    font-size: Theme.size-sm;
+                    font-size: Theme.size-md;
                     font-family: Theme.font-family;
                     vertical-alignment: center;
-                }
-            }
-        }
-
-        SettingRow {
-            label: "Continuar tocando ao fechar";
-            hint: "Fechar a janela esconde o Morune na bandeja em vez de encerrar.";
-            checked: root.close-to-tray;
-            toggled(v) => { root.set-close-to-tray(v); }
-        }
-
-        SettingRow {
-            label: "Iniciar com o Windows";
-            hint: "Abre em segundo plano na bandeja quando voce entra no Windows.";
-            checked: root.start-with-windows;
-            toggled(v) => { root.set-start-with-windows(v); }
-        }
-
-        Text {
-            text: "Temas";
-            color: Theme.text;
-            font-size: Theme.size-md;
-            font-weight: Theme.weight-bold;
-            font-family: Theme.font-family;
-        }
-
-        Text {
-            text: "A troca e imediata. Voce pode voltar ao tema padrao a qualquer momento.";
-            color: Theme.text-muted;
-            font-size: Theme.size-xs;
-            font-family: Theme.font-family;
-        }
-
-        VerticalLayout {
-            spacing: Theme.space-sm;
-            height: 76px;
-            alignment: start;
-
-            HorizontalLayout {
-                spacing: Theme.space-sm;
-                height: 34px;
-                alignment: start;
-
-                PrimaryButton {
-                    label: "Importar tema";
-                    clicked => { root.import-theme(); }
+                    horizontal-stretch: 1;
                 }
 
-                GhostButton {
-                    label: "Abrir pasta de temas";
-                    clicked => { root.open-theme-folder(); }
+                if !root.logged-in: PrimaryButton {
+                    label: "Entrar no Spotify";
+                    clicked => { root.login(); }
+                }
+
+                if root.logged-in: GhostButton {
+                    label: "Sair";
+                    danger: true;
+                    clicked => { root.logout(); }
                 }
             }
 
-            HorizontalLayout {
-                spacing: Theme.space-sm;
-                height: 34px;
-                alignment: start;
-
-                GhostButton {
-                    label: "Recarregar temas";
-                    clicked => { root.reload-theme(); }
-                }
-
-                GhostButton {
-                    label: "Usar tema padrao";
-                    clicked => { root.reset-theme(); }
-                }
-            }
-        }
-    }
-
-    Flickable {
-        vertical-stretch: 1;
-        viewport-height: theme-list.preferred-height;
-
-        theme-list := VerticalLayout {
-            spacing: Theme.space-xs;
-            // A lista comeca no topo do visor; sem isto ela desce e fica
-            // colada no rodape quando ha poucos temas.
-            alignment: start;
-
-            for item in root.themes: ThemeRow {
-                item: item;
-                selected => { root.select-theme(item.id); }
-                export-pack => { root.export-theme(item.id); }
-                duplicate => { root.duplicate-theme(item.id); }
-            }
-
-            if root.diagnostics.length > 0: Text {
-                text: "Diagnosticos do tema";
+            Text {
+                text: "Comportamento";
                 color: Theme.text;
                 font-size: Theme.size-md;
                 font-weight: Theme.weight-bold;
                 font-family: Theme.font-family;
             }
 
-            for d in root.diagnostics: Rectangle {
-                height: diag.preferred-height + Theme.space-sm * 2;
-                border-radius: Theme.radius-sm;
-                background: Theme.surface;
+            SettingRow {
+                label: "Continuar com radio";
+                hint: "Quando a fila acabar, toca uma estacao baseada na ultima faixa.";
+                checked: root.autoplay;
+                toggled(v) => { root.set-autoplay(v); }
+            }
 
-                diag := Text {
-                    text: d.field + ": " + d.message;
-                    color: d.level == "error" ? Theme.danger : Theme.warning;
-                    font-size: Theme.size-xs;
+            Rectangle {
+                height: 44px;
+                HorizontalLayout {
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+                        Text { text: "Saida de audio"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
+                        Text { text: "Segue o dispositivo escolhido no Windows."; color: Theme.text-muted; font-size: Theme.size-xs; font-family: Theme.font-family; }
+                    }
+                    Text {
+                        text: "Padrao do Windows";
+                        color: Theme.text-muted;
+                        font-size: Theme.size-sm;
+                        font-family: Theme.font-family;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            SettingRow {
+                label: "Continuar tocando ao fechar";
+                hint: "Fechar a janela esconde o Morune na bandeja em vez de encerrar.";
+                checked: root.close-to-tray;
+                toggled(v) => { root.set-close-to-tray(v); }
+            }
+
+            SettingRow {
+                label: "Iniciar com o Windows";
+                hint: "Abre em segundo plano na bandeja quando voce entra no Windows.";
+                checked: root.start-with-windows;
+                toggled(v) => { root.set-start-with-windows(v); }
+            }
+
+            Text {
+                text: "Aparencia";
+                color: Theme.text;
+                font-size: Theme.size-md;
+                font-weight: Theme.weight-bold;
+                font-family: Theme.font-family;
+            }
+
+            Text {
+                text: "Estes ajustes sao seus, nao do tema: trocar de tema nao desfaz nenhum deles.";
+                color: Theme.text-muted;
+                font-size: Theme.size-xs;
+                font-family: Theme.font-family;
+            }
+
+            Rectangle {
+                height: 44px;
+                HorizontalLayout {
+                    spacing: Theme.space-md;
+
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+                        Text {
+                            text: "Imagem de fundo";
+                            color: Theme.text;
+                            font-size: Theme.size-md;
+                            font-family: Theme.font-family;
+                        }
+                        Text {
+                            text: root.has-background
+                                ? root.background-name
+                                : "Nenhuma. O tema decide o fundo da janela.";
+                            color: Theme.text-muted;
+                            font-size: Theme.size-xs;
+                            font-family: Theme.font-family;
+                            overflow: elide;
+                        }
+                    }
+
+                    if root.has-background: GhostButton {
+                        label: "Remover";
+                        y: (parent.height - self.height) / 2;
+                        clicked => { root.clear-background(); }
+                    }
+
+                    GhostButton {
+                        label: root.has-background ? "Trocar..." : "Escolher...";
+                        y: (parent.height - self.height) / 2;
+                        clicked => { root.choose-background(); }
+                    }
+                }
+            }
+
+            // Os ajustes da imagem so aparecem quando ha imagem: quatro sliders
+            // inertes seriam quatro perguntas sem resposta possivel.
+            if root.has-background: Rectangle {
+                height: 44px;
+                HorizontalLayout {
+                    spacing: Theme.space-sm;
+
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+                        Text {
+                            text: "Encaixe";
+                            color: Theme.text;
+                            font-size: Theme.size-md;
+                            font-family: Theme.font-family;
+                        }
+                        Text {
+                            text: "Como a imagem preenche a janela.";
+                            color: Theme.text-muted;
+                            font-size: Theme.size-xs;
+                            font-family: Theme.font-family;
+                        }
+                    }
+
+                    for option[index] in ["Cobrir", "Caber", "Centro", "Esticar"]: GhostButton {
+                        label: option;
+                        active: root.background-fit == index;
+                        y: (parent.height - self.height) / 2;
+                        clicked => { root.set-background-fit(index); }
+                    }
+                }
+            }
+
+            if root.has-background: SettingSlider {
+                label: "Opacidade da imagem";
+                hint: "Quanto da imagem aparece sobre a cor de fundo do tema.";
+                value: root.background-opacity;
+                value-text: round(root.background-opacity * 100) + "%";
+                changed(v) => { root.set-background-opacity(v); }
+            }
+
+            if root.has-background: SettingSlider {
+                label: "Escurecer o fundo";
+                hint: "Veu sobre a imagem. Sem ele, uma foto clara apaga o texto.";
+                value: root.background-tint;
+                value-text: round(root.background-tint * 100) + "%";
+                changed(v) => { root.set-background-tint(v); }
+            }
+
+            if root.has-background: SettingSlider {
+                label: "Desfoque";
+                hint: "Aplicado uma vez ao carregar; nao custa nada enquanto voce joga.";
+                value: root.background-blur;
+                value-text: round(root.background-blur * 64) + "px";
+                changed(v) => { root.set-background-blur(v); }
+            }
+
+            SettingSlider {
+                label: "Transparencia da janela";
+                hint: "Deixa ver o que esta atras. Vale para qualquer tema, e o tema nao desfaz.";
+                value: root.window-opacity;
+                value-text: round(root.window-opacity * 80) + "%";
+                changed(v) => { root.set-window-opacity(v); }
+            }
+
+            SettingSlider {
+                label: "Tamanho da interface";
+                hint: "Multiplica todos os textos. A escala do Windows continua valendo por cima.";
+                value: root.font-scale;
+                value-text: round(80 + root.font-scale * 80) + "%";
+                changed(v) => { root.set-font-scale(v); }
+            }
+
+            SettingRow {
+                label: "Reduzir animacoes";
+                hint: "Desliga as transicoes, mesmo que o tema peca por elas.";
+                checked: root.reduce-motion;
+                toggled(v) => { root.set-reduce-motion(v); }
+            }
+
+            Text {
+                text: "Temas";
+                color: Theme.text;
+                font-size: Theme.size-md;
+                font-weight: Theme.weight-bold;
+                font-family: Theme.font-family;
+            }
+
+            SettingRow {
+                label: "Recarregar tema ao salvar";
+                hint: "Observa a pasta de temas e aplica assim que voce salva o arquivo.";
+                checked: root.hot-reload;
+                toggled(v) => { root.set-hot-reload(v); }
+            }
+
+            Text {
+                text: "A troca e imediata. Voce pode voltar ao tema padrao a qualquer momento.";
+                color: Theme.text-muted;
+                font-size: Theme.size-xs;
+                font-family: Theme.font-family;
+            }
+
+            VerticalLayout {
+                spacing: Theme.space-sm;
+                height: 76px;
+                alignment: start;
+
+                HorizontalLayout {
+                    spacing: Theme.space-sm;
+                    height: 34px;
+                    alignment: start;
+
+                    PrimaryButton {
+                        label: "Importar tema";
+                        clicked => { root.import-theme(); }
+                    }
+
+                    GhostButton {
+                        label: "Abrir pasta de temas";
+                        clicked => { root.open-theme-folder(); }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: Theme.space-sm;
+                    height: 34px;
+                    alignment: start;
+
+                    GhostButton {
+                        label: "Recarregar temas";
+                        clicked => { root.reload-theme(); }
+                    }
+
+                    GhostButton {
+                        label: "Usar tema padrao";
+                        clicked => { root.reset-theme(); }
+                    }
+                }
+            }
+
+            VerticalLayout {
+                spacing: Theme.space-xs;
+                padding-top: Theme.space-sm;
+                alignment: start;
+
+                for item in root.themes: ThemeRow {
+                    item: item;
+                    selected => { root.select-theme(item.id); }
+                    export-pack => { root.export-theme(item.id); }
+                    duplicate => { root.duplicate-theme(item.id); }
+                }
+
+                if root.diagnostics.length > 0: Text {
+                    text: "Diagnosticos do tema";
+                    color: Theme.text;
+                    font-size: Theme.size-md;
+                    font-weight: Theme.weight-bold;
                     font-family: Theme.font-family;
-                    wrap: word-wrap;
-                    x: Theme.space-md;
-                    y: Theme.space-sm;
-                    width: parent.width - Theme.space-md * 2;
+                }
+
+                for d in root.diagnostics: Rectangle {
+                    height: diag.preferred-height + Theme.space-sm * 2;
+                    border-radius: Theme.radius-sm;
+                    background: Theme.surface;
+
+                    diag := Text {
+                        text: d.field + ": " + d.message;
+                        color: d.level == "error" ? Theme.danger : Theme.warning;
+                        font-size: Theme.size-xs;
+                        font-family: Theme.font-family;
+                        wrap: word-wrap;
+                        x: Theme.space-md;
+                        y: Theme.space-sm;
+                        width: parent.width - Theme.space-md * 2;
+                    }
                 }
             }
         }
@@ -2043,7 +2419,30 @@ export component AppWindow inherits Window {
     callback navigate(int);
     callback search(string);
     callback play-track(string);
+    in property <bool> has-background;
+    in property <string> background-name;
+    in property <int> background-fit;
+    in property <float> background-opacity;
+    in property <float> background-tint;
+    in property <float> background-blur;
+    in property <float> font-scale;
+    in property <float> window-opacity;
+    in property <bool> reduce-motion;
+    in property <bool> hot-reload;
+
+    callback choose-background();
+    callback clear-background();
+    callback set-background-fit(int);
+    callback set-background-opacity(float);
+    callback set-background-tint(float);
+    callback set-background-blur(float);
+    callback set-font-scale(float);
+    callback set-window-opacity(float);
+    callback set-reduce-motion(bool);
+    callback set-hot-reload(bool);
+
     callback toggle-play();
+    callback stop-playback();
     callback next-track();
     callback previous-track();
     callback seek(float);
@@ -2105,6 +2504,40 @@ export component AppWindow inherits Window {
     preferred-height: 760px;
     forward-focus: keys;
 
+    // Fundo da janela, atras de tudo.
+    //
+    // Para ele aparecer, as cores de superficie do tema precisam ter alfa --
+    // `sidebar_background = "#0d1016cc"` e assim por diante. Nao ha modo
+    // "transparencia" separado: um tema opaco simplesmente cobre a imagem, que
+    // e o comportamento certo para quem nao pediu fundo nenhum.
+    if Theme.background-image.width > 0: Image {
+        // Tamanho amarrado a raiz, e nao `100%`: como filha direta da janela
+        // esta imagem nao participa de layout nenhum, entao `100%` nao tem a
+        // que se referir e ela nasce com tamanho zero.
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+        source: Theme.background-image;
+        opacity: Theme.background-opacity;
+        image-fit: Theme.background-fit == 1
+            ? ImageFit.contain
+            : (Theme.background-fit == 2
+                ? ImageFit.preserve
+                : (Theme.background-fit == 3 ? ImageFit.fill : ImageFit.cover));
+    }
+
+    // Veu de legibilidade. Sem ele, uma foto clara apaga o texto de um tema
+    // escuro -- e quem escolheu a foto nao tem como saber disso antes.
+    if Theme.background-image.width > 0 && Theme.background-tint-strength > 0: Rectangle {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+        background: Theme.background-tint;
+        opacity: Theme.background-tint-strength;
+    }
+
     VerticalLayout {
         AppTitleBar {
             maximized: root.maximized;
@@ -2129,6 +2562,7 @@ export component AppWindow inherits Window {
             shuffle: root.shuffle;
             repeat: root.repeat;
             toggle-play => { root.toggle-play(); }
+            stop => { root.stop-playback(); }
             next => { root.next-track(); }
             previous => { root.previous-track(); }
             seek(v) => { root.seek(v); }
@@ -2167,7 +2601,12 @@ export component AppWindow inherits Window {
 
             Rectangle {
                 horizontal-stretch: 1;
-                background: Theme.background;
+                // Sem fundo proprio: a janela ja pinta `Theme.background` atras
+                // de tudo. Repintar aqui empilhava dois veus da mesma cor --
+                // com alfa 0,7 o resultado desenhado virava 0,91, e nenhum
+                // valor de tema alcancava vidro fino. Tambem era o que cobria a
+                // imagem de fundo justamente na area de conteudo.
+                background: transparent;
 
                 VerticalLayout {
                     padding: Theme.space-lg;
@@ -2221,6 +2660,26 @@ export component AppWindow inherits Window {
                         close-to-tray: root.close-to-tray;
                         autoplay: root.autoplay;
                         start-with-windows: root.start-with-windows;
+                        has-background: root.has-background;
+                        background-name: root.background-name;
+                        background-fit: root.background-fit;
+                        background-opacity: root.background-opacity;
+                        background-tint: root.background-tint;
+                        background-blur: root.background-blur;
+                        font-scale: root.font-scale;
+                        window-opacity: root.window-opacity;
+                        reduce-motion: root.reduce-motion;
+                        hot-reload: root.hot-reload;
+                        choose-background => { root.choose-background(); }
+                        clear-background => { root.clear-background(); }
+                        set-background-fit(v) => { root.set-background-fit(v); }
+                        set-background-opacity(v) => { root.set-background-opacity(v); }
+                        set-background-tint(v) => { root.set-background-tint(v); }
+                        set-background-blur(v) => { root.set-background-blur(v); }
+                        set-font-scale(v) => { root.set-font-scale(v); }
+                        set-window-opacity(v) => { root.set-window-opacity(v); }
+                        set-reduce-motion(v) => { root.set-reduce-motion(v); }
+                        set-hot-reload(v) => { root.set-hot-reload(v); }
                         set-close-to-tray(v) => { root.set-close-to-tray(v); }
                         set-autoplay(v) => { root.set-autoplay(v); }
                         set-start-with-windows(v) => { root.set-start-with-windows(v); }
@@ -2281,6 +2740,12 @@ export component AppWindow inherits Window {
                     background: Theme.surface-raised;
                     border-width: Theme.border-width;
                     border-color: Theme.border;
+                    clip: true;
+
+                    // Recuado pelo raio: sem isso a linha reta atravessaria a
+                    // curva do canto e apareceria uma ponta fora do painel.
+                    Gloss { radius: Theme.radius-md; }
+                    GlassEdge { inset: Theme.radius-md / 2; }
 
                     status-text := Text {
                         text: root.status-message;
@@ -2311,7 +2776,7 @@ export component AppWindow inherits Window {
 
                     IconButton {
                         label: "Dispensar mensagem";
-                        path: Icons.close;
+                        glyph: Icons.close;
                         tint: Theme.text-muted;
                         button-size: 28px;
                         x: parent.width - self.width - Theme.space-sm;
@@ -2381,6 +2846,7 @@ export component AppWindow inherits Window {
             shuffle: root.shuffle;
             repeat: root.repeat;
             toggle-play => { root.toggle-play(); }
+            stop => { root.stop-playback(); }
             next => { root.next-track(); }
             previous => { root.previous-track(); }
             seek(v) => { root.seek(v); }
@@ -2424,7 +2890,7 @@ export component AppWindow inherits Window {
                     }
                     IconButton {
                         label: "Fechar atalhos";
-                        path: Icons.close;
+                        glyph: Icons.close;
                         clicked => { root.shortcuts-visible = false; }
                     }
                 }
@@ -2495,7 +2961,7 @@ export component AppWindow inherits Window {
 // janela principal, em vez do azul do sistema.
 component TrayMenuItem inherits Rectangle {
     in property <string> text;
-    in property <string> path;
+    in property <IconRef> glyph;
     in property <brush> tint: Theme.text;
     callback clicked();
 
@@ -2511,7 +2977,7 @@ component TrayMenuItem inherits Rectangle {
         spacing: Theme.space-sm;
 
         Icon {
-            path: root.path;
+            glyph: root.glyph;
             tint: root.tint;
             size: 16px;
             y: (parent.height - self.height) / 2;
@@ -2627,33 +3093,33 @@ export component TrayMenuWindow inherits Window {
                 padding-bottom: Theme.space-xs;
 
                 IconButton {
-                    path: Icons.previous;
+                    glyph: Icons.previous;
                     filled: true;
                     clicked => { root.previous(); }
                 }
 
                 Rectangle {
-                    width: 40px;
-                    height: 40px;
-                    border-radius: 20px;
+                    width: Theme.control-primary-size;
+                    height: self.width;
+                    border-radius: self.width / 2;
                     background: Theme.accent;
 
                     Icon {
-                        path: root.playing ? Icons.pause : Icons.play;
+                        glyph: root.playing ? Icons.pause : Icons.play;
                         tint: Theme.text-on-accent;
                         filled: true;
-                        size: 18px;
+                        size: Theme.control-icon-size-primary;
                     }
 
                     PressableArea {
                         accessible-label: root.playing ? "Pausar" : "Reproduzir";
-                        focus-radius: 20px;
+                        focus-radius: Theme.control-primary-size / 2;
                         clicked => { root.toggle-play(); }
                     }
                 }
 
                 IconButton {
-                    path: Icons.next;
+                    glyph: Icons.next;
                     filled: true;
                     clicked => { root.next(); }
                 }
@@ -2675,13 +3141,13 @@ export component TrayMenuWindow inherits Window {
 
             TrayMenuItem {
                 text: "Abrir Morune";
-                path: Icons.home;
+                glyph: Icons.home;
                 clicked => { root.show-window(); }
             }
 
             TrayMenuItem {
                 text: "Sair do Morune";
-                path: Icons.close;
+                glyph: Icons.close;
                 tint: Theme.danger;
                 clicked => { root.quit(); }
             }

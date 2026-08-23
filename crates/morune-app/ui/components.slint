@@ -4,28 +4,112 @@ import { Theme, Layout, Brand } from "theme.slint";
 // de `Theme`, para que um pacote de tema consiga mudar a aparencia inteira sem
 // que nenhuma tela precise ser reescrita.
 
+/// Um icone: o desenho embutido e, quando o tema traz um, o arquivo que o
+/// substitui.
+///
+/// Os dois andam juntos num valor so para que trocar de icone continue sendo
+/// uma linha em quem desenha a tela. `source` vazio = usa o desenho embutido.
+export struct IconRef {
+    commands: string,
+    source: image,
+}
+
 // Icones sao caminhos vetoriais no espaco 24x24, nao imagens: escalam em
 // qualquer DPI do Windows e recebem a cor do tema sem recolorir bitmap.
+//
+// Um tema pode substituir qualquer um deles por um SVG em `assets/icons/`. O
+// substituto continua obedecendo a cor do tema por `colorize`: um icone custom
+// que ignorasse a paleta seria a unica coisa da interface fora do tema.
 export component Icon {
-    in property <string> path;
+    in property <IconRef> glyph;
     in property <brush> tint: Theme.text;
-    in property <length> size: 16px;
+    in property <length> size: Theme.control-icon-size;
     /// `true` para silhuetas cheias (play, pause), `false` para contornos.
     in property <bool> filled: false;
 
     width: root.size;
     height: root.size;
 
-    Path {
+    if root.glyph.source.width > 0: Image {
+        width: 100%;
+        height: 100%;
+        source: root.glyph.source;
+        colorize: root.tint;
+        image-fit: contain;
+    }
+
+    if root.glyph.source.width == 0: Path {
         width: 100%;
         height: 100%;
         viewbox-width: 24;
         viewbox-height: 24;
-        commands: root.path;
+        commands: root.glyph.commands;
         fill: root.filled ? root.tint : transparent;
         stroke: root.filled ? transparent : root.tint;
-        stroke-width: 2px;
+        // O traco vem do tema em unidades do viewbox e so aqui vira pixel.
+        // Antes disto eram 2px fixos: num icone de 12px o traco comia 17% da
+        // caixa e o desenho sumia dentro do proprio contorno.
+        //
+        // Zero quando o icone e cheio, e nao a espessura com cor transparente:
+        // o Slint encaixa a viewbox em `tamanho - espessura` **mesmo se o traco
+        // for invisivel**. Reservar 1,5 px para um contorno que ninguem desenha
+        // encolhia o glifo em 8% e fechava o vao do pause.
+        stroke-width: root.filled ? 0px : root.size * Theme.control-icon-stroke / 24;
+        // Sem isto o Slint junta os segmentos em miter puro, e cada canto de
+        // contorno sai numa ponta aguda que nao combina com nenhum outro
+        // elemento da interface.
+        stroke-line-cap: round;
+        stroke-line-join: round;
     }
+}
+
+// Realce da aresta superior de uma superficie.
+//
+// E o que faz um painel translucido parecer ter espessura: a luz corre na quina
+// de cima, mais clara que o resto do contorno. Num tema opaco `border-highlight`
+// chega igual a `border` e isto vira a mesma linha de sempre -- nada muda.
+//
+// Um retangulo de 1px em vez de borda por lado porque o Slint so tem uma cor de
+// borda por elemento, e trocar isso mexeria em toda superficie da interface.
+export component GlassEdge {
+    in property <length> inset: 0px;
+
+    // A raiz ocupa a largura de quem a hospeda; o recuo e aplicado no retangulo
+    // de dentro. A raiz de um componente nao enxerga `parent`, entao o recuo
+    // nao pode sair da propria largura dela.
+    y: 0;
+    width: 100%;
+    height: Theme.border-width;
+
+    Rectangle {
+        x: root.inset;
+        width: root.width - root.inset * 2;
+        height: 100%;
+        background: Theme.border-highlight;
+    }
+}
+
+// Brilho difuso sobre um painel.
+//
+// Nasce no topo e some antes do meio. E o par do `GlassEdge`: a aresta desenha
+// o contorno do vidro, isto desenha a luz caindo sobre ele. Um sem o outro
+// parece painel contornado; os dois juntos parecem vidro.
+//
+// Preenchimento estatico, resolvido na pintura como qualquer cor chapada --
+// nao ha nada a recalcular por quadro.
+export component Gloss inherits Rectangle {
+    in property <length> radius: 0px;
+
+    width: 100%;
+    height: 100%;
+    border-radius: root.radius;
+    // O `gloss` do tema entra na opacidade, e nao nas paradas do degrade: assim
+    // `0` some por completo em vez de deixar uma faixa clara residual.
+    opacity: Theme.gloss;
+    background: @linear-gradient(180deg,
+        #ffffff 0%,
+        #ffffff40 26%,
+        #ffffff00 62%);
 }
 
 export component PressableArea inherits FocusScope {
@@ -57,7 +141,7 @@ export component PressableArea inherits FocusScope {
     }
 
     Rectangle {
-        border-width: root.has-focus ? 2px : 0px;
+        border-width: root.has-focus ? Theme.border-width * 2 : 0px;
         border-color: Theme.focus-ring;
         border-radius: root.focus-radius;
     }
@@ -72,9 +156,9 @@ export component PressableArea inherits FocusScope {
 
 export component IconButton inherits Rectangle {
     in property <string> label;
-    in property <string> path;
-    in property <length> button-size: 32px;
-    in property <length> icon-size: 16px;
+    in property <IconRef> glyph;
+    in property <length> button-size: Theme.control-button-size;
+    in property <length> icon-size: Theme.control-icon-size;
     in property <brush> tint: Theme.text;
     in property <bool> filled: false;
     in property <bool> active: false;
@@ -84,14 +168,14 @@ export component IconButton inherits Rectangle {
 
     width: root.button-size;
     height: root.button-size;
-    border-radius: root.button-size / 2;
+    border-radius: min(Theme.control-button-radius, root.button-size / 2);
     background: root.active ? Theme.selected : (touch.has-hover && root.enabled ? Theme.hover : transparent);
     opacity: root.enabled ? 1.0 : 0.4;
 
     animate background { duration: Theme.motion-fast; }
 
     Icon {
-        path: root.path;
+        glyph: root.glyph;
         tint: root.active ? Theme.accent : root.tint;
         size: root.icon-size;
         filled: root.filled;
@@ -102,7 +186,7 @@ export component IconButton inherits Rectangle {
         accessible-label: root.label;
         accessible-checkable: root.checkable;
         accessible-checked: root.active;
-        focus-radius: root.button-size / 2;
+        focus-radius: min(Theme.control-button-radius, root.button-size / 2);
         clicked => {
             if (root.enabled) { root.clicked(); }
         }
@@ -115,7 +199,7 @@ export component IconButton inherits Rectangle {
         x: (root.width - self.width) / 2;
         y: -self.height - Theme.space-xs;
         width: min(280px, tooltip-text.preferred-width + Theme.space-md * 2);
-        height: 28px;
+        height: Theme.control-tooltip-height;
         border-radius: Theme.radius-sm;
         background: Theme.surface-raised;
         border-width: Theme.border-width;
@@ -169,20 +253,28 @@ export component PrimaryButton inherits Rectangle {
 export component GhostButton inherits Rectangle {
     in property <string> label;
     in property <bool> danger: false;
+    /// Escolha corrente, quando o botao faz parte de um grupo de opcoes.
+    in property <bool> active: false;
     callback clicked();
 
     height: 32px;
     min-width: text.preferred-width + Theme.space-md * 2;
     border-radius: Theme.radius-md;
     border-width: Theme.border-width;
-    border-color: Theme.border;
-    background: touch.has-hover ? Theme.hover : transparent;
+    // Ativo se distingue por contorno e cor de texto, nao por sombra: e a
+    // mesma regra que o resto da interface segue.
+    border-color: root.active ? Theme.accent : Theme.border;
+    background: root.active
+        ? Theme.selected
+        : (touch.has-hover ? Theme.hover : transparent);
 
     animate background { duration: Theme.motion-fast; }
 
     text := Text {
         text: root.label;
-        color: root.danger ? Theme.danger : Theme.text;
+        color: root.danger
+            ? Theme.danger
+            : (root.active ? Theme.accent : Theme.text);
         font-size: Theme.size-sm;
         font-family: Theme.font-family;
         vertical-alignment: center;
@@ -191,6 +283,8 @@ export component GhostButton inherits Rectangle {
 
     touch := PressableArea {
         accessible-label: root.label;
+        accessible-checkable: root.active;
+        accessible-checked: root.active;
         focus-radius: Theme.radius-md;
         clicked => { root.clicked(); }
     }
@@ -256,9 +350,9 @@ export component SearchField inherits Rectangle {
         spacing: Theme.space-sm;
 
         Icon {
-            path: "M 10 2 a 8 8 0 1 0 0 16 a 8 8 0 0 0 0 -16 M 16 16 l 6 6";
+            glyph: { commands: "M 10 2 a 8 8 0 1 0 0 16 a 8 8 0 0 0 0 -16 M 16 16 l 6 6" };
             tint: Theme.text-muted;
-            size: 16px;
+            size: Theme.control-icon-size;
             y: (parent.height - self.size) / 2;
         }
 
@@ -366,7 +460,7 @@ export component Slider inherits Rectangle {
     }
 
     Rectangle {
-        border-width: focus.has-focus ? 2px : 0px;
+        border-width: focus.has-focus ? Theme.border-width * 2 : 0px;
         border-color: Theme.focus-ring;
         border-radius: Theme.radius-sm;
     }
@@ -389,9 +483,9 @@ export component Slider inherits Rectangle {
     }
 
     knob := Rectangle {
-        width: 12px;
-        height: 12px;
-        border-radius: 6px;
+        width: Theme.control-slider-knob;
+        height: self.width;
+        border-radius: self.width / 2;
         background: Theme.text;
         x: track.width * root.shown - self.width / 2;
         y: (parent.height - self.height) / 2;
