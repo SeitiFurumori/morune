@@ -7,6 +7,54 @@ Versionamento semantico.
 
 ### Adicionado
 
+**Vidro, fundo e a cor do que esta tocando**
+- **Imagem de fundo**, por tema e por usuario. Decodificada, reduzida e
+  desfocada uma unica vez no carregamento -- um fundo que recalculasse desfoque
+  a cada repaint disputaria GPU com o jogo pelo resto da sessao.
+- **Transparencia e acrilico da janela passam a funcionar.** Eram validados,
+  documentados e nunca chegavam a janela. Trocar para um tema opaco agora
+  desliga a transparencia: antes ela contaminava todos os temas seguintes ate
+  fechar o aplicativo.
+- **A barra de reproducao pega a cor da capa que esta tocando.** Escolhida por
+  quantidade vezes saturacao, com quase-preto e quase-branco descartados -- um
+  encarte de fundo preto devolve a cor do disco, e nao o preto.
+- **`gloss` e `border_highlight`**, as duas metades do vidro: a aresta desenha o
+  contorno, o gloss desenha a luz caindo sobre ele. Preenchimento estatico, sem
+  custo por quadro. Ambos nascem desligados.
+- Dois temas de vidro acompanham o aplicativo: **Cristal** e **Bruma**.
+
+**Customizacao**
+- **Icones substituiveis por tema**, via `.svg` em `assets/icons/`. O
+  `.musicpack` ja aceitava e validava a pasta; ninguem a lia.
+- **Medidas dos controles viram token** (`[control]`). O tamanho de botao, de
+  icone e do traco deixam de ser valor literal dentro da interface.
+- **Fontes empacotadas** (`bundled_font`). Sem isso um tema compartilhado chegava
+  errado na casa de quem baixou.
+- **Previa de cada tema na lista**, desenhada a partir das cores dele.
+- **Recarga do tema ao salvar o arquivo**, opcional.
+- **Aba de Aparencia** nas Configuracoes: imagem de fundo, encaixe, opacidade,
+  escurecimento, desfoque, transparencia da janela, tamanho da interface e
+  reducao de animacoes. `font_scale_override` e `reduce_motion` ja existiam no
+  arquivo de configuracao e nao tinham controle nenhum.
+- **Botao de parar** na barra de reproducao, opcional e desligado por padrao.
+
+### Corrigido
+
+- **O pause lia como um retangulo unico.** As barras tinham vao de 2 unidades --
+  1,5 px a 18 px, que some no antialiasing. O botao principal do player parecia
+  um stop deformado. Todo o conjunto de glifos foi para a mesma grade optica;
+  `shuffle` saia do viewbox e era cortado nas pontas, `library` era ilegivel.
+- **O fundo da janela era pintado duas vezes**, e o segundo veu cobria a imagem
+  de fundo justamente na area de conteudo. Com alfa 0,7 o resultado desenhado
+  virava 0,91, e nenhum valor de tema alcancava vidro fino.
+- **O verificador de contraste ignorava alfa** e lia `#ffffff0d` como branco
+  puro: um tema de vidro legivel acusava 1,00:1. Agora compoe a superficie sobre
+  o fundo e mede nos dois piores casos de area de trabalho.
+- **A pagina de Configuracoes nao rolava.** O bloco fixo passou a pedir mais
+  altura que a janela tem e engolia a lista de temas, sem como chegar nela.
+- Icones cheios reservavam espessura de traco invisivel, encolhendo o glifo em
+  8%.
+
 **Menu da bandeja**
 - **O menu do icone da bandeja passa a ser o Morune.** Era um `HMENU` do
   Windows: o sistema o desenhava, e nao havia onde encaixar cor, tipografia ou
