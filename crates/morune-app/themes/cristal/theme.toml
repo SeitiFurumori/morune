@@ -1,0 +1,95 @@
+# Cristal -- painel de vidro sobre o que estiver atras da janela.
+#
+# O efeito vem do DWM do Windows (`acrylic`) mais alfa nas superficies. Nao ha
+# nada de terceiros aqui: nem fonte, nem icone, nem arquivo. Ver
+# docs/DIREITOS-EM-TEMAS.md.
+#
+# A ideia das cores: em vez de painel escuro sobre fundo escuro, cada superficie
+# e uma camada de BRANCO com pouca opacidade sobre o que estiver atras. E o que
+# faz vidro parecer vidro -- ele clareia o que cobre, nao escurece.
+
+[color]
+# A base do vidro. NAO pode ser quase transparente: o texto branco tem de
+# sobreviver a QUALQUER papel de parede, inclusive um branco. Abaixo de ~60% de
+# alfa aqui, uma area de trabalho clara apaga a interface inteira.
+background = "#0b0b12b3"
+
+# Superficies sao branco translucido empilhado. Cada nivel acrescenta pouco.
+surface = "#ffffff14"
+surface_raised = "#ffffff24"
+sidebar_background = "#ffffff0d"
+player_background = "#ffffff14"
+
+text = "#ffffff"
+text_muted = "#ffffffab"
+text_on_accent = "#0b1020"
+
+# Azul frio, no lugar do destaque roxo dos outros temas.
+accent = "#5ac8fa"
+accent_hover = "#7bd8ff"
+
+# A borda e o brilho especular: a linha clara que da a impressao de espessura
+# na quina do vidro. Sem ela o painel vira uma mancha.
+border = "#ffffff3d"
+hover = "#ffffff1a"
+selected = "#ffffff2e"
+focus_ring = "#5ac8fa"
+
+success = "#5ce0a8"
+warning = "#ffd479"
+danger = "#ff6b8a"
+
+shadow = "#00000066"
+scrollbar = "#ffffff3d"
+
+[typography]
+# A Inter (SIL OFL) e a fonte que fecha este tema: foi desenhada para tela pelas
+# mesmas razoes que a fonte da Apple, e tem eixo de tamanho optico como ela.
+#
+# Ela **nao vem** dentro do Morune, de proposito: empacotar uma fonte custa
+# tamanho de instalador, obriga a carregar o aviso de licenca junto e prenderia
+# um tema do produto a uma API que o Slint marca como instavel. Citar sai mais
+# barato para todo mundo.
+#
+# Sem a Inter instalada, o Windows cai na fonte padrao do sistema e o tema
+# continua inteiro -- so um fio menos refinado. Para completar:
+# https://rsms.me/inter/  (ou `winget install --id rsms.Inter`)
+#
+# Cuidado ao editar: o Slint aceita **um** nome de familia, nao uma lista.
+# "Inter, Segoe UI Variable Display" e lido como um nome unico que nao existe, e
+# o resultado e o mesmo de nao ter posto nada.
+family = "Inter"
+letter_spacing = -0.2
+
+[shape]
+# Cantos generosos: e metade da leitura de "vidro".
+radius_sm = 10.0
+radius_md = 18.0
+radius_lg = 28.0
+radius_artwork = 14.0
+radius_avatar = 999.0
+spacing_xs = 4.0
+spacing_sm = 10.0
+spacing_md = 16.0
+spacing_lg = 24.0
+spacing_xl = 36.0
+border_width = 1.0
+progress_thickness = 4.0
+scrollbar_width = 10.0
+
+[control]
+button_size = 36.0
+button_radius = 999.0
+primary_button_size = 44.0
+icon_size = 18.0
+icon_size_primary = 22.0
+icon_stroke = 1.8
+slider_knob = 14.0
+tooltip_height = 30.0
+
+[effects]
+window_opacity = 0.94
+acrylic = true
+artwork_tint = true
+artwork_tint_strength = 0.45
+

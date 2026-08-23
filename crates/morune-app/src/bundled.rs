@@ -44,6 +44,32 @@ const THEMES: &[BundledTheme] = &[
         ],
     },
     BundledTheme {
+        id: "bruma",
+        files: &[
+            BundledFile {
+                name: "manifest.toml",
+                contents: include_str!("../themes/bruma/manifest.toml"),
+            },
+            BundledFile {
+                name: "theme.toml",
+                contents: include_str!("../themes/bruma/theme.toml"),
+            },
+        ],
+    },
+    BundledTheme {
+        id: "cristal",
+        files: &[
+            BundledFile {
+                name: "manifest.toml",
+                contents: include_str!("../themes/cristal/manifest.toml"),
+            },
+            BundledFile {
+                name: "theme.toml",
+                contents: include_str!("../themes/cristal/theme.toml"),
+            },
+        ],
+    },
+    BundledTheme {
         id: "pulse",
         files: &[
             BundledFile {

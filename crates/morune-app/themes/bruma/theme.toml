@@ -1,0 +1,98 @@
+# manifest.toml
+#   schema_version = 1
+#   id = "liquid-glass"
+#   name = "Liquid Glass"
+#   author = "proposta de tema"
+#   appearance = "dark"
+
+[color]
+# Escuro o bastante para sobreviver a uma area de trabalho BRANCA. Com o
+# cinza medio original o texto secundario caia para 2,79:1 sobre fundo claro:
+# o vidro clareia junto com o que esta atras, e o piso tem de vir daqui.
+background         = "#2e2e36a8"
+surface            = "#ffffff1f"
+surface_raised     = "#ffffff2e"
+player_background  = "#26262db8"
+sidebar_background = "#2a2a32b3"
+
+text           = "#f7f7f8"
+text_muted     = "#e4e4e6"
+text_on_accent = "#0b1a2a"
+
+accent       = "#63b3ff"
+accent_hover = "#8ecbff"
+
+border           = "#ffffff45"
+border_highlight = "#ffffffb0"
+hover      = "#ffffff1a"
+selected   = "#ffffff2e"
+focus_ring = "#8fc6ff"
+
+success = "#5ed6a4"
+warning = "#f2c46b"
+danger  = "#ff7b7b"
+
+shadow    = "#00000000"
+scrollbar = "#ffffff59"
+
+[typography]
+family = "Segoe UI"
+scale  = 1.0
+size_xs      = 12.0
+size_sm      = 13.0
+size_md      = 15.0
+size_lg      = 18.0
+size_xl      = 24.0
+size_display = 34.0
+weight_normal = 400
+weight_medium = 600
+weight_bold   = 700
+line_height    = 1.45
+letter_spacing = -0.1
+
+[shape]
+radius_sm      = 10.0
+radius_md      = 18.0
+radius_lg      = 26.0
+radius_artwork = 14.0
+radius_avatar  = 999.0
+spacing_xs = 4.0
+spacing_sm = 8.0
+spacing_md = 14.0
+spacing_lg = 22.0
+spacing_xl = 34.0
+border_width       = 1.0
+progress_thickness = 6.0
+scrollbar_width    = 10.0
+
+[control]
+button_size         = 34.0
+button_radius       = 999.0
+primary_button_size = 44.0
+icon_size           = 18.0
+icon_size_primary   = 22.0
+icon_stroke         = 1.8
+slider_knob         = 14.0
+tooltip_height      = 30.0
+
+[motion]
+enabled         = true
+speed           = 1.0
+duration_fast   = 120
+duration_normal = 200
+duration_slow   = 320
+easing          = "ease-in-out"
+
+[effects]
+window_opacity        = 0.96
+acrylic               = true
+shadow_strength       = 0.0
+gloss                 = 0.55
+backdrop_blur         = 0.0
+artwork_tint          = true
+artwork_tint_strength = 0.22
+
+
+
+
+

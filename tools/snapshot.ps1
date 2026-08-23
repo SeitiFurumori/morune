@@ -9,7 +9,7 @@
 #      . .\tools\env.ps1 ; .\tools\snapshot.ps1 -Themes midnight,paper
 
 param(
-    [string[]]$Themes = @("midnight", "paper", "pulse"),
+    [string[]]$Themes = @("midnight", "paper", "pulse", "cristal", "bruma"),
     [string]$OutDir = "$PSScriptRoot\..\bench-out",
     [switch]$SkipBuild
 )
