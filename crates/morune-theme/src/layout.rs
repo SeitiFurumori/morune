@@ -152,6 +152,11 @@ pub struct PlayerLayout {
     pub show_volume: bool,
     pub show_shuffle_repeat: bool,
     pub show_queue_button: bool,
+    /// Botao de parar entre pause e proxima.
+    ///
+    /// Desligado por padrao: o gesto que quase todo mundo usa e pausar, e um
+    /// quarto botao no meio da barra so atrapalha quem nunca vai clicar nele.
+    pub show_stop_button: bool,
     /// Mostra tempo decorrido/total ao lado da barra.
     pub show_times: bool,
     /// Centraliza os controles de transporte em vez de alinhar a esquerda.
@@ -170,6 +175,7 @@ impl Default for PlayerLayout {
             show_volume: true,
             show_shuffle_repeat: true,
             show_queue_button: true,
+            show_stop_button: false,
             show_times: true,
             center_controls: true,
         }

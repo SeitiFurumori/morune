@@ -89,6 +89,30 @@ impl Color {
     /// O validador de temas usa isto para avisar quando texto e fundo ficam
     /// ilegiveis -- um tema pode ser feio de proposito, mas nao deve ser
     /// acidentalmente impossivel de ler.
+    /// Esta cor desenhada sobre `fundo`, resolvendo o alfa.
+    ///
+    /// Uma cor com alfa nao tem contraste proprio: `#ffffff0d` sobre preto e
+    /// quase preto, e sobre branco e branco. Comparar o valor cru trata os dois
+    /// casos como branco puro, que e como um tema de vidro perfeitamente
+    /// legivel acabava acusado de contraste 1:1.
+    pub fn over(self, fundo: Color) -> Color {
+        if self.a == 255 {
+            return self;
+        }
+        let a = self.a as f32 / 255.0;
+        let mistura = |frente: u8, atras: u8| {
+            (frente as f32 * a + atras as f32 * (1.0 - a))
+                .round()
+                .clamp(0.0, 255.0) as u8
+        };
+        Color {
+            r: mistura(self.r, fundo.r),
+            g: mistura(self.g, fundo.g),
+            b: mistura(self.b, fundo.b),
+            a: fundo.a.max(self.a),
+        }
+    }
+
     pub fn contrast_ratio(self, other: Color) -> f32 {
         let (a, b) = (self.relative_luminance(), other.relative_luminance());
         let (lighter, darker) = if a >= b { (a, b) } else { (b, a) };
@@ -234,6 +258,21 @@ impl<'de> Deserialize<'de> for Color {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn cor_opaca_sobre_qualquer_fundo_e_ela_mesma() {
+        let c = super::Color::rgb(0x12, 0x34, 0x56);
+        assert_eq!(c.over(super::Color::rgb(255, 255, 255)), c);
+    }
+
+    #[test]
+    fn branco_translucido_depende_do_que_esta_atras() {
+        let veu = super::Color::rgba(255, 255, 255, 0x0d);
+        let sobre_preto = veu.over(super::Color::rgb(0, 0, 0));
+        let sobre_branco = veu.over(super::Color::rgb(255, 255, 255));
+        assert!(sobre_preto.r < 20, "{sobre_preto:?}");
+        assert_eq!(sobre_branco.r, 255);
+    }
+
     use super::*;
 
     #[test]

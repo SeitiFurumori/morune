@@ -10,6 +10,34 @@ use std::path::{Path, PathBuf};
 use crate::manifest::{is_safe_id, ThemeManifest};
 use crate::spec::{ThemeSpec, ThemeWarning};
 
+/// As cores que a lista de temas precisa para desenhar a previa.
+///
+/// Um subconjunto de [`crate::ColorTokens`], e nao o tema inteiro: a lista
+/// mostra cinco cores, e carregar tudo so para pintar um retangulo de 64 px
+/// seria ler dezenas de arquivos a cada vez que a tela abre.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ThemePreview {
+    pub background: crate::Color,
+    pub surface: crate::Color,
+    pub sidebar: crate::Color,
+    pub player: crate::Color,
+    pub accent: crate::Color,
+    pub text: crate::Color,
+}
+
+impl From<&ThemeSpec> for ThemePreview {
+    fn from(spec: &ThemeSpec) -> Self {
+        Self {
+            background: spec.colors.background,
+            surface: spec.colors.surface,
+            sidebar: spec.colors.sidebar_background,
+            player: spec.colors.player_background,
+            accent: spec.colors.accent,
+            text: spec.colors.text,
+        }
+    }
+}
+
 /// Um tema encontrado no disco, ainda nao carregado por completo.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ThemeEntry {
@@ -17,6 +45,8 @@ pub struct ThemeEntry {
     pub path: PathBuf,
     /// `true` para o tema embutido, que nao pode ser apagado nem editado.
     pub builtin: bool,
+    /// Cores para a previa na lista.
+    pub preview: ThemePreview,
 }
 
 /// Resultado de carregar um tema.
@@ -65,10 +95,12 @@ impl LoadedTheme {
 /// Pastas invalidas sao ignoradas com um aviso no log em vez de abortar a
 /// listagem: um unico tema corrompido nao pode esconder todos os outros.
 pub fn discover(themes_dir: &Path) -> Vec<ThemeEntry> {
+    let embutido = ThemeSpec::default();
     let mut found = vec![ThemeEntry {
-        manifest: ThemeSpec::default().manifest,
+        manifest: embutido.manifest.clone(),
         path: PathBuf::new(),
         builtin: true,
+        preview: ThemePreview::from(&embutido),
     }];
 
     let Ok(entries) = fs::read_dir(themes_dir) else {
@@ -98,10 +130,18 @@ pub fn discover(themes_dir: &Path) -> Vec<ThemeEntry> {
                     );
                     continue;
                 }
+                // A previa sai do tema resolvido, com heranca aplicada: um
+                // tema que so declara o `accent` precisa mostrar o fundo que
+                // ele herdou, e nao o preto do padrao.
+                let preview = ThemePreview::from(
+                    &load_from_dir(&path, themes_dir, 0)
+                        .map_or_else(|_| ThemeSpec::default(), |loaded| loaded.spec),
+                );
                 found.push(ThemeEntry {
                     manifest,
                     path,
                     builtin: false,
+                    preview,
                 });
             }
             Err(e) => tracing::warn!(theme = dir_name, error = %e, "tema ignorado"),
@@ -226,8 +266,10 @@ struct PartialTheme {
     color: Option<crate::tokens::ColorTokens>,
     typography: Option<crate::tokens::TypographyTokens>,
     shape: Option<crate::tokens::ShapeTokens>,
+    control: Option<crate::tokens::ControlTokens>,
     motion: Option<crate::tokens::MotionTokens>,
     effects: Option<crate::tokens::EffectTokens>,
+    background: Option<crate::tokens::BackgroundTokens>,
 }
 
 impl PartialTheme {
@@ -241,11 +283,17 @@ impl PartialTheme {
         if let Some(v) = self.shape {
             base.shape = v;
         }
+        if let Some(v) = self.control {
+            base.control = v;
+        }
         if let Some(v) = self.motion {
             base.motion = v;
         }
         if let Some(v) = self.effects {
             base.effects = v;
+        }
+        if let Some(v) = self.background {
+            base.background = v;
         }
     }
 }
@@ -263,16 +311,20 @@ pub fn write_theme(dir: &Path, spec: &ThemeSpec) -> Result<(), String> {
         color: &'a crate::tokens::ColorTokens,
         typography: &'a crate::tokens::TypographyTokens,
         shape: &'a crate::tokens::ShapeTokens,
+        control: &'a crate::tokens::ControlTokens,
         motion: &'a crate::tokens::MotionTokens,
         effects: &'a crate::tokens::EffectTokens,
+        background: &'a crate::tokens::BackgroundTokens,
     }
 
     let theme = toml::to_string_pretty(&ThemeFile {
         color: &spec.colors,
         typography: &spec.typography,
         shape: &spec.shape,
+        control: &spec.control,
         motion: &spec.motion,
         effects: &spec.effects,
+        background: &spec.background,
     })
     .map_err(|e| e.to_string())?;
     fs::write(dir.join("theme.toml"), theme).map_err(|e| e.to_string())?;
@@ -382,6 +434,88 @@ mod tests {
         dir.theme("ruim", "isto nao e toml valido {{{", None);
         let loaded = load(dir.path(), "ruim");
         assert!(loaded.fell_back);
+    }
+
+    #[test]
+    fn every_section_of_theme_toml_reaches_the_spec() {
+        // Regressao: `[background]` e `[control]` existiam no `ThemeSpec` e no
+        // `theme.toml`, mas o `PartialTheme` daqui tinha uma lista fixa de
+        // secoes e descartava as duas **em silencio**. O tema carregava, nao
+        // avisava nada, e a imagem de fundo simplesmente nao aparecia.
+        let dir = TempDir::new("todas-secoes");
+        dir.theme(
+            "completo",
+            "schema_version = 1
+id = \"completo\"
+name = \"Completo\"
+",
+            Some(concat!(
+                "[color]
+accent = \"#ff0066\"
+
+",
+                "[typography]
+scale = 1.25
+
+",
+                "[shape]
+radius_md = 3.0
+
+",
+                "[control]
+button_size = 44.0
+
+",
+                "[motion]
+speed = 2.0
+
+",
+                "[effects]
+acrylic = true
+
+",
+                "[background]
+image = \"assets/backgrounds/f.jpg\"
+blur = 12.0
+",
+            )),
+        );
+
+        let loaded = load(dir.path(), "completo");
+        assert!(loaded.errors.is_empty(), "{:?}", loaded.errors);
+        assert_eq!(loaded.spec.colors.accent, Color::rgb(0xff, 0x00, 0x66));
+        assert_eq!(loaded.spec.typography.scale, 1.25);
+        assert_eq!(loaded.spec.shape.radius_md, 3.0);
+        assert_eq!(loaded.spec.control.button_size, 44.0);
+        assert_eq!(loaded.spec.motion.speed, 2.0);
+        assert!(loaded.spec.effects.acrylic);
+        assert_eq!(loaded.spec.background.image, "assets/backgrounds/f.jpg");
+        assert_eq!(loaded.spec.background.blur, 12.0);
+    }
+
+    #[test]
+    fn writing_a_theme_then_loading_it_keeps_every_section() {
+        // A outra metade da mesma regressao: `write_theme` alimenta "duplicar
+        // tema". Uma secao esquecida ali faz a copia perder o fundo e as
+        // medidas dos controles sem nenhum erro visivel.
+        let dir = TempDir::new("ida-e-volta");
+        let mut spec = ThemeSpec {
+            manifest: crate::manifest::ThemeManifest::new("copia", "Copia"),
+            ..Default::default()
+        };
+        spec.control.primary_button_size = 52.0;
+        spec.background.image = "assets/backgrounds/f.jpg".into();
+        spec.background.tint_strength = 0.7;
+        spec.effects.acrylic = true;
+
+        write_theme(&dir.path().join("copia"), &spec).unwrap();
+        let loaded = load(dir.path(), "copia");
+
+        assert!(loaded.errors.is_empty(), "{:?}", loaded.errors);
+        assert_eq!(loaded.spec.control.primary_button_size, 52.0);
+        assert_eq!(loaded.spec.background.image, "assets/backgrounds/f.jpg");
+        assert_eq!(loaded.spec.background.tint_strength, 0.7);
+        assert!(loaded.spec.effects.acrylic);
     }
 
     #[test]
