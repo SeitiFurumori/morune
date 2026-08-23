@@ -13,12 +13,25 @@ name = "morune"
 path = "src/main.rs"
 
 [features]
-default = ["hot-reload"]
+default = ["hot-reload", "bundled-fonts"]
 hot-reload = ["morune-theme/hot-reload"]
 # Captura a propria janela em PNG a partir do renderizador do Slint. Usada pela
 # verificacao visual de temas; fora do build de release para nao carregar um
 # codificador de imagem no binario que o usuario instala.
 snapshot = ["dep:png"]
+# Fontes que vem dentro de um `.musicpack` (`bundled_font`).
+#
+# Sem ela, um tema so pode citar fonte ja instalada na maquina de quem baixou --
+# o que faz um tema compartilhado chegar errado na casa dos outros, justamente
+# onde o produto mais precisa acertar.
+#
+# **Aviso ao atualizar o Slint:** no 1.17 nao existe API estavel para registrar
+# fonte em tempo de execucao. A unica via e `slint::fontique_010`, que o proprio
+# Slint marca como instavel, e o nome do modulo carrega a versao do fontique.
+# Uma atualizacao do Slint pode quebrar a compilacao de `registrar_fonte` em
+# `theme_bridge.rs`. A quebra e visivel no build, nunca silenciosa em execucao;
+# se atrapalhar, desligar esta feature devolve o comportamento antigo.
+bundled-fonts = ["slint/unstable-fontique-010"]
 
 [dependencies]
 morune-core = { workspace = true }

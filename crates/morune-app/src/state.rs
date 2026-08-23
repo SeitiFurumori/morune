@@ -96,6 +96,12 @@ pub struct AppState {
     paths: AppPaths,
     config: Config,
     theme: loader::LoadedTheme,
+    /// Fundo ja decodificado, reduzido e desfocado.
+    ///
+    /// Guardado no estado porque preparar custa caro e o resultado so muda
+    /// quando o tema ou a escolha do usuario mudam -- refazer isso a cada
+    /// `apply_theme_to` decodificaria um JPEG a cada recarga de tela.
+    wallpaper: crate::wallpaper::Wallpaper,
     overrides: UserOverrides,
     page: Page,
     status: String,
@@ -197,6 +203,12 @@ pub struct AppState {
     /// necessariamente em nenhuma tela aberta -- ela continua tocando com o
     /// usuario navegando por outra coisa.
     now_cover: (String, Option<std::path::PathBuf>),
+    /// Cor dominante da capa que esta tocando, e de qual arquivo ela saiu.
+    ///
+    /// Guardada porque `push_playback` roda a cada 100 ms e a cor so muda
+    /// quando a capa muda -- recalcular ali dentro reabriria a imagem dez vezes
+    /// por segundo.
+    now_tint: (Option<std::path::PathBuf>, Option<slint::Color>),
     /// Capas pequenas das linhas, indexadas pela URL que o modelo da faixa traz.
     track_covers: HashMap<String, std::path::PathBuf>,
     /// Semente do pedido de autoplay em voo; impede uma resposta antiga de
@@ -265,6 +277,7 @@ impl AppState {
             paths,
             config,
             theme,
+            wallpaper: Default::default(),
             overrides,
             page: Page::Home,
             status: String::new(),
@@ -313,16 +326,23 @@ impl AppState {
                 cover_path: None,
             },
             now_cover: (String::new(), None),
+            now_tint: (None, None),
             track_covers: HashMap::new(),
             autoplay_seed: None,
             home_requested: false,
             library_requested: false,
         };
 
-        #[cfg(feature = "snapshot")]
         let mut loaded = loaded;
+        // Decodificar o fundo aqui, e nao na primeira pintura, e o que evita a
+        // janela abrir com cor solida e trocar de aparencia meio segundo
+        // depois.
+        loaded.refresh_wallpaper();
+
         #[cfg(feature = "snapshot")]
         loaded.install_snapshot_detail_demo();
+        #[cfg(feature = "snapshot")]
+        loaded.install_snapshot_playback_demo();
 
         loaded
     }
@@ -370,6 +390,60 @@ impl AppState {
             has_more: true,
         });
         self.page = Page::Detail;
+    }
+
+    /// Poe uma faixa tocando, para a verificacao visual do player.
+    ///
+    /// A barra de reproducao sem faixa mostra o triangulo de play desabilitado
+    /// -- ou seja, o estado que menos importa conferir. Sem isto nao ha como
+    /// capturar o pause, que e justamente o glifo mais dificil de acertar.
+    #[cfg(feature = "snapshot")]
+    fn install_snapshot_playback_demo(&mut self) {
+        if std::env::var_os("MORUNE_SNAPSHOT_PLAYING").is_none() {
+            return;
+        }
+
+        let track = Track {
+            id: TrackId::spotify("snapshotnow"),
+            name: "Nome de faixa razoavelmente longo".into(),
+            artists: vec![morune_core::model::ArtistRef {
+                id: morune_core::model::ArtistId::spotify("snapshotartist"),
+                name: "Artista de exemplo".into(),
+            }],
+            album: Some(morune_core::model::AlbumRef {
+                id: morune_core::model::AlbumId::spotify("snapshotalbum"),
+                name: "Album de exemplo".into(),
+                images: Default::default(),
+            }),
+            duration: Duration::from_secs(214),
+            track_number: Some(1),
+            disc_number: Some(1),
+            explicit: false,
+            playable: true,
+        };
+        self.queue
+            .set_context(QueueOrigin::Custom("Snapshot".into()), vec![track], Some(0));
+        self.playing = true;
+        // Progresso parado no meio: uma barra vazia nao mostraria a cor de
+        // preenchimento nem o puxador.
+        self.seek_target = Some(Duration::from_secs(97));
+
+        // Mensagem de status, para a verificacao visual pegar o aviso flutuante
+        // junto com o resto da tela.
+        if let Ok(msg) = std::env::var("MORUNE_SNAPSHOT_STATUS") {
+            self.status = msg;
+            self.status_seen = (self.status.clone(), Instant::now());
+        }
+
+        // Capa vinda de um arquivo local, para conferir o tint sem depender de
+        // rede nem de conta.
+        if let Some(cover) = std::env::var_os("MORUNE_SNAPSHOT_COVER") {
+            let path = std::path::PathBuf::from(cover);
+            if path.is_file() {
+                self.now_cover = ("snapshot".into(), Some(path));
+                self.refresh_tint();
+            }
+        }
     }
 
     /// Tenta reabrir a ultima sessao do Spotify.
@@ -447,6 +521,7 @@ impl AppState {
         // Depois dos eventos do player: a troca de faixa acabou de ser
         // aplicada, entao a capa pedida aqui ja e a da faixa certa.
         self.resolve_now_cover();
+        self.refresh_tint();
 
         // Por ultimo: tudo acima pode ter escrito uma mensagem nova, e o
         // relogio dela comeca agora, nao no ciclo que vem.
@@ -1037,6 +1112,13 @@ impl AppState {
     /// Separado de [`AppState::resolve_covers`] porque a origem e outra: a
     /// faixa tocando vem da fila, e nao de uma tela.
     fn resolve_now_cover(&mut self) {
+        // A capa forcada pela verificacao visual nao vem da fila, entao o
+        // primeiro tique a apagaria. Fora da feature `snapshot` isto nem existe.
+        #[cfg(feature = "snapshot")]
+        if std::env::var_os("MORUNE_SNAPSHOT_COVER").is_some() {
+            return;
+        }
+
         let url = self
             .queue
             .current()
@@ -1093,6 +1175,7 @@ impl AppState {
 
             if ready.url == self.now_cover.0 {
                 self.now_cover.1 = Some(ready.path.clone());
+                self.refresh_tint();
             }
 
             for lista in [
@@ -1302,6 +1385,44 @@ impl AppState {
         }
     }
 
+    /// Opacidade e acrilico pedidos pelo tema, para o codigo de plataforma.
+    ///
+    /// A escolha do usuario, quando existe, substitui a do tema -- mesma regra
+    /// do fundo e da escala tipografica.
+    pub fn window_effects(&self) -> (f32, bool) {
+        let escolhido = self.config.appearance.window_opacity_override;
+        let opacidade = if escolhido > 0.0 {
+            escolhido.clamp(0.2, 1.0)
+        } else {
+            self.spec().effects.window_opacity
+        };
+        (opacidade, self.spec().effects.acrylic)
+    }
+
+    /// Opacidade da janela no formato do slider: `0` opaca, `1` no limite.
+    pub fn window_opacity_slider(&self) -> f32 {
+        opacidade_para_slider(self.window_effects().0)
+    }
+
+    pub fn set_window_opacity(&mut self, value: f32) {
+        self.config.appearance.window_opacity_override = slider_para_opacidade(value);
+        self.save_config();
+    }
+
+    /// Recarregar o tema sozinho quando o arquivo mudar em disco.
+    pub fn hot_reload(&self) -> bool {
+        self.config.developer.hot_reload
+    }
+
+    pub fn set_hot_reload(&mut self, on: bool) {
+        self.config.developer.hot_reload = on;
+        self.save_config();
+    }
+
+    pub fn themes_dir(&self) -> std::path::PathBuf {
+        self.paths.themes_dir()
+    }
+
     pub fn theme_id(&self) -> &str {
         &self.theme.spec.manifest.id
     }
@@ -1313,11 +1434,51 @@ impl AppState {
     // ---- tema ----
 
     pub fn apply_theme_to(&self, window: &ui::AppWindow) {
+        // Antes de tudo: a familia so resolve depois de a fonte existir.
+        theme_bridge::apply_bundled_font(self.spec(), self.theme.source.as_deref());
+        let theme = window.global::<ui::Theme>();
         theme_bridge::apply(
-            &window.global::<ui::Theme>(),
+            &theme,
             &window.global::<ui::Layout>(),
             self.spec(),
             self.overrides,
+        );
+        theme_bridge::apply_background(&theme, self.spec(), &self.wallpaper);
+        theme_bridge::apply_icons(&window.global::<ui::Icons>(), self.theme.source.as_deref());
+    }
+
+    /// Reprepara a imagem de fundo a partir do tema e da escolha do usuario.
+    ///
+    /// Chamada so quando um dos dois muda. A escolha do usuario vence a do
+    /// tema inteira -- imagem e ajustes juntos -- pelo mesmo motivo que a
+    /// escala tipografica substitui em vez de multiplicar: dois lados
+    /// misturados dao um resultado que ninguem pediu.
+    pub fn refresh_wallpaper(&mut self) {
+        let user = &self.config.appearance;
+        let tokens = if user.background_image.is_empty() {
+            self.theme.spec.background.clone()
+        } else {
+            morune_theme::BackgroundTokens {
+                image: String::new(),
+                fit: user.background_fit,
+                opacity: user.background_opacity,
+                tint: self.theme.spec.background.tint,
+                tint_strength: user.background_tint_strength,
+                blur: user.background_blur,
+            }
+        };
+        let user_image = (!user.background_image.is_empty())
+            .then(|| std::path::PathBuf::from(&user.background_image));
+        self.wallpaper =
+            crate::wallpaper::load(self.theme.source.as_deref(), &tokens, user_image.as_deref());
+        // Em `debug` e nao `info`: e diagnostico de tema, so interessa a quem
+        // esta descobrindo por que o fundo dele nao apareceu.
+        tracing::debug!(
+            tema = ?self.theme.source,
+            arquivo = %tokens.image,
+            largura = self.wallpaper.image.size().width,
+            altura = self.wallpaper.image.size().height,
+            "fundo preparado"
         );
     }
 
@@ -1372,6 +1533,7 @@ impl AppState {
         self.status = format!("Tema aplicado: {}", loaded.spec.manifest.name);
         self.theme = loaded;
         self.config.appearance.theme = id.to_string();
+        self.refresh_wallpaper();
         self.save_config();
     }
 
@@ -1381,6 +1543,7 @@ impl AppState {
         // temas instalados tambem tem que ser relida aqui.
         self.refresh_themes();
         self.theme = loader::load(&self.paths.themes_dir(), &id);
+        self.refresh_wallpaper();
         self.status = if self.theme.is_healthy() {
             "Tema recarregado.".into()
         } else {
@@ -1392,6 +1555,7 @@ impl AppState {
         self.theme = loader::LoadedTheme::builtin();
         self.config.appearance = Default::default();
         self.overrides = UserOverrides::default();
+        self.refresh_wallpaper();
         self.status = "Tema restaurado para o padrao.".into();
         self.save_config();
     }
@@ -1595,6 +1759,133 @@ impl AppState {
         } else {
             false
         }
+    }
+
+    // ---- aparencia ----
+
+    /// Escolhe a imagem de fundo e copia para dentro da pasta do aplicativo.
+    ///
+    /// Copiar, e nao guardar o caminho original: uma imagem em Downloads que a
+    /// pessoa apaga depois deixaria a janela sem fundo sem nenhum aviso, e o
+    /// custo de uma copia unica e menor que o de explicar isso.
+    pub fn choose_background_via_dialog(&mut self) {
+        let Some(file) = rfd::FileDialog::new()
+            .add_filter("Imagem", &["png", "jpg", "jpeg", "webp", "bmp"])
+            .set_title("Escolher imagem de fundo")
+            .pick_file()
+        else {
+            return;
+        };
+
+        let dir = self.paths.backgrounds_dir();
+        if let Err(error) = std::fs::create_dir_all(&dir) {
+            self.status = "Nao foi possivel guardar a imagem de fundo.".into();
+            tracing::warn!(%error, dir = %dir.display(), "pasta de fundos nao criada");
+            return;
+        }
+
+        let name = file
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "fundo".into());
+        let target = dir.join(&name);
+        // O mesmo arquivo escolhido de novo nao precisa ser recopiado, e copiar
+        // um arquivo sobre ele mesmo falharia.
+        if target != file {
+            if let Err(error) = std::fs::copy(&file, &target) {
+                self.status = "Nao foi possivel copiar a imagem de fundo.".into();
+                tracing::warn!(%error, de = %file.display(), "copia do fundo falhou");
+                return;
+            }
+        }
+
+        self.config.appearance.background_image = target.to_string_lossy().to_string();
+        self.status = format!("Fundo aplicado: {name}");
+        self.refresh_wallpaper();
+        self.save_config();
+    }
+
+    pub fn clear_background(&mut self) {
+        // O arquivo copiado fica: remover uma imagem do fundo nao e o mesmo que
+        // apagar o que a pessoa escolheu, e ela pode querer de volta.
+        self.config.appearance.background_image.clear();
+        self.status = "Fundo removido.".into();
+        self.refresh_wallpaper();
+        self.save_config();
+    }
+
+    /// Nome do arquivo de fundo, para a tela de configuracoes.
+    pub fn background_name(&self) -> String {
+        std::path::Path::new(&self.config.appearance.background_image)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default()
+    }
+
+    pub fn set_background_fit(&mut self, code: i32) {
+        self.config.appearance.background_fit = match code {
+            1 => morune_theme::BackgroundFit::Contain,
+            2 => morune_theme::BackgroundFit::Center,
+            3 => morune_theme::BackgroundFit::Stretch,
+            _ => morune_theme::BackgroundFit::Cover,
+        };
+        self.refresh_wallpaper();
+        self.save_config();
+    }
+
+    pub fn background_fit_code(&self) -> i32 {
+        match self.config.appearance.background_fit {
+            morune_theme::BackgroundFit::Cover => 0,
+            morune_theme::BackgroundFit::Contain => 1,
+            morune_theme::BackgroundFit::Center => 2,
+            morune_theme::BackgroundFit::Stretch => 3,
+        }
+    }
+
+    pub fn set_background_opacity(&mut self, value: f32) {
+        self.config.appearance.background_opacity = value.clamp(0.0, 1.0);
+        self.refresh_wallpaper();
+        self.save_config();
+    }
+
+    pub fn set_background_tint(&mut self, value: f32) {
+        self.config.appearance.background_tint_strength = value.clamp(0.0, 1.0);
+        self.refresh_wallpaper();
+        self.save_config();
+    }
+
+    /// Desfoque, recebido normalizado em `[0, 1]` e guardado em pixels.
+    ///
+    /// O slider da interface nao sabe o teto; guardar em pixels e o que faz o
+    /// valor continuar significando a mesma coisa se o teto mudar.
+    pub fn set_background_blur(&mut self, value: f32) {
+        self.config.appearance.background_blur = value.clamp(0.0, 1.0) * 64.0;
+        self.refresh_wallpaper();
+        self.save_config();
+    }
+
+    /// Escala tipografica, recebida normalizada em `[0, 1]` sobre 0,8..1,6.
+    pub fn set_font_scale(&mut self, value: f32) {
+        let scale = 0.8 + value.clamp(0.0, 1.0) * 0.8;
+        self.config.appearance.font_scale_override = scale;
+        self.overrides.font_scale = scale;
+        self.save_config();
+    }
+
+    /// A escala corrente de volta para `[0, 1]`, para o slider.
+    pub fn font_scale_slider(&self) -> f32 {
+        let scale = if self.config.appearance.font_scale_override > 0.0 {
+            self.config.appearance.font_scale_override
+        } else {
+            self.spec().typography.scale
+        };
+        ((scale - 0.8) / 0.8).clamp(0.0, 1.0)
+    }
+
+    pub fn set_reduce_motion(&mut self, on: bool) {
+        self.config.appearance.reduce_motion = on;
+        self.overrides.reduce_motion = on;
+        self.save_config();
     }
 
     pub fn set_close_to_tray(&mut self, on: bool) {
@@ -2029,6 +2320,20 @@ impl AppState {
         });
     }
 
+    /// Para a reproducao e volta a faixa ao inicio.
+    ///
+    /// Diferente de pausar: pausar guarda o lugar, parar desfaz o progresso.
+    /// A faixa continua carregada na fila -- quem parou quer silencio, nao
+    /// perder o que estava ouvindo.
+    pub fn stop(&mut self) {
+        if self.queue.current().is_none() {
+            return;
+        }
+        self.playing = false;
+        self.seek_target = Some(Duration::ZERO);
+        self.send(PlayerCommand::Stop);
+    }
+
     pub fn next_track(&mut self) {
         if let Some(track) = self.queue.next(true).cloned() {
             self.playing = true;
@@ -2197,6 +2502,17 @@ impl AppState {
         window.set_close_to_tray(self.config.window.close_to_tray);
         window.set_start_with_windows(self.start_with_windows);
         window.set_autoplay(self.config.playback.autoplay);
+        let appearance = &self.config.appearance;
+        window.set_has_background(!appearance.background_image.is_empty());
+        window.set_background_name(SharedString::from(self.background_name()));
+        window.set_background_fit(self.background_fit_code());
+        window.set_background_opacity(appearance.background_opacity);
+        window.set_background_tint(appearance.background_tint_strength);
+        window.set_background_blur(appearance.background_blur / 64.0);
+        window.set_font_scale(self.font_scale_slider());
+        window.set_reduce_motion(appearance.reduce_motion);
+        window.set_hot_reload(self.config.developer.hot_reload);
+        window.set_window_opacity(self.window_opacity_slider());
         window.set_search_query(self.search_query.as_str().into());
         window.set_searching(self.searching);
 
@@ -2265,7 +2581,29 @@ impl AppState {
     /// escalares -- nenhum `VecModel` reconstruido, nenhuma linha de faixa, nada
     /// de disco -- entao pode rodar a cada quadro de arraste e a cada tique do
     /// relogio de progresso sem aparecer no medidor de CPU.
+    /// Recalcula a cor da capa, se a capa mudou.
+    ///
+    /// Chamada de onde a capa muda -- e nao de `push_playback`, que roda dez
+    /// vezes por segundo. `&mut self` de proposito: quem le a cor le do cache.
+    fn refresh_tint(&mut self) {
+        if !self.theme.spec.effects.artwork_tint {
+            self.now_tint = (None, None);
+            return;
+        }
+        let path = self.now_cover.1.clone();
+        if path == self.now_tint.0 {
+            return;
+        }
+        let cor = path.as_deref().and_then(crate::tint::dominant);
+        self.now_tint = (path, cor);
+    }
+
     pub fn push_playback(&self, window: &ui::AppWindow) {
+        theme_bridge::apply_artwork_color(
+            &window.global::<ui::Theme>(),
+            self.spec(),
+            self.now_tint.1,
+        );
         let snapshot = self.engine.snapshot();
         let position = self.shown_position(&snapshot);
         let current = self.queue.current();
@@ -2300,6 +2638,10 @@ impl AppState {
     }
 
     fn theme_items(&self) -> ModelRc<ui::ThemeItem> {
+        fn slint_color(c: morune_theme::Color) -> slint::Color {
+            slint::Color::from_argb_u8(c.a, c.r, c.g, c.b)
+        }
+
         let active = self.theme_id();
         let items: Vec<ui::ThemeItem> = self
             .themes
@@ -2310,6 +2652,12 @@ impl AppState {
                 author: entry.manifest.author.as_str().into(),
                 builtin: entry.builtin,
                 active: entry.manifest.id == active,
+                preview_background: slint_color(entry.preview.background),
+                preview_surface: slint_color(entry.preview.surface),
+                preview_sidebar: slint_color(entry.preview.sidebar),
+                preview_player: slint_color(entry.preview.player),
+                preview_accent: slint_color(entry.preview.accent),
+                preview_text: slint_color(entry.preview.text),
             })
             .collect();
         ModelRc::new(VecModel::from(items))
@@ -2447,6 +2795,20 @@ fn card_items(cards: &[Card]) -> ModelRc<ui::CardItem> {
     ModelRc::new(VecModel::from(items))
 }
 
+/// Teto do cache de capas em memoria.
+///
+/// O cache serve para nao repetir o `stat` de quem esta **na tela**, entao o
+/// teto so precisa cobrir a tela mais cara que existe, com folga. As duas
+/// piores sao a fila com 400 linhas (capas de 64 px, 16 KB cada: 6,4 MB) e o
+/// Inicio cheio de cartoes (capas de 320 px, 400 KB cada: cerca de 12 MB numa
+/// tela). 32 MB cobre as duas somadas e ainda sobra para o que veio antes.
+///
+/// Sem teto, o cache guardava toda capa ja vista pelo resto da sessao. Medido
+/// nesta maquina: o cache em disco tem 936 capas, e se a sessao as exibisse
+/// todas seriam 81 MB retidos -- num aplicativo cujo orcamento inteiro em
+/// repouso e de 78,8 MB.
+const COVER_CACHE_MAX_BYTES: usize = 32 * 1024 * 1024;
+
 thread_local! {
     /// Capas ja convertidas em `slint::Image`, indexadas pelo caminho.
     ///
@@ -2464,8 +2826,104 @@ thread_local! {
     /// mesmo lugar. A falha tambem fica guardada, pelo mesmo motivo -- um JPEG
     /// truncado nao vai decodificar na proxima tentativa, e repetir o `stat`
     /// para descobrir isso e o que se quer evitar.
-    static COVER_CACHE: std::cell::RefCell<HashMap<std::path::PathBuf, slint::Image>> =
-        std::cell::RefCell::new(HashMap::new());
+    static COVER_CACHE: std::cell::RefCell<LruCache<std::path::PathBuf, slint::Image>> =
+        std::cell::RefCell::new(LruCache::new(COVER_CACHE_MAX_BYTES));
+}
+
+/// Cache com teto em bytes, que descarta primeiro o que ha mais tempo nao se usa.
+///
+/// O teto e em bytes, e nao em numero de entradas, porque as capas variam 25x
+/// entre si: a de uma linha de faixa tem 64 px (16 KB) e a de um cartao tem
+/// 320 px (400 KB). Um teto por quantidade trataria as duas como iguais e
+/// erraria por uma ordem de grandeza em qualquer direcao.
+///
+/// Sair do cache nao devolve a memoria na hora: enquanto a interface ainda
+/// mostrar aquela capa, ela continua viva pela referencia de la. O que o teto
+/// garante e que nada fique retido **apenas** por ter sido visto uma vez.
+struct LruCache<K, V> {
+    entries: HashMap<K, CacheEntry<V>>,
+    bytes: usize,
+    max_bytes: usize,
+    /// Relogio logico: cada acesso recebe o proximo numero, e o menor numero e
+    /// o candidato mais antigo. Um `u64` nao da a volta em nenhuma sessao real.
+    clock: u64,
+}
+
+struct CacheEntry<V> {
+    value: V,
+    bytes: usize,
+    used: u64,
+}
+
+impl<K: std::hash::Hash + Eq + Clone, V: Clone> LruCache<K, V> {
+    fn new(max_bytes: usize) -> Self {
+        Self {
+            entries: HashMap::new(),
+            bytes: 0,
+            max_bytes,
+            clock: 0,
+        }
+    }
+
+    fn get(&mut self, key: &K) -> Option<V> {
+        self.clock += 1;
+        let clock = self.clock;
+        let entry = self.entries.get_mut(key)?;
+        entry.used = clock;
+        Some(entry.value.clone())
+    }
+
+    fn insert(&mut self, key: K, value: V, bytes: usize) {
+        self.clock += 1;
+        if let Some(old) = self.entries.insert(
+            key,
+            CacheEntry {
+                value,
+                bytes,
+                used: self.clock,
+            },
+        ) {
+            self.bytes -= old.bytes;
+        }
+        self.bytes += bytes;
+        self.evict();
+    }
+
+    /// Descarta os mais antigos ate voltar para dentro do teto.
+    ///
+    /// A ordenacao e O(n log n), mas so acontece quando o teto e ultrapassado,
+    /// e a cada vez ela libera espaco para muitas insercoes seguintes.
+    fn evict(&mut self) {
+        if self.bytes <= self.max_bytes {
+            return;
+        }
+
+        let mut idade: Vec<(u64, K)> = self
+            .entries
+            .iter()
+            .map(|(k, e)| (e.used, k.clone()))
+            .collect();
+        idade.sort_unstable_by_key(|(used, _)| *used);
+
+        for (_, key) in idade {
+            if self.bytes <= self.max_bytes {
+                break;
+            }
+            if let Some(removed) = self.entries.remove(&key) {
+                self.bytes -= removed.bytes;
+            }
+        }
+    }
+}
+
+/// Quanto uma imagem decodificada ocupa, em bytes.
+///
+/// O Slint guarda os pixels em RGBA de 8 bits. Uma imagem vazia -- capa que
+/// nao chegou ou nao decodificou -- tem dimensao zero e nao ocupa nada, o que
+/// e correto: ela e so um marcador.
+fn image_bytes(image: &slint::Image) -> usize {
+    let size = image.size();
+    size.width as usize * size.height as usize * 4
 }
 
 /// Carrega a capa do arquivo, ou devolve uma imagem vazia.
@@ -2477,7 +2935,7 @@ fn cover_image(path: Option<&std::path::Path>) -> slint::Image {
         return slint::Image::default();
     };
 
-    if let Some(cached) = COVER_CACHE.with(|c| c.borrow().get(path).cloned()) {
+    if let Some(cached) = COVER_CACHE.with(|c| c.borrow_mut().get(&path.to_path_buf())) {
         return cached;
     }
 
@@ -2488,8 +2946,10 @@ fn cover_image(path: Option<&std::path::Path>) -> slint::Image {
         tracing::debug!(path = %path.display(), error = ?e, "capa nao decodificou");
         slint::Image::default()
     });
+    let bytes = image_bytes(&image);
     COVER_CACHE.with(|c| {
-        c.borrow_mut().insert(path.to_path_buf(), image.clone());
+        c.borrow_mut()
+            .insert(path.to_path_buf(), image.clone(), bytes);
     });
     image
 }
@@ -2535,8 +2995,162 @@ fn playlists_by_recent<'a>(playlists: &'a [Card], recent: &[String]) -> Vec<&'a 
     ordered
 }
 
+/// Opacidade minima que a janela pode ter.
+///
+/// Alta de proposito: uma janela quase invisivel deixaria o aplicativo
+/// irrecuperavel pelo proprio usuario. E o mesmo piso que `sanitize` aplica ao
+/// `window_opacity` do tema.
+const OPACIDADE_MINIMA: f32 = 0.2;
+
+/// Converte a posicao do slider em opacidade.
+///
+/// `0` na esquerda e janela opaca; `1` na direita e o limite. O sentido e o de
+/// "quanta transparencia", que e como a pessoa le o rotulo -- e nao o de
+/// "quanta opacidade", que sairia invertido na tela.
+fn slider_para_opacidade(valor: f32) -> f32 {
+    let v = if valor.is_finite() { valor } else { 0.0 };
+    (1.0 - v.clamp(0.0, 1.0) * (1.0 - OPACIDADE_MINIMA)).clamp(OPACIDADE_MINIMA, 1.0)
+}
+
+/// O caminho de volta, para o slider nascer onde o valor guardado manda.
+fn opacidade_para_slider(opacidade: f32) -> f32 {
+    if !opacidade.is_finite() {
+        return 0.0;
+    }
+    ((1.0 - opacidade) / (1.0 - OPACIDADE_MINIMA)).clamp(0.0, 1.0)
+}
+
+#[cfg(test)]
+mod cover_cache_tests {
+    use super::LruCache;
+
+    /// Capa de linha de faixa: 64 px em RGBA.
+    const PEQUENA: usize = 64 * 64 * 4;
+    /// Capa de cartao: 320 px em RGBA. Vinte e cinco vezes a de cima -- e a
+    /// razao de o teto ser em bytes, e nao em numero de entradas.
+    const GRANDE: usize = 320 * 320 * 4;
+
+    fn cache(max: usize) -> LruCache<String, u32> {
+        LruCache::new(max)
+    }
+
+    #[test]
+    fn what_fits_under_the_ceiling_stays() {
+        let mut c = cache(GRANDE * 4);
+        for i in 0..4u32 {
+            c.insert(format!("capa{i}"), i, GRANDE);
+        }
+
+        for i in 0..4u32 {
+            assert_eq!(c.get(&format!("capa{i}")), Some(i), "capa{i} deveria estar");
+        }
+        assert_eq!(c.bytes, GRANDE * 4);
+    }
+
+    #[test]
+    fn the_ceiling_is_never_exceeded() {
+        let mut c = cache(GRANDE * 3);
+        for i in 0..40u32 {
+            c.insert(format!("capa{i}"), i, GRANDE);
+            assert!(
+                c.bytes <= GRANDE * 3,
+                "cache passou do teto na insercao {i}: {} bytes",
+                c.bytes
+            );
+        }
+    }
+
+    #[test]
+    fn the_oldest_untouched_entry_is_the_one_to_go() {
+        let mut c = cache(GRANDE * 3);
+        c.insert("a".into(), 1, GRANDE);
+        c.insert("b".into(), 2, GRANDE);
+        c.insert("c".into(), 3, GRANDE);
+
+        // "a" volta a ser usada, entao "b" passa a ser a mais antiga.
+        assert_eq!(c.get(&"a".to_string()), Some(1));
+        c.insert("d".into(), 4, GRANDE);
+
+        assert_eq!(c.get(&"b".to_string()), None, "b era a mais antiga");
+        assert_eq!(c.get(&"a".to_string()), Some(1), "a foi usada de novo");
+        assert_eq!(c.get(&"c".to_string()), Some(3));
+        assert_eq!(c.get(&"d".to_string()), Some(4));
+    }
+
+    #[test]
+    fn one_big_cover_does_not_evict_the_whole_screen() {
+        // O que o teto por bytes protege: uma tela cheia de capas pequenas nao
+        // pode ser varrida por causa de uma unica capa grande. Com teto por
+        // quantidade de entradas, seria uma saindo para cada uma que entra.
+        let mut c = cache(PEQUENA * 400 + GRANDE);
+        for i in 0..400u32 {
+            c.insert(format!("linha{i}"), i, PEQUENA);
+        }
+        c.insert("cartao".into(), 999, GRANDE);
+
+        let sobreviventes = (0..400u32)
+            .filter(|i| c.get(&format!("linha{i}")).is_some())
+            .count();
+        assert_eq!(sobreviventes, 400, "a fila inteira deveria caber junto");
+    }
+
+    #[test]
+    fn replacing_an_entry_does_not_double_count_it() {
+        let mut c = cache(GRANDE * 10);
+        c.insert("a".into(), 1, GRANDE);
+        c.insert("a".into(), 2, GRANDE);
+
+        assert_eq!(c.bytes, GRANDE, "a mesma chave contada duas vezes");
+        assert_eq!(c.get(&"a".to_string()), Some(2));
+    }
+
+    #[test]
+    fn an_empty_image_costs_nothing_and_is_still_remembered() {
+        // Capa que nao decodificou entra com zero byte: guardar a falha e o que
+        // evita repetir o `stat` para redescobrir que ela nao decodifica.
+        let mut c = cache(PEQUENA);
+        c.insert("quebrada".into(), 0, 0);
+        for i in 0..50u32 {
+            c.insert(format!("outra{i}"), i, 0);
+        }
+
+        assert_eq!(c.bytes, 0);
+        assert_eq!(c.get(&"quebrada".to_string()), Some(0));
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use super::{opacidade_para_slider, slider_para_opacidade, OPACIDADE_MINIMA};
+
+    #[test]
+    fn o_slider_de_transparencia_ida_e_volta() {
+        for passo in 0..=10 {
+            let v = passo as f32 / 10.0;
+            let volta = opacidade_para_slider(slider_para_opacidade(v));
+            assert!((volta - v).abs() < 0.001, "{v} virou {volta}");
+        }
+    }
+
+    #[test]
+    fn a_esquerda_do_slider_e_janela_opaca() {
+        assert_eq!(slider_para_opacidade(0.0), 1.0);
+    }
+
+    #[test]
+    fn a_direita_do_slider_para_no_piso_e_nao_no_invisivel() {
+        // Sem o piso, arrastar o slider ate o fim deixaria o aplicativo
+        // irrecuperavel pelo proprio usuario.
+        assert_eq!(slider_para_opacidade(1.0), OPACIDADE_MINIMA);
+        assert_eq!(slider_para_opacidade(50.0), OPACIDADE_MINIMA);
+    }
+
+    #[test]
+    fn valor_invalido_vira_janela_opaca() {
+        assert_eq!(slider_para_opacidade(f32::NAN), 1.0);
+        assert_eq!(opacidade_para_slider(f32::NAN), 0.0);
+    }
+
     use super::*;
 
     #[test]
