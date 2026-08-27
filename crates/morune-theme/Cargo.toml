@@ -20,11 +20,11 @@ serde = { workspace = true }
 toml = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
+zip = { version = "8", default-features = false, features = ["deflate"], optional = true }
 notify = { version = "8", optional = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
 # Os testes de ponta a ponta montam pacotes maliciosos a mao, sem passar pela
 # nossa exportacao -- que e o unico jeito de exercitar as defesas de verdade.
-zip = { version = "2", default-features = false, features = ["deflate"] }
+zip = { version = "8", default-features = false, features = ["deflate"] }
