@@ -44,6 +44,16 @@ pub struct NavigationConfig {
     /// entrega naquele momento. IDs antigos ou de outra conta ficam inertes,
     /// sem fazer conteudo desaparecer.
     pub recent_playlists: Vec<String>,
+
+    /// Tags das playlists fixadas no topo, da mais recente para a mais antiga.
+    ///
+    /// Lista propria e nao um sinalizador dentro de `recent_playlists`: fixar e
+    /// uma escolha que sobrevive a abrir outra lista, e guardar as duas coisas
+    /// no mesmo vetor faria uma apagar a outra a cada reproducao.
+    ///
+    /// Como o resto da navegacao, cruza com o que a conta entrega no momento:
+    /// tag de playlist que sumiu fica inerte, sem esconder nada.
+    pub pinned_playlists: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -253,14 +263,10 @@ impl Config {
         self.playback.volume = self.playback.volume.clamp(0.0, 1.0);
         self.playback.audio_cache_mb = self.playback.audio_cache_mb.min(64 * 1024);
 
-        for tag in &mut self.navigation.recent_playlists {
-            *tag = tag.trim().to_string();
-        }
-        let mut seen = HashSet::new();
-        self.navigation
-            .recent_playlists
-            .retain(|tag| !tag.is_empty() && seen.insert(tag.clone()));
-        self.navigation.recent_playlists.truncate(100);
+        limpar_tags(&mut self.navigation.recent_playlists, 100);
+        // Teto menor que o do historico: fixar cinquenta listas nao e mais
+        // fixar, e uma barra lateral inteira empurrada para o topo.
+        limpar_tags(&mut self.navigation.pinned_playlists, 50);
 
         if !(0.0..=3.0).contains(&self.appearance.font_scale_override)
             || !self.appearance.font_scale_override.is_finite()
@@ -282,6 +288,19 @@ impl Config {
             self.developer.show_component_ids = false;
         }
     }
+}
+
+/// Tira espacos, descarta vazios e repetidos, e limita o tamanho.
+///
+/// Historico e fixadas guardam a mesma coisa -- tags de playlist escritas num
+/// arquivo que o usuario pode editar a mao --, entao passam pela mesma limpeza.
+fn limpar_tags(tags: &mut Vec<String>, max: usize) {
+    for tag in tags.iter_mut() {
+        *tag = tag.trim().to_string();
+    }
+    let mut seen = HashSet::new();
+    tags.retain(|tag| !tag.is_empty() && seen.insert(tag.clone()));
+    tags.truncate(max);
 }
 
 #[cfg(test)]
@@ -378,6 +397,44 @@ mod tests {
         assert_eq!(c.navigation.recent_playlists.len(), 100);
         assert_eq!(c.navigation.recent_playlists[0], "playlist/spotify:a");
         assert_eq!(c.navigation.recent_playlists[1], "playlist/spotify:0");
+    }
+
+    #[test]
+    fn pinned_playlists_are_cleaned_deduplicated_and_bounded() {
+        let mut c = Config::default();
+        c.navigation.pinned_playlists = std::iter::once("  playlist/spotify:a  ".into())
+            .chain(std::iter::once("playlist/spotify:a".into()))
+            .chain(std::iter::once(String::new()))
+            .chain((0..80).map(|n| format!("playlist/spotify:{n}")))
+            .collect();
+
+        c.sanitize();
+
+        assert_eq!(c.navigation.pinned_playlists.len(), 50);
+        assert_eq!(c.navigation.pinned_playlists[0], "playlist/spotify:a");
+        assert_eq!(c.navigation.pinned_playlists[1], "playlist/spotify:0");
+    }
+
+    /// Quem atualiza o Morune tem um `config.toml` sem a chave das fixadas.
+    /// Como `Config` usa `deny_unknown_fields`, um descuido aqui nao daria uma
+    /// lista vazia: daria a configuracao inteira de volta ao padrao.
+    #[test]
+    fn a_config_without_the_pin_key_still_loads() {
+        let path = temp_file("sem-pin");
+        fs::write(
+            &path,
+            "version = 1
+[navigation]
+recent_playlists = [\"playlist/spotify:a\"]
+",
+        )
+        .unwrap();
+
+        let c = Config::load(&path);
+        assert_eq!(c.navigation.recent_playlists, vec!["playlist/spotify:a"]);
+        assert!(c.navigation.pinned_playlists.is_empty());
+
+        let _ = fs::remove_file(&path);
     }
 
     #[test]

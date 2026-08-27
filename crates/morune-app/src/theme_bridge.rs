@@ -68,6 +68,7 @@ icon_slots! {
     "chevron-right" => set_custom_chevron_right,
     "close" => set_custom_close,
     "heart" => set_custom_heart,
+    "pin" => set_custom_pin,
     "queue-add" => set_custom_queue_add,
     "queue-next" => set_custom_queue_next,
     "chevron-up" => set_custom_chevron_up,

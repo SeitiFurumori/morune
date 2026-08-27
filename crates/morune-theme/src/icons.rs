@@ -36,6 +36,7 @@ pub const ICON_NAMES: &[&str] = &[
     "chevron-right",
     "close",
     "heart",
+    "pin",
     "queue-add",
     "queue-next",
     "chevron-up",
@@ -51,7 +52,7 @@ pub const ICONS_SUBDIR: &str = "assets/icons";
 /// Encontra os icones que um tema substitui.
 ///
 /// Devolve so o que existe: um tema que troca dois icones devolve dois pares, e
-/// os outros vinte e quatro continuam vindo do desenho embutido.
+/// os outros vinte e cinco continuam vindo do desenho embutido.
 ///
 /// So `.svg`. Um PNG serviria, mas perderia nitidez em 150% e 200% de DPI --
 /// que sao as escalas em que a maior parte das pessoas usa o Windows.
