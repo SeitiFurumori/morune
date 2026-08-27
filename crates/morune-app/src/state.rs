@@ -22,6 +22,19 @@ use crate::session::Session;
 use crate::theme_bridge::{self, UserOverrides};
 use crate::ui;
 
+/// "1 faixa" ou "N faixas".
+///
+/// Existe porque as mensagens montavam "{count} faixas" na mao, e uma fila com
+/// uma faixa so dizia "1 faixas". E o tipo de detalhe que ninguem reporta como
+/// defeito e todo mundo percebe.
+fn faixas(quantidade: usize) -> String {
+    if quantidade == 1 {
+        "1 faixa".to_string()
+    } else {
+        format!("{quantidade} faixas")
+    }
+}
+
 /// Paginas da interface. Os numeros sao o contrato com o Slint.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Page {
@@ -154,7 +167,7 @@ pub struct AppState {
     home_retrospectives: Vec<Card>,
     home_playlists: Vec<Card>,
     library: Vec<Card>,
-    /// Estado completo das "Musicas curtidas" do Spotify.
+    /// Estado completo das "Músicas curtidas" do Spotify.
     liked_ids: HashSet<TrackId>,
     /// Cliques aguardando confirmacao remota; impede alternancias duplicadas.
     liked_pending: HashSet<TrackId>,
@@ -365,7 +378,7 @@ impl AppState {
                 }],
                 album: Some(morune_core::model::AlbumRef {
                     id: morune_core::model::AlbumId::spotify("snapshotalbum"),
-                    name: "Album de exemplo".into(),
+                    name: "Álbum de exemplo".into(),
                     images: Default::default(),
                 }),
                 duration: Duration::from_secs(180 + u64::from(number % 60)),
@@ -380,7 +393,7 @@ impl AppState {
             origin: QueueOrigin::Custom(crate::browse::LIKED_TITLE.into()),
             title: crate::browse::LIKED_TITLE.into(),
             subtitle: "719 faixas".into(),
-            kind: "Colecao".into(),
+            kind: "Coleção".into(),
             cover: String::new(),
             cover_path: None,
             tracks,
@@ -412,7 +425,7 @@ impl AppState {
             }],
             album: Some(morune_core::model::AlbumRef {
                 id: morune_core::model::AlbumId::spotify("snapshotalbum"),
-                name: "Album de exemplo".into(),
+                name: "Álbum de exemplo".into(),
                 images: Default::default(),
             }),
             duration: Duration::from_secs(214),
@@ -608,7 +621,7 @@ impl AppState {
                 self.home_made_for_you = made_for_you;
 
                 self.liked = TrackList {
-                    origin: QueueOrigin::Custom("Musicas curtidas".into()),
+                    origin: QueueOrigin::Custom("Músicas curtidas".into()),
                     tracks: liked,
                 };
                 #[cfg(feature = "snapshot")]
@@ -712,7 +725,7 @@ impl AppState {
                     self.detail_loading = false;
                     self.detail_complete_requested = false;
                     self.detail_pending_play = None;
-                    self.status = format!("Nao consegui carregar mais faixas. {message}");
+                    self.status = format!("Não consegui carregar mais faixas. {message}");
                 }
             }
             Outcome::Context {
@@ -752,14 +765,14 @@ impl AppState {
             {
                 self.autoplay_seed = None;
                 if let Some(track) = self.queue.append_and_select(tracks).cloned() {
-                    self.status = "Radio continuando a fila.".into();
+                    self.status = "Rádio continuando a fila.".into();
                     self.send(PlayerCommand::Load {
                         track,
                         start_paused: false,
                     });
                     self.resolve_track_covers();
                 } else {
-                    self.status = "O radio nao encontrou faixas novas.".into();
+                    self.status = "O rádio não encontrou faixas novas.".into();
                 }
             }
             AutoplayOutcome::Failed(message) if self.autoplay_seed.take().is_some() => {
@@ -783,7 +796,7 @@ impl AppState {
                         .truncate(crate::browse::SHELF_TRACKS as usize);
                     self.status = format!("{} foi adicionada as Musicas curtidas.", track.name);
                 } else {
-                    self.status = "Faixa adicionada as Musicas curtidas do Spotify.".into();
+                    self.status = "Faixa adicionada às Músicas curtidas do Spotify.".into();
                 }
             }
             Ok(()) => {
@@ -798,10 +811,10 @@ impl AppState {
                 }
                 self.status = track
                     .map(|track| format!("{} foi removida das Musicas curtidas.", track.name))
-                    .unwrap_or_else(|| "Faixa removida das Musicas curtidas do Spotify.".into());
+                    .unwrap_or_else(|| "Faixa removida das Músicas curtidas do Spotify.".into());
             }
             Err(message) => {
-                self.status = format!("Nao consegui atualizar o Spotify. {message}");
+                self.status = format!("Não consegui atualizar o Spotify. {message}");
             }
         }
     }
@@ -811,24 +824,71 @@ impl AppState {
         self.playlist_filter = texto.trim().to_lowercase();
     }
 
-    /// Playlists da barra lateral, com as abertas recentemente primeiro.
+    /// Playlists da barra lateral: fixadas primeiro, depois as abertas
+    /// recentemente, depois o resto na ordem do provedor.
     ///
-    /// Playlists ainda sem historico preservam a ordem do provedor. Assim a
-    /// personalizacao anterior nao e perdida e a lista so muda depois de uma
-    /// acao explicita do usuario.
+    /// Entra o `rootlist` inteiro, de qualquer `PlaylistKind`. Procurar "seus
+    /// mais ouvidos" na lateral e o gesto normal de quem vem do Spotify, e
+    /// deixar mixes e retrospectivas so nas prateleiras do Inicio fazia elas
+    /// nao existirem para quem navega pela barra.
+    ///
+    /// Encadeia os quatro vetores em vez de alargar `home_playlists` porque
+    /// `home_playlists` **tambem** e a prateleira "Suas playlists" do Inicio:
+    /// mexer nele mudaria uma tela que nao era para mudar. E nao ha
+    /// deduplicacao porque nao ha o que deduplicar -- `Browse::load_home`
+    /// classifica cada playlist num unico balde.
     fn sidebar_playlists(&self) -> Vec<&Card> {
-        let playlists = playlists_by_recent(
-            &self.home_playlists,
-            &self.config.navigation.recent_playlists,
-        );
+        let todas = self
+            .home_playlists
+            .iter()
+            .chain(&self.home_made_for_you)
+            .chain(&self.home_stations)
+            .chain(&self.home_retrospectives);
 
-        std::iter::once(&self.liked_card)
-            .chain(playlists)
-            .filter(|c| {
-                self.playlist_filter.is_empty()
-                    || c.title.to_lowercase().contains(&self.playlist_filter)
-            })
-            .collect()
+        sidebar_order(
+            &self.liked_card,
+            todas,
+            &self.config.navigation.pinned_playlists,
+            &self.config.navigation.recent_playlists,
+            &self.playlist_filter,
+        )
+    }
+
+    /// Fixa ou desafixa uma playlist no topo da barra lateral.
+    ///
+    /// Fixar entra na frente das outras fixadas, e nao no fim: a lista salta
+    /// para o topo no mesmo quadro do clique, e esse salto e a unica
+    /// confirmacao de que a acao aconteceu.
+    pub fn toggle_pin_playlist(&mut self, tag: &str) {
+        let tag = tag.trim();
+        if !matches!(
+            crate::browse::Target::parse(tag),
+            Some(crate::browse::Target::Playlist(_))
+        ) {
+            // As curtidas ja moram no topo por definicao, e nada mais chega
+            // aqui: a barra lateral so oferece o menu para playlist.
+            self.status = "So playlists podem ser fixadas no topo.".into();
+            return;
+        }
+
+        // O nome sai antes do emprestimo mutavel de `self.config`.
+        let nome = self
+            .sidebar_playlists()
+            .into_iter()
+            .find(|card| card.tag == tag)
+            .map(|card| card.title.clone())
+            .unwrap_or_else(|| "Playlist".into());
+
+        let fixadas = &mut self.config.navigation.pinned_playlists;
+        self.status = if let Some(posicao) = fixadas.iter().position(|saved| saved == tag) {
+            fixadas.remove(posicao);
+            format!("{nome} nao esta mais fixada.")
+        } else {
+            fixadas.insert(0, tag.to_string());
+            fixadas.truncate(PINNED_LIMIT);
+            format!("{nome} fixada no topo.")
+        };
+        self.save_config();
     }
 
     /// Faixas da tela de detalhe, filtradas e ordenadas.
@@ -970,7 +1030,7 @@ impl AppState {
         };
         let Target::Track(alvo) = target else {
             let Some(browse) = self.session.browse_mut() else {
-                self.status = "Backend do Spotify indisponivel nesta maquina.".into();
+                self.status = "Não foi possível iniciar o Spotify nesta máquina. Feche e abra o Morune para tentar de novo.".into();
                 return;
             };
             browse.open(target);
@@ -1015,7 +1075,7 @@ impl AppState {
         };
         let offset = detail.tracks.len() as u32;
         let Some(browse) = self.session.browse_mut() else {
-            self.status = "Backend do Spotify indisponivel nesta maquina.".into();
+            self.status = "Não foi possível iniciar o Spotify nesta máquina. Feche e abra o Morune para tentar de novo.".into();
             return;
         };
         if browse.load_more(source, offset) {
@@ -1276,7 +1336,7 @@ impl AppState {
 
     /// Toca uma faixa curtida com a colecao inteira como contexto.
     ///
-    /// Abre "Musicas curtidas" por tras, sem tirar o usuario de onde ele esta:
+    /// Abre "Músicas curtidas" por tras, sem tirar o usuario de onde ele esta:
     /// ele clicou numa musica, nao numa lista. A primeira pagina ja comeca a
     /// tocar e as seguintes entram na fila em lotes, pelo mesmo caminho que a
     /// tela de detalhe usa.
@@ -1346,7 +1406,7 @@ impl AppState {
                         }
                     });
                     self.status = if requested {
-                        "Preparando o radio...".into()
+                        "Preparando o rádio...".into()
                     } else {
                         "Fim da fila.".into()
                     };
@@ -1527,7 +1587,7 @@ impl AppState {
     pub fn select_theme(&mut self, id: &str) {
         let loaded = loader::load(&self.paths.themes_dir(), id);
         if loaded.fell_back {
-            self.status = format!("Nao foi possivel aplicar o tema {id}; nada mudou.");
+            self.status = format!("Não foi possível aplicar o tema {id}; nada mudou.");
             return;
         }
         self.status = format!("Tema aplicado: {}", loaded.spec.manifest.name);
@@ -1556,7 +1616,7 @@ impl AppState {
         self.config.appearance = Default::default();
         self.overrides = UserOverrides::default();
         self.refresh_wallpaper();
-        self.status = "Tema restaurado para o padrao.".into();
+        self.status = "Tema restaurado para o padrão.".into();
         self.save_config();
     }
 
@@ -1577,7 +1637,7 @@ impl AppState {
                 self.refresh_themes();
                 self.select_theme(&new_id);
             }
-            Err(e) => self.status = format!("Nao foi possivel duplicar o tema: {e}"),
+            Err(e) => self.status = format!("Não foi possível duplicar o tema: {e}"),
         }
     }
 
@@ -1631,12 +1691,12 @@ impl AppState {
             "{}\nPor: {}\nVersao: {}\n\n{}{}",
             preview.manifest.name,
             if preview.manifest.author.is_empty() {
-                "Autor nao informado"
+                "Autor não informado"
             } else {
                 preview.manifest.author.as_str()
             },
             if preview.manifest.version.is_empty() {
-                "Nao informada"
+                "Não informada"
             } else {
                 preview.manifest.version.as_str()
             },
@@ -1653,7 +1713,7 @@ impl AppState {
             .set_buttons(rfd::MessageButtons::YesNo)
             .show();
         if confirmed != rfd::MessageDialogResult::Yes {
-            self.status = "Importacao cancelada; nada foi alterado.".into();
+            self.status = "Importação cancelada; nada foi alterado.".into();
             return;
         }
 
@@ -1668,7 +1728,7 @@ impl AppState {
             match std::fs::rename(&destination, &path) {
                 Ok(()) => Some(path),
                 Err(e) => {
-                    self.status = format!("Nao foi possivel preparar a substituicao: {e}");
+                    self.status = format!("Não foi possível preparar a substituição: {e}");
                     return;
                 }
             }
@@ -1704,7 +1764,7 @@ impl AppState {
     pub fn export_theme_via_dialog(&mut self, id: &str) {
         let dir = self.paths.theme_dir(id);
         if !dir.is_dir() {
-            self.status = "O tema embutido nao pode ser exportado; duplique-o antes.".into();
+            self.status = "O tema embutido não pode ser exportado; duplique-o antes.".into();
             return;
         }
 
@@ -1742,7 +1802,7 @@ impl AppState {
             // `explorer.exe` retorna codigo diferente de zero mesmo quando abre
             // a janela; so a falha em iniciar o processo e um erro de verdade.
             Ok(_) => self.status = format!("Pasta aberta: {}", dir.display()),
-            Err(e) => self.status = format!("Nao foi possivel abrir a pasta: {e}"),
+            Err(e) => self.status = format!("Não foi possível abrir a pasta: {e}"),
         }
     }
 
@@ -1779,7 +1839,7 @@ impl AppState {
 
         let dir = self.paths.backgrounds_dir();
         if let Err(error) = std::fs::create_dir_all(&dir) {
-            self.status = "Nao foi possivel guardar a imagem de fundo.".into();
+            self.status = "Não foi possível guardar a imagem de fundo.".into();
             tracing::warn!(%error, dir = %dir.display(), "pasta de fundos nao criada");
             return;
         }
@@ -1793,7 +1853,7 @@ impl AppState {
         // um arquivo sobre ele mesmo falharia.
         if target != file {
             if let Err(error) = std::fs::copy(&file, &target) {
-                self.status = "Nao foi possivel copiar a imagem de fundo.".into();
+                self.status = "Não foi possível copiar a imagem de fundo.".into();
                 tracing::warn!(%error, de = %file.display(), "copia do fundo falhou");
                 return;
             }
@@ -1905,12 +1965,12 @@ impl AppState {
                 self.status = if on {
                     "O Morune vai iniciar em segundo plano com o Windows.".into()
                 } else {
-                    "O Morune nao vai mais iniciar com o Windows.".into()
+                    "O Morune não vai mais iniciar com o Windows.".into()
                 };
             }
             Err(error) => {
                 self.start_with_windows = crate::startup::is_enabled();
-                self.status = format!("Nao foi possivel alterar a inicializacao: {error}");
+                self.status = format!("Não foi possível alterar a inicializacao: {error}");
             }
         }
     }
@@ -1918,9 +1978,9 @@ impl AppState {
     pub fn set_autoplay(&mut self, on: bool) {
         self.config.playback.autoplay = on;
         self.status = if on {
-            "Autoplay ligado: o radio continua quando a fila acabar.".into()
+            "Rádio ligado: quando a fila acabar, a música continua.".into()
         } else {
-            "Autoplay desligado: a reproducao para no fim da fila.".into()
+            "Rádio desligado: a música para no fim da fila.".into()
         };
         self.save_config();
     }
@@ -1969,6 +2029,7 @@ impl AppState {
         }
 
         menu.set_playing(self.engine.snapshot().state == morune_core::PlaybackState::Playing);
+        menu.set_volume(self.volume);
     }
 
     pub fn toggle_sidebar(&mut self) {
@@ -2017,7 +2078,7 @@ impl AppState {
         }
 
         let Some(browse) = self.session.browse_mut() else {
-            self.status = "Backend do Spotify indisponivel nesta maquina.".into();
+            self.status = "Não foi possível iniciar o Spotify nesta máquina. Feche e abra o Morune para tentar de novo.".into();
             return;
         };
         self.searching = true;
@@ -2068,7 +2129,7 @@ impl AppState {
 
     pub fn undo_last(&mut self) {
         let Some(action) = self.undo.take() else {
-            self.status = "Nao ha nenhuma acao recente para desfazer.".into();
+            self.status = "Não ha nenhuma acao recente para desfazer.".into();
             return;
         };
 
@@ -2078,7 +2139,7 @@ impl AppState {
                 for track in tracks {
                     self.queue.enqueue(track);
                 }
-                self.status = format!("Fila restaurada: {count} faixas voltaram.");
+                self.status = format!("Fila restaurada: {} de volta.", faixas(count));
             }
             UndoAction::ThemeImport {
                 previous_id,
@@ -2091,21 +2152,21 @@ impl AppState {
                 }
                 if let Some(backup) = backup {
                     if let Err(e) = std::fs::rename(backup, &installed) {
-                        self.status = format!("Nao foi possivel restaurar o tema anterior: {e}");
+                        self.status = format!("Não foi possível restaurar o tema anterior: {e}");
                         return;
                     }
                 }
                 self.refresh_themes();
                 self.select_theme(&previous_id);
-                self.status = "Importacao desfeita; o tema anterior foi restaurado.".into();
+                self.status = "Importação desfeita; o tema anterior foi restaurado.".into();
             }
         }
     }
 
-    /// Adiciona ou remove uma faixa das "Musicas curtidas" do Spotify.
+    /// Adiciona ou remove uma faixa das "Músicas curtidas" do Spotify.
     pub fn toggle_favorite(&mut self, tag: &str) {
         let Some(Target::Track(id)) = Target::parse(tag) else {
-            self.status = "Nao reconheci a faixa que voce quer curtir.".into();
+            self.status = "Não reconheci a faixa que você quer curtir.".into();
             return;
         };
         if !self.session.state().is_logged_in() {
@@ -2119,14 +2180,14 @@ impl AppState {
         let saved = !self.liked_ids.contains(&id);
         let Some(browse) = self.session.browse_mut() else {
             self.liked_pending.remove(&id);
-            self.status = "Spotify indisponivel nesta sessao.".into();
+            self.status = "Spotify indisponível nesta sessão.".into();
             return;
         };
         browse.set_track_saved(id, saved);
         self.status = if saved {
-            "Adicionando as Musicas curtidas do Spotify...".into()
+            "Adicionando às Músicas curtidas do Spotify...".into()
         } else {
-            "Removendo das Musicas curtidas do Spotify...".into()
+            "Removendo das Músicas curtidas do Spotify...".into()
         };
     }
 
@@ -2174,7 +2235,7 @@ impl AppState {
             .ok()
             .and_then(|index| self.queue.remove_from_user_queue(index))
         else {
-            self.status = "Essa faixa ja nao esta mais na fila.".into();
+            self.status = "Essa faixa já não está mais na fila.".into();
             return;
         };
         self.status = format!("{} foi removida da fila.", track.name);
@@ -2185,7 +2246,7 @@ impl AppState {
             .ok()
             .and_then(|index| self.queue.remove_from_user_queue(index))
         else {
-            self.status = "Essa faixa ja nao esta mais na fila.".into();
+            self.status = "Essa faixa já não está mais na fila.".into();
             return;
         };
         self.queue.play_next(track.clone());
@@ -2204,7 +2265,7 @@ impl AppState {
             .zip(usize::try_from(to).ok())
             .is_some_and(|(from, to)| self.queue.move_user_queue(from, to));
         if !moved {
-            self.status = "Nao foi possivel mover essa faixa na fila.".into();
+            self.status = "Não foi possível mover essa faixa na fila.".into();
         }
     }
 
@@ -2213,22 +2274,26 @@ impl AppState {
         let count = removed.len();
         self.queue.clear_user_queue();
         self.status = if count == 0 {
-            "A fila manual ja estava vazia.".into()
+            "A fila já estava vazia.".into()
         } else {
             self.discard_undo();
             self.undo = Some(UndoAction::QueueClear(removed));
-            format!("Fila manual limpa: {count} faixas removidas.")
+            format!(
+                "Fila limpa: {} removida{}.",
+                faixas(count),
+                if count == 1 { "" } else { "s" }
+            )
         };
     }
 
     fn track_from_tag(&mut self, tag: &str) -> Option<Track> {
         let Some(Target::Track(id)) = Target::parse(tag) else {
-            self.status = "Nao reconheci a faixa escolhida.".into();
+            self.status = "Não reconheci a faixa escolhida.".into();
             return None;
         };
         let track = self.find_track(&id);
         if track.is_none() {
-            self.status = "Essa faixa nao esta mais disponivel nesta tela.".into();
+            self.status = "Essa faixa saiu da lista. Atualize a tela para vê-la de novo.".into();
         }
         track
     }
@@ -2243,7 +2308,7 @@ impl AppState {
     /// faixas do album.
     pub fn play_track(&mut self, tag: &str) {
         let Some(target) = Target::parse(tag) else {
-            self.status = "Nao reconheci o que voce clicou.".into();
+            self.status = "Não reconheci o que você clicou.".into();
             return;
         };
         self.autoplay_seed = None;
@@ -2478,7 +2543,7 @@ impl AppState {
         self.pending_liked_play = None;
         self.home_requested = false;
         self.library_requested = false;
-        self.status = "Sessao encerrada.".into();
+        self.status = "Sessão encerrada.".into();
     }
 
     // ---- persistencia ----
@@ -2519,7 +2584,10 @@ impl AppState {
         self.push_playback(window);
 
         let current = self.queue.current();
-        window.set_sidebar_playlists(card_refs(&self.sidebar_playlists()));
+        window.set_sidebar_playlists(sidebar_items(
+            &self.sidebar_playlists(),
+            &self.config.navigation.pinned_playlists,
+        ));
 
         if let Some(detail) = &self.detail {
             window.set_detail_title(detail.title.as_str().into());
@@ -2776,8 +2844,18 @@ fn nome_do_album(track: &Track) -> &str {
         .unwrap_or_default()
 }
 
-fn card_refs(cards: &[&Card]) -> ModelRc<ui::CardItem> {
-    let items: Vec<ui::CardItem> = cards.iter().map(|c| card_item(c)).collect();
+/// Cartoes da barra lateral, com a marca de fixada.
+///
+/// A marca nao cabe em `card_item` porque o mesmo cartao aparece nas
+/// prateleiras do Inicio, onde estar fixada nao significa nada.
+fn sidebar_items(cards: &[&Card], pinned: &[String]) -> ModelRc<ui::CardItem> {
+    let items: Vec<ui::CardItem> = cards
+        .iter()
+        .map(|c| ui::CardItem {
+            pinned: pinned.iter().any(|tag| tag == &c.tag),
+            ..card_item(c)
+        })
+        .collect();
     ModelRc::new(VecModel::from(items))
 }
 
@@ -2787,6 +2865,7 @@ fn card_item(c: &Card) -> ui::CardItem {
         title: c.title.as_str().into(),
         subtitle: c.subtitle.as_str().into(),
         cover: cover_image(c.cover_path.as_deref()),
+        pinned: false,
     }
 }
 
@@ -2977,15 +3056,15 @@ fn remember_recent_playlist(recent: &mut Vec<String>, tag: String) -> bool {
     true
 }
 
-/// Ordena apenas o que tem historico. O sort estavel conserva a sequencia do
-/// provedor para todas as playlists que ainda nao foram abertas no Morune.
-fn playlists_by_recent<'a>(playlists: &'a [Card], recent: &[String]) -> Vec<&'a Card> {
+/// Ordena apenas o que tem historico. O sort estavel conserva a sequencia de
+/// entrada para todas as playlists que ainda nao foram abertas no Morune.
+fn playlists_by_recent<'a>(playlists: Vec<&'a Card>, recent: &[String]) -> Vec<&'a Card> {
     let positions: HashMap<&str, usize> = recent
         .iter()
         .enumerate()
         .map(|(position, tag)| (tag.as_str(), position))
         .collect();
-    let mut ordered: Vec<&Card> = playlists.iter().collect();
+    let mut ordered = playlists;
     ordered.sort_by_key(|card| {
         positions
             .get(card.tag.as_str())
@@ -2993,6 +3072,46 @@ fn playlists_by_recent<'a>(playlists: &'a [Card], recent: &[String]) -> Vec<&'a 
             .unwrap_or(usize::MAX)
     });
     ordered
+}
+
+/// Teto de playlists fixadas. Mesmo numero que `Config::sanitize` aplica ao
+/// arquivo, para que fixar pela interface nunca produza algo que a leitura da
+/// configuracao corte depois.
+const PINNED_LIMIT: usize = 50;
+
+/// Monta a barra lateral: curtidas, fixadas, depois o historico.
+///
+/// As curtidas ficam acima ate das fixadas. Nao sao playlist do provedor e nao
+/// podem ser fixadas nem desafixadas: sao a colecao da conta, e um topo que
+/// muda de dono conforme o que o usuario fixou tiraria delas o unico lugar em
+/// que sempre estiveram.
+///
+/// O filtro de texto entra por ultimo e vale para as tres faixas: uma barra em
+/// que as fixadas ignorassem o que foi digitado nao estaria filtrada.
+fn sidebar_order<'a>(
+    liked: &'a Card,
+    playlists: impl Iterator<Item = &'a Card>,
+    pinned: &[String],
+    recent: &[String],
+    filtro: &str,
+) -> Vec<&'a Card> {
+    let ordem_fixada: HashMap<&str, usize> = pinned
+        .iter()
+        .enumerate()
+        .map(|(posicao, tag)| (tag.as_str(), posicao))
+        .collect();
+
+    // Tag fixada de playlist que sumiu da conta fica inerte de graca: a
+    // intersecao e sempre contra os cartoes que existem agora.
+    let (mut fixadas, resto): (Vec<&Card>, Vec<&Card>) =
+        playlists.partition(|card| ordem_fixada.contains_key(card.tag.as_str()));
+    fixadas.sort_by_key(|card| ordem_fixada[card.tag.as_str()]);
+
+    std::iter::once(liked)
+        .chain(fixadas)
+        .chain(playlists_by_recent(resto, recent))
+        .filter(|c| filtro.is_empty() || c.title.to_lowercase().contains(filtro))
+        .collect()
 }
 
 /// Opacidade minima que a janela pode ter.
@@ -3200,23 +3319,131 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn sidebar_puts_recent_first_and_preserves_the_rest() {
-        let card = |id: &str| Card {
+    fn card(id: &str) -> Card {
+        Card {
             tag: format!("playlist/spotify:{id}"),
             title: id.into(),
             subtitle: String::new(),
             cover: String::new(),
             cover_path: None,
-        };
-        let playlists = vec![card("a"), card("b"), card("c"), card("d")];
-        let recent = vec!["playlist/spotify:c".into(), "playlist/spotify:a".into()];
+        }
+    }
 
-        let ordered: Vec<&str> = playlists_by_recent(&playlists, &recent)
+    fn liked_card() -> Card {
+        Card {
+            tag: crate::browse::Target::Liked.tag(),
+            title: crate::browse::LIKED_TITLE.into(),
+            subtitle: String::new(),
+            cover: String::new(),
+            cover_path: None,
+        }
+    }
+
+    fn tag(id: &str) -> String {
+        format!("playlist/spotify:{id}")
+    }
+
+    /// Titulos na ordem em que a barra lateral os desenharia.
+    fn sidebar(cards: &[Card], pinned: &[String], recent: &[String], filtro: &str) -> Vec<String> {
+        let liked = liked_card();
+        sidebar_order(&liked, cards.iter(), pinned, recent, filtro)
+            .into_iter()
+            .map(|item| item.title.clone())
+            .collect()
+    }
+
+    #[test]
+    fn sidebar_puts_recent_first_and_preserves_the_rest() {
+        let playlists = [card("a"), card("b"), card("c"), card("d")];
+        let recent = vec![tag("c"), tag("a")];
+
+        let ordered: Vec<&str> = playlists_by_recent(playlists.iter().collect(), &recent)
             .into_iter()
             .map(|item| item.title.as_str())
             .collect();
 
         assert_eq!(ordered, ["c", "a", "b", "d"]);
+    }
+
+    #[test]
+    fn pinned_come_after_liked_and_before_the_rest() {
+        let cards = vec![card("a"), card("b"), card("c")];
+        let ordem = sidebar(&cards, &[tag("c")], &[tag("b")], "");
+
+        assert_eq!(ordem, [crate::browse::LIKED_TITLE, "c", "b", "a"]);
+    }
+
+    #[test]
+    fn pinning_keeps_the_order_in_which_things_were_pinned() {
+        let cards = vec![card("a"), card("b"), card("c")];
+        // `toggle_pin_playlist` insere na frente, entao a mais recente e a
+        // primeira da lista guardada.
+        let ordem = sidebar(&cards, &[tag("c"), tag("a")], &[], "");
+
+        assert_eq!(ordem, [crate::browse::LIKED_TITLE, "c", "a", "b"]);
+    }
+
+    #[test]
+    fn an_unpinned_playlist_falls_back_to_its_place_in_the_history() {
+        let cards = vec![card("a"), card("b"), card("c")];
+        let recent = vec![tag("c"), tag("a")];
+
+        assert_eq!(
+            sidebar(&cards, &[], &recent, ""),
+            [crate::browse::LIKED_TITLE, "c", "a", "b"]
+        );
+    }
+
+    #[test]
+    fn a_pinned_playlist_never_appears_twice() {
+        let cards = vec![card("a"), card("b")];
+        let ordem = sidebar(&cards, &[tag("a")], &[tag("a"), tag("b")], "");
+
+        assert_eq!(ordem.iter().filter(|title| *title == "a").count(), 1);
+        assert_eq!(ordem, [crate::browse::LIKED_TITLE, "a", "b"]);
+    }
+
+    #[test]
+    fn a_pin_for_a_playlist_that_no_longer_exists_is_inert() {
+        let cards = vec![card("a")];
+        let ordem = sidebar(&cards, &[tag("sumiu"), tag("a")], &[], "");
+
+        assert_eq!(ordem, [crate::browse::LIKED_TITLE, "a"]);
+    }
+
+    #[test]
+    fn the_filter_also_hides_pinned_playlists() {
+        let cards = vec![card("abelha"), card("zebra")];
+        let ordem = sidebar(&cards, &[tag("abelha")], &[], "zeb");
+
+        assert_eq!(ordem, ["zebra"]);
+    }
+
+    /// A barra lateral e o `rootlist` inteiro: mixes, estacoes e retrospectivas
+    /// chegam nela pelos vetores que o Inicio separa por prateleira.
+    #[test]
+    fn every_kind_of_playlist_reaches_the_sidebar() {
+        let liked = liked_card();
+        let pessoais = [card("minha")];
+        let feito = [card("daily-mix")];
+        let estacoes = [card("mix-rock")];
+        let retro = [card("mais-ouvidas")];
+
+        let todas = pessoais.iter().chain(&feito).chain(&estacoes).chain(&retro);
+        let ordem: Vec<&str> = sidebar_order(&liked, todas, &[], &[], "")
+            .into_iter()
+            .map(|item| item.title.as_str())
+            .collect();
+
+        assert_eq!(
+            ordem,
+            [
+                crate::browse::LIKED_TITLE,
+                "minha",
+                "daily-mix",
+                "mix-rock",
+                "mais-ouvidas"
+            ]
+        );
     }
 }

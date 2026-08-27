@@ -567,7 +567,7 @@ fn wire_close_behavior(
                 let _ = rfd::MessageDialog::new()
                     .set_title("Morune continua tocando")
                     .set_description(
-                        "A janela foi escondida na bandeja do Windows. Use o icone do Morune para abrir novamente ou sair.",
+                        "A janela foi escondida na bandeja do Windows. Use o ícone do Morune para abrir novamente ou sair.",
                     )
                     .set_buttons(rfd::MessageButtons::Ok)
                     .show();
@@ -717,6 +717,15 @@ fn wire_tray(
         // canto e fechamento automatico sao montados aqui, e nao na abertura.
         if let Some(menu) = open_menu.borrow_mut().as_mut() {
             menu.attach();
+            // Mesma opacidade da janela principal, mas sem acrilico: o
+            // cartao do menu tem piso opaco proprio, e o fundo do sistema
+            // nunca apareceria por tras dele -- ligar o acrilico so custaria
+            // composicao.
+            #[cfg(windows)]
+            {
+                let (opacity, _) = state.borrow().window_effects();
+                ensure_window_effects(menu.window().window(), opacity, false);
+            }
         }
 
         // Clique fora fecha o menu; o aviso chega pelo subclass da janela.
@@ -815,6 +824,17 @@ fn wire_tray_menu(
         }
     });
 
+    ui.on_set_volume({
+        let state = state.clone();
+        let weak = window.as_weak();
+        move |volume| {
+            state.borrow_mut().set_volume(volume);
+            if let Some(window) = weak.upgrade() {
+                state.borrow().push_to_ui(&window);
+            }
+        }
+    });
+
     ui.on_quit({
         let state = state.clone();
         move || {
@@ -880,7 +900,7 @@ const LOG_MAX_BYTES: u64 = 4 * 1024 * 1024;
 /// **Por que arquivo e obrigatorio:** o build de release e
 /// `windows_subsystem = "windows"`, ou seja, roda sem console nenhum. Tudo que
 /// o `tracing` escrevia em `stdout` era descartado em silencio -- e um usuario
-/// que ve "Sem conexao com o Spotify" nao tinha como saber o motivo, nem tinha
+/// que ve "Sem conexão com o Spotify" nao tinha como saber o motivo, nem tinha
 /// o que anexar a um relato de defeito. O caminho e
 /// [`AppPaths::log_file`], que ja existia e nunca era usado.
 ///
@@ -1058,6 +1078,11 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
     // a cada tecla e o que faz o filtro parecer instantaneo.
     on!(on_filter_playlists, |w, s, texto: slint::SharedString| {
         s.set_playlist_filter(texto.as_str());
+        s.push_to_ui(&w);
+    });
+
+    on!(on_toggle_pin_playlist, |w, s, tag: slint::SharedString| {
+        s.toggle_pin_playlist(tag.as_str());
         s.push_to_ui(&w);
     });
 

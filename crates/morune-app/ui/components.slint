@@ -63,29 +63,55 @@ export component Icon {
     }
 }
 
-// Realce da aresta superior de uma superficie.
+// Realce do contorno de uma superficie de vidro.
 //
-// E o que faz um painel translucido parecer ter espessura: a luz corre na quina
-// de cima, mais clara que o resto do contorno. Num tema opaco `border-highlight`
-// chega igual a `border` e isto vira a mesma linha de sempre -- nada muda.
+// E o que faz um painel translucido parecer ter espessura: uma linha de luz
+// correndo pela quina, mais clara que o contorno comum. Num tema opaco
+// `border-highlight` chega igual a `border` e isto vira a mesma linha de sempre
+// -- nada muda.
 //
-// Um retangulo de 1px em vez de borda por lado porque o Slint so tem uma cor de
-// borda por elemento, e trocar isso mexeria em toda superficie da interface.
+// **Contorno inteiro, de uma intensidade so.** Duas tentativas anteriores
+// falharam e vale registrar por que, para ninguem refazer:
+//
+// 1. Duas linhas retas de 1px recuadas pela metade do raio. Linha reta nao
+//    acompanha curva: ela terminava antes do canto e deixava um corte reto.
+// 2. A borda de um retangulo arredondado, cortada ao meio na horizontal, com a
+//    metade de baixo mais fraca. O raio ficou certo, mas na altura do corte a
+//    opacidade pulava de 100% para 45% de uma vez, e o salto aparecia como um
+//    talho no meio das duas laterais.
+//
+// O degrade so ficaria continuo com uma mascara, que o Slint nao tem, ou com
+// dezenas de faixas -- e faixa por painel e custo por painel. A luz que decai
+// de cima para baixo ja existe e e continua: e o `Gloss`, que e preenchimento e
+// aceita gradiente de verdade. Ao contorno cabe so fechar a quina, inteiro e
+// parelho.
 export component GlassEdge {
-    in property <length> inset: 0px;
+    in property <length> radius: 0px;
+    // `false` deixa so a linha do topo. E o caso dos paineis colados na moldura
+    // da janela -- barra de titulo, barra lateral, barra de reproducao: ali a
+    // base nao e quina, nao ha raio, e um contorno completo desenharia riscos
+    // verticais no meio da interface.
+    in property <bool> bottom: true;
 
-    // A raiz ocupa a largura de quem a hospeda; o recuo e aplicado no retangulo
-    // de dentro. A raiz de um componente nao enxerga `parent`, entao o recuo
-    // nao pode sair da propria largura dela.
-    y: 0;
     width: 100%;
-    height: Theme.border-width;
+    height: 100%;
 
-    Rectangle {
-        x: root.inset;
-        width: root.width - root.inset * 2;
-        height: 100%;
+    if !root.bottom: Rectangle {
+        y: 0;
+        width: 100%;
+        height: Theme.border-width;
         background: Theme.border-highlight;
+    }
+
+    if root.bottom: Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: root.radius;
+        border-width: Theme.border-width;
+        border-color: Theme.border-highlight;
+        // Entre a quina de cima cheia e a de baixo apagada: o contorno inteiro
+        // fica no meio-termo, e quem da a direcao da luz e o `Gloss` por cima.
+        opacity: 0.7;
     }
 }
 
@@ -112,6 +138,63 @@ export component Gloss inherits Rectangle {
         #ffffff00 62%);
 }
 
+// Uma superficie de vidro inteira: brilho, aresta de cima e luz de retorno.
+//
+// Existe para nao repetir a mesma trinca em cada painel da interface -- e para
+// que mudar o que e "vidro" seja mudar um componente, e nao quinze arquivos.
+//
+// Nao intercepta ponteiro nem entra em layout: e um filho solto do retangulo
+// que hospeda, desenhado por cima do fundo e por baixo do conteudo. Por isso
+// vai declarado logo depois do `background:` do hospedeiro.
+export component Glass {
+    in property <length> radius: 0px;
+    in property <bool> bottom: true;
+
+    width: 100%;
+    height: 100%;
+
+    Gloss { radius: root.radius; }
+    GlassEdge {
+        radius: root.radius;
+        bottom: root.bottom;
+    }
+}
+
+// Diz que a lista continua alem da borda.
+//
+// Uma lista rolavel que termina em corte reto no meio de um texto nao le como
+// "há mais abaixo": le como defeito de desenho. O degrade resolve isso sem
+// ocupar altura -- ele e desenhado por cima do conteudo, na propria faixa que
+// seria cortada.
+//
+// A cor de base e obrigatoria porque o degrade tem de morrer exatamente na
+// superficie que esta atras: o fundo da pagina, o da barra lateral e o do
+// painel sao tokens diferentes, e adivinhar qual deles seria errar em dois
+// dos tres casos.
+//
+// Nao intercepta ponteiro e nao entra em layout, pelo mesmo motivo que o
+// `Glass`: e um filho solto, declarado depois do conteudo que encobre.
+// A raiz cobre o hospedeiro inteiro e nao pinta nada; quem pinta e a faixa
+// interna, que se ancora na base. A raiz de um componente nao enxerga `parent`
+// em Slint, entao a ancoragem tem de acontecer um nivel abaixo.
+export component ScrollFade {
+    in property <brush> base;
+    // Ligado por quem hospeda: um degrade permanente mentiria numa lista curta,
+    // que nao tem nada alem da borda.
+    in property <bool> active: true;
+
+    width: 100%;
+    height: 100%;
+
+    Rectangle {
+        width: 100%;
+        height: Theme.space-lg;
+        y: parent.height - self.height;
+        visible: root.active;
+        background: @linear-gradient(180deg, transparent 0%, root.base 100%);
+    }
+}
+
 export component PressableArea inherits FocusScope {
     // Area acionavel por mouse e teclado, com foco visivel e semantica para
     // tecnologias assistivas.
@@ -122,6 +205,13 @@ export component PressableArea inherits FocusScope {
     out property <bool> highlighted: pointer.has-hover && root.enabled-input;
     callback clicked();
     callback double-clicked();
+    // Pedido de menu de contexto, em coordenadas do proprio elemento.
+    //
+    // Nasce aqui e nao em cada chamador porque o `TouchArea` e interno: sem
+    // isto o botao direito morreria dentro do componente. O mesmo callback
+    // atende a tecla Menu, para que quem navega por teclado chegue ao mesmo
+    // lugar sem mouse.
+    callback context-menu-requested(x: length, y: length);
 
     enabled: root.enabled-input;
     focus-on-click: true;
@@ -135,6 +225,13 @@ export component PressableArea inherits FocusScope {
     key-pressed(event) => {
         if (root.enabled-input && (event.text == Key.Return || event.text == Key.Space)) {
             root.clicked();
+            return EventResult.accept;
+        }
+        // A tecla Menu e tratada aqui dentro, e nao por quem usa o componente:
+        // um `key-pressed` na instancia substituiria este bloco inteiro e
+        // levaria junto o Return e o Espaco.
+        if (root.enabled-input && event.text == Key.Menu) {
+            root.context-menu-requested(root.width / 2, root.height / 2);
             return EventResult.accept;
         }
         EventResult.reject
@@ -151,6 +248,17 @@ export component PressableArea inherits FocusScope {
         enabled: root.enabled-input;
         clicked => { root.clicked(); }
         double-clicked => { root.double-clicked(); }
+        // O `clicked` do Slint e so o botao esquerdo; o direito so chega por
+        // aqui. O foco vai junto para que Escape e as setas continuem valendo
+        // depois que o menu fechar.
+        pointer-event(event) => {
+            if (root.enabled-input
+                && event.kind == PointerEventKind.down
+                && event.button == PointerEventButton.right) {
+                root.focus();
+                root.context-menu-requested(pointer.mouse-x, pointer.mouse-y);
+            }
+        }
     }
 }
 
@@ -204,6 +312,8 @@ export component IconButton inherits Rectangle {
         background: Theme.surface-raised;
         border-width: Theme.border-width;
         border-color: Theme.border;
+
+        Glass { radius: Theme.radius-sm; }
 
         tooltip-text := Text {
             text: root.label;
@@ -343,6 +453,8 @@ export component SearchField inherits Rectangle {
     background: Theme.surface;
     border-width: input.has-focus ? 2px : Theme.border-width;
     border-color: input.has-focus ? Theme.focus-ring : Theme.border;
+
+    Glass { radius: Theme.radius-md; }
 
     HorizontalLayout {
         padding-left: Theme.space-md;
@@ -624,7 +736,7 @@ export component Artwork inherits Rectangle {
     // Boa parte das playlists nao tem imagem nenhuma na resposta do Spotify --
     // o mosaico que o cliente oficial desenha e montado por ele a partir das
     // faixas. Um bloco neutro nesses casos parecia carregamento eterno; a
-    // marca diz "nao ha capa" em vez de "ainda nao chegou".
+    // marca diz "não há capa" em vez de "ainda não chegou".
     //
     // Discreta de proposito: numa grade de vinte cartoes sem capa, a marca em
     // cor cheia viraria vinte logos disputando atencao com os titulos.
@@ -642,5 +754,56 @@ export component Artwork inherits Rectangle {
         // A capa e quadrada e a caixa tambem; `fill` evita a borda de fundo
         // aparecer por arredondamento de um pixel.
         image-fit: fill;
+    }
+}
+
+// Linha de acao de um menu desenhado pelo proprio aplicativo.
+//
+// O menu nativo do Windows nao aceita estilo: e um HMENU desenhado pelo
+// sistema. Vale para a bandeja e vale dentro da janela -- o `ContextMenuArea`
+// do Slint tambem sai como HMENU no Windows. Desenhado aqui, cada item volta a
+// ser um retangulo comum, e o realce de hover passa a ser o mesmo dos itens de
+// navegacao da janela principal, em vez do azul do sistema.
+export component MenuRow inherits Rectangle {
+    in property <string> text;
+    in property <IconRef> glyph;
+    in property <brush> tint: Theme.text;
+    callback clicked();
+
+    height: 34px;
+    border-radius: Theme.radius-sm;
+    background: touch.has-hover ? Theme.hover : transparent;
+
+    animate background { duration: Theme.motion-fast; }
+
+    if touch.has-hover: Glass { radius: Theme.radius-sm; }
+
+    HorizontalLayout {
+        padding-left: Theme.space-sm;
+        padding-right: Theme.space-sm;
+        spacing: Theme.space-sm;
+
+        Icon {
+            glyph: root.glyph;
+            tint: root.tint;
+            size: 16px;
+            y: (parent.height - self.height) / 2;
+        }
+
+        Text {
+            text: root.text;
+            color: root.tint;
+            font-size: Theme.size-md;
+            font-family: Theme.font-family;
+            vertical-alignment: center;
+            horizontal-alignment: left;
+            overflow: elide;
+        }
+    }
+
+    touch := PressableArea {
+        accessible-label: root.text;
+        focus-radius: Theme.radius-sm;
+        clicked => { root.clicked(); }
     }
 }

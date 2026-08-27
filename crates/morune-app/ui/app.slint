@@ -1,5 +1,5 @@
 import { Theme, Layout } from "theme.slint";
-import { GlassEdge, Gloss, Icon, IconRef, IconButton, PrimaryButton, GhostButton, SearchField, Slider, Artwork, PressableArea, Toggle, Logo } from "components.slint";
+import { GlassEdge, Gloss, Glass, ScrollFade, Icon, IconRef, IconButton, PrimaryButton, GhostButton, SearchField, Slider, Artwork, PressableArea, Toggle, Logo, MenuRow } from "components.slint";
 import { ListView } from "std-widgets.slint";
 
 // O Slint exige que um componente esteja declarado antes de ser usado, entao
@@ -26,6 +26,8 @@ export struct CardItem {
     subtitle: string,
     // Capa ja em disco. Vazia enquanto o cache nao a entrega.
     cover: image,
+    // So a barra lateral usa; nas prateleiras do Inicio chega sempre `false`.
+    pinned: bool,
 }
 
 export struct ThemeItem {
@@ -95,6 +97,8 @@ export global Icons {
     out property <IconRef> close: { commands: "M 5 5 L 19 19 M 19 5 L 5 19", source: root.custom-close };
     in property <image> custom-heart;
     out property <IconRef> heart: { commands: "M 12 21 C 10 18 4 15 4 9 C 4 5 9 3 12 7 C 15 3 20 5 20 9 C 20 15 14 18 12 21 Z", source: root.custom-heart };
+    in property <image> custom-pin;
+    out property <IconRef> pin: { commands: "M 9 3 L 15 3 L 14 9 L 18 13 L 6 13 L 10 9 Z M 12 13 L 12 21", source: root.custom-pin };
     in property <image> custom-queue-add;
     out property <IconRef> queue-add: { commands: "M 3 6 L 14 6 M 3 12 L 14 12 M 3 18 L 10 18 M 18 13 L 18 21 M 14 17 L 22 17", source: root.custom-queue-add };
     in property <image> custom-queue-next;
@@ -226,6 +230,10 @@ component AppTitleBar inherits Rectangle {
     height: Theme.space-xl + Theme.space-xs;
     background: Theme.sidebar-background;
 
+    // Colada no topo da janela: a base dela nao e quina, e a luz de retorno
+    // apareceria como um risco no meio da interface.
+    Glass { bottom: false; }
+
     // A area de arraste termina antes dos controles. Assim um clique nos
     // botoes nunca pode ser interpretado como movimento da janela.
     drag := TouchArea {
@@ -307,6 +315,8 @@ component NavItem inherits Rectangle {
     height: 40px;
     border-radius: Theme.radius-md;
     background: root.active ? Theme.selected : (touch.has-hover ? Theme.hover : transparent);
+
+    if root.active || touch.has-hover: Glass { radius: Theme.radius-md; }
     animate background { duration: Theme.motion-fast; }
 
     HorizontalLayout {
@@ -362,6 +372,10 @@ component TrackListRow inherits Rectangle {
     border-radius: Theme.radius-sm;
     background: touch.has-hover ? Theme.hover : transparent;
     animate background { duration: Theme.motion-fast; }
+
+    // So com o cursor em cima: sem realce a linha nao tem superficie, e um
+    // brilho sobre o nada apareceria como faixa clara solta na lista.
+    if touch.has-hover: Glass { radius: Theme.radius-sm; }
 
     HorizontalLayout {
         padding-left: Theme.space-md;
@@ -432,8 +446,8 @@ component TrackListRow inherits Rectangle {
         x: root.width - Theme.space-md - 48px - Theme.space-md - self.width;
         y: (root.height - self.height) / 2;
         label: root.track.favorite
-            ? "Remover " + root.track.title + " das Musicas curtidas do Spotify"
-            : "Adicionar " + root.track.title + " as Musicas curtidas do Spotify";
+            ? "Remover " + root.track.title + " das Músicas curtidas do Spotify"
+            : "Adicionar " + root.track.title + " às Músicas curtidas do Spotify";
         glyph: Icons.heart;
         filled: root.track.favorite;
         active: root.track.favorite;
@@ -495,12 +509,18 @@ component Card inherits Rectangle {
     callback activated();
 
     width: Layout.card-width;
-    height: Layout.card-width + 56px;
+    // A altura vem do conteudo, nao de um palpite. A versao anterior somava
+    // 56px fixos a largura para dar conta do titulo e do subtitulo, e esses
+    // 56px nao acompanhavam o tamanho de fonte nem a entrelinha do tema: em
+    // Paper os descendentes do titulo ficavam serrados na base do cartao.
+    height: conteudo.preferred-height;
     border-radius: Theme.radius-md;
     background: touch.has-hover ? Theme.surface-raised : Theme.surface;
     animate background { duration: Theme.motion-fast; }
 
-    VerticalLayout {
+    Glass { radius: Theme.radius-md; }
+
+    conteudo := VerticalLayout {
         padding: Theme.space-sm;
         spacing: Theme.space-sm;
 
@@ -541,6 +561,30 @@ component CardCollection inherits Rectangle {
     callback activated(string);
     height: collection.preferred-height;
 
+    // A grade nao anuncia largura preferida ao layout de cima, so altura.
+    //
+    // Sem isto, a largura que ela pediria dependeria de `columns`, e `columns`
+    // e calculado a partir da largura da janela: o Slint fecha o ciclo em
+    // `layoutinfo-h` e avisa que pode dar panic em tempo de execucao. A grade
+    // ocupa a largura que lhe derem e decide quantas colunas cabem -- nunca o
+    // contrario.
+    min-width: 0px;
+    preferred-width: 0px;
+    horizontal-stretch: 1;
+
+    // A celula precisa de altura propria, e o cartao dentro dela nao a
+    // fornece: o `Card` esta atras de um `if`, e um filho condicional de um
+    // Rectangle nao propaga restricao para o layout de cima. Sem isto a linha
+    // inteira media zero, todas as linhas da grade caiam no mesmo y e os
+    // cartoes apareciam empilhados uns por cima dos outros.
+    //
+    // O gabarito mede em vez de chutar: todo cartao tem a mesma altura (capa
+    // quadrada, uma linha de titulo, uma de subtitulo), entao um so instante
+    // invisivel responde pela grade toda e a medida acompanha a fonte do tema.
+    gabarito := Card {
+        visible: false;
+    }
+
     collection := VerticalLayout {
         spacing: Theme.space-md;
         alignment: start;
@@ -549,7 +593,7 @@ component CardCollection inherits Rectangle {
             alignment: start;
             for column in root.columns: Rectangle {
                 width: Layout.card-width;
-                height: Layout.card-width + 56px;
+                height: gabarito.height;
                 if row-index * root.columns + column < root.items.length: Card {
                     item: root.items[row-index * root.columns + column];
                     activated => { root.activated(root.items[row-index * root.columns + column].id); }
@@ -611,12 +655,21 @@ component TrackList inherits ListView {
 // rotulo.
 component PlaylistNavItem inherits Rectangle {
     in property <CardItem> item;
+    // As curtidas nao sao playlist do provedor e ja moram no topo: um menu que
+    // so oferece "fixar" seria um menu que nao faz nada.
+    in property <bool> pinnable: true;
     callback activated();
+    callback toggle-pin();
+
+    private property <length> menu-x;
+    private property <length> menu-y;
 
     height: Layout.sidebar-playlist-height;
     border-radius: Theme.radius-sm;
     background: touch.has-hover ? Theme.surface-raised : transparent;
     animate background { duration: Theme.motion-fast; }
+
+    if touch.has-hover: Glass { radius: Theme.radius-sm; }
 
     HorizontalLayout {
         padding-left: Theme.space-sm;
@@ -642,11 +695,68 @@ component PlaylistNavItem inherits Rectangle {
             overflow: elide;
             horizontal-stretch: 1;
         }
+
+        // A marca de fixada e um icone e nao so uma posicao: numa barra em que
+        // a ordem ja muda sozinha por recencia, estar no topo nao explica por
+        // que aquela lista esta ali.
+        if Layout.sidebar-labels-shown && root.item.pinned: Icon {
+            glyph: Icons.pin;
+            tint: Theme.accent;
+            size: 14px;
+            y: (parent.height - self.height) / 2;
+        }
     }
 
     touch := PressableArea {
-        accessible-label: "Abrir playlist " + root.item.title;
+        accessible-label: (root.item.pinned ? "Playlist fixada: " : "Abrir playlist ") + root.item.title;
         clicked => { root.activated(); }
+        context-menu-requested(mx, my) => {
+            if (root.pinnable) {
+                root.menu-x = mx;
+                root.menu-y = my;
+                menu.show();
+            }
+        }
+    }
+
+    // Menu proprio, e nao `ContextMenuArea`: no Windows o `ContextMenuArea` do
+    // Slint sai pelo `muda` como HMENU nativo, cinza do sistema -- o mesmo
+    // motivo que fez o menu da bandeja virar janela propria. Um `PopupWindow` e
+    // desenhado pelo renderizador da janela, entao cada pixel continua vindo do
+    // tema; e o `close-policy` ja fecha em clique fora e no Escape, sem veu nem
+    // encanamento extra.
+    //
+    // Declarado no corpo do componente repetido, e nao dentro do `for`: o Slint
+    // so instancia a subarvore no `show()`, entao oitenta playlists nao custam
+    // oitenta menus.
+    menu := PopupWindow {
+        x: root.menu-x;
+        y: root.menu-y;
+        width: 184px;
+        height: 34px + Theme.space-xs * 2;
+        close-policy: PopupClosePolicy.close-on-click-outside;
+
+        Rectangle {
+            border-radius: Theme.radius-md;
+            border-width: Theme.border-width;
+            border-color: Theme.border;
+            background: Theme.surface-raised;
+
+            Glass { radius: Theme.radius-md; }
+
+            VerticalLayout {
+                padding: Theme.space-xs;
+
+                MenuRow {
+                    text: root.item.pinned ? "Desafixar do topo" : "Fixar no topo";
+                    glyph: Icons.pin;
+                    clicked => {
+                        menu.close();
+                        root.toggle-pin();
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -660,6 +770,7 @@ component Sidebar inherits Rectangle {
     callback login();
     callback filter-playlists(string);
     callback open-playlist(string);
+    callback toggle-pin-playlist(string);
 
     VerticalLayout {
         padding: Theme.space-sm;
@@ -733,7 +844,7 @@ component Sidebar inherits Rectangle {
         }
 
         NavItem {
-            label: "Inicio";
+            label: "Início";
             icon: Icons.home;
             active: root.page == 0;
             clicked => { root.navigate(0); }
@@ -772,24 +883,61 @@ component Sidebar inherits Rectangle {
 
         if !Layout.sidebar-playlists: Rectangle { vertical-stretch: 1; }
 
-        if Layout.sidebar-playlists: Flickable {
+        // A lista termina sempre numa linha inteira, nunca no meio de uma.
+        //
+        // Antes ela recebia o que sobrasse de altura e a ultima playlist
+        // aparecia partida ao meio -- um retangulo orfao com meia capa e meio
+        // nome, que foi um dos tres motivos de a tela parecer trabalho de
+        // iniciante. Aqui a area util e arredondada para baixo, para o maior
+        // multiplo do passo da linha que caiba; o resto fica de fundo da barra.
+        //
+        // O `+ space-xs` no numerador existe porque n linhas tem n-1 vaos.
+        area-playlists := Rectangle {
             vertical-stretch: 1;
-            viewport-height: lista.preferred-height;
 
-            lista := VerticalLayout {
-                alignment: start;
-                spacing: Theme.space-xs;
-                width: 100%;
+            // A altura desta area vem do que o layout de cima der, e nunca do
+            // conteudo: e o que permite o filho abaixo ler `parent.height` sem
+            // realimentar o proprio layout.
+            min-height: 0px;
+            preferred-height: 0px;
 
-                for item in root.playlists: PlaylistNavItem {
-                    item: item;
-                    activated => { root.open-playlist(item.id); }
+            property <length> passo: Layout.sidebar-playlist-height + Theme.space-xs;
+            property <int> linhas-inteiras: max(1, floor((self.height + Theme.space-xs) / self.passo));
+
+            Rectangle {
+                height: min(parent.height, area-playlists.linhas-inteiras * area-playlists.passo - Theme.space-xs);
+                y: 0;
+                clip: true;
+
+                Flickable {
+                    height: 100%;
+                    viewport-height: lista.preferred-height;
+
+                    lista := VerticalLayout {
+                        alignment: start;
+                        spacing: Theme.space-xs;
+                        width: 100%;
+
+                        for item in root.playlists: PlaylistNavItem {
+                            item: item;
+                            pinnable: item.id != "liked";
+                            activated => { root.open-playlist(item.id); }
+                            toggle-pin => { root.toggle-pin-playlist(item.id); }
+                        }
+                    }
+                }
+
+                // A barra lateral tem fundo proprio: o degrade morre nele, nao
+                // no fundo da pagina.
+                ScrollFade {
+                    base: Theme.sidebar-background;
+                    active: lista.preferred-height > parent.height;
                 }
             }
         }
 
         NavItem {
-            label: "Configuracoes";
+            label: "Configurações";
             icon: Icons.settings;
             active: root.page == 3;
             clicked => { root.navigate(3); }
@@ -858,8 +1006,8 @@ component PlayerBar inherits Rectangle {
             transparent 62%);
     }
 
-    Gloss { }
-    GlassEdge { }
+    // No rodape da janela: a quina de baixo e o proprio limite da janela.
+    Glass { bottom: false; }
 
     VerticalLayout {
         padding-left: Layout.player-progress-edge ? 0px : Theme.space-lg;
@@ -917,8 +1065,8 @@ component PlayerBar inherits Rectangle {
 
                 IconButton {
                     label: root.favorite
-                        ? "Remover faixa atual das Musicas curtidas do Spotify"
-                        : "Adicionar faixa atual as Musicas curtidas do Spotify";
+                        ? "Remover faixa atual das Músicas curtidas do Spotify"
+                        : "Adicionar faixa atual às Músicas curtidas do Spotify";
                     glyph: Icons.heart;
                     filled: root.favorite;
                     active: root.favorite;
@@ -942,7 +1090,7 @@ component PlayerBar inherits Rectangle {
                     spacing: Theme.space-sm;
 
                     if Layout.player-shuffle-repeat: IconButton {
-                        label: root.shuffle ? "Desligar modo aleatorio" : "Ligar modo aleatorio";
+                        label: root.shuffle ? "Desligar modo aleatório" : "Ligar modo aleatório";
                         glyph: Icons.shuffle;
                         active: root.shuffle;
                         checkable: true;
@@ -989,7 +1137,7 @@ component PlayerBar inherits Rectangle {
                     }
 
                     IconButton {
-                        label: "Proxima faixa";
+                        label: "Próxima faixa";
                         glyph: Icons.next;
                         filled: true;
                         enabled: root.has-track;
@@ -998,8 +1146,8 @@ component PlayerBar inherits Rectangle {
 
                     if Layout.player-shuffle-repeat: IconButton {
                         label: root.repeat == 0
-                            ? "Ligar repeticao da fila"
-                            : (root.repeat == 1 ? "Repetir esta faixa" : "Desligar repeticao");
+                            ? "Ligar repetição da fila"
+                            : (root.repeat == 1 ? "Repetir esta faixa" : "Desligar repetição");
                         glyph: root.repeat == 2 ? Icons.repeat-one : Icons.repeat;
                         active: root.repeat != 0;
                         checkable: true;
@@ -1140,37 +1288,58 @@ component TrackShelf inherits VerticalLayout {
     in property <bool> queue-actions: true;
     // Oito linhas: o bastante para procurar sem tomar a tela inteira. Sai do
     // token de altura de linha para acompanhar a densidade do tema.
-    in property <length> visible-height: Layout.row-height * 8;
+    //
+    // O espacamento entre as linhas entra na conta: sao oito linhas e sete
+    // vaos. Sem os vaos, a caixa fica curta pelo tanto exato que faltava e a
+    // oitava faixa aparece serrada no meio do texto.
+    in property <length> visible-height: Layout.row-height * 8 + Theme.space-xs * 7;
 
     spacing: Theme.space-sm;
     vertical-stretch: 0;
 
     SectionTitle { text: root.title; }
 
-    Flickable {
+    Rectangle {
         // Lista curta nao ganha area vazia: o bloco encolhe para caber nela.
         height: min(root.visible-height, rows.preferred-height);
-        viewport-height: rows.preferred-height;
-        viewport-width: self.width;
 
-        rows := VerticalLayout {
-            spacing: Theme.space-xs;
-            alignment: start;
+        Flickable {
+            height: 100%;
+            viewport-height: rows.preferred-height;
+            viewport-width: self.width;
 
-            for track[i] in root.tracks: TrackListRow {
-                track: track;
-                index: i;
-                queue-actions: root.queue-actions;
-                activated => { root.activated(track.id); }
-                favorite-toggled => { root.favorite-toggled(track.id); }
-                play-next => { root.play-next(track.id); }
-                enqueue => { root.enqueue(track.id); }
+            rows := VerticalLayout {
+                spacing: Theme.space-xs;
+                alignment: start;
+
+                for track[i] in root.tracks: TrackListRow {
+                    track: track;
+                    index: i;
+                    queue-actions: root.queue-actions;
+                    activated => { root.activated(track.id); }
+                    favorite-toggled => { root.favorite-toggled(track.id); }
+                    play-next => { root.play-next(track.id); }
+                    enqueue => { root.enqueue(track.id); }
+                }
             }
+        }
+
+        // So quando ha o que rolar: numa lista de tres faixas nao ha nada
+        // alem da borda, e o degrade estaria mentindo.
+        ScrollFade {
+            base: Theme.background;
+            active: rows.preferred-height > parent.height;
         }
     }
 }
 
-component HomePage inherits Flickable {
+// As tres paginas roladas por dentro -- Inicio, Biblioteca e Fila -- sao
+// `Rectangle` com um `Flickable` dentro, e nao um `Flickable` direto. O motivo
+// e o degrade de borda: um filho declarado dentro do Flickable rola junto com
+// o conteudo e some, entao o aviso de "há mais abaixo" precisa de um pai que
+// nao role. Sem ele, a grade de cartoes terminava cortada na base nos quatro
+// temas sem nada dizendo que havia mais.
+component HomePage inherits Rectangle {
     in property <[CardItem]> made-for-you;
     in property <[CardItem]> stations;
     in property <[CardItem]> retrospectives;
@@ -1189,15 +1358,28 @@ component HomePage inherits Flickable {
         && root.retrospectives.length == 0 && root.liked.length == 0
         && root.playlists.length == 0;
 
-    viewport-height: sections.preferred-height;
+    background: transparent;
 
-    sections := VerticalLayout {
-        spacing: Theme.space-lg;
-        alignment: start;
+    // A pagina ocupa a altura que lhe derem e rola por dentro. Sem cortar a
+    // altura preferida aqui, o Rectangle repassa ao layout de cima a altura do
+    // conteudo inteiro: a pagina cresce alem da area util, o conteudo fica
+    // cortado na base e o Flickable nunca chega a rolar.
+    min-height: 0px;
+    preferred-height: 0px;
+    vertical-stretch: 1;
+
+    rolagem := Flickable {
+        width: 100%;
+        height: 100%;
+        viewport-height: sections.preferred-height;
+
+        sections := VerticalLayout {
+            spacing: Theme.space-lg;
+            alignment: start;
 
         if root.empty && !root.logged-in: EmptyState {
             title: "Nada por aqui ainda";
-            hint: "Entre na sua conta para ver suas musicas curtidas, o que voce mais ouve e suas playlists.";
+            hint: "Entre na sua conta para ver suas músicas curtidas, o que você mais ouve e suas playlists.";
             action-label: "Entrar no Spotify";
             action => { root.login(); }
         }
@@ -1208,7 +1390,7 @@ component HomePage inherits Flickable {
         }
 
         if root.liked.length > 0: TrackShelf {
-            title: "Musicas curtidas";
+            title: "Músicas curtidas";
             tracks: root.liked;
             activated(id) => { root.activated(id); }
             favorite-toggled(id) => { root.favorite-toggled(id); }
@@ -1225,13 +1407,13 @@ component HomePage inherits Flickable {
         }
 
         if root.made-for-you.length > 0: ScrollableCardShelf {
-            title: "Feito para voce";
+            title: "Feito para você";
             items: root.made-for-you;
             activated(id) => { root.activated(id); }
         }
 
         if root.stations.length > 0: ScrollableCardShelf {
-            title: "Estacoes recomendadas";
+            title: "Estações recomendadas";
             items: root.stations;
             activated(id) => { root.activated(id); }
         }
@@ -1241,6 +1423,12 @@ component HomePage inherits Flickable {
             items: root.retrospectives;
             activated(id) => { root.activated(id); }
         }
+        }
+    }
+
+    ScrollFade {
+        base: Theme.background;
+        active: sections.preferred-height > rolagem.height;
     }
 }
 
@@ -1269,7 +1457,7 @@ component SearchPage inherits VerticalLayout {
     spacing: Theme.space-md;
 
     SearchField {
-        placeholder: "O que voce quer ouvir?";
+        placeholder: "O que você quer ouvir?";
         text: root.query;
         edited(q) => {
             root.pending-query = q;
@@ -1285,12 +1473,12 @@ component SearchPage inherits VerticalLayout {
 
     if root.searching: EmptyState {
         title: "Buscando";
-        hint: "Procurando faixas, albuns, artistas e playlists para voce.";
+        hint: "Procurando faixas, álbuns, artistas e playlists para você.";
     }
 
     if !root.searching && root.tracks.length == 0 && root.items.length == 0 && root.query == "": EmptyState {
-        title: "Busque por musica";
-        hint: "Digite uma faixa, album, artista ou playlist. A busca comeca enquanto voce escreve.";
+        title: "Busque por música";
+        hint: "Digite uma faixa, álbum, artista ou playlist. A busca começa enquanto você escreve.";
     }
 
     if !root.searching && root.tracks.length == 0 && root.items.length == 0 && root.query != "": EmptyState {
@@ -1317,7 +1505,7 @@ component SearchPage inherits VerticalLayout {
 
             if root.items.length > 0: VerticalLayout {
                 spacing: Theme.space-sm;
-                SectionTitle { text: "Albuns, artistas e playlists"; }
+                SectionTitle { text: "Álbuns, artistas e playlists"; }
                 CardCollection {
                     items: root.items;
                     columns: root.grid-columns;
@@ -1328,7 +1516,7 @@ component SearchPage inherits VerticalLayout {
     }
 }
 
-component LibraryPage inherits Flickable {
+component LibraryPage inherits Rectangle {
     in property <[CardItem]> items;
     in property <bool> logged-in;
     in property <int> grid-columns: 5;
@@ -1339,25 +1527,38 @@ component LibraryPage inherits Flickable {
     callback enqueue(string);
     callback explore();
 
-    viewport-height: content.preferred-height;
+    background: transparent;
 
-    content := VerticalLayout {
+    // A pagina ocupa a altura que lhe derem e rola por dentro. Sem cortar a
+    // altura preferida aqui, o Rectangle repassa ao layout de cima a altura do
+    // conteudo inteiro: a pagina cresce alem da area util, o conteudo fica
+    // cortado na base e o Flickable nunca chega a rolar.
+    min-height: 0px;
+    preferred-height: 0px;
+    vertical-stretch: 1;
+
+    rolagem := Flickable {
+        width: 100%;
+        height: 100%;
+        viewport-height: content.preferred-height;
+
+        content := VerticalLayout {
         spacing: Theme.space-lg;
         alignment: start;
 
         SectionTitle { text: "Biblioteca"; }
 
         if root.items.length == 0 && !root.logged-in: EmptyState {
-            title: "Sua biblioteca comeca aqui";
-            hint: "Entre no Spotify para ver sua biblioteca e suas Musicas curtidas.";
+            title: "Sua biblioteca começa aqui";
+            hint: "Entre no Spotify para ver sua biblioteca e suas Músicas curtidas.";
             action-label: "Entrar no Spotify";
             action => { root.login(); }
         }
 
         if root.items.length == 0 && root.logged-in: EmptyState {
-            title: "Sua biblioteca esta vazia";
-            hint: "Use o coracao para salvar no Spotify. Suas Musicas curtidas ficam na barra lateral.";
-            action-label: "Explorar musicas";
+            title: "Sua biblioteca está vazia";
+            hint: "Use o coração para salvar no Spotify. Suas Músicas curtidas ficam na barra lateral.";
+            action-label: "Explorar músicas";
             action => { root.explore(); }
         }
 
@@ -1371,6 +1572,12 @@ component LibraryPage inherits Flickable {
             }
         }
 
+        }
+    }
+
+    ScrollFade {
+        base: Theme.background;
+        active: content.preferred-height > rolagem.height;
     }
 }
 
@@ -1393,6 +1600,8 @@ component SortChip inherits Rectangle {
         ? Theme.surface-raised
         : (toque.has-hover ? Theme.hover : transparent);
     animate background { duration: Theme.motion-fast; }
+
+    if root.active || toque.has-hover: Glass { radius: Theme.radius-sm; }
 
     rotulo := Text {
         // A seta so aparece no criterio ativo: repetida em todos, viraria
@@ -1524,9 +1733,13 @@ component DetailPage inherits VerticalLayout {
             spacing: Theme.space-md;
 
             Text {
+                // O singular tambem passa por aqui: uma lista de uma faixa so
+                // dizia "1 faixas carregadas".
                 text: root.loading
                     ? "Carregando mais faixas..."
-                    : root.loaded-count + " faixas carregadas";
+                    : root.loaded-count == 1
+                        ? "1 faixa carregada"
+                        : root.loaded-count + " faixas carregadas";
                 color: Theme.text-muted;
                 font-size: Theme.size-sm;
                 font-family: Theme.font-family;
@@ -1567,7 +1780,7 @@ component DetailPage inherits VerticalLayout {
             clicked => { root.sort-by(0); }
         }
         SortChip {
-            label: "Titulo";
+            label: "Título";
             active: root.sort == 1;
             descending: root.descending;
             clicked => { root.sort-by(1); }
@@ -1579,13 +1792,13 @@ component DetailPage inherits VerticalLayout {
             clicked => { root.sort-by(2); }
         }
         SortChip {
-            label: "Album";
+            label: "Álbum";
             active: root.sort == 3;
             descending: root.descending;
             clicked => { root.sort-by(3); }
         }
         SortChip {
-            label: "Duracao";
+            label: "Duração";
             active: root.sort == 4;
             descending: root.descending;
             clicked => { root.sort-by(4); }
@@ -1596,7 +1809,7 @@ component DetailPage inherits VerticalLayout {
     // busca nao achou, a outra que nao ha nada.
     if root.tracks.length == 0 && root.filtered: EmptyState {
         title: "Nada com esse texto";
-        hint: "Nenhuma faixa desta lista combina com o que voce digitou.";
+        hint: "Nenhuma faixa desta lista combina com o que você digitou.";
     }
 
     if root.kind == "Artista" && root.tracks.length > 0: SectionTitle {
@@ -1628,7 +1841,7 @@ component ManagedQueueShelf inherits VerticalLayout {
     vertical-stretch: 0;
 
     HorizontalLayout {
-        SectionTitle { text: "Tocara a seguir"; horizontal-stretch: 1; }
+        SectionTitle { text: "Tocará a seguir"; horizontal-stretch: 1; }
         GhostButton {
             label: "Limpar";
             clicked => { root.clear(); }
@@ -1650,7 +1863,7 @@ component ManagedQueueShelf inherits VerticalLayout {
     }
 }
 
-component QueuePage inherits Flickable {
+component QueuePage inherits Rectangle {
     in property <[TrackRow]> manual-tracks;
     in property <[TrackRow]> context-tracks;
     callback activated(string);
@@ -1661,9 +1874,22 @@ component QueuePage inherits Flickable {
     callback clear();
     callback explore();
 
-    viewport-height: content.preferred-height;
+    background: transparent;
 
-    content := VerticalLayout {
+    // A pagina ocupa a altura que lhe derem e rola por dentro. Sem cortar a
+    // altura preferida aqui, o Rectangle repassa ao layout de cima a altura do
+    // conteudo inteiro: a pagina cresce alem da area util, o conteudo fica
+    // cortado na base e o Flickable nunca chega a rolar.
+    min-height: 0px;
+    preferred-height: 0px;
+    vertical-stretch: 1;
+
+    rolagem := Flickable {
+        width: 100%;
+        height: 100%;
+        viewport-height: content.preferred-height;
+
+        content := VerticalLayout {
         spacing: Theme.space-lg;
         alignment: start;
 
@@ -1671,8 +1897,8 @@ component QueuePage inherits Flickable {
 
         if root.manual-tracks.length == 0 && root.context-tracks.length == 0: EmptyState {
             title: "Fila vazia";
-            hint: "Use os controles de uma faixa para toca-la a seguir ou adicionar ao fim.";
-            action-label: "Buscar musica";
+            hint: "Use os controles de uma faixa para tocá-la a seguir ou adicionar ao fim.";
+            action-label: "Buscar música";
             action => { root.explore(); }
         }
 
@@ -1692,6 +1918,12 @@ component QueuePage inherits Flickable {
             activated(id) => { root.activated(id); }
             favorite-toggled(id) => { root.favorite-toggled(id); }
         }
+        }
+    }
+
+    ScrollFade {
+        base: Theme.background;
+        active: content.preferred-height > rolagem.height;
     }
 }
 
@@ -1796,6 +2028,8 @@ component ThemeRow inherits Rectangle {
     border-radius: Theme.radius-md;
     background: root.item.active ? Theme.selected : (touch.has-hover ? Theme.hover : Theme.surface);
     animate background { duration: Theme.motion-fast; }
+
+    Glass { radius: Theme.radius-md; }
 
     // Fica atras do conteudo: os botoes Duplicar e Exportar continuam com
     // alvos independentes, em vez de o clique ser roubado pela linha inteira.
@@ -2032,14 +2266,14 @@ component SettingsPage inherits VerticalLayout {
             spacing: Theme.space-md;
             alignment: start;
 
-            SectionTitle { text: "Configuracoes"; }
+            SectionTitle { text: "Configurações"; }
 
             HorizontalLayout {
                 spacing: Theme.space-sm;
                 height: 34px;
 
                 Text {
-                    text: root.logged-in ? root.account-name : "Nao conectado";
+                    text: root.logged-in ? root.account-name : "Não conectado";
                     color: Theme.text-muted;
                     font-size: Theme.size-md;
                     font-family: Theme.font-family;
@@ -2068,8 +2302,8 @@ component SettingsPage inherits VerticalLayout {
             }
 
             SettingRow {
-                label: "Continuar com radio";
-                hint: "Quando a fila acabar, toca uma estacao baseada na ultima faixa.";
+                label: "Continuar com rádio";
+                hint: "Quando a fila acabar, toca uma estação baseada na última faixa.";
                 checked: root.autoplay;
                 toggled(v) => { root.set-autoplay(v); }
             }
@@ -2080,11 +2314,11 @@ component SettingsPage inherits VerticalLayout {
                     VerticalLayout {
                         alignment: center;
                         horizontal-stretch: 1;
-                        Text { text: "Saida de audio"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
+                        Text { text: "Saída de áudio"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
                         Text { text: "Segue o dispositivo escolhido no Windows."; color: Theme.text-muted; font-size: Theme.size-xs; font-family: Theme.font-family; }
                     }
                     Text {
-                        text: "Padrao do Windows";
+                        text: "Padrão do Windows";
                         color: Theme.text-muted;
                         font-size: Theme.size-sm;
                         font-family: Theme.font-family;
@@ -2102,13 +2336,13 @@ component SettingsPage inherits VerticalLayout {
 
             SettingRow {
                 label: "Iniciar com o Windows";
-                hint: "Abre em segundo plano na bandeja quando voce entra no Windows.";
+                hint: "Abre em segundo plano na bandeja quando você entra no Windows.";
                 checked: root.start-with-windows;
                 toggled(v) => { root.set-start-with-windows(v); }
             }
 
             Text {
-                text: "Aparencia";
+                text: "Aparência";
                 color: Theme.text;
                 font-size: Theme.size-md;
                 font-weight: Theme.weight-bold;
@@ -2116,7 +2350,7 @@ component SettingsPage inherits VerticalLayout {
             }
 
             Text {
-                text: "Estes ajustes sao seus, nao do tema: trocar de tema nao desfaz nenhum deles.";
+                text: "Estes ajustes são seus, não do tema: trocar de tema não desfaz nenhum deles.";
                 color: Theme.text-muted;
                 font-size: Theme.size-xs;
                 font-family: Theme.font-family;
@@ -2204,7 +2438,7 @@ component SettingsPage inherits VerticalLayout {
 
             if root.has-background: SettingSlider {
                 label: "Escurecer o fundo";
-                hint: "Veu sobre a imagem. Sem ele, uma foto clara apaga o texto.";
+                hint: "Véu sobre a imagem. Sem ele, uma foto clara apaga o texto.";
                 value: root.background-tint;
                 value-text: round(root.background-tint * 100) + "%";
                 changed(v) => { root.set-background-tint(v); }
@@ -2212,15 +2446,15 @@ component SettingsPage inherits VerticalLayout {
 
             if root.has-background: SettingSlider {
                 label: "Desfoque";
-                hint: "Aplicado uma vez ao carregar; nao custa nada enquanto voce joga.";
+                hint: "Aplicado uma vez ao carregar; não custa nada enquanto você joga.";
                 value: root.background-blur;
                 value-text: round(root.background-blur * 64) + "px";
                 changed(v) => { root.set-background-blur(v); }
             }
 
             SettingSlider {
-                label: "Transparencia da janela";
-                hint: "Deixa ver o que esta atras. Vale para qualquer tema, e o tema nao desfaz.";
+                label: "Transparência da janela";
+                hint: "Deixa ver o que está atrás. Vale para qualquer tema, e o tema não desfaz.";
                 value: root.window-opacity;
                 value-text: round(root.window-opacity * 80) + "%";
                 changed(v) => { root.set-window-opacity(v); }
@@ -2235,8 +2469,8 @@ component SettingsPage inherits VerticalLayout {
             }
 
             SettingRow {
-                label: "Reduzir animacoes";
-                hint: "Desliga as transicoes, mesmo que o tema peca por elas.";
+                label: "Reduzir animações";
+                hint: "Desliga as transições, mesmo que o tema peça por elas.";
                 checked: root.reduce-motion;
                 toggled(v) => { root.set-reduce-motion(v); }
             }
@@ -2251,13 +2485,13 @@ component SettingsPage inherits VerticalLayout {
 
             SettingRow {
                 label: "Recarregar tema ao salvar";
-                hint: "Observa a pasta de temas e aplica assim que voce salva o arquivo.";
+                hint: "Observa a pasta de temas e aplica assim que você salva o arquivo.";
                 checked: root.hot-reload;
                 toggled(v) => { root.set-hot-reload(v); }
             }
 
             Text {
-                text: "A troca e imediata. Voce pode voltar ao tema padrao a qualquer momento.";
+                text: "A troca é imediata. Você pode voltar ao tema padrão a qualquer momento.";
                 color: Theme.text-muted;
                 font-size: Theme.size-xs;
                 font-family: Theme.font-family;
@@ -2295,7 +2529,7 @@ component SettingsPage inherits VerticalLayout {
                     }
 
                     GhostButton {
-                        label: "Usar tema padrao";
+                        label: "Usar tema padrão";
                         clicked => { root.reset-theme(); }
                     }
                 }
@@ -2314,7 +2548,7 @@ component SettingsPage inherits VerticalLayout {
                 }
 
                 if root.diagnostics.length > 0: Text {
-                    text: "Diagnosticos do tema";
+                    text: "Diagnósticos do tema";
                     color: Theme.text;
                     font-size: Theme.size-md;
                     font-weight: Theme.weight-bold;
@@ -2325,6 +2559,8 @@ component SettingsPage inherits VerticalLayout {
                     height: diag.preferred-height + Theme.space-sm * 2;
                     border-radius: Theme.radius-sm;
                     background: Theme.surface;
+
+                    Glass { radius: Theme.radius-sm; }
 
                     diag := Text {
                         text: d.field + ": " + d.message;
@@ -2400,20 +2636,32 @@ export component AppWindow inherits Window {
     in property <bool> start-with-windows: false;
     private property <bool> shortcuts-visible: false;
     in-out property <bool> mini-player: false;
+    // Quantas colunas cabem na area de conteudo.
+    //
+    // Calculado em handler, e nao como binding, de proposito: a largura da
+    // janela depende do que o conteudo pede, e a grade depende da largura da
+    // janela. Escrito de forma declarativa isso fecha um ciclo em
+    // `layoutinfo-h`, que o Slint aceita mas avisa que pode virar panic em
+    // execucao. O handler le a largura sem entrar na cadeia de layout.
+    //
+    // O `+ space-md` no numerador existe porque n colunas tem n-1 vaos: sem
+    // ele a conta cobra um espacamento a mais e perde uma coluna inteira nas
+    // larguras de fronteira.
     property <int> grid-columns: 5;
     private property <bool> sidebar-is-collapsed: Layout.sidebar-collapsed;
-    changed width => {
-        root.grid-columns = max(1, floor((root.width
+    pure function colunas-que-cabem() -> int {
+        return max(1, floor((root.width
             - (Layout.sidebar-collapsed ? Layout.sidebar-collapsed-width : Layout.sidebar-width)
             - Theme.space-lg * 2 + Theme.space-md)
             / (Layout.card-width + Theme.space-md)));
     }
-    changed sidebar-is-collapsed => {
-        root.grid-columns = max(1, floor((root.width
-            - (Layout.sidebar-collapsed ? Layout.sidebar-collapsed-width : Layout.sidebar-width)
-            - Theme.space-lg * 2 + Theme.space-md)
-            / (Layout.card-width + Theme.space-md)));
-    }
+    // Sem este `init`, o valor de abertura ficava no default fixo de 5 ate
+    // alguem redimensionar a janela: na largura padrao cabem quatro, e a
+    // quinta coluna sangrava pela borda direita da grade -- em todos os temas,
+    // toda vez que o aplicativo abria.
+    init => { root.grid-columns = root.colunas-que-cabem(); }
+    changed width => { root.grid-columns = root.colunas-que-cabem(); }
+    changed sidebar-is-collapsed => { root.grid-columns = root.colunas-que-cabem(); }
 
     // --- eventos para o Rust ---
     callback navigate(int);
@@ -2465,6 +2713,7 @@ export component AppWindow inherits Window {
     callback reload-theme();
     callback toggle-sidebar();
     callback filter-playlists(string);
+    callback toggle-pin-playlist(string);
     callback detail-back();
     callback detail-play();
     callback detail-filter(string);
@@ -2584,6 +2833,10 @@ export component AppWindow inherits Window {
                 background: Theme.sidebar-background;
                 animate width { duration: Theme.motion-normal; easing: ease-in-out; }
 
+                // Coluna de altura inteira: a base encosta na barra de
+                // reproducao, e a luz de retorno viraria um risco entre as duas.
+                Glass { bottom: false; }
+
                 Sidebar {
                     width: 100%;
                     height: 100%;
@@ -2596,6 +2849,7 @@ export component AppWindow inherits Window {
                     login => { root.login(); }
                     filter-playlists(q) => { root.filter-playlists(q); }
                     open-playlist(id) => { root.play-track(id); }
+                    toggle-pin-playlist(id) => { root.toggle-pin-playlist(id); }
                 }
             }
 
@@ -2742,10 +2996,7 @@ export component AppWindow inherits Window {
                     border-color: Theme.border;
                     clip: true;
 
-                    // Recuado pelo raio: sem isso a linha reta atravessaria a
-                    // curva do canto e apareceria uma ponta fora do painel.
-                    Gloss { radius: Theme.radius-md; }
-                    GlassEdge { inset: Theme.radius-md / 2; }
+                    Glass { radius: Theme.radius-md; }
 
                     status-text := Text {
                         text: root.status-message;
@@ -2797,6 +3048,8 @@ export component AppWindow inherits Window {
                     background: Theme.surface-raised;
                     opacity: 0.92;
 
+                    Glass { radius: Theme.radius-sm; }
+
                     perf := Text {
                         text: root.perf-text;
                         color: Theme.text-muted;
@@ -2815,6 +3068,10 @@ export component AppWindow inherits Window {
                 background: Theme.sidebar-background;
                 animate width { duration: Theme.motion-normal; easing: ease-in-out; }
 
+                // Coluna de altura inteira: a base encosta na barra de
+                // reproducao, e a luz de retorno viraria um risco entre as duas.
+                Glass { bottom: false; }
+
                 Sidebar {
                     width: 100%;
                     height: 100%;
@@ -2827,6 +3084,7 @@ export component AppWindow inherits Window {
                     login => { root.login(); }
                     filter-playlists(q) => { root.filter-playlists(q); }
                     open-playlist(id) => { root.play-track(id); }
+                    toggle-pin-playlist(id) => { root.toggle-pin-playlist(id); }
                 }
             }
         }
@@ -2875,6 +3133,8 @@ export component AppWindow inherits Window {
             border-width: Theme.border-width;
             border-color: Theme.border;
 
+            Glass { radius: Theme.radius-lg; }
+
             VerticalLayout {
                 padding: Theme.space-xl;
                 spacing: Theme.space-md;
@@ -2896,9 +3156,9 @@ export component AppWindow inherits Window {
                 }
 
                 Text { text: "Ctrl + K     Buscar"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
-                Text { text: "Ctrl + ,     Configuracoes"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
-                Text { text: "Espaco       Reproduzir ou pausar"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
-                Text { text: "Ctrl + →     Proxima faixa"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
+                Text { text: "Ctrl + ,     Configurações"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
+                Text { text: "Espaço       Reproduzir ou pausar"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
+                Text { text: "Ctrl + →     Próxima faixa"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
                 Text { text: "Ctrl + ←     Faixa anterior"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
                 Text { text: "Alt + ←      Voltar"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
                 Text { text: "Ctrl + /     Mostrar estes atalhos"; color: Theme.text-muted; font-size: Theme.size-md; font-family: Theme.font-family; }
@@ -2953,54 +3213,6 @@ export component AppWindow inherits Window {
 
 // --- menu da bandeja ---
 
-// Linha de acao do menu da bandeja.
-//
-// O menu nativo do Windows nao aceita estilo: e um HMENU desenhado pelo
-// sistema. Trocado por uma janela propria, cada item volta a ser um retangulo
-// comum -- e o realce de hover passa a ser o mesmo dos itens de navegacao da
-// janela principal, em vez do azul do sistema.
-component TrayMenuItem inherits Rectangle {
-    in property <string> text;
-    in property <IconRef> glyph;
-    in property <brush> tint: Theme.text;
-    callback clicked();
-
-    height: 34px;
-    border-radius: Theme.radius-sm;
-    background: touch.has-hover ? Theme.hover : transparent;
-
-    animate background { duration: Theme.motion-fast; }
-
-    HorizontalLayout {
-        padding-left: Theme.space-sm;
-        padding-right: Theme.space-sm;
-        spacing: Theme.space-sm;
-
-        Icon {
-            glyph: root.glyph;
-            tint: root.tint;
-            size: 16px;
-            y: (parent.height - self.height) / 2;
-        }
-
-        Text {
-            text: root.text;
-            color: root.tint;
-            font-size: Theme.size-md;
-            font-family: Theme.font-family;
-            vertical-alignment: center;
-            horizontal-alignment: left;
-            overflow: elide;
-        }
-    }
-
-    touch := PressableArea {
-        accessible-label: root.text;
-        focus-radius: Theme.radius-sm;
-        clicked => { root.clicked(); }
-    }
-}
-
 // Menu da bandeja, no lugar do menu nativo do Windows.
 //
 // Existe so enquanto esta aberto: o Rust cria a janela ao clique com o botao
@@ -3013,11 +3225,13 @@ export component TrayMenuWindow inherits Window {
     in property <image> now-cover;
     in property <bool> playing: false;
     in property <bool> has-track: false;
+    in property <float> volume: 0.7;
 
     callback show-window();
     callback toggle-play();
     callback next();
     callback previous();
+    callback set-volume(float);
     callback quit();
     callback dismiss();
 
@@ -3026,8 +3240,11 @@ export component TrayMenuWindow inherits Window {
     // A janela e do tamanho do cartao: sem moldura, o Windows nao acrescenta
     // nada em volta, e a sombra fica por conta do proprio Windows.
     width: 272px;
-    height: root.has-track ? 214px : 158px;
-    background: Theme.surface-raised;
+    height: root.has-track ? 240px : 184px;
+    // A janela nao pinta nada: quem pinta e o cartao, que tem canto
+    // arredondado. Pintar aqui deixaria os quatro cantos quadrados por tras
+    // dele.
+    background: transparent;
     default-font-family: Theme.font-family;
     default-font-size: Theme.size-md;
     forward-focus: keys;
@@ -3046,7 +3263,30 @@ export component TrayMenuWindow inherits Window {
         border-radius: Theme.radius-md;
         border-width: Theme.border-width;
         border-color: Theme.border;
-        background: Theme.surface-raised;
+        // Piso opaco, e nao o `surface-raised` direto.
+        //
+        // Os temas de vidro descrevem as superficies com alfa baixo -- na
+        // Bruma, `surface-raised` e branco a 18% -- contando com o fundo da
+        // janela por tras. A janela principal tem esse piso; o menu da
+        // bandeja nao tinha nenhum, e o cartao saia branco: texto claro sobre
+        // branco, ilegivel. Aqui o piso e o proprio fundo do tema, sem alfa,
+        // e a superficie de vidro vem por cima dele como em qualquer painel.
+        background: Theme.background.with-alpha(1.0);
+
+        Rectangle {
+            border-radius: Theme.radius-md;
+            background: Theme.surface-raised;
+        }
+
+        // Vidro aqui e a aresta, sem o brilho.
+        //
+        // O `Gloss` desenha a luz caindo na quina de cima e morre em 62% da
+        // altura de quem hospeda. Num painel da janela isso e uma faixa
+        // estreita bem acima do texto; num cartao de 240 px o degrade cobre o
+        // titulo, e branco sobre branco e exatamente o defeito que este menu
+        // tinha. Confinar o brilho a uma faixa nao resolve: a faixa cai em
+        // cima da primeira linha, que e onde o nome da faixa vive.
+        GlassEdge { radius: Theme.radius-md; }
 
         VerticalLayout {
             padding: Theme.space-sm;
@@ -3134,18 +3374,43 @@ export component TrayMenuWindow inherits Window {
                 height: 44px;
             }
 
+            // O volume vale com ou sem faixa: e a razao mais comum de abrir a
+            // bandeja com o jogo em primeiro plano, e mexer nele nao depende de
+            // haver algo tocando agora.
+            HorizontalLayout {
+                padding-left: Theme.space-xs;
+                padding-right: Theme.space-xs;
+                padding-bottom: Theme.space-xs;
+                spacing: Theme.space-sm;
+
+                Icon {
+                    glyph: Icons.volume;
+                    tint: Theme.text-muted;
+                    size: Theme.control-icon-size;
+                    y: (parent.height - self.size) / 2;
+                }
+
+                volume-slider := Slider {
+                    label: "Volume";
+                    value: root.volume;
+                    y: (parent.height - self.height) / 2;
+                    changed(v) => { root.set-volume(v); }
+                    committed(v) => { root.set-volume(v); }
+                }
+            }
+
             Rectangle {
                 height: Theme.border-width;
                 background: Theme.border;
             }
 
-            TrayMenuItem {
+            MenuRow {
                 text: "Abrir Morune";
                 glyph: Icons.home;
                 clicked => { root.show-window(); }
             }
 
-            TrayMenuItem {
+            MenuRow {
                 text: "Sair do Morune";
                 glyph: Icons.close;
                 tint: Theme.danger;

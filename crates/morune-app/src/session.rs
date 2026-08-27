@@ -104,7 +104,7 @@ impl Session {
                 tracing::error!(error = %e, "backend do Spotify indisponivel");
                 Self {
                     backend: None,
-                    state: SessionState::Failed(format!("Spotify indisponivel: {e}")),
+                    state: SessionState::Failed(format!("Spotify indisponível: {e}")),
                     pending: None,
                     browse: None,
                 }
@@ -174,10 +174,10 @@ impl Session {
     /// Devolve a mensagem que a interface deve mostrar enquanto espera.
     pub fn login(&mut self) -> String {
         let Some(backend) = &self.backend else {
-            return "Backend do Spotify indisponivel nesta maquina.".into();
+            return "Não foi possível iniciar o Spotify nesta máquina. Feche e abra o Morune para tentar de novo.".into();
         };
         if self.pending.is_some() {
-            return "Ja ha um login em andamento; conclua no navegador.".into();
+            return "Já há um login em andamento. Conclua no navegador.".into();
         }
 
         let (tx, rx) = std::sync::mpsc::channel();
@@ -297,10 +297,16 @@ fn describe(error: &CoreError) -> String {
         // Ja vem pronta do backend, que e quem sabe o nome do plano. Repetir
         // aqui so faria a frase envelhecer em dois lugares.
         CoreError::AccountPlan(message) => message.clone(),
-        CoreError::Network(_) => "Sem conexao com o Spotify. Verifique a internet.".into(),
+        CoreError::Network(_) => "Sem conexão com o Spotify. Verifique a internet.".into(),
         CoreError::Cancelled => "Login cancelado.".into(),
-        CoreError::AudioDevice(_) => "Nenhum dispositivo de audio disponivel.".into(),
-        other => format!("Nao foi possivel entrar: {other}"),
+        CoreError::AudioDevice(_) => "Nenhum dispositivo de áudio disponível.".into(),
+        // A frase tecnica do erro vai para o log, nao para a barra de
+        // status: "Nao foi possivel entrar: Io(Os { code: 10061 ... })"
+        // nao ajuda ninguem a entrar.
+        other => {
+            tracing::error!(error = %other, "login no Spotify falhou");
+            "Não foi possível entrar no Spotify. Tente de novo em instantes.".into()
+        }
     }
 }
 
@@ -397,10 +403,10 @@ mod tests {
         // O caso mais comum de quem baixa um player aberto: conta gratuita.
         // A frase vem do backend inteira, sem "tente de novo" grudado nela.
         let message = describe(&CoreError::AccountPlan(
-            "O Spotify so entrega musica para contas Premium, e esta e free.".into(),
+            "O Spotify só entrega música para contas Premium, e esta é free.".into(),
         ));
         assert!(message.contains("Premium"));
-        assert!(!message.contains("Nao foi possivel entrar"));
+        assert!(!message.contains("Não foi possível entrar"));
     }
 
     use std::time::Duration;

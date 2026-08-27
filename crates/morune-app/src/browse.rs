@@ -41,7 +41,7 @@ pub(crate) const SHELF_TRACKS: u32 = 50;
 ///
 /// Aparece na barra lateral, na prateleira do Inicio e como origem da fila.
 /// Escrito tres vezes, envelheceria em tres lugares.
-pub const LIKED_TITLE: &str = "Musicas curtidas";
+pub const LIKED_TITLE: &str = "Músicas curtidas";
 
 /// Quantas faixas a tela pede por vez.
 ///
@@ -602,7 +602,7 @@ async fn resolve(
                     .map(|a| a.name.as_ref())
                     .collect::<Vec<_>>()
                     .join(", "),
-                kind: "Album".into(),
+                kind: "Álbum".into(),
                 cover: cover(&album.images),
                 cover_path: None,
                 total_tracks: album.total_tracks,
@@ -647,7 +647,7 @@ async fn resolve(
                 origin: QueueOrigin::Custom(LIKED_TITLE.into()),
                 title: LIKED_TITLE.into(),
                 subtitle: format!("{total} faixas"),
-                kind: "Colecao".into(),
+                kind: "Coleção".into(),
                 cover: String::new(),
                 cover_path: None,
                 tracks: page.items,
@@ -724,7 +724,7 @@ fn album_ref_card(a: &morune_core::model::AlbumRef) -> Card {
     Card {
         tag: Target::Album(a.id.clone()).tag(),
         title: a.name.to_string(),
-        subtitle: "Album".into(),
+        subtitle: "Álbum".into(),
         cover: cover(&a.images),
         cover_path: None,
     }
@@ -785,10 +785,10 @@ fn describe(error: &CoreError) -> String {
             "Entre na sua conta do Spotify para ver isto.".into()
         }
         CoreError::AccountPlan(message) => message.clone(),
-        CoreError::Network(_) => "Sem conexao com o Spotify. Verifique a internet.".into(),
-        CoreError::NotFound(_) => "Isso nao existe mais no Spotify.".into(),
-        CoreError::Decode(_) => "O Spotify respondeu de um jeito que o Morune nao entendeu.".into(),
-        other => format!("Nao foi possivel consultar o Spotify: {other}"),
+        CoreError::Network(_) => "Sem conexão com o Spotify. Verifique a internet.".into(),
+        CoreError::NotFound(_) => "Isso não existe mais no Spotify.".into(),
+        CoreError::Decode(_) => "O Spotify respondeu de um jeito que o Morune não entendeu.".into(),
+        other => format!("Não foi possível consultar o Spotify: {other}"),
     }
 }
 
@@ -967,7 +967,7 @@ mod tests {
     fn error_messages_say_what_to_do_next() {
         assert!(describe(&CoreError::NotAuthenticated).contains("Entre na sua conta"));
         assert!(describe(&CoreError::Network("timeout".into())).contains("internet"));
-        assert!(describe(&CoreError::NotFound("faixa".into())).contains("nao existe"));
+        assert!(describe(&CoreError::NotFound("faixa".into())).contains("não existe"));
     }
 
     // Mantem o modulo honesto quanto ao tipo que ele espera do catalogo: se o
