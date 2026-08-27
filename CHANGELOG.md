@@ -7,7 +7,32 @@ Versionamento semantico.
 
 ### Adicionado
 
+**Barra lateral**
+- **Todas as playlists da conta na barra lateral**, e nao so as suas e as
+  editoriais. Daily Mix, Descobertas da Semana, mixes de artista e "Suas
+  musicas mais ouvidas" viviam so nas prateleiras do Inicio; quem procurava por
+  elas na lateral -- o gesto normal de quem vem do Spotify -- nao as encontrava.
+  As prateleiras do Inicio continuam iguais.
+- **Fixar playlist no topo**, com o botao direito ou a tecla Menu. A escolha
+  fica no `config.toml` (`navigation.pinned_playlists`) e sobrevive a reabrir o
+  aplicativo. O menu e desenhado pelo proprio aplicativo, com as cores do tema:
+  o menu de contexto nativo do Windows nao aceita estilo.
+- Icone `pin` entra na lista de icones que um tema pode substituir.
+
 **Vidro, fundo e a cor do que esta tocando**
+- **O vidro passa a valer para a interface inteira.** `Gloss` e `GlassEdge`
+  existiam so na barra de reproducao e no aviso de status; agora toda superficie
+  do layout usa o componente `Glass` -- barra lateral, cartoes, campos, menus,
+  dialogos, linhas de faixa e itens de navegacao sob o cursor.
+- **O realce fecha o contorno inteiro, seguindo o raio.** Antes eram duas
+  linhas retas recuadas, que terminavam antes da curva e deixavam um corte reto
+  no canto. Agora e a borda de um retangulo com o raio do hospedeiro, de uma
+  intensidade so -- a direcao da luz fica por conta do `Gloss`, que e
+  preenchimento e aceita gradiente de verdade. Sem a quina de baixo o painel
+  parecia recorte em papel.
+- **O Bruma perdeu o azul.** Vidro nao tem cor propria -- `accent`,
+  `accent_hover` e `focus_ring` viraram branco fosco. Com o azul, o botao de
+  tocar era o unico objeto da tela que nao parecia da mesma materia.
 - **Imagem de fundo**, por tema e por usuario. Decodificada, reduzida e
   desfocada uma unica vez no carregamento -- um fundo que recalculasse desfoque
   a cada repaint disputaria GPU com o jogo pelo resto da sessao.
@@ -37,8 +62,98 @@ Versionamento semantico.
   reducao de animacoes. `font_scale_override` e `reduce_motion` ja existiam no
   arquivo de configuracao e nao tinham controle nenhum.
 - **Botao de parar** na barra de reproducao, opcional e desligado por padrao.
+- **Barra de volume no menu da bandeja.** Vale com ou sem faixa tocando: e a
+  razao mais comum de abrir a bandeja com o jogo em primeiro plano.
 
 ### Corrigido
+
+- **A grade abria sempre com uma coluna a mais do que cabia, e o ultimo cartao
+  sangrava pela borda direita.** O numero de colunas so era calculado em
+  `changed width` e em `changed sidebar-collapsed`: enquanto ninguem
+  redimensionasse a janela valia o default fixo de cinco, e na largura padrao
+  cabem quatro. Passou a ser calculado tambem no `init`. O calculo continua em
+  handler, e nao como binding declarativo: a largura da janela depende do que o
+  conteudo pede, entao a versao declarativa fecha um ciclo em `layoutinfo-h`
+  que o Slint aceita mas avisa que pode virar panic em execucao.
+
+- **Inicio, Biblioteca e Fila terminavam cortadas na base, sem nada dizendo que
+  havia mais abaixo.** As tres eram `Flickable` direto, e um degrade declarado
+  dentro de um Flickable rola junto com o conteudo e some. Viraram `Rectangle`
+  com o `Flickable` dentro e o `ScrollFade` por cima -- com a altura preferida
+  cortada na raiz, senao a pagina cresce alem da area util e o conteudo fica
+  cortado sem nunca chegar a rolar.
+
+- **A interface falava portugues sem acento nenhum.** "Configuracoes",
+  "Musicas curtidas", "Voce", "Aparencia" -- 198 textos escritos como se o
+  aplicativo nao soubesse escrever a propria lingua, ao lado de nomes de
+  playlist do Spotify que chegam acentuados e sempre renderizaram bem. Nao era
+  limitacao de fonte nem de renderizador: foi conferido trocando tres palavras
+  e capturando a tela. Agora a interface escreve como se escreve.
+
+- **"1 faixas".** As mensagens montavam "{count} faixas" na mao, e a lista de
+  faixas carregadas fazia o mesmo. Ha uma funcao para isso agora, e a UI trata
+  o singular.
+
+- **Jargao e ingles onde nao cabiam.** "Backend do Spotify indisponivel nesta
+  maquina" nao diz o que fazer e usa uma palavra que nao e do usuario: virou
+  "Nao foi possivel iniciar o Spotify nesta maquina. Feche e abra o Morune para
+  tentar de novo". "Autoplay ligado" virou "Radio ligado", que e o nome que o
+  proprio Morune ja usa na mesma tela. E "Fila manual", vocabulario interno,
+  saiu das mensagens: para quem usa, a fila e uma so.
+
+- **Erro tecnico despejado na barra de status.** O caso geral de falha no login
+  fazia `format!("Nao foi possivel entrar: {other}")`, e o `{other}` e o Debug
+  do erro -- endereco, codigo de socket, o que viesse. A frase tecnica vai para
+  o log; a barra diz o que a pessoa pode fazer.
+
+- **A ultima playlist da barra lateral aparecia partida ao meio.** A lista
+  recebia o que sobrasse de altura, sem relacao com a altura da linha. Agora a
+  area util e arredondada para baixo, para o maior multiplo do passo da linha
+  que caiba, e o resto fica de fundo da barra.
+
+- **`border` e `scrollbar` reprovavam contraste 3:1 nos quatro temas de fabrica
+  e no tema embutido** -- de 1,32:1 a 1,87:1, medido com o alfa resolvido e no
+  pior caso de area de trabalho. A validacao de tema rodava a cada boot e nao
+  pegava porque so olhava texto; a WCAG 1.4.11 pede os mesmos 3:1 para limite
+  grafico e componente de interface. Os novos alfas sao o menor valor que
+  alcanca 3:1 em cada tema, e um teste novo reprova qualquer tema de fabrica
+  que volte a sair reprovando. **No Bruma e no Cristal o contorno fica
+  visivelmente mais marcado** -- e o preco de a borda existir para quem enxerga
+  pouco, num tema em que ela e o unico limite entre uma regiao e a seguinte.
+
+- **`tools/snapshot.ps1` morria antes de capturar o primeiro tema** quando o
+  cargo escrevia qualquer aviso: com `$ErrorActionPreference = "Stop"`, uma
+  linha em stderr vira erro terminante mesmo com o build passando. Quem decide
+  se o build passou e o codigo de saida.
+
+- **`tools/screenshot.ps1` podia salvar a janela de outro programa como se
+  fosse a captura boa.** A verificacao de primeiro plano usava `-eq` entre dois
+  `[IntPtr]`, que no PowerShell 5.1 compara objetos e nao enderecos, e passava
+  sempre. E o criterio de captura valida era "algum pixel nao e preto", que
+  aceita a janela cinza chapada que o DWM devolve quando ela esta coberta.
+
+- **`tools/screenshot.ps1` nao capturava tema nenhum quando o Morune ja estava
+  aberto**, e dizia "o aplicativo saiu antes da captura", que acusa um defeito
+  do aplicativo. O que acontecia era a instancia unica: a segunda abertura
+  devolve o foco a primeira e sai com codigo 0. Agora o script detecta a
+  instancia e explica, com `-Force` para encerra-la.
+
+- **`tools/screenshot.ps1` devolvia janela preta nos temas com acrilico.** Nao
+  era corrida de tempo: o vidro e composto pelo DWM a partir do que esta atras
+  da janela, e `PrintWindow` pede o desenho so a janela, onde ele nao existe.
+  Bruma e Cristal caiam nisso sempre. Ha agora uma leitura da tela como
+  alternativa -- que so acontece depois de confirmar que a janela do Morune e
+  mesmo a de primeiro plano, para nao repetir o defeito antigo de salvar a
+  janela de outro programa como se fosse a captura boa.
+
+- **O menu da bandeja saia branco, com o texto claro sumido dentro dele.** Os
+  temas de vidro descrevem as superficies com alfa baixo -- na Bruma,
+  `surface_raised` e branco a 18% -- contando com o fundo da janela por tras.
+  O cartao do menu nao tinha piso nenhum: agora pinta o fundo do tema sem alfa
+  e recebe a superficie de vidro por cima, como qualquer painel. O `Gloss` saiu
+  do cartao e ficou so a aresta: o degrade morre em 62% da altura de quem o
+  hospeda, o que num painel da janela e uma faixa estreita acima do texto, mas
+  num cartao de 240 px cobre justamente a linha do nome da faixa.
 
 - **O pause lia como um retangulo unico.** As barras tinham vao de 2 unidades --
   1,5 px a 18 px, que some no antialiasing. O botao principal do player parecia

@@ -1,0 +1,292 @@
+/* Morune -- contrato de tema.
+ *
+ * Cada variavel aqui corresponde a UMA chave do theme.toml, com o mesmo nome.
+ * `--color-surface-raised` e `[color] surface_raised`. Nao ha excecao.
+ *
+ * Propor um tema = trocar os valores deste bloco. Nada fora dele e
+ * implementavel no aplicativo.
+ */
+
+:root {
+  /* ---- [color] : 19 cores, todas aceitam #rrggbbaa ---- */
+  --color-background: #2e2e36a8;
+  --color-surface: #ffffff1f;
+  --color-surface-raised: #ffffff2e;
+  --color-player-background: #26262db8;
+  --color-sidebar-background: #2a2a32b3;
+
+  --color-text: #f7f7f8;
+  --color-text-muted: #e4e4e6;
+  --color-text-on-accent: #1c1c22;
+
+  --color-accent: #f2f4f8;
+  --color-accent-hover: #ffffff;
+
+  --color-border: #ffffff45;
+  --color-hover: #ffffff1a;
+  --color-selected: #ffffff2e;
+  --color-focus-ring: #ffffff;
+
+  --color-success: #5ed6a4;
+  --color-warning: #f2c46b;
+  --color-danger: #ff7b7b;
+
+  --color-shadow: #00000000;
+  --color-scrollbar: #ffffff59;
+
+  /* ---- token do ciclo de vidro que o kit canonico ainda nao tem ---- */
+  --color-border-highlight: #ffffffb0;
+
+  /* ---- [typography] ---- */
+  --typography-family: "Segoe UI", system-ui, sans-serif;
+  --typography-size-xs: 12px;
+  --typography-size-sm: 13px;
+  --typography-size-md: 15px;
+  --typography-size-lg: 18px;
+  --typography-size-xl: 24px;
+  --typography-size-display: 34px;
+  --typography-weight-normal: 400;
+  --typography-weight-medium: 600;
+  --typography-weight-bold: 700;
+  --typography-line-height: 1.45;
+  --typography-letter-spacing: -0.1px;
+
+  /* ---- [shape] ---- */
+  --shape-radius-sm: 10px;
+  --shape-radius-md: 18px;
+  --shape-radius-lg: 26px;
+  --shape-radius-artwork: 14px;
+  --shape-radius-avatar: 999px;
+  --shape-spacing-xs: 4px;
+  --shape-spacing-sm: 8px;
+  --shape-spacing-md: 14px;
+  --shape-spacing-lg: 22px;
+  --shape-spacing-xl: 34px;
+  --shape-border-width: 1px;
+  --shape-progress-thickness: 6px;
+  --shape-scrollbar-width: 10px;
+
+  /* ---- [control] ---- */
+  --control-button-size: 34px;
+  --control-button-radius: 999px;
+  --control-primary-button-size: 44px;
+  --control-icon-size: 18px;
+  --control-icon-size-primary: 22px;
+  --control-icon-stroke: 1.8; /* unidades do viewbox 24x24, NAO px */
+  --control-slider-knob: 14px;
+  --control-tooltip-height: 30px;
+
+  /* ---- [effects] + [background] ----
+   * Nao ha como reproduzir acrilico do Windows nem opacidade de janela em
+   * HTML. Estao aqui so como valor declarado, para o tema proposto poder
+   * pedi-los. Ver o cartao "Contrato".
+   */
+  --effects-gloss: 0.55;
+  --effects-window-opacity: 0.96;
+  --effects-acrylic: 1;
+  --effects-artwork-tint-strength: 0.22;
+  --background-tint: #00000000;
+  --background-tint-strength: 0;
+}
+/* ------------------------------------------------------------------ */
+/* Daqui para baixo e so andaime para desenhar os cartoes. Nada disto  */
+/* vira token: sao as regras que o proprio aplicativo ja aplica.        */
+/* ------------------------------------------------------------------ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #191922;
+  color: var(--color-text);
+  font-family: var(--typography-family);
+  font-size: var(--typography-size-md);
+  letter-spacing: var(--typography-letter-spacing);
+  line-height: var(--typography-line-height);
+  padding: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.janela {
+  width: 1180px;
+  height: 760px;
+  background: var(--color-background);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 18px 50px #00000066;
+}
+
+.titlebar {
+  height: 36px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  border-bottom: var(--shape-border-width) solid var(--color-border);
+}
+.titlebar span {
+  width: 44px; height: 36px;
+  display: grid; place-items: center;
+  color: var(--color-text-muted);
+}
+
+.corpo { flex: 1; display: flex; min-height: 0; }
+
+.sidebar {
+  width: 232px;
+  flex: 0 0 auto;
+  background: var(--color-sidebar-background);
+  padding: var(--shape-spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--shape-spacing-xs);
+  border-right: var(--shape-border-width) solid var(--color-border);
+}
+
+.marca {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px var(--shape-spacing-md) 18px;
+  font-size: var(--typography-size-lg);
+  font-weight: var(--typography-weight-bold);
+}
+.marca b { color: var(--color-text); }
+
+.nav {
+  display: flex; align-items: center; gap: var(--shape-spacing-md);
+  height: 40px;
+  padding: 0 var(--shape-spacing-md);
+  border-radius: var(--shape-radius-md);
+  color: var(--color-text-muted);
+}
+.nav.ativo { background: var(--color-selected); color: var(--color-text); }
+
+.campo {
+  height: 36px;
+  margin-top: var(--shape-spacing-sm);
+  padding: 0 var(--shape-spacing-md);
+  display: flex; align-items: center; gap: var(--shape-spacing-sm);
+  border-radius: var(--shape-radius-md);
+  border: var(--shape-border-width) solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--typography-size-md);
+}
+
+.conteudo {
+  flex: 1;
+  min-width: 0;
+  background: var(--color-background);
+  padding: var(--shape-spacing-lg);
+  overflow: hidden;
+}
+
+.titulo-tela {
+  font-size: var(--typography-size-xl);
+  font-weight: var(--typography-weight-bold);
+  margin-bottom: var(--shape-spacing-md);
+}
+
+.cartao {
+  background: var(--color-surface);
+  border-radius: var(--shape-radius-md);
+  padding: var(--shape-spacing-md);
+  width: var(--layout-card-width, 168px);
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+.cartao b, .cartao span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.capa {
+  aspect-ratio: 1;
+  border-radius: var(--shape-radius-artwork);
+  background: var(--color-surface-raised);
+  margin-bottom: var(--shape-spacing-sm);
+  display: grid; place-items: center;
+  color: var(--color-border);
+}
+
+.player {
+  height: 88px;
+  flex: 0 0 auto;
+  background: var(--color-player-background);
+  border-top: var(--shape-border-width) solid var(--color-border);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--shape-spacing-md);
+  gap: var(--shape-spacing-md);
+}
+
+.btn-icone {
+  width: var(--control-button-size);
+  height: var(--control-button-size);
+  border-radius: var(--control-button-radius);
+  display: grid; place-items: center;
+  color: var(--color-text);
+  flex: 0 0 auto;
+}
+.btn-icone.apagado { color: var(--color-text-muted); }
+.btn-icone.ligado { color: var(--color-accent); background: var(--color-selected); }
+
+.btn-primario {
+  width: var(--control-primary-button-size);
+  height: var(--control-primary-button-size);
+  border-radius: var(--control-button-radius);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  display: grid; place-items: center;
+  flex: 0 0 auto;
+}
+
+.btn-texto {
+  height: 34px;
+  padding: 0 18px;
+  border-radius: var(--shape-radius-md);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-size: var(--typography-size-sm);
+  font-weight: var(--typography-weight-medium);
+  display: inline-grid; place-items: center;
+}
+.btn-fantasma {
+  height: 32px;
+  padding: 0 var(--shape-spacing-md);
+  border-radius: var(--shape-radius-md);
+  border: var(--shape-border-width) solid var(--color-border);
+  color: var(--color-text);
+  font-size: var(--typography-size-sm);
+  display: inline-grid; place-items: center;
+}
+
+.trilha {
+  height: var(--shape-progress-thickness);
+  border-radius: calc(var(--shape-progress-thickness) / 2);
+  background: var(--color-border);
+  position: relative;
+  flex: 1;
+}
+.trilha i {
+  position: absolute; inset: 0 auto 0 0;
+  width: 45%;
+  border-radius: inherit;
+  background: var(--color-accent);
+}
+.trilha b {
+  position: absolute;
+  left: 45%; top: 50%;
+  width: var(--control-slider-knob);
+  height: var(--control-slider-knob);
+  margin: calc(var(--control-slider-knob) / -2) 0 0 calc(var(--control-slider-knob) / -2);
+  border-radius: 999px;
+  background: var(--color-text);
+}
+
+.mono { font-variant-numeric: tabular-nums; color: var(--color-text-muted); font-size: var(--typography-size-xs); }
+.muted { color: var(--color-text-muted); }
+.elide { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+svg { display: block; }
+.ico { width: var(--control-icon-size); height: var(--control-icon-size); }
+.ico-p { width: var(--control-icon-size-primary); height: var(--control-icon-size-primary); }
+.linha { fill: none; stroke: currentColor; stroke-width: var(--control-icon-stroke); stroke-linecap: round; stroke-linejoin: round; }
+.cheio { fill: currentColor; stroke: none; }

@@ -1,7 +1,8 @@
 # Documentação do MORU•NE
 
 Este diretório concentra a documentação técnica e de produto. Para instalar ou
-conhecer o aplicativo, comece pelo [README principal](../README.md).
+conhecer o aplicativo, comece pelo README ([inglês](../README.md) ou
+[português](../README.pt-BR.md)).
 
 ## Produto
 
@@ -26,6 +27,7 @@ conhecer o aplicativo, comece pelo [README principal](../README.md).
 | [Publicação](RELEASING.md) | Como tags geram instaladores e releases |
 | [Assinatura digital](SIGNING.md) | SmartScreen e opções de assinatura de código |
 | [Segurança](../SECURITY.md) | Modelo de ameaça e reporte responsável |
+| [Código de conduta](../CODE_OF_CONDUCT.md) | Regras de convivência e como reportar |
 | [Changelog](../CHANGELOG.md) | Histórico de mudanças por versão |
 
 ## Arquivo histórico

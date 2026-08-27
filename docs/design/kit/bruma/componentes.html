@@ -1,0 +1,434 @@
+<!-- @dsCard group="Componentes" -->
+<!doctype html>
+<meta charset="utf-8">
+<title>Bruma — componentes</title>
+<style>
+/* morune.css embutido: cada cartao precisa renderizar sozinho,
+   sem depender de arquivo vizinho. A copia canonica fica em morune.css. */
+/* Morune -- contrato de tema.
+ *
+ * Cada variavel aqui corresponde a UMA chave do theme.toml, com o mesmo nome.
+ * `--color-surface-raised` e `[color] surface_raised`. Nao ha excecao.
+ *
+ * Propor um tema = trocar os valores deste bloco. Nada fora dele e
+ * implementavel no aplicativo.
+ */
+
+:root {
+  /* ---- [color] : 19 cores, todas aceitam #rrggbbaa ---- */
+  --color-background: #2e2e36a8;
+  --color-surface: #ffffff1f;
+  --color-surface-raised: #ffffff2e;
+  --color-player-background: #26262db8;
+  --color-sidebar-background: #2a2a32b3;
+
+  --color-text: #f7f7f8;
+  --color-text-muted: #e4e4e6;
+  --color-text-on-accent: #1c1c22;
+
+  --color-accent: #f2f4f8;
+  --color-accent-hover: #ffffff;
+
+  --color-border: #ffffff45;
+  --color-hover: #ffffff1a;
+  --color-selected: #ffffff2e;
+  --color-focus-ring: #ffffff;
+
+  --color-success: #5ed6a4;
+  --color-warning: #f2c46b;
+  --color-danger: #ff7b7b;
+
+  --color-shadow: #00000000;
+  --color-scrollbar: #ffffff59;
+
+  /* ---- token do ciclo de vidro que o kit canonico ainda nao tem ---- */
+  --color-border-highlight: #ffffffb0;
+
+  /* ---- [typography] ---- */
+  --typography-family: "Segoe UI", system-ui, sans-serif;
+  --typography-size-xs: 12px;
+  --typography-size-sm: 13px;
+  --typography-size-md: 15px;
+  --typography-size-lg: 18px;
+  --typography-size-xl: 24px;
+  --typography-size-display: 34px;
+  --typography-weight-normal: 400;
+  --typography-weight-medium: 600;
+  --typography-weight-bold: 700;
+  --typography-line-height: 1.45;
+  --typography-letter-spacing: -0.1px;
+
+  /* ---- [shape] ---- */
+  --shape-radius-sm: 10px;
+  --shape-radius-md: 18px;
+  --shape-radius-lg: 26px;
+  --shape-radius-artwork: 14px;
+  --shape-radius-avatar: 999px;
+  --shape-spacing-xs: 4px;
+  --shape-spacing-sm: 8px;
+  --shape-spacing-md: 14px;
+  --shape-spacing-lg: 22px;
+  --shape-spacing-xl: 34px;
+  --shape-border-width: 1px;
+  --shape-progress-thickness: 6px;
+  --shape-scrollbar-width: 10px;
+
+  /* ---- [control] ---- */
+  --control-button-size: 34px;
+  --control-button-radius: 999px;
+  --control-primary-button-size: 44px;
+  --control-icon-size: 18px;
+  --control-icon-size-primary: 22px;
+  --control-icon-stroke: 1.8; /* unidades do viewbox 24x24, NAO px */
+  --control-slider-knob: 14px;
+  --control-tooltip-height: 30px;
+
+  /* ---- [effects] + [background] ----
+   * Nao ha como reproduzir acrilico do Windows nem opacidade de janela em
+   * HTML. Estao aqui so como valor declarado, para o tema proposto poder
+   * pedi-los. Ver o cartao "Contrato".
+   */
+  --effects-gloss: 0.55;
+  --effects-window-opacity: 0.96;
+  --effects-acrylic: 1;
+  --effects-artwork-tint-strength: 0.22;
+  --background-tint: #00000000;
+  --background-tint-strength: 0;
+}
+/* ------------------------------------------------------------------ */
+/* Daqui para baixo e so andaime para desenhar os cartoes. Nada disto  */
+/* vira token: sao as regras que o proprio aplicativo ja aplica.        */
+/* ------------------------------------------------------------------ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #191922;
+  color: var(--color-text);
+  font-family: var(--typography-family);
+  font-size: var(--typography-size-md);
+  letter-spacing: var(--typography-letter-spacing);
+  line-height: var(--typography-line-height);
+  padding: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.janela {
+  width: 1180px;
+  height: 760px;
+  background: var(--color-background);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 18px 50px #00000066;
+}
+
+.titlebar {
+  height: 36px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  border-bottom: var(--shape-border-width) solid var(--color-border);
+}
+.titlebar span {
+  width: 44px; height: 36px;
+  display: grid; place-items: center;
+  color: var(--color-text-muted);
+}
+
+.corpo { flex: 1; display: flex; min-height: 0; }
+
+.sidebar {
+  width: 232px;
+  flex: 0 0 auto;
+  background: var(--color-sidebar-background);
+  padding: var(--shape-spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--shape-spacing-xs);
+  border-right: var(--shape-border-width) solid var(--color-border);
+}
+
+.marca {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px var(--shape-spacing-md) 18px;
+  font-size: var(--typography-size-lg);
+  font-weight: var(--typography-weight-bold);
+}
+.marca b { color: var(--color-text); }
+
+.nav {
+  display: flex; align-items: center; gap: var(--shape-spacing-md);
+  height: 40px;
+  padding: 0 var(--shape-spacing-md);
+  border-radius: var(--shape-radius-md);
+  color: var(--color-text-muted);
+}
+.nav.ativo { background: var(--color-selected); color: var(--color-text); }
+
+.campo {
+  height: 36px;
+  margin-top: var(--shape-spacing-sm);
+  padding: 0 var(--shape-spacing-md);
+  display: flex; align-items: center; gap: var(--shape-spacing-sm);
+  border-radius: var(--shape-radius-md);
+  border: var(--shape-border-width) solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--typography-size-md);
+}
+
+.conteudo {
+  flex: 1;
+  min-width: 0;
+  background: var(--color-background);
+  padding: var(--shape-spacing-lg);
+  overflow: hidden;
+}
+
+.titulo-tela {
+  font-size: var(--typography-size-xl);
+  font-weight: var(--typography-weight-bold);
+  margin-bottom: var(--shape-spacing-md);
+}
+
+.cartao {
+  background: var(--color-surface);
+  border-radius: var(--shape-radius-md);
+  padding: var(--shape-spacing-md);
+  width: var(--layout-card-width, 168px);
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+.cartao b, .cartao span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.capa {
+  aspect-ratio: 1;
+  border-radius: var(--shape-radius-artwork);
+  background: var(--color-surface-raised);
+  margin-bottom: var(--shape-spacing-sm);
+  display: grid; place-items: center;
+  color: var(--color-border);
+}
+
+.player {
+  height: 88px;
+  flex: 0 0 auto;
+  background: var(--color-player-background);
+  border-top: var(--shape-border-width) solid var(--color-border);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--shape-spacing-md);
+  gap: var(--shape-spacing-md);
+}
+
+.btn-icone {
+  width: var(--control-button-size);
+  height: var(--control-button-size);
+  border-radius: var(--control-button-radius);
+  display: grid; place-items: center;
+  color: var(--color-text);
+  flex: 0 0 auto;
+}
+.btn-icone.apagado { color: var(--color-text-muted); }
+.btn-icone.ligado { color: var(--color-accent); background: var(--color-selected); }
+
+.btn-primario {
+  width: var(--control-primary-button-size);
+  height: var(--control-primary-button-size);
+  border-radius: var(--control-button-radius);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  display: grid; place-items: center;
+  flex: 0 0 auto;
+}
+
+.btn-texto {
+  height: 34px;
+  padding: 0 18px;
+  border-radius: var(--shape-radius-md);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-size: var(--typography-size-sm);
+  font-weight: var(--typography-weight-medium);
+  display: inline-grid; place-items: center;
+}
+.btn-fantasma {
+  height: 32px;
+  padding: 0 var(--shape-spacing-md);
+  border-radius: var(--shape-radius-md);
+  border: var(--shape-border-width) solid var(--color-border);
+  color: var(--color-text);
+  font-size: var(--typography-size-sm);
+  display: inline-grid; place-items: center;
+}
+
+.trilha {
+  height: var(--shape-progress-thickness);
+  border-radius: calc(var(--shape-progress-thickness) / 2);
+  background: var(--color-border);
+  position: relative;
+  flex: 1;
+}
+.trilha i {
+  position: absolute; inset: 0 auto 0 0;
+  width: 45%;
+  border-radius: inherit;
+  background: var(--color-accent);
+}
+.trilha b {
+  position: absolute;
+  left: 45%; top: 50%;
+  width: var(--control-slider-knob);
+  height: var(--control-slider-knob);
+  margin: calc(var(--control-slider-knob) / -2) 0 0 calc(var(--control-slider-knob) / -2);
+  border-radius: 999px;
+  background: var(--color-text);
+}
+
+.mono { font-variant-numeric: tabular-nums; color: var(--color-text-muted); font-size: var(--typography-size-xs); }
+.muted { color: var(--color-text-muted); }
+.elide { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+svg { display: block; }
+.ico { width: var(--control-icon-size); height: var(--control-icon-size); }
+.ico-p { width: var(--control-icon-size-primary); height: var(--control-icon-size-primary); }
+.linha { fill: none; stroke: currentColor; stroke-width: var(--control-icon-stroke); stroke-linecap: round; stroke-linejoin: round; }
+.cheio { fill: currentColor; stroke: none; }
+
+</style>
+<style>
+  body { display: block; max-width: 1180px; margin: 0 auto; }
+  h2 { font-size: 15px; font-weight: var(--typography-weight-bold); margin: 26px 0 10px; }
+  h2:first-of-type { margin-top: 0; }
+  .painel { background: var(--color-surface); border-radius: var(--shape-radius-md); padding: 18px; display: flex; flex-wrap: wrap; gap: 22px; align-items: center; }
+  .item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .rot { font-size: 11px; color: var(--color-text-muted); }
+  .chave { width: 40px; height: 22px; border-radius: 999px; background: var(--color-border); position: relative; }
+  .chave.on { background: var(--color-accent); }
+  .chave i { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 999px; background: var(--color-text); }
+  .chave.on i { left: 21px; background: var(--color-text-on-accent); }
+  .foco { outline: 2px solid var(--color-focus-ring); outline-offset: 0; }
+  .tooltip { height: var(--control-tooltip-height); padding: 0 var(--shape-spacing-md); border-radius: var(--shape-radius-sm); background: var(--color-surface-raised); border: var(--shape-border-width) solid var(--color-border); display: inline-grid; place-items: center; font-size: var(--typography-size-sm); }
+  .mini { width: 620px; height: 150px; border-radius: 10px; background: var(--color-player-background); display: flex; align-items: center; gap: var(--shape-spacing-md); padding: 0 var(--shape-spacing-lg); }
+  .bandeja { width: 300px; border-radius: var(--shape-radius-md); background: var(--color-sidebar-background); border: var(--shape-border-width) solid var(--color-border); padding: var(--shape-spacing-md); }
+  .item-menu { height: 34px; border-radius: var(--shape-radius-sm); display: flex; align-items: center; gap: var(--shape-spacing-md); padding: 0 var(--shape-spacing-sm); }
+  .tipo div { margin-bottom: 6px; }
+</style>
+
+<h2>Botões</h2>
+<div class="painel">
+  <div class="item"><span class="btn-texto">Tocar</span><span class="rot">primário</span></div>
+  <div class="item"><span class="btn-fantasma">Duplicar</span><span class="rot">fantasma</span></div>
+  <div class="item"><span class="btn-fantasma" style="border-color:var(--color-accent);color:var(--color-accent);background:var(--color-selected)">Cobrir</span><span class="rot">fantasma ativo</span></div>
+  <div class="item"><span class="btn-fantasma" style="color:var(--color-danger)">Sair</span><span class="rot">perigo</span></div>
+  <div class="item"><span class="btn-texto foco">Tocar</span><span class="rot">com foco de teclado</span></div>
+  <div class="item"><span class="btn-texto" style="opacity:.4">Tocar</span><span class="rot">desabilitado</span></div>
+</div>
+
+<h2>Botões de ícone · <span class="rot">control.button_size 32 · icon_size 18</span></h2>
+<div class="painel">
+  <div class="item">
+    <div class="btn-icone"><svg class="ico" viewBox="0 0 24 24"><path class="cheio" d="M 19 5 L 11 12 L 19 19 Z M 5 5 L 8 5 L 8 19 L 5 19 Z"/></svg></div>
+    <span class="rot">normal</span>
+  </div>
+  <div class="item">
+    <div class="btn-icone" style="background:var(--color-hover)"><svg class="ico" viewBox="0 0 24 24"><path class="cheio" d="M 5 5 L 13 12 L 5 19 Z M 16 5 L 19 5 L 19 19 L 16 19 Z"/></svg></div>
+    <span class="rot">hover</span>
+  </div>
+  <div class="item">
+    <div class="btn-icone ligado"><svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 4 9 L 4 6 L 17 6 L 17 3 L 21 7 L 17 11 L 17 8 M 20 15 L 20 18 L 7 18 L 7 21 L 3 17 L 7 13 L 7 16"/></svg></div>
+    <span class="rot">ativo</span>
+  </div>
+  <div class="item">
+    <div class="btn-icone apagado"><svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 3 6 L 7 6 L 16 18 L 21 18 M 18 15 L 21 18 L 18 21 M 3 18 L 7 18 L 10 14 M 14 9 L 16 6 L 21 6 M 18 3 L 21 6 L 18 9"/></svg></div>
+    <span class="rot">apagado</span>
+  </div>
+  <div class="item">
+    <div class="btn-primario"><svg class="ico-p" viewBox="0 0 24 24"><path class="cheio" d="M 8 5 L 19 12 L 8 19 Z"/></svg></div>
+    <span class="rot">primário · play</span>
+  </div>
+  <div class="item">
+    <div class="btn-primario"><svg class="ico-p" viewBox="0 0 24 24"><path class="cheio" d="M 6 5 L 10 5 L 10 19 L 6 19 Z M 14 5 L 18 5 L 18 19 L 14 19 Z"/></svg></div>
+    <span class="rot">primário · pause</span>
+  </div>
+  <div class="item"><span class="tooltip">Faixa anterior</span><span class="rot">rótulo flutuante</span></div>
+</div>
+
+<h2>Ícones · <span class="rot">viewbox 24×24, conteúdo em 5..19</span></h2>
+<div class="painel" style="gap:18px">
+  <div class="item"><svg class="ico-p" viewBox="0 0 24 24"><path class="cheio" d="M 8 5 L 19 12 L 8 19 Z"/></svg><span class="rot">play</span></div>
+  <div class="item"><svg class="ico-p" viewBox="0 0 24 24"><path class="cheio" d="M 6 5 L 10 5 L 10 19 L 6 19 Z M 14 5 L 18 5 L 18 19 L 14 19 Z"/></svg><span class="rot">pause</span></div>
+  <div class="item"><svg class="ico-p" viewBox="0 0 24 24"><path class="cheio" d="M 6 6 L 18 6 L 18 18 L 6 18 Z"/></svg><span class="rot">stop</span></div>
+  <div class="item"><svg class="ico-p" viewBox="0 0 24 24"><path class="cheio" d="M 19 5 L 11 12 L 19 19 Z M 5 5 L 8 5 L 8 19 L 5 19 Z"/></svg><span class="rot">previous</span></div>
+  <div class="item"><svg class="ico-p" viewBox="0 0 24 24"><path class="cheio" d="M 5 5 L 13 12 L 5 19 Z M 16 5 L 19 5 L 19 19 L 16 19 Z"/></svg><span class="rot">next</span></div>
+  <div class="item"><svg class="ico-p" viewBox="0 0 24 24"><path class="linha" d="M 3 6 L 7 6 L 16 18 L 21 18 M 18 15 L 21 18 L 18 21 M 3 18 L 7 18 L 10 14 M 14 9 L 16 6 L 21 6 M 18 3 L 21 6 L 18 9"/></svg><span class="rot">shuffle</span></div>
+  <div class="item"><svg class="ico-p" viewBox="0 0 24 24"><path class="linha" d="M 4 9 L 4 6 L 17 6 L 17 3 L 21 7 L 17 11 L 17 8 M 20 15 L 20 18 L 7 18 L 7 21 L 3 17 L 7 13 L 7 16"/></svg><span class="rot">repeat</span></div>
+  <div class="item"><svg class="ico-p" viewBox="0 0 24 24"><path class="linha" d="M 4 9 L 7 9 L 12 5 L 12 19 L 7 15 L 4 15 Z M 15 9 a 5 5 0 0 1 0 6 M 18 6 a 9 9 0 0 1 0 12"/></svg><span class="rot">volume</span></div>
+  <div class="item"><svg class="ico-p" viewBox="0 0 24 24"><path class="linha" d="M 3 6 L 15 6 M 3 12 L 15 12 M 3 18 L 11 18 M 17 10 L 17 19 M 17 10 L 21 9 L 21 7 L 17 8"/></svg><span class="rot">queue</span></div>
+  <div class="item"><svg class="ico-p" viewBox="0 0 24 24"><path class="linha" d="M 12 21 C 10 18 4 15 4 9 C 4 5 9 3 12 7 C 15 3 20 5 20 9 C 20 15 14 18 12 21 Z"/></svg><span class="rot">heart</span></div>
+  <div class="item"><svg class="ico-p" viewBox="0 0 24 24"><path class="linha" d="M 4 6 L 20 6 L 20 18 L 4 18 Z M 8 14 L 16 14"/></svg><span class="rot">mini-player</span></div>
+  <div class="item"><svg class="ico-p" viewBox="0 0 24 24"><path class="linha" d="M 5 5 L 5 19 M 11 5 L 11 19 M 16 5 L 20 19"/></svg><span class="rot">library</span></div>
+</div>
+
+<h2>Interruptor, campo, barra</h2>
+<div class="painel">
+  <div class="item"><div class="chave on"><i></i></div><span class="rot">ligado</span></div>
+  <div class="item"><div class="chave"><i></i></div><span class="rot">desligado</span></div>
+  <div class="item" style="width:240px"><div class="campo" style="width:100%;margin:0"><svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 10 2 a 8 8 0 1 0 0 16 a 8 8 0 0 0 0 -16 M 16 16 l 6 6"/></svg>Buscar</div><span class="rot">campo</span></div>
+  <div class="item" style="width:240px"><div class="trilha" style="width:100%"><i></i><b></b></div><span class="rot">barra com puxador</span></div>
+  <div class="item" style="width:180px"><div class="trilha" style="width:100%"><i style="width:62%"></i></div><span class="rot">barra sem puxador</span></div>
+</div>
+
+<h2>Tipografia · <span class="rot">a escala é global; não há tamanho por elemento</span></h2>
+<div class="painel tipo" style="display:block">
+  <div style="font-size:var(--typography-size-display);font-weight:var(--typography-weight-bold)">Musicas curtidas — size_display 32</div>
+  <div style="font-size:var(--typography-size-xl);font-weight:var(--typography-weight-bold)">Titulo de tela — size_xl 22</div>
+  <div style="font-size:var(--typography-size-lg);font-weight:var(--typography-weight-bold)">Seção — size_lg 17</div>
+  <div style="font-size:var(--typography-size-md)">Item de lista — size_md 14</div>
+  <div style="font-size:var(--typography-size-sm);color:var(--color-text-muted)">Secundário — size_sm 12</div>
+  <div style="font-size:var(--typography-size-xs);color:var(--color-text-muted);font-variant-numeric:tabular-nums">2:31 / 5:18 — size_xs 11, tabular</div>
+</div>
+
+<h2>Mini player e menu da bandeja</h2>
+<div class="painel" style="align-items:flex-start">
+  <div class="item" style="align-items:flex-start">
+    <div class="mini">
+      <div style="width:72px;height:72px;border-radius:var(--shape-radius-artwork);background:var(--color-surface-raised);flex:0 0 auto"></div>
+      <div style="flex:1;min-width:0">
+        <div class="elide">Weird Fishes / Arpeggi</div>
+        <div class="elide muted" style="font-size:var(--typography-size-sm);margin-bottom:10px">Radiohead</div>
+        <div class="trilha"><i></i></div>
+      </div>
+      <div style="display:flex;gap:var(--shape-spacing-sm);align-items:center">
+        <div class="btn-icone"><svg class="ico" viewBox="0 0 24 24"><path class="cheio" d="M 19 5 L 11 12 L 19 19 Z M 5 5 L 8 5 L 8 19 L 5 19 Z"/></svg></div>
+        <div class="btn-primario"><svg class="ico-p" viewBox="0 0 24 24"><path class="cheio" d="M 6 5 L 10 5 L 10 19 L 6 19 Z M 14 5 L 18 5 L 18 19 L 14 19 Z"/></svg></div>
+        <div class="btn-icone"><svg class="ico" viewBox="0 0 24 24"><path class="cheio" d="M 5 5 L 13 12 L 5 19 Z M 16 5 L 19 5 L 19 19 L 16 19 Z"/></svg></div>
+      </div>
+    </div>
+    <span class="rot">mini player · 620 × 150</span>
+  </div>
+
+  <div class="item" style="align-items:flex-start">
+    <div class="bandeja">
+      <div style="display:flex;gap:var(--shape-spacing-md);align-items:center;margin-bottom:var(--shape-spacing-md)">
+        <div style="width:48px;height:48px;border-radius:var(--shape-radius-artwork);background:var(--color-surface-raised)"></div>
+        <div style="min-width:0">
+          <div class="elide">Weird Fishes / Arpeggi</div>
+          <div class="elide muted" style="font-size:var(--typography-size-sm)">Radiohead</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:center;gap:var(--shape-spacing-sm);margin-bottom:var(--shape-spacing-md)">
+        <div class="btn-icone"><svg class="ico" viewBox="0 0 24 24"><path class="cheio" d="M 19 5 L 11 12 L 19 19 Z M 5 5 L 8 5 L 8 19 L 5 19 Z"/></svg></div>
+        <div class="btn-primario"><svg class="ico-p" viewBox="0 0 24 24"><path class="cheio" d="M 6 5 L 10 5 L 10 19 L 6 19 Z M 14 5 L 18 5 L 18 19 L 14 19 Z"/></svg></div>
+        <div class="btn-icone"><svg class="ico" viewBox="0 0 24 24"><path class="cheio" d="M 5 5 L 13 12 L 5 19 Z M 16 5 L 19 5 L 19 19 L 16 19 Z"/></svg></div>
+      </div>
+      <div style="height:var(--shape-border-width);background:var(--color-border);margin:var(--shape-spacing-sm) 0"></div>
+      <div class="item-menu"><svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 3 11 L 12 3 L 21 11 L 21 21 L 14 21 L 14 15 L 10 15 L 10 21 L 3 21 Z"/></svg>Abrir Morune</div>
+      <div class="item-menu" style="color:var(--color-danger)"><svg class="ico" viewBox="0 0 24 24"><path class="linha" d="M 5 5 L 19 19 M 19 5 L 5 19"/></svg>Sair do Morune</div>
+    </div>
+    <span class="rot">menu da bandeja · 300 de largura</span>
+  </div>
+</div>

@@ -1,0 +1,431 @@
+<!-- @dsCard group="Contrato" -->
+<!doctype html>
+<meta charset="utf-8">
+<title>Bruma — contrato de tema</title>
+<style>
+/* morune.css embutido: cada cartao precisa renderizar sozinho,
+   sem depender de arquivo vizinho. A copia canonica fica em morune.css. */
+/* Morune -- contrato de tema.
+ *
+ * Cada variavel aqui corresponde a UMA chave do theme.toml, com o mesmo nome.
+ * `--color-surface-raised` e `[color] surface_raised`. Nao ha excecao.
+ *
+ * Propor um tema = trocar os valores deste bloco. Nada fora dele e
+ * implementavel no aplicativo.
+ */
+
+:root {
+  /* ---- [color] : 19 cores, todas aceitam #rrggbbaa ---- */
+  --color-background: #2e2e36a8;
+  --color-surface: #ffffff1f;
+  --color-surface-raised: #ffffff2e;
+  --color-player-background: #26262db8;
+  --color-sidebar-background: #2a2a32b3;
+
+  --color-text: #f7f7f8;
+  --color-text-muted: #e4e4e6;
+  --color-text-on-accent: #1c1c22;
+
+  --color-accent: #f2f4f8;
+  --color-accent-hover: #ffffff;
+
+  --color-border: #ffffff45;
+  --color-hover: #ffffff1a;
+  --color-selected: #ffffff2e;
+  --color-focus-ring: #ffffff;
+
+  --color-success: #5ed6a4;
+  --color-warning: #f2c46b;
+  --color-danger: #ff7b7b;
+
+  --color-shadow: #00000000;
+  --color-scrollbar: #ffffff59;
+
+  /* ---- token do ciclo de vidro que o kit canonico ainda nao tem ---- */
+  --color-border-highlight: #ffffffb0;
+
+  /* ---- [typography] ---- */
+  --typography-family: "Segoe UI", system-ui, sans-serif;
+  --typography-size-xs: 12px;
+  --typography-size-sm: 13px;
+  --typography-size-md: 15px;
+  --typography-size-lg: 18px;
+  --typography-size-xl: 24px;
+  --typography-size-display: 34px;
+  --typography-weight-normal: 400;
+  --typography-weight-medium: 600;
+  --typography-weight-bold: 700;
+  --typography-line-height: 1.45;
+  --typography-letter-spacing: -0.1px;
+
+  /* ---- [shape] ---- */
+  --shape-radius-sm: 10px;
+  --shape-radius-md: 18px;
+  --shape-radius-lg: 26px;
+  --shape-radius-artwork: 14px;
+  --shape-radius-avatar: 999px;
+  --shape-spacing-xs: 4px;
+  --shape-spacing-sm: 8px;
+  --shape-spacing-md: 14px;
+  --shape-spacing-lg: 22px;
+  --shape-spacing-xl: 34px;
+  --shape-border-width: 1px;
+  --shape-progress-thickness: 6px;
+  --shape-scrollbar-width: 10px;
+
+  /* ---- [control] ---- */
+  --control-button-size: 34px;
+  --control-button-radius: 999px;
+  --control-primary-button-size: 44px;
+  --control-icon-size: 18px;
+  --control-icon-size-primary: 22px;
+  --control-icon-stroke: 1.8; /* unidades do viewbox 24x24, NAO px */
+  --control-slider-knob: 14px;
+  --control-tooltip-height: 30px;
+
+  /* ---- [effects] + [background] ----
+   * Nao ha como reproduzir acrilico do Windows nem opacidade de janela em
+   * HTML. Estao aqui so como valor declarado, para o tema proposto poder
+   * pedi-los. Ver o cartao "Contrato".
+   */
+  --effects-gloss: 0.55;
+  --effects-window-opacity: 0.96;
+  --effects-acrylic: 1;
+  --effects-artwork-tint-strength: 0.22;
+  --background-tint: #00000000;
+  --background-tint-strength: 0;
+}
+/* ------------------------------------------------------------------ */
+/* Daqui para baixo e so andaime para desenhar os cartoes. Nada disto  */
+/* vira token: sao as regras que o proprio aplicativo ja aplica.        */
+/* ------------------------------------------------------------------ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #191922;
+  color: var(--color-text);
+  font-family: var(--typography-family);
+  font-size: var(--typography-size-md);
+  letter-spacing: var(--typography-letter-spacing);
+  line-height: var(--typography-line-height);
+  padding: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.janela {
+  width: 1180px;
+  height: 760px;
+  background: var(--color-background);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 18px 50px #00000066;
+}
+
+.titlebar {
+  height: 36px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  border-bottom: var(--shape-border-width) solid var(--color-border);
+}
+.titlebar span {
+  width: 44px; height: 36px;
+  display: grid; place-items: center;
+  color: var(--color-text-muted);
+}
+
+.corpo { flex: 1; display: flex; min-height: 0; }
+
+.sidebar {
+  width: 232px;
+  flex: 0 0 auto;
+  background: var(--color-sidebar-background);
+  padding: var(--shape-spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--shape-spacing-xs);
+  border-right: var(--shape-border-width) solid var(--color-border);
+}
+
+.marca {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px var(--shape-spacing-md) 18px;
+  font-size: var(--typography-size-lg);
+  font-weight: var(--typography-weight-bold);
+}
+.marca b { color: var(--color-text); }
+
+.nav {
+  display: flex; align-items: center; gap: var(--shape-spacing-md);
+  height: 40px;
+  padding: 0 var(--shape-spacing-md);
+  border-radius: var(--shape-radius-md);
+  color: var(--color-text-muted);
+}
+.nav.ativo { background: var(--color-selected); color: var(--color-text); }
+
+.campo {
+  height: 36px;
+  margin-top: var(--shape-spacing-sm);
+  padding: 0 var(--shape-spacing-md);
+  display: flex; align-items: center; gap: var(--shape-spacing-sm);
+  border-radius: var(--shape-radius-md);
+  border: var(--shape-border-width) solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--typography-size-md);
+}
+
+.conteudo {
+  flex: 1;
+  min-width: 0;
+  background: var(--color-background);
+  padding: var(--shape-spacing-lg);
+  overflow: hidden;
+}
+
+.titulo-tela {
+  font-size: var(--typography-size-xl);
+  font-weight: var(--typography-weight-bold);
+  margin-bottom: var(--shape-spacing-md);
+}
+
+.cartao {
+  background: var(--color-surface);
+  border-radius: var(--shape-radius-md);
+  padding: var(--shape-spacing-md);
+  width: var(--layout-card-width, 168px);
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+.cartao b, .cartao span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.capa {
+  aspect-ratio: 1;
+  border-radius: var(--shape-radius-artwork);
+  background: var(--color-surface-raised);
+  margin-bottom: var(--shape-spacing-sm);
+  display: grid; place-items: center;
+  color: var(--color-border);
+}
+
+.player {
+  height: 88px;
+  flex: 0 0 auto;
+  background: var(--color-player-background);
+  border-top: var(--shape-border-width) solid var(--color-border);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--shape-spacing-md);
+  gap: var(--shape-spacing-md);
+}
+
+.btn-icone {
+  width: var(--control-button-size);
+  height: var(--control-button-size);
+  border-radius: var(--control-button-radius);
+  display: grid; place-items: center;
+  color: var(--color-text);
+  flex: 0 0 auto;
+}
+.btn-icone.apagado { color: var(--color-text-muted); }
+.btn-icone.ligado { color: var(--color-accent); background: var(--color-selected); }
+
+.btn-primario {
+  width: var(--control-primary-button-size);
+  height: var(--control-primary-button-size);
+  border-radius: var(--control-button-radius);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  display: grid; place-items: center;
+  flex: 0 0 auto;
+}
+
+.btn-texto {
+  height: 34px;
+  padding: 0 18px;
+  border-radius: var(--shape-radius-md);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-size: var(--typography-size-sm);
+  font-weight: var(--typography-weight-medium);
+  display: inline-grid; place-items: center;
+}
+.btn-fantasma {
+  height: 32px;
+  padding: 0 var(--shape-spacing-md);
+  border-radius: var(--shape-radius-md);
+  border: var(--shape-border-width) solid var(--color-border);
+  color: var(--color-text);
+  font-size: var(--typography-size-sm);
+  display: inline-grid; place-items: center;
+}
+
+.trilha {
+  height: var(--shape-progress-thickness);
+  border-radius: calc(var(--shape-progress-thickness) / 2);
+  background: var(--color-border);
+  position: relative;
+  flex: 1;
+}
+.trilha i {
+  position: absolute; inset: 0 auto 0 0;
+  width: 45%;
+  border-radius: inherit;
+  background: var(--color-accent);
+}
+.trilha b {
+  position: absolute;
+  left: 45%; top: 50%;
+  width: var(--control-slider-knob);
+  height: var(--control-slider-knob);
+  margin: calc(var(--control-slider-knob) / -2) 0 0 calc(var(--control-slider-knob) / -2);
+  border-radius: 999px;
+  background: var(--color-text);
+}
+
+.mono { font-variant-numeric: tabular-nums; color: var(--color-text-muted); font-size: var(--typography-size-xs); }
+.muted { color: var(--color-text-muted); }
+.elide { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+svg { display: block; }
+.ico { width: var(--control-icon-size); height: var(--control-icon-size); }
+.ico-p { width: var(--control-icon-size-primary); height: var(--control-icon-size-primary); }
+.linha { fill: none; stroke: currentColor; stroke-width: var(--control-icon-stroke); stroke-linecap: round; stroke-linejoin: round; }
+.cheio { fill: currentColor; stroke: none; }
+
+</style>
+<style>
+  body { display: block; max-width: 1180px; margin: 0 auto; }
+  h1 { font-size: 28px; margin-bottom: 6px; }
+  h2 { font-size: 17px; margin: 28px 0 10px; }
+  p, li { color: var(--color-text-muted); max-width: 70ch; }
+  li { margin: 4px 0 4px 20px; }
+  code { font-family: ui-monospace, Consolas, monospace; color: var(--color-text); }
+  .duas { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .caixa { background: var(--color-surface); border-radius: var(--shape-radius-md); padding: 16px 18px; }
+  .caixa.sim { border-left: 3px solid var(--color-success); }
+  .caixa.nao { border-left: 3px solid var(--color-danger); }
+  .swatches { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 10px; }
+  .sw { border-radius: var(--shape-radius-sm); overflow: hidden; background: var(--color-surface); }
+  .sw i { display: block; height: 46px; }
+  .sw span { display: block; padding: 6px 8px; font-size: 11px; color: var(--color-text-muted); word-break: break-all; }
+  table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+  td, th { text-align: left; padding: 5px 10px 5px 0; font-size: 13px; border-bottom: 1px solid var(--color-border); }
+  th { color: var(--color-text); font-weight: var(--typography-weight-medium); }
+  td { color: var(--color-text-muted); }
+  td:first-child { color: var(--color-text); font-family: ui-monospace, Consolas, monospace; white-space: nowrap; }
+</style>
+
+<h1>Morune — contrato de tema</h1>
+<p>
+  Um tema do Morune é um arquivo <code>theme.toml</code> de valores. Ele não desenha
+  tela: escolhe cores, medidas e formas dentro de um conjunto fechado. Toda variável
+  CSS deste kit corresponde a <strong>uma chave do TOML, com o mesmo nome</strong> —
+  <code>--color-surface-raised</code> é <code>[color] surface_raised</code>.
+</p>
+
+<h2>O que a proposta precisa entregar</h2>
+<p>
+  Um bloco de valores. Se um efeito não puder ser escrito como valor de uma das chaves
+  abaixo, ele não existe no aplicativo — por mais bonito que fique no mock.
+</p>
+
+<div class="duas">
+  <div class="caixa sim">
+    <strong>Pode mudar</strong>
+    <ul>
+      <li>as 19 cores, todas com alfa (<code>#rrggbbaa</code>)</li>
+      <li>família e escala tipográfica</li>
+      <li>raios, espaçamentos, espessuras</li>
+      <li>tamanho de botão, de ícone e do traço</li>
+      <li>imagem de fundo, véu e desfoque</li>
+      <li>brilho na superfície dos painéis (<code>effects.gloss</code>) e realce da aresta superior (<code>color.border_highlight</code>)</li>
+      <li>transparência e acrílico da janela</li>
+      <li>posição da barra lateral e do player, modo de lista, densidade</li>
+      <li>o desenho dos ícones, por SVG em <code>assets/icons/</code></li>
+    </ul>
+  </div>
+  <div class="caixa nao">
+    <strong>Não existe</strong>
+    <ul>
+      <li>gradiente <strong>livre</strong> em superfície — desenhado por você, com paradas e ângulo à escolha</li>
+      <li>sombra projetada — contraste vem de linha, sempre</li>
+      <li>elemento novo, ou elemento movido de lugar</li>
+      <li>tipografia por elemento: a escala é global</li>
+      <li>borda por lado; <code>border_width</code> é um valor só</li>
+      <li>animação além de troca de cor em <code>duration_fast</code></li>
+      <li>fonte de terceiros empacotada sem direito de redistribuir</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Restrição que manda em tudo</h2>
+<p>
+  O Morune toca enquanto a pessoa joga. <strong>Nada pode custar repaint por
+  quadro.</strong> Desfoque é assado uma vez ao carregar; acrílico é composição do
+  Windows; o equalizador da faixa tocando é estático de propósito. Uma proposta que
+  dependa de movimento contínuo será recusada na implementação, não no gosto.
+</p>
+
+<h2>Contraste é verificado, não opinado</h2>
+<p>
+  O aplicativo mede o contraste de <code>text</code> sobre <code>background</code>,
+  <code>sidebar_background</code> e <code>player_background</code>, e de
+  <code>text_on_accent</code> sobre <code>accent</code>. Abaixo de <strong>3:1</strong>
+  o tema carrega mas acusa aviso na tela de Configurações. Com cores translúcidas a
+  conta é feita nos dois piores casos — área de trabalho branca e preta — e vale o pior.
+</p>
+
+<h2>As 19 cores</h2>
+<div class="swatches">
+  <div class="sw"><i style="background:var(--color-background)"></i><span>background</span></div>
+  <div class="sw"><i style="background:var(--color-surface)"></i><span>surface</span></div>
+  <div class="sw"><i style="background:var(--color-surface-raised)"></i><span>surface_raised</span></div>
+  <div class="sw"><i style="background:var(--color-sidebar-background)"></i><span>sidebar_background</span></div>
+  <div class="sw"><i style="background:var(--color-player-background)"></i><span>player_background</span></div>
+  <div class="sw"><i style="background:var(--color-text)"></i><span>text</span></div>
+  <div class="sw"><i style="background:var(--color-text-muted)"></i><span>text_muted</span></div>
+  <div class="sw"><i style="background:var(--color-text-on-accent)"></i><span>text_on_accent</span></div>
+  <div class="sw"><i style="background:var(--color-accent)"></i><span>accent</span></div>
+  <div class="sw"><i style="background:var(--color-accent-hover)"></i><span>accent_hover</span></div>
+  <div class="sw"><i style="background:var(--color-border)"></i><span>border</span></div>
+  <div class="sw"><i style="background:var(--color-hover)"></i><span>hover</span></div>
+  <div class="sw"><i style="background:var(--color-selected)"></i><span>selected</span></div>
+  <div class="sw"><i style="background:var(--color-focus-ring)"></i><span>focus_ring</span></div>
+  <div class="sw"><i style="background:var(--color-scrollbar)"></i><span>scrollbar</span></div>
+  <div class="sw"><i style="background:var(--color-success)"></i><span>success</span></div>
+  <div class="sw"><i style="background:var(--color-warning)"></i><span>warning</span></div>
+  <div class="sw"><i style="background:var(--color-danger)"></i><span>danger</span></div>
+  <div class="sw"><i style="background:var(--color-shadow)"></i><span>shadow</span></div>
+</div>
+
+<h2>Medidas</h2>
+<table>
+  <tr><th>chave</th><th>padrão</th><th>o que é</th></tr>
+  <tr><td>shape.radius_sm / md / lg</td><td>4 / 8 / 14</td><td>campos · cartões · modais</td></tr>
+  <tr><td>shape.radius_artwork</td><td>6</td><td>capa de álbum; 0 deixa quadrado</td></tr>
+  <tr><td>shape.spacing_xs … xl</td><td>4 8 12 20 32</td><td>a escala de espaço inteira</td></tr>
+  <tr><td>shape.border_width</td><td>1</td><td>toda linha da interface</td></tr>
+  <tr><td>shape.progress_thickness</td><td>4</td><td>barra de progresso e volume</td></tr>
+  <tr><td>control.button_size</td><td>32</td><td>botão de ícone. Piso de 20 para continuar clicável</td></tr>
+  <tr><td>control.primary_button_size</td><td>40</td><td>o play/pause</td></tr>
+  <tr><td>control.icon_size / _primary</td><td>18 / 22</td><td>ícone comum · ícone do botão primário</td></tr>
+  <tr><td>control.icon_stroke</td><td>2</td><td><strong>unidades do viewbox 24×24</strong>, não px — é o que faz o traço acompanhar o tamanho</td></tr>
+  <tr><td>typography.scale</td><td>1.0</td><td>multiplica todos os tamanhos de texto</td></tr>
+  <tr><td>effects.window_opacity</td><td>1.0</td><td>0.2 a 1.0. Abaixo de 0.6 o texto morre sobre área de trabalho clara</td></tr>
+  <tr><td>effects.acrylic</td><td>false</td><td>vidro fosco do Windows 11. Só aparece se as cores tiverem alfa</td></tr>
+  <tr><td>background.image / fit / blur</td><td>—</td><td>papel de parede do tema; <code>cover contain center stretch</code></td></tr>
+</table>
+
+<h2>Ícones</h2>
+<p>
+  Caminhos vetoriais num viewbox <strong>24×24</strong>, com o conteúdo dentro de
+  <code>5..19</code>. Sair dessa faixa deixa o ícone com peso diferente dos vizinhos.
+  Silhuetas cheias (play, pause, stop) não levam traço; contornos usam
+  <code>icon_stroke</code> e cantos arredondados.
+</p>

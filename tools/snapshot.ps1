@@ -21,7 +21,19 @@ $exe = Join-Path $root "target\debug\morune.exe"
 if (-not $SkipBuild) {
     Write-Host "compilando com a feature snapshot..." -ForegroundColor DarkGray
     Push-Location $root
-    try { cargo build -p morune-app --features snapshot | Out-Null }
+    try {
+        # `$ErrorActionPreference = "Stop"` transforma qualquer linha que o
+        # cargo escreva em stderr num erro terminante -- inclusive um aviso de
+        # lint, que nao impede build nenhum. O script inteiro morria antes de
+        # capturar um tema so. Quem decide se o build passou e o codigo de
+        # saida, e nada mais.
+        $anterior = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        cargo build -p morune-app --features snapshot 2>&1 | Out-Null
+        $codigo = $LASTEXITCODE
+        $ErrorActionPreference = $anterior
+        if ($codigo -ne 0) { Write-Error "cargo build falhou (codigo $codigo)." }
+    }
     finally { Pop-Location }
 }
 

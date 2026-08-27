@@ -1,0 +1,30 @@
+# Atualizacao de dependencias.
+#
+# Semanal e agrupado de proposito: um PR por dependencia por dia transforma
+# manutencao em ruido, e num projeto de uma pessoa so o ruido vence. O que
+# importa aqui e nao ficar preso numa versao antiga de librespot ou de Slint
+# sem perceber.
+version: 2
+
+updates:
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # Correcoes de patch nao merecem um PR cada: vao juntas.
+      patches:
+        update-types:
+          - patch
+    ignore:
+      # A copia em vendor/ existe para corrigir um `process::exit` da
+      # librespot-core. Uma atualizacao automatica desfaria o patch sem aviso;
+      # subir essa versao tem de ser decisao consciente. Ver vendor/README.md.
+      - dependency-name: librespot-core
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly

@@ -4,3 +4,10 @@
 /dist
 /bench-out
 .env
+
+# Ferramentas de agente: instalam skills e relatorios no diretorio do projeto,
+# e nada disso e o Morune.
+/.impeccable
+/.agents
+/.claude
+/skills-lock.json

@@ -502,7 +502,7 @@ Os nomes aceitos sao exatamente estes:
 ```
 home  search  library  settings
 play  pause  stop  next  previous  shuffle  repeat  repeat-one
-queue  queue-add  queue-next  mini-player  volume  heart
+queue  queue-add  queue-next  mini-player  volume  heart  pin
 chevron-left  chevron-right  chevron-up  chevron-down  close
 minimize-window  maximize-window  restore-window
 ```
