@@ -337,6 +337,15 @@ impl ThemeSpec {
         check("color.text_on_accent", c.text_on_accent, Some(c.accent));
         check("color.sidebar_text", c.text, Some(c.sidebar_background));
         check("color.player_text", c.text, Some(c.player_background));
+
+        // Borda e barra de rolagem nao sao texto, mas sao o que separa uma
+        // regiao da seguinte e o que diz onde a lista esta: a WCAG 1.4.11 pede
+        // os mesmos 3:1 para limite grafico e componente de interface. Ficaram
+        // de fora da checagem original, que so olhava texto -- e foi por isso
+        // que os quatro temas embutidos passaram anos reprovando sem que nada
+        // acusasse.
+        check("color.border", c.border, None);
+        check("color.scrollbar", c.scrollbar, None);
         out
     }
 
@@ -377,6 +386,12 @@ mod tests {
         // sobre vidro fino a area de trabalho clareia o fundo, e o cinza medio
         // que serve num fundo escuro deixa de servir.
         t.colors.text_muted = Color::rgb(0xe0, 0xe0, 0xe6);
+        // Pelo mesmo motivo, borda e barra de rolagem tambem sobem: sobre vidro
+        // a area de trabalho clareia o fundo, e o alfa que da 3:1 num fundo
+        // opaco nao da mais. Sao os valores do Cristal, que e um tema de vidro
+        // real.
+        t.colors.border = Color::rgba(0xff, 0xff, 0xff, 0x77);
+        t.colors.scrollbar = Color::rgba(0xff, 0xff, 0xff, 0x77);
         let avisos = t.contrast_warnings();
         assert!(avisos.is_empty(), "{avisos:?}");
     }

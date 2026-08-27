@@ -17,23 +17,31 @@ sidebar_background = "#2a2a32b3"
 
 text           = "#f7f7f8"
 text_muted     = "#e4e4e6"
-text_on_accent = "#0b1a2a"
+text_on_accent = "#1c1c22"
 
-accent       = "#63b3ff"
-accent_hover = "#8ecbff"
+# Vidro nao tem cor propria. O controle ativo e feito da mesma materia da
+# superficie -- um branco fosco levemente frio --, e nao de uma tinta por cima
+# dela. Com o azul, o botao de tocar era o unico objeto da tela que nao parecia
+# vidro.
+accent       = "#f2f4f8"
+accent_hover = "#ffffff"
 
-border           = "#ffffff45"
+# 0xaa, e nao 0x45: e o menor alfa que alcanca 3:1 tambem sobre uma area de
+# trabalho clara, o pior caso de um tema translucido. Num tema de vidro isso
+# marca bastante o contorno -- e o preco de a borda existir para quem enxerga
+# pouco, num tema em que ela e o unico limite entre uma regiao e a seguinte.
+border           = "#ffffffaa"
 border_highlight = "#ffffffb0"
 hover      = "#ffffff1a"
 selected   = "#ffffff2e"
-focus_ring = "#8fc6ff"
+focus_ring = "#ffffff"
 
 success = "#5ed6a4"
 warning = "#f2c46b"
 danger  = "#ff7b7b"
 
 shadow    = "#00000000"
-scrollbar = "#ffffff59"
+scrollbar = "#ffffffaa"
 
 [typography]
 family = "Segoe UI"

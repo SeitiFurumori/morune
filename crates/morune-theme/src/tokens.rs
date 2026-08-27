@@ -74,7 +74,11 @@ impl Default for ColorTokens {
             text_on_accent: Color::rgb(0x08, 0x0a, 0x0e),
             accent: Color::rgb(0x6d, 0xd4, 0x9e),
             accent_hover: Color::rgb(0x87, 0xe4, 0xb2),
-            border: Color::rgba(0xff, 0xff, 0xff, 0x14),
+            // 0x57: o minimo para 3:1 contra `background`, que a WCAG 1.4.11
+            // pede para limite grafico. A 8% de branco a borda existia so no
+            // nome -- em monitor de brilho baixo nao havia divisao nenhuma
+            // entre uma regiao e a seguinte.
+            border: Color::rgba(0xff, 0xff, 0xff, 0x57),
             border_highlight: Color::rgba(0x00, 0x00, 0x00, 0x00),
             hover: Color::rgba(0xff, 0xff, 0xff, 0x0d),
             selected: Color::rgba(0xff, 0xff, 0xff, 0x1a),
@@ -83,7 +87,9 @@ impl Default for ColorTokens {
             warning: Color::rgb(0xe4, 0xb3, 0x5c),
             danger: Color::rgb(0xe4, 0x6d, 0x6d),
             shadow: Color::rgba(0x00, 0x00, 0x00, 0x80),
-            scrollbar: Color::rgba(0xff, 0xff, 0xff, 0x24),
+            // Mesmo 3:1 da borda: a barra de rolagem diz onde a lista esta,
+            // e isso e componente de interface, nao enfeite.
+            scrollbar: Color::rgba(0xff, 0xff, 0xff, 0x57),
         }
     }
 }

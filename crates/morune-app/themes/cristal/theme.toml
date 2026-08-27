@@ -30,7 +30,9 @@ accent_hover = "#7bd8ff"
 
 # A borda e o brilho especular: a linha clara que da a impressao de espessura
 # na quina do vidro. Sem ela o painel vira uma mancha.
-border = "#ffffff3d"
+# 0x77 e o menor alfa que da 3:1 no pior caso de area de trabalho, o minimo
+# da WCAG 1.4.11 para limite grafico.
+border = "#ffffff77"
 hover = "#ffffff1a"
 selected = "#ffffff2e"
 focus_ring = "#5ac8fa"
@@ -40,7 +42,7 @@ warning = "#ffd479"
 danger = "#ff6b8a"
 
 shadow = "#00000066"
-scrollbar = "#ffffff3d"
+scrollbar = "#ffffff77"
 
 [typography]
 # A Inter (SIL OFL) e a fonte que fecha este tema: foi desenhada para tela pelas

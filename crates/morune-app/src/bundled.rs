@@ -193,6 +193,35 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Os quatro temas que acompanham o aplicativo nao podem sair de fabrica
+    /// reprovando contraste.
+    ///
+    /// Este teste existe porque `border` e `scrollbar` reprovaram 3:1 nos
+    /// quatro ao mesmo tempo, e nada acusou: a validacao rodava a cada boot,
+    /// mas so olhava texto, e nenhum teste conferia os temas embutidos com ela.
+    /// A crate de tema so avisa -- proibir seria proibir tema de baixo
+    /// contraste de proposito, que e escolha de quem faz o tema. Nos temas de
+    /// fabrica, porem, o aviso e defeito nosso, e aqui ele reprova.
+    #[test]
+    fn temas_de_fabrica_nao_reprovam_contraste() {
+        let dir = temp_dir("contraste");
+        install_missing(&dir);
+
+        let mut culpados = Vec::new();
+        for id in ["paper", "bruma", "cristal", "pulse"] {
+            for aviso in morune_theme::load(&dir, id).spec.contrast_warnings() {
+                culpados.push(format!("{id}: {} -- {}", aviso.field, aviso.message));
+            }
+        }
+
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(
+            culpados.is_empty(),
+            "tema de fabrica reprovando contraste:\n{}",
+            culpados.join("\n")
+        );
+    }
+
     #[test]
     fn existing_themes_are_never_overwritten() {
         let dir = temp_dir("preserve");

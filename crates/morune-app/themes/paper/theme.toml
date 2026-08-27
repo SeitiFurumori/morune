@@ -15,9 +15,11 @@ text_on_accent = "#f8f7f4"
 accent = "#8c3b2e"
 accent_hover = "#a24a3b"
 
-# 0x30 e nao 0x18: a trilha da barra de progresso usa esta cor, e a 9% de preto
-# ela sumia no fundo claro -- nao dava para ver onde a musica estava.
-border = "#00000030"
+# 0x6c e o menor alfa que da 3:1 contra o fundo, o minimo da WCAG 1.4.11
+# para limite grafico. A trilha da barra de progresso usa esta mesma cor: a
+# 9% de preto ela sumia no fundo claro, e nao dava para ver onde a musica
+# estava.
+border = "#0000006c"
 hover = "#0000000a"
 selected = "#00000014"
 focus_ring = "#8c3b2e"
@@ -27,7 +29,9 @@ warning = "#8a6a1f"
 danger = "#a33a2f"
 
 shadow = "#00000022"
-scrollbar = "#00000026"
+# Mesmo 3:1 da borda: a barra de rolagem diz onde a lista esta, e a WCAG
+# trata isso como componente de interface, nao como enfeite.
+scrollbar = "#0000006c"
 
 [typography]
 family = "Georgia"

@@ -16,7 +16,9 @@ text_on_accent = "#12061f"
 accent = "#c66bff"
 accent_hover = "#d78dff"
 
-border = "#ffffff1f"
+# 0x57: o minimo para 3:1 contra o fundo, exigido pela WCAG 1.4.11 para
+# limite grafico.
+border = "#ffffff57"
 hover = "#ffffff12"
 selected = "#c66bff26"
 focus_ring = "#ffb347"
@@ -26,7 +28,7 @@ warning = "#ffb347"
 danger = "#ff6b8a"
 
 shadow = "#00000099"
-scrollbar = "#ffffff2e"
+scrollbar = "#ffffff57"
 
 [shape]
 radius_sm = 8.0
