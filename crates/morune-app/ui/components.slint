@@ -117,9 +117,19 @@ export component GlassEdge {
 
 // Brilho difuso sobre um painel.
 //
-// Nasce no topo e some antes do meio. E o par do `GlassEdge`: a aresta desenha
-// o contorno do vidro, isto desenha a luz caindo sobre ele. Um sem o outro
-// parece painel contornado; os dois juntos parecem vidro.
+// **A luz vem na diagonal, e volta.** Antes o degrade era vertical e morria
+// antes do meio: a peca ficava com uma faixa clara no topo e nada mais, que le
+// como painel pintado, nao como vidro. Vidro tem dois brilhos -- o reflexo
+// direto na quina que recebe a luz, e um retorno mais fraco na quina oposta,
+// da luz que atravessa e bate de volta. Sem o segundo, a metade de baixo fica
+// morta.
+//
+// O meio fica limpo de proposito: e o que separa os dois brilhos e faz o
+// material parecer ter espessura.
+//
+// E o par do `GlassEdge`: a aresta desenha o contorno do vidro, isto desenha a
+// luz caindo sobre ele. Um sem o outro parece painel contornado; os dois juntos
+// parecem vidro.
 //
 // Preenchimento estatico, resolvido na pintura como qualquer cor chapada --
 // nao ha nada a recalcular por quadro.
@@ -130,12 +140,75 @@ export component Gloss inherits Rectangle {
     height: 100%;
     border-radius: root.radius;
     // O `gloss` do tema entra na opacidade, e nao nas paradas do degrade: assim
-    // `0` some por completo em vez de deixar uma faixa clara residual.
+    // `0` some por completo em vez de deixar uma faixa clara residual. E o que
+    // mantem os temas sem vidro intactos: neles `gloss` e 0.
     opacity: Theme.gloss;
-    background: @linear-gradient(180deg,
+    // 160 graus, e nao 145: a inclinacao e **leve**. Numa peca quadrada os dois
+    // dao a mesma leitura, mas a interface e feita de barras largas e baixas --
+    // a de reproducao tem 1180 por 100 --, e num degrade de 145 graus o inicio
+    // cai so na quina superior esquerda: o resto do topo fica sem luz nenhuma.
+    // Perto da vertical, a luz corre a largura toda e a diagonal aparece como
+    // deslocamento, que e o que se quer.
+    background: @linear-gradient(160deg,
         #ffffff 0%,
-        #ffffff40 26%,
-        #ffffff00 62%);
+        #ffffff45 20%,
+        #ffffff00 46%,
+        #ffffff00 74%,
+        #ffffff2b 93%,
+        #ffffff6b 100%);
+}
+
+// Densidade do fosco.
+//
+// Vidro fosco nao espalha a luz por igual: o centro e a orla espalham mais que
+// o anel entre eles, e por isso, olhando de perto, o meio e a beirada parecem
+// mais leitosos e sobra uma faixa mais limpa no caminho.
+//
+// **Isto e um veu, nao desfoque.** O Slint nao aplica filtro no que esta atras
+// de um elemento -- nao existe `backdrop-filter` aqui. O que da para fazer e
+// imitar a variacao de densidade com branco translucido. De perto convence; de
+// perto tambem se percebe que o que esta atras nao esta realmente distorcido.
+export component Frost inherits Rectangle {
+    in property <length> radius: 0px;
+
+    width: 100%;
+    height: 100%;
+    border-radius: root.radius;
+    opacity: Theme.gloss;
+    // Alfas baixos de proposito. O que conta e a **diferenca** entre o centro,
+    // o anel do meio e a orla; o total somado entra por cima de toda superficie
+    // de vidro da tela, e Bruma ja e um tema claro -- generoso aqui, a interface
+    // inteira desbota.
+    background: @radial-gradient(circle,
+        #ffffff17 0%,
+        #ffffff10 26%,
+        #ffffff03 55%,
+        #ffffff0d 83%,
+        #ffffff1c 100%);
+}
+
+// A torcao da luz na orla.
+//
+// Numa peca de vidro a borda e mais grossa que o meio no caminho optico, e o
+// que passa por ali sai deslocado -- e a faixa clara que contorna qualquer
+// objeto de vidro visto de frente. Sem isso a peca parece um recorte chapado
+// com um contorno desenhado.
+//
+// Refracao de verdade exigiria deslocar o que esta atras, e para isso seria
+// preciso um shader. Aqui e um anel de luz colado na orla: nao desloca nada,
+// mas devolve a leitura de espessura, que e o que falta.
+export component Rim inherits Rectangle {
+    in property <length> radius: 0px;
+
+    width: 100%;
+    height: 100%;
+    border-radius: root.radius;
+    opacity: Theme.gloss;
+    background: @radial-gradient(circle,
+        #ffffff00 0%,
+        #ffffff00 86%,
+        #ffffff33 95%,
+        #ffffff0d 100%);
 }
 
 // Uma superficie de vidro inteira: brilho, aresta de cima e luz de retorno.
@@ -153,7 +226,12 @@ export component Glass {
     width: 100%;
     height: 100%;
 
+    // A ordem e a da luz atravessando o material: primeiro o fosco que espalha,
+    // depois o brilho que cai sobre ele, depois a orla que torce, e por fim o
+    // contorno. Trocar a ordem poe o brilho por baixo do fosco e apaga os dois.
+    Frost { radius: root.radius; }
     Gloss { radius: root.radius; }
+    Rim { radius: root.radius; }
     GlassEdge {
         radius: root.radius;
         bottom: root.bottom;
