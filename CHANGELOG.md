@@ -5,7 +5,136 @@ Versionamento semantico.
 
 ## [Nao lancado]
 
+### Corrigido
+
+**Ajustes de audio que existiam no arquivo e nao faziam nada**
+- **Qualidade, nivelamento e cache de audio passam a valer.** `bitrate`,
+  `normalize` e `audio_cache_mb` estavam no `config.toml`, com padrao e
+  documentacao, e **nenhum era lido em lugar nenhum**: o motor usava
+  `PlayerConfig::default()` e a sessao era aberta com cache `None`. Na pratica a
+  qualidade ficava presa em 160 kbps, o nivelamento nunca acontecia e todo audio
+  era baixado de novo a cada reproducao. Uma configuracao que promete e nao
+  cumpre e pior que a ausencia dela.
+- **Qualidade escolhivel na tela**, entre os tres degraus que o Spotify oferece
+  (96, 160 e 320 kbps), com **nivelar o volume entre faixas** ao lado. As duas
+  dizem que valem a partir da proxima abertura, porque e a verdade: a
+  configuracao do reprodutor da librespot e congelada quando ele nasce, e refazer
+  o motor pararia a musica no meio para atender a um ajuste.
+- O cache de audio guarda **so audio**. A `Cache` da librespot tambem sabe
+  gravar `credentials.json` em texto, e isso fica desligado de proposito: a
+  credencial do Morune vive no Gerenciador de Credenciais do Windows.
+- As preferencias aplicadas entram no log. Nada na tela nem no som diz em que
+  qualidade a faixa chegou, e "mudei e nao senti diferenca" precisa ter resposta.
+
+**Abrir o Morune quando ele ja esta aberto e travado**
+- **Uma segunda abertura nao some mais em silencio.** Se a instancia que ja
+  existe travou, trazer a janela dela para frente nao tem efeito -- e o processo
+  novo encerrava sem janela, sem mensagem e sem uma linha no log. Visto de fora,
+  era clicar no atalho e nada acontecer, quantas vezes fosse. Agora o
+  travamento e detectado (`IsHungAppWindow`) e vira uma pergunta: encerrar o que
+  esta preso e abrir de novo, ou nao. A escolha e de quem esta na frente da
+  tela, porque so essa pessoa sabe se aquele processo travou de verdade ou esta
+  apenas ocupado tocando.
+- **Falha ao abrir o arquivo de log deixou de apagar a sessao inteira.** Ela
+  caia calada para a saida padrao, que em release nao existe: a sessao rodava,
+  fazia tudo e nao deixava registro nenhum. Ja aconteceu, e transformou um
+  travamento numa investigacao sem evidencia. Agora a sessao vai para um arquivo
+  proprio, com o numero do processo no nome, e a primeira linha dele diz por que
+  o principal ficou para tras.
+
+**O "Tentar novamente" que ficava pregado na tela**
+- **O botao passa a pertencer a mensagem que o criou.** Era uma marca solta:
+  uma falha a ligava, e qualquer coisa que escrevesse status depois -- um login
+  concluido, uma reconexao -- trocava a frase sem desliga-lo. O resultado era
+  "Conectado como fulano." com um "Tentar novamente" ao lado, oferecendo repetir
+  algo que ninguem sabia mais o que era.
+- **E o aviso volta a expirar.** Mensagem com acao nunca some sozinha, de
+  proposito -- some-la tiraria do usuario a unica via para aquela acao. Com a
+  marca presa, porem, isso pregava a mensagem na tela ate alguem fecha-la a mao,
+  que e exatamente o defeito que o relogio de expiracao existe para consertar.
+- **Repetir refaz o que falhou**, e nao o que estiver aberto na hora do clique.
+  O alvo e registrado quando o pedido sai; antes ele era deduzido da tela, entao
+  navegar entre a falha e o clique fazia o botao repetir outra coisa. Uma lista
+  que falhou ao abrir tambem passa a ser repetivel -- antes o botao so respondia
+  "Volte a abrir o item para tentar novamente".
+
+### Alterado
+
+**Acabamento**
+- **Os botoes no preview da barra de tarefas seguem o tema e ficam centrados.**
+  Eram desenhados com aritmetica inteira e limites escritos a mao: o triangulo
+  de tocar ia de x=11 a x=33 num icone de 32 px, entao saia cortado a direita e
+  deslocado, com a borda em escada. Agora as formas sao descritas em
+  coordenadas reais, centradas na area util, e rasterizadas com 16 amostras por
+  pixel. A cor deixa de ser um violeta fixo e passa a ser o **acento do tema** --
+  e nao a cor de texto, porque aqueles botoes ficam sobre a miniatura que o
+  *Windows* desenha, cujo fundo segue o tema do sistema. Trocar de tema
+  redesenha os icones.
+- **O menu da bandeja fica arredondado de verdade.** As tres camadas do cartao
+  usavam `radius-md`; num cartao de 272 px de largura, 8 px de raio somem e o
+  menu le como retangulo. Passaram a `radius-lg`, as tres juntas -- uma camada
+  com raio menor deixaria a cor do piso aparecer como cunhas nos cantos.
+- **A barra lateral recolhida nao corta mais texto**, e expandir e clicar na
+  marca. Havia um chevron logo abaixo do logo, e o rotulo de ajuda dele nascia
+  mais largo que os 64 px da barra: comecava em `x` negativo e era cortado pela
+  borda esquerda, aparecendo como "ndir barra lateral". O chevron saiu, a marca
+  virou o botao -- que e o gesto que se tenta primeiro -- e recolher continua
+  onde estava.
+
+**A conta deixa de parecer sobra**
+- **Nome de exibicao e foto de verdade.** A barra lateral mostrava `seititm`,
+  o identificador tecnico da sessao, porque o `/v1/me` do Web API responde 429
+  para este aplicativo. O `user-profile-view` do protocolo interno entrega os
+  dois, e a sonda de 19/08/2026 ja tinha confirmado o formato -- so faltava
+  ligar. Agora aparece o nome escolhido na conta e a foto do perfil. Quem nao
+  tem foto continua com o circulo da inicial, no mesmo tamanho, entao a chegada
+  da imagem nao mexe o layout.
+- A foto passa pelo mesmo cache de capas, com o mesmo descarte por LRU: e uma
+  imagem pequena do mesmo servidor, e um segundo downloader so para ela seria
+  duplicar cache, descarte e tratamento de falha. Falhar em buscar o perfil
+  **nao** derruba o login -- sem ele, tudo volta ao que era.
+- **Na barra lateral**, o identificador era um texto solto colado na borda
+  esquerda, num recuo diferente de todo o resto da coluna e em cinza de texto
+  secundario. Agora tem a geometria de um item de navegacao -- mesma altura,
+  mesmo recuo, mesmo realce sob o cursor -- com um avatar que ocupa exatamente o
+  lugar do icone, de modo que o nome cai na mesma coluna de "Inicio", "Buscar" e
+  "Biblioteca". Clicar leva as Configuracoes.
+- **Nas Configuracoes**, virou um cartao com avatar, o nome em texto primario e
+  uma linha dizendo o que aquilo e. Era uma linha de texto secundario com um
+  botao ao lado, com o mesmo peso visual de um ajuste qualquer.
+- O avatar e a inicial do nome sobre o acento do tema. Nao ha foto porque o
+  caminho de login do Morune nao entrega uma -- nem nome de exibicao: o que
+  chega e o identificador da sessao. Recolhida, a barra lateral mostra so o
+  circulo.
+
 ### Adicionado
+
+**Atualizacao pelo proprio aplicativo**
+- **Botao "Procurar atualizacoes"** nas configuracoes. Ele consulta os
+  lancamentos publicados no GitHub, baixa o instalador da versao seguinte,
+  confere o `.sha256` publicado ao lado dele e instala em silencio -- ninguem
+  precisa mais voltar ao navegador para atualizar. So verifica quando alguem
+  clica: nenhum relogio de fundo e nenhuma requisicao no startup, porque o
+  criterio de desempenho do projeto e nao atrapalhar quem esta jogando.
+- **Baixar e instalar sao dois cliques**, de proposito. Instalar fecha o
+  aplicativo, e fechar o aplicativo interrompe a musica -- isso nao pode
+  acontecer sem que a pessoa tenha pedido. O download termina num botao
+  "Instalar e reiniciar", nao numa reinicializacao.
+- **O hash e conferido antes de qualquer coisa ser executada.** Um arquivo que
+  nao bate e apagado na hora, e nada e aberto. Isso protege contra download
+  corrompido; **nao** e prova de origem, que continua dependendo da assinatura
+  de codigo descrita em `docs/SIGNING.md`.
+- **Pre-lancamento so alcanca quem ja esta num.** Quem instalou um alpha recebe
+  o alpha seguinte; quem instalou uma versao final nunca e empurrado para
+  dentro de um alpha.
+- O instalador ganhou a opcao `/RESTART`, que faz o modo silencioso esperar o
+  aplicativo sair e reabri-lo no fim. Sem ela a atualizacao terminaria com a
+  janela simplesmente sumida. O `/S` sozinho continua sendo instalacao
+  silenciosa comum.
+- A tag do lancamento passa a ser gravada no executavel. Antes o binario so
+  conhecia a versao do `Cargo.toml` (`0.1.0`), que por semver e mais nova que
+  qualquer `0.1.0-alpha.N` -- a verificacao concluiria que nao ha nada a fazer
+  com tres lancamentos novos no ar.
 
 **Barra lateral**
 - **Todas as playlists da conta na barra lateral**, e nao so as suas e as

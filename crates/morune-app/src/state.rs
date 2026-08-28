@@ -9,7 +9,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use morune_core::playback::{NullEngine, PlaybackEngine, PlayerCommand, PlayerEvent};
+use morune_core::playback::{
+    AudioSettings, NullEngine, PlaybackEngine, PlayerCommand, PlayerEvent,
+};
 use morune_core::queue::{Queue, QueueOrigin, RepeatMode};
 use morune_core::{Track, TrackId};
 use morune_storage::{AppPaths, Config};
@@ -95,6 +97,41 @@ enum PendingDetailPlay {
     Track(TrackId),
 }
 
+/// O que o botao "Tentar novamente" repete, e a qual mensagem ele pertence.
+///
+/// **Por que carrega a mensagem:** isto era um `bool` solto. Uma falha ligava a
+/// marca, e qualquer coisa que escrevesse status depois -- um login concluido,
+/// uma reconexao -- trocava a frase sem desligar o botao. O resultado era
+/// "Conectado como fulano." com um "Tentar novamente" ao lado, oferecendo
+/// repetir algo que ninguem sabia mais o que era. Pior: mensagem com acao nao
+/// expira (ver [`AppState::expire_status`]), entao o aviso ficava pregado na
+/// tela ate alguem fecha-lo a mao -- exatamente o defeito que o relogio de
+/// expiracao existe para consertar.
+///
+/// Guardar a mensagem junto resolve isso sem tocar nos mais de quarenta lugares
+/// que escrevem status: a oferta vale enquanto a frase que a criou estiver na
+/// tela, e some sozinha quando outra a substitui.
+#[derive(Debug, Clone, PartialEq)]
+struct Retry {
+    target: RetryTarget,
+    /// Mensagem que a falha escreveu.
+    message: String,
+}
+
+/// A requisicao que falhou, guardada para poder ser refeita.
+///
+/// Registrada quando o pedido **sai**, e nao deduzida da tela no momento do
+/// clique: entre a falha e o clique da para navegar para outro lugar, e a
+/// versao anterior repetia o que estivesse aberto em vez do que falhou.
+#[derive(Debug, Clone, PartialEq)]
+enum RetryTarget {
+    /// Prateleiras do Inicio ou da Biblioteca.
+    Page(Page),
+    Search(String),
+    /// Uma lista, na forma textual de [`Target::tag`].
+    Detail(String),
+}
+
 /// Ultima acao destrutiva que ainda pode ser revertida pelo aviso na tela.
 enum UndoAction {
     QueueClear(Vec<Track>),
@@ -126,7 +163,10 @@ pub struct AppState {
     /// defeito que isto conserta.
     status_seen: (String, Instant),
     undo: Option<UndoAction>,
-    retry_available: bool,
+    /// Oferta de repetir a ultima requisicao que falhou.
+    retry: Option<Retry>,
+    /// O que a requisicao em voo repetiria, se ela falhar.
+    pending_retry: Option<RetryTarget>,
     start_with_windows: bool,
     queue: Queue,
     engine: Arc<dyn PlaybackEngine>,
@@ -210,6 +250,12 @@ pub struct AppState {
     pending_liked_play: Option<TrackId>,
     /// De onde a tela de detalhe foi aberta, para o botao de voltar.
     detail_from: Page,
+    /// Foto da conta: a URL pedida e o arquivo, quando ja chegou.
+    ///
+    /// Passa pelo mesmo cache de capas, e nao por um caminho proprio: e uma
+    /// imagem pequena vinda do mesmo servidor, e um segundo downloader so para
+    /// ela seria duplicar o cache, o descarte por LRU e o tratamento de falha.
+    account_avatar: (String, Option<std::path::PathBuf>),
     /// Capa da faixa tocando: a URL pedida e o arquivo, quando ja chegou.
     ///
     /// Guardada separada dos cartoes porque a faixa tocando nao esta
@@ -232,6 +278,10 @@ pub struct AppState {
     /// visita.
     home_requested: bool,
     library_requested: bool,
+    /// Verificacao e download de versao nova. Nao toca a rede sozinho: existe
+    /// desde a abertura porque guardar o resultado da verificacao entre visitas
+    /// a tela de configuracoes custa menos que refaze-la.
+    updater: crate::update::Updater,
 }
 
 impl std::fmt::Debug for AppState {
@@ -283,6 +333,10 @@ impl AppState {
         // A pasta do cache de capas e lida antes de `paths` ser movido para o
         // estado.
         let covers_dir = paths.artwork_cache_dir();
+        let updates_dir = paths.updates_dir();
+        let audio_cache_dir = paths.audio_cache_dir();
+        // Lido antes de `config` ser movido para dentro do estado.
+        let audio = audio_settings(&config.playback);
         let start_with_windows = crate::startup::is_enabled();
 
         let loaded = Self {
@@ -296,14 +350,20 @@ impl AppState {
             status: String::new(),
             status_seen: (String::new(), Instant::now()),
             undo: None,
-            retry_available: false,
+            retry: None,
+            pending_retry: None,
             start_with_windows,
             queue,
             // Sem backend real ate haver login: o motor nulo aceita
             // preferencias e recusa reproducao, sem que a interface precise
             // tratar "sem motor" em lugar nenhum.
             engine: Arc::new(NullEngine::new("entre na sua conta para tocar musica")),
-            session: Session::new(Arc::from(morune_storage::platform_store()), covers_dir),
+            session: Session::new(
+                Arc::from(morune_storage::platform_store()),
+                covers_dir,
+                audio,
+                &audio_cache_dir,
+            ),
             player_events: None,
             themes,
             playing: false,
@@ -338,12 +398,14 @@ impl AppState {
                 cover: String::new(),
                 cover_path: None,
             },
+            account_avatar: (String::new(), None),
             now_cover: (String::new(), None),
             now_tint: (None, None),
             track_covers: HashMap::new(),
             autoplay_seed: None,
             home_requested: false,
             library_requested: false,
+            updater: crate::update::Updater::new(updates_dir),
         };
 
         let mut loaded = loaded;
@@ -531,9 +593,14 @@ impl AppState {
 
         changed |= self.poll_covers();
 
+        // Sai daqui sem custo quando ninguem clicou em verificar: `poll` so
+        // olha um `Option` vazio.
+        changed |= self.updater.poll();
+
         // Depois dos eventos do player: a troca de faixa acabou de ser
         // aplicada, entao a capa pedida aqui ja e a da faixa certa.
         self.resolve_now_cover();
+        self.resolve_account_avatar();
         self.refresh_tint();
 
         // Por ultimo: tudo acima pode ter escrito uma mensagem nova, e o
@@ -567,7 +634,7 @@ impl AppState {
             return false;
         }
 
-        let has_action = self.undo_available() || self.retry_available;
+        let has_action = self.undo_available() || self.retry_available();
         if !status_expired(
             self.status_seen.1.elapsed(),
             has_action,
@@ -583,7 +650,12 @@ impl AppState {
 
     /// Aplica o que a busca ou a biblioteca trouxeram.
     fn apply_browse(&mut self, outcome: Outcome) {
-        self.retry_available = matches!(&outcome, Outcome::Failed(_));
+        // Uma resposta encerra o pedido em voo, seja qual for o desfecho: a
+        // oferta de repetir so renasce logo abaixo, se esta resposta for uma
+        // falha. Sem o `take`, uma falha antiga continuaria oferecendo repetir
+        // um pedido que ja deu certo depois.
+        let pendente = self.pending_retry.take();
+        self.retry = None;
         match outcome {
             Outcome::Search {
                 query,
@@ -753,6 +825,12 @@ impl AppState {
                 self.detail_silent = false;
                 self.pending_liked_play = None;
                 self.status = message;
+                // A oferta nasce colada nesta frase: se outra mensagem a
+                // substituir antes do clique, o botao sai junto.
+                self.retry = pendente.map(|target| Retry {
+                    target,
+                    message: self.status.clone(),
+                });
             }
         }
         self.resolve_track_covers();
@@ -1034,6 +1112,7 @@ impl AppState {
                 return;
             };
             browse.open(target);
+            self.pending_retry = Some(RetryTarget::Detail(tag.to_string()));
             self.status = "Carregando...".into();
             return;
         };
@@ -1171,6 +1250,29 @@ impl AppState {
     ///
     /// Separado de [`AppState::resolve_covers`] porque a origem e outra: a
     /// faixa tocando vem da fila, e nao de uma tela.
+    /// Pede a foto da conta, uma vez por sessao.
+    ///
+    /// Sai no primeiro `if` em todo tique depois que a URL estabiliza -- e ela
+    /// so muda no login e no logout --, entao nao pesa no laco de 100 ms.
+    fn resolve_account_avatar(&mut self) {
+        let url = self.session.state().avatar_url().to_string();
+        if url == self.account_avatar.0 {
+            return;
+        }
+
+        self.account_avatar = (url.clone(), None);
+        if url.is_empty() {
+            return;
+        }
+
+        let Some(browse) = self.session.browse_mut() else {
+            return;
+        };
+        // `None` aqui nao e falha: o download comecou e o arquivo chega num
+        // tique proximo, pelo mesmo canal das capas.
+        self.account_avatar.1 = browse.cover(&url);
+    }
+
     fn resolve_now_cover(&mut self) {
         // A capa forcada pela verificacao visual nao vem da fila, entao o
         // primeiro tique a apagaria. Fora da feature `snapshot` isto nem existe.
@@ -1238,6 +1340,10 @@ impl AppState {
                 self.refresh_tint();
             }
 
+            if ready.url == self.account_avatar.0 {
+                self.account_avatar.1 = Some(ready.path.clone());
+            }
+
             for lista in [
                 &mut self.home_made_for_you,
                 &mut self.home_stations,
@@ -1292,11 +1398,19 @@ impl AppState {
 
     /// Pede ao backend o que a tela aberta mostra, se ainda nao pediu.
     fn request_page_data(&mut self) {
+        self.request_data_for(self.page);
+    }
+
+    /// Pede os dados de uma pagina especifica.
+    ///
+    /// Separado de [`AppState::request_page_data`] para que "Tentar novamente"
+    /// possa refazer o pedido **da pagina que falhou**, e nao da que estiver
+    /// aberta no instante do clique.
+    fn request_data_for(&mut self, page: Page) {
         if !self.session.state().is_logged_in() {
             return;
         }
 
-        let page = self.page;
         let (home_requested, library_requested) = (self.home_requested, self.library_requested);
         let Some(browse) = self.session.browse_mut() else {
             return;
@@ -1306,10 +1420,12 @@ impl AppState {
             Page::Home if !home_requested => {
                 browse.load_home();
                 self.home_requested = true;
+                self.pending_retry = Some(RetryTarget::Page(Page::Home));
             }
             Page::Library if !library_requested => {
                 browse.load_library();
                 self.library_requested = true;
+                self.pending_retry = Some(RetryTarget::Page(Page::Library));
             }
             _ => {}
         }
@@ -1346,6 +1462,7 @@ impl AppState {
             return;
         };
         browse.open(Target::Liked);
+        self.pending_retry = Some(RetryTarget::Detail(Target::Liked.tag()));
         self.detail_silent = true;
         self.pending_liked_play = Some(id);
         self.status = format!("Carregando {}...", crate::browse::LIKED_TITLE);
@@ -1485,6 +1602,18 @@ impl AppState {
 
     pub fn theme_id(&self) -> &str {
         &self.theme.spec.manifest.id
+    }
+
+    /// Cor dos glifos da barra de tarefas do Windows.
+    ///
+    /// O acento, e nao o texto: aqueles botoes ficam sobre a miniatura que o
+    /// **Windows** desenha, cujo fundo segue o tema do sistema e nao o do
+    /// Morune. Uma cor de texto seguiria o contraste errado -- clara num
+    /// Windows claro some. O acento e a unica cor do tema pensada para se
+    /// destacar sozinha.
+    pub fn taskbar_tint(&self) -> [u8; 3] {
+        let c = self.spec().colors.accent;
+        [c.r, c.g, c.b]
     }
 
     fn spec(&self) -> &ThemeSpec {
@@ -1806,6 +1935,112 @@ impl AppState {
         }
     }
 
+    // ---- atualizacao ----
+
+    /// Pergunta ao GitHub se ha versao nova. So a partir de um clique.
+    pub fn check_for_update(&mut self) {
+        self.updater.check();
+    }
+
+    /// Baixa o instalador da versao encontrada.
+    pub fn download_update(&mut self) {
+        self.updater.download();
+    }
+
+    /// Abre a pagina de lancamentos, para quem prefere baixar a mao.
+    pub fn open_releases_page(&mut self) {
+        let result = open_link(crate::update::RELEASES_URL);
+        if let Err(e) = result {
+            self.status = format!("Não foi possível abrir o navegador: {e}");
+        }
+    }
+
+    /// Executa o instalador baixado e pede o encerramento do aplicativo.
+    ///
+    /// Devolve `true` quando o instalador subiu -- e so entao quem chamou
+    /// fecha o laco de eventos. Falhar aqui deixa tudo como estava: a musica
+    /// continua tocando e a mensagem explica o que houve.
+    ///
+    /// `/S` e o modo silencioso do NSIS e `/RESTART` e a nossa opcao, que faz o
+    /// instalador esperar este processo sair e reabrir o Morune no fim. Sem ela
+    /// o modo silencioso instalaria e nao devolveria o aplicativo a pessoa, que
+    /// so veria a janela desaparecer.
+    #[must_use]
+    pub fn install_update(&mut self) -> bool {
+        let Some(installer) = self.updater.installer() else {
+            return false;
+        };
+        let installer = installer.to_path_buf();
+
+        match std::process::Command::new(&installer)
+            .args(["/S", "/RESTART"])
+            .spawn()
+        {
+            Ok(_) => {
+                tracing::info!(arquivo = %installer.display(), "instalador iniciado");
+                // A reproducao para antes de o processo morrer: deixar a
+                // librespot ser derrubada no meio de um buffer produz um
+                // estalo na saida de audio.
+                self.stop();
+                self.save_config();
+                true
+            }
+            Err(e) => {
+                tracing::error!(erro = %e, "instalador nao pode ser executado");
+                self.status = format!("Não foi possível abrir o instalador: {e}");
+                false
+            }
+        }
+    }
+
+    /// O que a tela de configuracoes mostra sobre atualizacao.
+    ///
+    /// Devolve `(codigo, titulo, detalhe, percentual)`. O codigo e o que a
+    /// interface usa para escolher o botao; manter a decisao aqui evita
+    /// espalhar a maquina de estados pelo `.slint`, onde ela nao pode ser
+    /// testada.
+    ///
+    /// Os codigos acompanham [`crate::update::Phase`]: 0 parado, 1 verificando,
+    /// 2 em dia, 3 disponivel, 4 baixando, 5 pronto, 6 falhou.
+    pub fn update_status(&self) -> (i32, String, String, f32) {
+        use crate::update::Phase;
+
+        let atual = format!("Versão {}", self.updater.current());
+        let nova = || {
+            self.updater
+                .release()
+                .map(|r| r.version.to_string())
+                .unwrap_or_default()
+        };
+        let notas = || {
+            self.updater
+                .release()
+                .map(|r| r.notes.clone())
+                .unwrap_or_default()
+        };
+
+        match self.updater.phase() {
+            Phase::Idle => (0, atual, String::new(), 0.0),
+            Phase::Checking => (1, atual, "Procurando...".into(), 0.0),
+            Phase::UpToDate => (2, atual, "Você já está na versão mais recente.".into(), 0.0),
+            Phase::Available => (3, format!("Versão {} disponível", nova()), notas(), 0.0),
+            Phase::Downloading(pct) => (
+                4,
+                format!("Baixando a versão {}", nova()),
+                format!("{pct}%"),
+                *pct as f32 / 100.0,
+            ),
+            Phase::Ready => (
+                5,
+                format!("Versão {} pronta para instalar", nova()),
+                "O Morune fecha, instala e abre de novo. A música para durante a instalação."
+                    .into(),
+                1.0,
+            ),
+            Phase::Failed(mensagem) => (6, atual, mensagem.clone(), 0.0),
+        }
+    }
+
     // ---- comportamento da janela ----
 
     pub fn close_to_tray(&self) -> bool {
@@ -1975,6 +2210,52 @@ impl AppState {
         }
     }
 
+    /// Os tres degraus que o Spotify oferece, em kbps.
+    ///
+    /// A interface manda o indice, e nao o numero: sao opcoes de uma lista
+    /// fechada, e deixar a tela escolher o valor faria dois lugares terem de
+    /// concordar sobre quais numeros existem.
+    const BITRATES: [u32; 3] = [96, 160, 320];
+
+    /// Indice da qualidade atual. Um valor fora da lista cai no mais proximo
+    /// para baixo, igual ao que o backend faz.
+    pub fn bitrate_code(&self) -> i32 {
+        Self::BITRATES
+            .iter()
+            .rposition(|&kbps| kbps <= self.config.playback.bitrate)
+            .unwrap_or(0) as i32
+    }
+
+    pub fn set_bitrate(&mut self, code: i32) {
+        let Some(&kbps) = Self::BITRATES.get(code.max(0) as usize) else {
+            return;
+        };
+        self.config.playback.bitrate = kbps;
+        self.apply_audio_settings();
+        self.status = "A qualidade vale a partir da próxima vez que o Morune abrir.".into();
+    }
+
+    pub fn normalize(&self) -> bool {
+        self.config.playback.normalize
+    }
+
+    pub fn set_normalize(&mut self, on: bool) {
+        self.config.playback.normalize = on;
+        self.apply_audio_settings();
+        self.status = "O nivelamento vale a partir da próxima vez que o Morune abrir.".into();
+    }
+
+    /// Guarda as preferencias e as entrega ao backend.
+    ///
+    /// O motor que esta tocando nao muda -- ver `SpotifyBackend::set_audio`. Por
+    /// isso quem chama escreve uma mensagem dizendo quando o ajuste vale: um
+    /// controle que parece nao fazer nada e pior que um controle ausente.
+    fn apply_audio_settings(&mut self) {
+        self.session
+            .set_audio(audio_settings(&self.config.playback));
+        self.save_config();
+    }
+
     pub fn set_autoplay(&mut self, on: bool) {
         self.config.playback.autoplay = on;
         self.status = if on {
@@ -2085,6 +2366,7 @@ impl AppState {
         self.search = TrackList::default();
         self.search_cards.clear();
         browse.search(query);
+        self.pending_retry = Some(RetryTarget::Search(query.to_string()));
         self.status = format!("Buscando \"{query}\"...");
     }
 
@@ -2096,23 +2378,52 @@ impl AppState {
         self.undo.is_some()
     }
 
+    /// `true` quando a mensagem na tela e a que ofereceu repetir.
+    ///
+    /// A comparacao com `status` e o que impede o botao de sobreviver a propria
+    /// mensagem. Ver [`Retry`].
+    pub fn retry_available(&self) -> bool {
+        retry_belongs_to(self.retry.as_ref(), &self.status)
+    }
+
     pub fn retry_last(&mut self) {
-        self.retry_available = false;
-        match self.page {
-            Page::Search if !self.search_query.is_empty() => {
-                let query = self.search_query.clone();
-                self.search(&query);
+        let Some(retry) = self.retry.take() else {
+            return;
+        };
+
+        match retry.target {
+            RetryTarget::Search(query) => self.search(&query),
+            // A pagina vem guardada, e nao lida de `self.page`: repetir tem de
+            // refazer o que falhou, mesmo que o usuario ja tenha navegado.
+            RetryTarget::Page(page) => {
+                match page {
+                    Page::Home => self.home_requested = false,
+                    Page::Library => self.library_requested = false,
+                    _ => {}
+                }
+                self.request_data_for(page);
             }
-            Page::Home | Page::Library => self.request_page_data(),
-            _ => {
-                self.status = "Volte a abrir o item para tentar novamente.".into();
-            }
+            RetryTarget::Detail(tag) => self.open_detail_target(&tag),
         }
+    }
+
+    /// Reabre uma lista pela forma textual do alvo.
+    fn open_detail_target(&mut self, tag: &str) {
+        let Some(target) = Target::parse(tag) else {
+            return;
+        };
+        let Some(browse) = self.session.browse_mut() else {
+            self.status = "Não foi possível iniciar o Spotify nesta máquina. Feche e abra o Morune para tentar de novo.".into();
+            return;
+        };
+        browse.open(target);
+        self.pending_retry = Some(RetryTarget::Detail(tag.to_string()));
+        self.status = "Carregando...".into();
     }
 
     pub fn dismiss_recovery(&mut self) {
         self.discard_undo();
-        self.retry_available = false;
+        self.retry = None;
     }
 
     /// Descarta a oportunidade de desfazer e limpa apenas o backup privado que
@@ -2344,6 +2655,7 @@ impl AppState {
             return;
         };
         browse.open(target);
+        self.pending_retry = Some(RetryTarget::Detail(tag.to_string()));
         if let Some(tag) = opened_playlist {
             if remember_recent_playlist(&mut self.config.navigation.recent_playlists, tag) {
                 self.save_config();
@@ -2560,13 +2872,20 @@ impl AppState {
         window.set_page(self.page as i32);
         window.set_status_message(SharedString::from(self.status.as_str()));
         window.set_undo_available(self.undo_available());
-        window.set_retry_available(self.retry_available);
+        window.set_retry_available(self.retry_available());
         window.set_logged_in(self.session.state().is_logged_in());
-        window.set_account_name(SharedString::from(self.session.state().account_name()));
+        let account = self.session.state().account_name();
+        window.set_account_name(SharedString::from(account));
+        window.set_account_initial(SharedString::from(account_initial(account)));
+        // Vazia enquanto a foto nao chega, e vazia para sempre em quem nao tem
+        // foto. Nos dois casos o avatar cai na inicial, sem mudar o layout.
+        window.set_account_avatar(cover_image(self.account_avatar.1.as_deref()));
         window.set_dev_mode(self.config.developer.enabled);
         window.set_close_to_tray(self.config.window.close_to_tray);
         window.set_start_with_windows(self.start_with_windows);
         window.set_autoplay(self.config.playback.autoplay);
+        window.set_bitrate(self.bitrate_code());
+        window.set_normalize(self.normalize());
         let appearance = &self.config.appearance;
         window.set_has_background(!appearance.background_image.is_empty());
         window.set_background_name(SharedString::from(self.background_name()));
@@ -2580,6 +2899,12 @@ impl AppState {
         window.set_window_opacity(self.window_opacity_slider());
         window.set_search_query(self.search_query.as_str().into());
         window.set_searching(self.searching);
+
+        let (fase, titulo, detalhe, progresso) = self.update_status();
+        window.set_update_phase(fase);
+        window.set_update_title(SharedString::from(titulo));
+        window.set_update_detail(SharedString::from(detalhe));
+        window.set_update_progress(progresso);
 
         self.push_playback(window);
 
@@ -2756,6 +3081,64 @@ impl AppState {
 /// Separado do estado para a regra ficar sob teste: `has_action` marca a
 /// mensagem que carrega "Desfazer" ou "Tentar novamente", e essa nunca expira
 /// -- e o unico lugar de onde a acao pode ser feita.
+/// Traduz a configuracao do usuario para o contrato do backend.
+///
+/// Existe para que `PlaybackConfig` -- que e formato de arquivo, com campos que
+/// nao sao de audio -- nao vaze para dentro do backend, e para que o backend nao
+/// precise conhecer o `morune-storage`.
+fn audio_settings(config: &morune_storage::config::PlaybackConfig) -> AudioSettings {
+    AudioSettings {
+        bitrate_kbps: config.bitrate,
+        normalize: config.normalize,
+        cache_mb: config.audio_cache_mb,
+    }
+}
+
+/// A oferta de repetir ainda pertence a mensagem que esta na tela?
+///
+/// Funcao livre para poder ser testada: e a regra inteira do conserto descrito
+/// em [`Retry`], e o `AppState` que a usa nao e construivel sem rede, disco e
+/// um motor de audio.
+fn retry_belongs_to(retry: Option<&Retry>, status: &str) -> bool {
+    retry.is_some_and(|retry| retry.message == status)
+}
+
+/// Inicial da conta, para o avatar da barra lateral.
+///
+/// O caminho de login que o Morune usa nao entrega nome de exibicao nem foto --
+/// o `/v1/me` do Web API esta fora do alcance, e o que sobra e o identificador
+/// da sessao (ver `morune-spotify/src/auth.rs`). O avatar entao e desenhado a
+/// partir do que existe: a primeira letra ou digito do nome.
+///
+/// Pontuacao no inicio e pulada porque um circulo com "_" nao identifica
+/// ninguem, e nomes de usuario comecam com ela com frequencia.
+fn account_initial(name: &str) -> String {
+    name.chars()
+        .find(|c| c.is_alphanumeric())
+        .map(|c| c.to_uppercase().to_string())
+        .unwrap_or_else(|| "?".to_string())
+}
+
+/// Abre um endereco no navegador padrao.
+///
+/// `explorer.exe` e usado em vez de `cmd /c start` de proposito: `start` abre
+/// um console por um instante e interpreta o primeiro argumento entre aspas
+/// como titulo da janela, o que ja rendeu bug em outros projetos. O Explorer
+/// entrega a URL ao shell direto.
+fn open_link(url: &str) -> std::io::Result<()> {
+    #[cfg(windows)]
+    let mut child = std::process::Command::new("explorer.exe")
+        .arg(url)
+        .spawn()?;
+    #[cfg(not(windows))]
+    let mut child = std::process::Command::new("xdg-open").arg(url).spawn()?;
+
+    // Sem isto o processo fica como zumbi ate o Morune sair. Nao esperamos o
+    // navegador: `try_wait` so recolhe se ja terminou.
+    let _ = child.try_wait();
+    Ok(())
+}
+
 fn status_expired(age: Duration, has_action: bool, timeout: Duration) -> bool {
     !has_action && age >= timeout
 }
@@ -3445,5 +3828,72 @@ mod tests {
                 "mais-ouvidas"
             ]
         );
+    }
+
+    #[test]
+    fn a_inicial_do_avatar_e_a_primeira_letra() {
+        assert_eq!(account_initial("seititm"), "S");
+        assert_eq!(account_initial("Felipe"), "F");
+    }
+
+    #[test]
+    fn a_inicial_pula_pontuacao_e_aceita_acento() {
+        // Nomes de usuario comecam com underline e ponto com frequencia, e um
+        // circulo com "_" dentro nao identifica ninguem.
+        assert_eq!(account_initial("_ana"), "A");
+        assert_eq!(account_initial(".2pac"), "2");
+        assert_eq!(account_initial("álvaro"), "Á");
+    }
+
+    /// Sem sessao o avatar nem aparece, mas a funcao nao pode entrar em panico
+    /// no caminho que espelha a interface a cada clique.
+    #[test]
+    fn a_inicial_de_um_nome_vazio_nao_quebra() {
+        assert_eq!(account_initial(""), "?");
+        assert_eq!(account_initial("___"), "?");
+    }
+
+    fn falha(mensagem: &str) -> Retry {
+        Retry {
+            target: RetryTarget::Page(Page::Home),
+            message: mensagem.into(),
+        }
+    }
+
+    #[test]
+    fn a_oferta_de_repetir_vale_enquanto_a_mensagem_dela_esta_na_tela() {
+        let retry = falha("Não foi possível carregar o Início.");
+        assert!(retry_belongs_to(
+            Some(&retry),
+            "Não foi possível carregar o Início."
+        ));
+    }
+
+    /// O defeito que isto conserta: o login sobrescrevia a mensagem de erro e o
+    /// botao continuava na tela, colado numa frase de sucesso -- e como
+    /// mensagem com acao nao expira, o aviso ficava pregado para sempre.
+    #[test]
+    fn outra_mensagem_leva_a_oferta_junto() {
+        let retry = falha("Não foi possível carregar o Início.");
+        assert!(!retry_belongs_to(Some(&retry), "Conectado como seititm."));
+    }
+
+    #[test]
+    fn sem_falha_nao_ha_o_que_repetir() {
+        assert!(!retry_belongs_to(None, "Conectado como seititm."));
+        assert!(!retry_belongs_to(None, ""));
+    }
+
+    /// Sem a oferta, a mensagem volta a ter prazo -- que e o comportamento que
+    /// `status_expired` implementa e que o `bool` solto desligava.
+    #[test]
+    fn mensagem_sem_oferta_volta_a_expirar() {
+        let retry = falha("Não foi possível carregar o Início.");
+        let tem_acao = retry_belongs_to(Some(&retry), "Conectado como seititm.");
+        assert!(status_expired(
+            Duration::from_secs(30),
+            tem_acao,
+            AppState::STATUS_TIMEOUT
+        ));
     }
 }

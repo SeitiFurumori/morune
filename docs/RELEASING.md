@@ -51,6 +51,37 @@ arquivos sao anexados por cima da release daquela versao, sem queimar um numero
 de versao novo. Publicar a partir de um branch e recusado logo no inicio, antes
 de qualquer compilacao.
 
+## O botao "Procurar atualizacoes"
+
+A tela de configuracoes verifica, baixa e instala a versao seguinte sem que
+ninguem precise voltar ao navegador. Tres coisas do processo de publicacao
+sustentam isso, e quebrar qualquer uma delas quebra o botao:
+
+**1. A tag entra no binario.** O workflow passa `MORUNE_RELEASE_TAG` ao
+`cargo build`, e o `build.rs` a grava no executavel. Sem ela o binario se
+apresentaria pela versao do `Cargo.toml` -- `0.1.0`, sem o sufixo de
+pre-lancamento --, e como `0.1.0` e *mais nova* que qualquer `0.1.0-alpha.N`,
+todo mundo receberia "voce ja esta na versao mais recente" para sempre.
+
+**2. Os dois arquivos precisam estar na release.** O `.exe` e o `.sha256` ao
+lado dele. O aplicativo confere o hash antes de executar qualquer coisa e
+recusa o arquivo se nao bater. Uma release sem o `.sha256` e, para o botao, uma
+release sem instalador.
+
+**3. Pre-lancamento so alcanca quem ja esta num.** Quem instalou um alpha
+recebe o alpha seguinte; quem instalou uma versao final so recebe versoes
+finais. Publicar `v0.2.0-alpha.1` nao mexe com ninguem que esteja num `v0.1.0`.
+
+Para conferir o caminho inteiro contra a API de verdade, sem interface:
+
+```
+cargo test -p morune-app -- --ignored --nocapture atualizacao_de_verdade
+```
+
+O instalador ganhou a opcao `/RESTART` para isso: com `/S /RESTART` ele espera
+o Morune sair, instala em silencio e reabre o aplicativo no fim. `/S` sozinho
+continua sendo uma instalacao silenciosa comum, que nao abre janela nenhuma.
+
 ## Acesso dos testadores
 
 Enquanto o repositorio for privado, somente pessoas com acesso ao repositorio

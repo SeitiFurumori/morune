@@ -757,6 +757,54 @@ export component Artwork inherits Rectangle {
     }
 }
 
+// Avatar da conta: circulo com a inicial.
+//
+// **Por que uma inicial e nao a foto:** o caminho de login do Morune nao
+// entrega foto nem nome de exibicao -- so o identificador da sessao (ver
+// `morune-spotify/src/auth.rs`). Desenhar a inicial e o que da forma e cor a um
+// dado que, sozinho, e um texto minusculo em cinza.
+//
+// A cor vem do acento do tema, com o par `text-on-accent` que o contrato de
+// tema garante legivel. E o unico elemento saturado do rodape da barra
+// lateral, e e de proposito: e ali que a conta se identifica.
+export component AccountAvatar inherits Rectangle {
+    in property <string> initial;
+    in property <length> size: 22px;
+    /// Foto do perfil. Vazia enquanto o cache nao a entrega, e vazia para
+    /// sempre em quem nunca escolheu uma -- nos dois casos vale a inicial, e o
+    /// circulo tem o mesmo tamanho, entao a chegada da foto nao mexe o layout.
+    in property <image> source;
+
+    width: root.size;
+    height: root.size;
+    border-radius: min(root.size / 2, Theme.radius-avatar);
+    background: Theme.accent;
+    clip: true;
+
+    if root.source.width == 0: Text {
+        text: root.initial;
+        color: Theme.text-on-accent;
+        // Proporcional ao circulo: o mesmo componente serve a barra lateral e
+        // a tela de configuracoes, em tamanhos diferentes.
+        font-size: root.size * 0.5;
+        font-weight: Theme.weight-bold;
+        font-family: Theme.font-family;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        width: 100%;
+        height: 100%;
+    }
+
+    Image {
+        source: root.source;
+        width: 100%;
+        height: 100%;
+        // A foto do Spotify e quadrada e o circulo tambem; `fill` evita o
+        // acento aparecer por arredondamento de um pixel na borda.
+        image-fit: fill;
+    }
+}
+
 // Linha de acao de um menu desenhado pelo proprio aplicativo.
 //
 // O menu nativo do Windows nao aceita estilo: e um HMENU desenhado pelo

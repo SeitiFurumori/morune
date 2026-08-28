@@ -36,9 +36,18 @@ const MASK_BYTES: usize = ICON_SIZE * ICON_SIZE / 8;
 const ICON_RESOURCE_HEADER_BYTES: usize = 40;
 const ICON_COLOR_BYTES: usize = ICON_SIZE * ICON_SIZE * 4;
 const ICON_RESOURCE_BYTES: usize = ICON_RESOURCE_HEADER_BYTES + ICON_COLOR_BYTES + MASK_BYTES;
-// Violeta da marca com luminosidade intermediaria: continua legivel tanto no
-// flyout claro quanto no escuro do Windows.
-const GLYPH_BGRA: [u8; 4] = [0xff, 0x5c, 0xc0, 0xff];
+/// Amostras por eixo na suavizacao dos glifos.
+///
+/// 4x4 = 16 amostras por pixel. O olho nao distingue mais que isso num icone de
+/// 32 px, e o custo e irrelevante: os quatro icones sao desenhados uma vez por
+/// troca de tema.
+const SUPERSAMPLE: usize = 4;
+
+/// Margem do desenho dentro do icone, em pixels.
+///
+/// O Windows encolhe o icone para caber no botao da barra de miniaturas. Sem
+/// margem, a suavizacao da borda e a primeira coisa que ele corta.
+const GLYPH_MARGIN: f32 = 5.0;
 
 /// Acao pedida pelo usuario no preview da janela.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -104,12 +113,12 @@ struct PlayerIcons {
 }
 
 impl PlayerIcons {
-    fn new() -> Result<Self, TaskbarError> {
+    fn new(tint: [u8; 3]) -> Result<Self, TaskbarError> {
         Ok(Self {
-            previous: create_glyph_icon(Glyph::Previous)?,
-            play: create_glyph_icon(Glyph::Play)?,
-            pause: create_glyph_icon(Glyph::Pause)?,
-            next: create_glyph_icon(Glyph::Next)?,
+            previous: create_glyph_icon(Glyph::Previous, tint)?,
+            play: create_glyph_icon(Glyph::Play, tint)?,
+            pause: create_glyph_icon(Glyph::Pause, tint)?,
+            next: create_glyph_icon(Glyph::Next, tint)?,
         })
     }
 }
@@ -121,6 +130,8 @@ pub struct TaskbarControls {
     _apartment: ComApartment,
     hwnd: HWND,
     icons: PlayerIcons,
+    /// Cor com que os icones foram desenhados, para saber quando redesenhar.
+    tint: Cell<[u8; 3]>,
     receiver: Receiver<NativeEvent>,
     subclass_state: *mut SubclassState,
     registered: Cell<bool>,
@@ -128,7 +139,7 @@ pub struct TaskbarControls {
 }
 
 impl TaskbarControls {
-    pub fn new(window: &slint::Window) -> Result<Self, TaskbarError> {
+    pub fn new(window: &slint::Window, tint: [u8; 3]) -> Result<Self, TaskbarError> {
         let handle = window.window_handle();
         let raw = handle
             .window_handle()
@@ -147,7 +158,7 @@ impl TaskbarControls {
         // SAFETY: chamada de inicializacao obrigatoria da interface recem-criada.
         unsafe { taskbar.HrInit() }?;
 
-        let icons = PlayerIcons::new()?;
+        let icons = PlayerIcons::new(tint)?;
         // SAFETY: a string e terminada em NUL pelo macro `w!`.
         let taskbar_button_created = unsafe { RegisterWindowMessageW(w!("TaskbarButtonCreated")) };
         if taskbar_button_created == 0 {
@@ -183,6 +194,7 @@ impl TaskbarControls {
             icons,
             receiver,
             subclass_state,
+            tint: Cell::new(tint),
             registered: Cell::new(false),
             last_shown: Cell::new(None),
         };
@@ -203,6 +215,31 @@ impl TaskbarControls {
             }
         }
         commands
+    }
+
+    /// Redesenha os icones quando o tema muda de cor.
+    ///
+    /// Sai no primeiro `if` no caso comum -- e chamada no mesmo tique de meio
+    /// segundo da bandeja, e a cor so muda quando alguem troca de tema.
+    ///
+    /// Falhar em criar os icones novos **mantem os antigos**: um botao com a
+    /// cor do tema anterior e melhor que um botao invisivel.
+    pub fn set_tint(&mut self, tint: [u8; 3]) {
+        if self.tint.get() == tint {
+            return;
+        }
+
+        match PlayerIcons::new(tint) {
+            Ok(icons) => {
+                self.icons = icons;
+                self.tint.set(tint);
+                // Forca o proximo `update` a reenviar os botoes: os HICON
+                // antigos foram destruidos junto com o `PlayerIcons` anterior,
+                // e a barra ainda aponta para eles.
+                self.last_shown.set(None);
+            }
+            Err(error) => tracing::debug!(%error, "icones da barra de tarefas nao redesenharam"),
+        }
     }
 
     /// Sincroniza habilitacao e o icone central sem repetir chamadas Win32.
@@ -348,7 +385,7 @@ fn button(
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 enum Glyph {
     Previous,
     Play,
@@ -356,8 +393,8 @@ enum Glyph {
     Next,
 }
 
-fn create_glyph_icon(glyph: Glyph) -> Result<OwnedIcon, TaskbarError> {
-    let resource = glyph_icon_resource(glyph);
+fn create_glyph_icon(glyph: Glyph, tint: [u8; 3]) -> Result<OwnedIcon, TaskbarError> {
+    let resource = glyph_icon_resource(glyph, tint);
     // SAFETY: o buffer contem um BITMAPINFOHEADER, pixels BGRA 32-bit e mascara
     // AND, exatamente no formato RT_ICON. A API copia os dados antes de voltar.
     let icon = unsafe {
@@ -373,30 +410,115 @@ fn create_glyph_icon(glyph: Glyph) -> Result<OwnedIcon, TaskbarError> {
     Ok(OwnedIcon(icon))
 }
 
-fn glyph_icon_resource(glyph: Glyph) -> [u8; ICON_RESOURCE_BYTES] {
-    let mut alpha = [0u8; ICON_SIZE * ICON_SIZE];
+/// Formas que compoem um glifo, em coordenadas de ponto flutuante.
+///
+/// Coordenadas reais, e nao inteiros de pixel: e o que permite centralizar e
+/// suavizar. A versao anterior desenhava com aritmetica inteira e limites
+/// escritos a mao -- o triangulo de tocar comecava em x=11 e terminava em x=33
+/// num icone de 32, entao saia cortado a direita **e** deslocado.
+#[derive(Debug, Clone, Copy)]
+enum Shape {
+    /// Retangulo: esquerda, topo, direita, base.
+    Rect(f32, f32, f32, f32),
+    /// Triangulo por tres vertices.
+    Tri([(f32, f32); 3]),
+}
 
-    let mut pixel = |x: usize, y: usize| {
-        if x < ICON_SIZE && y < ICON_SIZE {
-            alpha[y * ICON_SIZE + x] = 0xff;
-        }
-    };
-
-    match glyph {
-        Glyph::Play => triangle_right(&mut pixel, 11, 8, 20),
-        Glyph::Pause => {
-            rect(&mut pixel, 10, 8, 14, 24);
-            rect(&mut pixel, 18, 8, 22, 24);
-        }
-        Glyph::Previous => {
-            rect(&mut pixel, 8, 9, 11, 23);
-            triangle_left(&mut pixel, 11, 8, 22);
-        }
-        Glyph::Next => {
-            triangle_right(&mut pixel, 9, 8, 20);
-            rect(&mut pixel, 21, 9, 24, 23);
+impl Shape {
+    fn contains(&self, x: f32, y: f32) -> bool {
+        match self {
+            Shape::Rect(l, t, r, b) => x >= *l && x < *r && y >= *t && y < *b,
+            Shape::Tri(v) => {
+                // Sinal do produto vetorial em relacao a cada aresta. Igual nos
+                // tres lados significa dentro, e funciona para qualquer ordem
+                // de vertices.
+                let lado = |a: (f32, f32), b: (f32, f32)| {
+                    (b.0 - a.0) * (y - a.1) - (b.1 - a.1) * (x - a.0)
+                };
+                let d0 = lado(v[0], v[1]);
+                let d1 = lado(v[1], v[2]);
+                let d2 = lado(v[2], v[0]);
+                let neg = d0 < 0.0 || d1 < 0.0 || d2 < 0.0;
+                let pos = d0 > 0.0 || d1 > 0.0 || d2 > 0.0;
+                !(neg && pos)
+            }
         }
     }
+}
+
+/// As formas de cada glifo, ja centradas na area util do icone.
+///
+/// Todas ocupam a mesma caixa vertical e a mesma largura total, para que os
+/// tres botoes tenham peso visual igual quando ficam lado a lado.
+fn glyph_shapes(glyph: Glyph) -> Vec<Shape> {
+    let lado = ICON_SIZE as f32;
+    let esq = GLYPH_MARGIN;
+    let dir = lado - GLYPH_MARGIN;
+    let topo = GLYPH_MARGIN;
+    let base = lado - GLYPH_MARGIN;
+    let meio = lado / 2.0;
+    // Espessura da barra vertical de "anterior" e "proxima".
+    let barra = 3.5;
+
+    match glyph {
+        // O triangulo ocupa a largura toda: sozinho no botao, ele e o unico
+        // elemento e nao divide espaco com barra nenhuma.
+        Glyph::Play => vec![Shape::Tri([(esq, topo), (esq, base), (dir, meio)])],
+        Glyph::Pause => {
+            let largura = 4.5;
+            let vao = 4.0;
+            vec![
+                Shape::Rect(meio - vao / 2.0 - largura, topo, meio - vao / 2.0, base),
+                Shape::Rect(meio + vao / 2.0, topo, meio + vao / 2.0 + largura, base),
+            ]
+        }
+        Glyph::Previous => vec![
+            Shape::Rect(esq, topo, esq + barra, base),
+            Shape::Tri([(dir, topo), (dir, base), (esq + barra + 1.0, meio)]),
+        ],
+        Glyph::Next => vec![
+            Shape::Tri([(esq, topo), (esq, base), (dir - barra - 1.0, meio)]),
+            Shape::Rect(dir - barra, topo, dir, base),
+        ],
+    }
+}
+
+/// Cobertura de cada pixel do glifo, de 0 a 255.
+///
+/// Amostragem em grade: a fracao de sub-amostras dentro de alguma forma vira o
+/// alfa. E o que troca a escada de pixels da versao anterior por uma borda
+/// lisa, que e o que o usuario ve como "feio" ou "limpo".
+fn glyph_coverage(glyph: Glyph) -> [u8; ICON_SIZE * ICON_SIZE] {
+    let shapes = glyph_shapes(glyph);
+    let mut alpha = [0u8; ICON_SIZE * ICON_SIZE];
+    let passo = 1.0 / SUPERSAMPLE as f32;
+
+    for y in 0..ICON_SIZE {
+        for x in 0..ICON_SIZE {
+            let mut dentro = 0u32;
+            for sy in 0..SUPERSAMPLE {
+                for sx in 0..SUPERSAMPLE {
+                    let px = x as f32 + (sx as f32 + 0.5) * passo;
+                    let py = y as f32 + (sy as f32 + 0.5) * passo;
+                    if shapes.iter().any(|s| s.contains(px, py)) {
+                        dentro += 1;
+                    }
+                }
+            }
+            let total = (SUPERSAMPLE * SUPERSAMPLE) as u32;
+            alpha[y * ICON_SIZE + x] = (dentro * 255 / total) as u8;
+        }
+    }
+
+    alpha
+}
+
+/// Monta o recurso `RT_ICON` de um glifo, na cor pedida.
+///
+/// `tint` e RGB do tema. Antes era uma constante violeta: o icone era o unico
+/// pedaco do produto que nao obedecia ao tema escolhido.
+fn glyph_icon_resource(glyph: Glyph, tint: [u8; 3]) -> [u8; ICON_RESOURCE_BYTES] {
+    let alpha = glyph_coverage(glyph);
 
     let mut resource = [0u8; ICON_RESOURCE_BYTES];
     // BITMAPINFOHEADER. A altura e dobrada porque um RT_ICON guarda o bitmap
@@ -412,17 +534,24 @@ fn glyph_icon_resource(glyph: Glyph) -> [u8; ICON_RESOURCE_BYTES] {
     let mask_start = color_start + ICON_COLOR_BYTES;
     resource[mask_start..].fill(0xff);
 
-    // DIBs sao armazenados de baixo para cima. O canal alpha explicito corrige
+    // DIBs sao armazenados de baixo para cima. O canal alfa explicito corrige
     // o HICON monocromatico que virava um botao clicavel, porem invisivel, no
     // compositor da thumbnail toolbar.
     for y in 0..ICON_SIZE {
         for x in 0..ICON_SIZE {
-            if alpha[y * ICON_SIZE + x] == 0 {
+            let cobertura = alpha[y * ICON_SIZE + x];
+            if cobertura == 0 {
                 continue;
             }
             let dib_y = ICON_SIZE - 1 - y;
             let color = color_start + (dib_y * ICON_SIZE + x) * 4;
-            resource[color..color + 4].copy_from_slice(&GLYPH_BGRA);
+            // BGRA, com o alfa da cobertura: o pixel de borda entra parcial.
+            resource[color] = tint[2];
+            resource[color + 1] = tint[1];
+            resource[color + 2] = tint[0];
+            resource[color + 3] = cobertura;
+            // Qualquer cobertura torna o pixel visivel na mascara; a
+            // transparencia parcial quem resolve e o alfa acima.
             resource[mask_start + dib_y * 4 + x / 8] &= !(0x80 >> (x % 8));
         }
     }
@@ -440,42 +569,6 @@ fn write_u32(target: &mut [u8], offset: usize, value: u32) {
 
 fn write_i32(target: &mut [u8], offset: usize, value: i32) {
     target[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
-}
-
-fn rect(
-    pixel: &mut impl FnMut(usize, usize),
-    left: usize,
-    top: usize,
-    right: usize,
-    bottom: usize,
-) {
-    for y in top..bottom {
-        for x in left..right {
-            pixel(x, y);
-        }
-    }
-}
-
-fn triangle_right(pixel: &mut impl FnMut(usize, usize), left: usize, top: usize, width: usize) {
-    let height = 16usize;
-    for y in 0..height {
-        let half = if y < height / 2 { y } else { height - 1 - y };
-        let row_width = 2 + half * width / (height / 2);
-        for x in 0..row_width {
-            pixel(left + x, top + y);
-        }
-    }
-}
-
-fn triangle_left(pixel: &mut impl FnMut(usize, usize), right: usize, top: usize, width: usize) {
-    let height = 16usize;
-    for y in 0..height {
-        let half = if y < height / 2 { y } else { height - 1 - y };
-        let row_width = 2 + half * width / (height / 2);
-        for x in 0..row_width {
-            pixel(right.saturating_sub(x), top + y);
-        }
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -496,10 +589,31 @@ pub enum TaskbarError {
 mod tests {
     use super::*;
 
+    /// Cor qualquer, so para o recurso ficar completo nos testes.
+    const TINTA: [u8; 3] = [0x6d, 0xd4, 0x9e];
+
+    /// Extremos ocupados pelo desenho, em pixels: (esquerda, direita).
+    ///
+    /// Um pixel conta quando tem alguma cobertura; a borda suavizada entra.
+    fn extremos(glyph: Glyph) -> (usize, usize) {
+        let alpha = glyph_coverage(glyph);
+        let mut esq = ICON_SIZE;
+        let mut dir = 0;
+        for y in 0..ICON_SIZE {
+            for x in 0..ICON_SIZE {
+                if alpha[y * ICON_SIZE + x] > 0 {
+                    esq = esq.min(x);
+                    dir = dir.max(x);
+                }
+            }
+        }
+        (esq, dir)
+    }
+
     #[test]
     fn every_glyph_is_a_valid_argb_icon_resource() {
         for glyph in [Glyph::Previous, Glyph::Play, Glyph::Pause, Glyph::Next] {
-            let resource = glyph_icon_resource(glyph);
+            let resource = glyph_icon_resource(glyph, TINTA);
             assert_eq!(u32::from_le_bytes(resource[0..4].try_into().unwrap()), 40);
             assert_eq!(u16::from_le_bytes(resource[14..16].try_into().unwrap()), 32);
             let pixels = &resource[ICON_RESOURCE_HEADER_BYTES..][..ICON_COLOR_BYTES];
@@ -516,8 +630,64 @@ mod tests {
     #[test]
     fn play_and_pause_are_distinct() {
         assert_ne!(
-            glyph_icon_resource(Glyph::Play),
-            glyph_icon_resource(Glyph::Pause)
+            glyph_icon_resource(Glyph::Play, TINTA),
+            glyph_icon_resource(Glyph::Pause, TINTA)
         );
+    }
+
+    /// O defeito relatado: o triangulo de tocar saia deslocado e cortado na
+    /// borda direita, porque era desenhado de x=11 ate x=33 num icone de 32.
+    #[test]
+    fn nenhum_glifo_encosta_na_borda() {
+        for glyph in [Glyph::Previous, Glyph::Play, Glyph::Pause, Glyph::Next] {
+            let (esq, dir) = extremos(glyph);
+            assert!(esq > 0, "{glyph:?} encosta na borda esquerda");
+            assert!(
+                dir < ICON_SIZE - 1,
+                "{glyph:?} encosta na borda direita (x={dir})"
+            );
+        }
+    }
+
+    #[test]
+    fn todo_glifo_fica_centrado() {
+        for glyph in [Glyph::Previous, Glyph::Play, Glyph::Pause, Glyph::Next] {
+            let (esq, dir) = extremos(glyph);
+            let folga_esquerda = esq;
+            let folga_direita = ICON_SIZE - 1 - dir;
+            let diferenca = folga_esquerda.abs_diff(folga_direita);
+            assert!(
+                diferenca <= 1,
+                "{glyph:?} descentrado: {folga_esquerda} a esquerda, {folga_direita} a direita"
+            );
+        }
+    }
+
+    /// Sem suavizacao todo pixel seria 0 ou 255, e a borda vira escada.
+    #[test]
+    fn as_bordas_sao_suavizadas() {
+        let alpha = glyph_coverage(Glyph::Play);
+        let parciais = alpha.iter().filter(|&&a| a > 0 && a < 255).count();
+        assert!(parciais > 10, "borda sem meio-tom: {parciais} pixels");
+    }
+
+    /// O pause e feito de retangulos alinhados ao pixel: nao ha o que suavizar,
+    /// e um meio-tom ali seria borrao, nao curva.
+    #[test]
+    fn o_pause_nao_precisa_de_meio_tom_nas_verticais() {
+        let alpha = glyph_coverage(Glyph::Pause);
+        assert!(alpha.contains(&255));
+    }
+
+    #[test]
+    fn a_cor_pedida_e_a_que_vai_para_o_icone() {
+        let resource = glyph_icon_resource(Glyph::Play, [0x11, 0x22, 0x33]);
+        let pixels = &resource[ICON_RESOURCE_HEADER_BYTES..][..ICON_COLOR_BYTES];
+        // BGRA: o azul vem primeiro.
+        let cheio = pixels
+            .chunks_exact(4)
+            .find(|p| p[3] == 0xff)
+            .expect("algum pixel opaco");
+        assert_eq!([cheio[2], cheio[1], cheio[0]], [0x11, 0x22, 0x33]);
     }
 }

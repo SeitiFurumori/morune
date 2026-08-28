@@ -33,6 +33,7 @@ mod theme_bridge;
 mod tint;
 mod tray;
 mod tray_menu;
+mod update;
 mod wallpaper;
 
 pub mod ui {
@@ -859,8 +860,10 @@ fn wire_taskbar(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState>>
     timer.start(slint::TimerMode::Repeated, tray::POLL_INTERVAL, move || {
         let Some(window) = weak.upgrade() else { return };
 
+        let tint = state.borrow().taskbar_tint();
+
         if controls.is_none() && !creation_failed {
-            match taskbar::TaskbarControls::new(window.window()) {
+            match taskbar::TaskbarControls::new(window.window(), tint) {
                 Ok(created) => controls = Some(created),
                 Err(error) => {
                     creation_failed = true;
@@ -880,6 +883,10 @@ fn wire_taskbar(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState>>
             }
             state.borrow().push_to_ui(&window);
         }
+
+        // Antes do `update`: trocar de tema invalida os HICON, e reenviar os
+        // botoes com os antigos deixaria a barra apontando para icones mortos.
+        controls.set_tint(tint);
 
         let (now_playing, playing) = state.borrow().tray_status();
         controls.update(now_playing.is_some(), playing);
@@ -945,7 +952,8 @@ fn init_logging(paths: &morune_storage::AppPaths) {
         .with_target(false)
         .compact();
 
-    match open_log_file(paths) {
+    let (file, aviso) = open_log_file(paths);
+    match file {
         // Sem cor: o arquivo e lido em editor de texto, e o codigo de escape
         // apareceria como lixo no meio da mensagem.
         Some(file) => builder
@@ -954,25 +962,58 @@ fn init_logging(paths: &morune_storage::AppPaths) {
             .init(),
         None => builder.init(),
     }
+
+    // Emitido depois de `init` de proposito: e a primeira linha do arquivo
+    // alternativo, e explica por que o principal ficou para tras.
+    if let Some(aviso) = aviso {
+        tracing::warn!("{aviso}");
+    }
 }
 
 /// Abre o log para acrescimo, rodando o anterior quando passa do teto.
 ///
-/// Devolve `None` quando o arquivo nao pode ser aberto -- disco cheio, pasta
-/// sem permissao. Falhar aqui **nao** pode impedir o aplicativo de abrir: fica
-/// so o console, que em release nao existe, e o resto segue.
-fn open_log_file(paths: &morune_storage::AppPaths) -> Option<std::fs::File> {
+/// Falhar aqui **nao** pode impedir o aplicativo de abrir. Mas tambem nao pode
+/// passar despercebido: em release nao existe console, entao um `None` aqui
+/// apaga a sessao inteira do registro -- ela roda, faz tudo, e nao deixa uma
+/// linha. Ja aconteceu, e transformou um travamento numa investigacao sem
+/// nenhuma evidencia.
+///
+/// Por isso, quando o caminho principal nao abre -- normalmente porque outro
+/// programa esta com ele travado, um antivirus ou um indexador --, a sessao vai
+/// para um arquivo proprio com o numero do processo no nome. O segundo valor
+/// devolvido e o aviso a registrar assim que o log existir.
+fn open_log_file(paths: &morune_storage::AppPaths) -> (Option<std::fs::File>, Option<String>) {
     let path = paths.log_file();
 
     if std::fs::metadata(&path).is_ok_and(|m| m.len() >= LOG_MAX_BYTES) {
         let _ = std::fs::rename(&path, path.with_extension("log.old"));
     }
 
-    std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)
-        .ok()
+    let abrir = |path: &std::path::Path| {
+        std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+    };
+
+    let erro = match abrir(&path) {
+        Ok(file) => return (Some(file), None),
+        Err(e) => e,
+    };
+
+    let alternativo = path.with_file_name(format!("morune-{}.log", std::process::id()));
+    match abrir(&alternativo) {
+        Ok(file) => (
+            Some(file),
+            Some(format!(
+                "{} indisponivel ({erro}); esta sessao esta sendo registrada aqui",
+                path.display()
+            )),
+        ),
+        // Nem o alternativo abriu: disco cheio ou pasta sem permissao. Nao ha
+        // para onde escrever o aviso, e a unica escolha que resta e seguir.
+        Err(_) => (None, None),
+    }
 }
 
 fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState>>) {
@@ -1046,6 +1087,46 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
         s.apply_theme_to(&w);
         s.push_to_ui(&w);
     });
+
+    on!(on_set_bitrate, |w, s, code: i32| {
+        s.set_bitrate(code);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_set_normalize, |w, s, on: bool| {
+        s.set_normalize(on);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_check_update, |w, s| {
+        s.check_for_update();
+        s.push_to_ui(&w);
+    });
+
+    on!(on_download_update, |w, s| {
+        s.download_update();
+        s.push_to_ui(&w);
+    });
+
+    on!(on_open_releases_page, |w, s| {
+        s.open_releases_page();
+        s.push_to_ui(&w);
+    });
+
+    // Fora da macro `on!`: encerrar o laco enquanto o `RefCell` do estado esta
+    // emprestado deixaria o `borrow_mut` vivo durante o desmonte da janela.
+    {
+        let weak = window.as_weak();
+        let state = state.clone();
+        window.on_install_update(move || {
+            let Some(window) = weak.upgrade() else { return };
+            let instalando = state.borrow_mut().install_update();
+            state.borrow().push_to_ui(&window);
+            if instalando {
+                let _ = slint::quit_event_loop();
+            }
+        });
+    }
 
     on!(on_search, |w, s, query: slint::SharedString| {
         s.search(query.as_str());

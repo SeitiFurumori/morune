@@ -38,11 +38,13 @@
 use std::sync::{Arc, Mutex};
 
 use librespot_core::authentication::Credentials;
+use librespot_core::cache::Cache;
 use librespot_core::{Session, SessionConfig};
 use librespot_oauth::OAuthToken;
 use morune_core::auth::{Authenticator, CredentialStore, UserProfile};
 use morune_core::catalog::BoxFuture;
 use morune_core::{CoreError, CoreResult};
+use serde::Deserialize;
 
 use crate::error::{from_librespot, from_oauth};
 use crate::token::{TokenSource, REDIRECT_URI};
@@ -107,6 +109,13 @@ pub struct SpotifyAuthenticator {
     session: SharedSession,
     /// Token do login em andamento, entre `begin_login` e `complete_login`.
     pending: Mutex<Option<OAuthToken>>,
+    /// Cache de audio em disco, quando o usuario nao o desligou.
+    ///
+    /// **So audio.** A `Cache` da librespot tambem sabe guardar credenciais em
+    /// `credentials.json`, e isso nunca e ligado aqui: a credencial do Morune
+    /// vive no Gerenciador de Credenciais do Windows, e escreve-la em texto ao
+    /// lado do cache desfaria essa decisao inteira.
+    cache: Option<Cache>,
 }
 
 impl std::fmt::Debug for SpotifyAuthenticator {
@@ -122,11 +131,32 @@ impl SpotifyAuthenticator {
         Self::with_tokens(Arc::new(TokenSource::new(credentials)), session)
     }
 
+    /// Liga o cache de audio em disco.
+    ///
+    /// Falhar aqui **nao** impede o login: sem cache o Spotify e baixado a cada
+    /// reproducao, que e mais lento e gasta mais rede, mas funciona. Uma pasta
+    /// sem permissao nao pode deixar ninguem sem musica.
+    pub fn with_audio_cache(mut self, dir: &std::path::Path, limit_mb: u32) -> Self {
+        if limit_mb == 0 {
+            return self;
+        }
+
+        let limite = u64::from(limit_mb) * 1024 * 1024;
+        match Cache::new(None::<&std::path::Path>, None, Some(dir), Some(limite)) {
+            Ok(cache) => self.cache = Some(cache),
+            Err(e) => {
+                tracing::warn!(error = %e, dir = %dir.display(), "cache de audio indisponivel")
+            }
+        }
+        self
+    }
+
     pub(crate) fn with_tokens(tokens: Arc<TokenSource>, session: SharedSession) -> Self {
         Self {
             tokens,
             session,
             pending: Mutex::new(None),
+            cache: None,
         }
     }
 
@@ -147,7 +177,7 @@ impl SpotifyAuthenticator {
         // Se a conta for recusada logo abaixo, o segredo e esquecido junto.
         self.tokens.adopt(token.clone()).await;
 
-        let session = Session::new(SessionConfig::default(), None);
+        let session = Session::new(SessionConfig::default(), self.cache.clone());
         if let Err(e) = session
             .connect(Credentials::with_access_token(&token.access_token), false)
             .await
@@ -165,20 +195,69 @@ impl SpotifyAuthenticator {
         }
 
         let data = session.user_data();
+        // Nome de exibicao e foto vem do `user-profile-view`, e nao do `/v1/me`
+        // -- aquele responde 429 para este aplicativo. A sonda de 19/08/2026
+        // confirmou o formato; ver `bench-out/sonda/perfil.json`.
+        let perfil = fetch_profile(&session, &data.canonical_username).await;
         let profile = UserProfile {
             id: data.canonical_username.clone(),
-            // Sem o `/v1/me` nao ha nome de exibicao nem avatar. O identificador
-            // da sessao e o que sobra, e e melhor que um espaco vazio na barra
-            // lateral. Trocar por `user-profile-view` da spclient depende de
-            // sondar esse endereco -- ver HANDOFF.md.
-            display_name: Some(data.canonical_username.clone()).filter(|s| !s.is_empty()),
-            avatar_url: None,
+            // O identificador da sessao e o piso: sem ele a barra lateral
+            // ficaria com um espaco vazio quando o perfil nao responder.
+            display_name: perfil
+                .as_ref()
+                .and_then(|p| p.name.clone())
+                .filter(|s| !s.is_empty())
+                .or_else(|| Some(data.canonical_username.clone()).filter(|s| !s.is_empty())),
+            avatar_url: perfil.and_then(|p| p.image_url).filter(|s| !s.is_empty()),
             country: Some(data.country.clone()).filter(|s| !s.is_empty()),
             can_stream: true,
         };
 
         self.session.set(Some(session));
         Ok(profile)
+    }
+}
+
+/// Nome de exibicao e foto da conta, do `user-profile-view`.
+///
+/// Campos opcionais porque o perfil pode nao ter nenhum dos dois: quem nunca
+/// escolheu nome nem foto recebe os derivados, e o proprio Spotify sinaliza
+/// isso em `has_spotify_name` e `has_spotify_image`.
+#[derive(Debug, Deserialize)]
+struct ProfileView {
+    name: Option<String>,
+    image_url: Option<String>,
+}
+
+/// Busca o perfil da conta. `None` quando nao responde.
+///
+/// **Nunca falha o login.** O perfil e enfeite: sem ele a barra lateral mostra
+/// o identificador da sessao e um avatar com a inicial, que e exatamente o que
+/// o Morune fez ate agora. Derrubar uma sessao boa porque a foto nao veio seria
+/// trocar o essencial pelo cosmetico.
+///
+/// Os limites de playlists e artistas vao em zero de proposito: a resposta traz
+/// prateleiras inteiras que nao sao usadas aqui, e pedir cinco de cada so faria
+/// o corpo crescer no caminho do login.
+async fn fetch_profile(session: &Session, username: &str) -> Option<ProfileView> {
+    let bytes = match session
+        .spclient()
+        .get_user_profile(username, Some(0), Some(0))
+        .await
+    {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            tracing::debug!(error = %e, "perfil da conta indisponivel");
+            return None;
+        }
+    };
+
+    match serde_json::from_slice::<ProfileView>(&bytes) {
+        Ok(perfil) => Some(perfil),
+        Err(e) => {
+            tracing::debug!(error = %e, "perfil da conta em formato inesperado");
+            None
+        }
     }
 }
 

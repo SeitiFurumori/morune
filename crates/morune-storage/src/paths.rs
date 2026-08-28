@@ -89,6 +89,15 @@ impl AppPaths {
         self.cache_dir.join("audio")
     }
 
+    /// Instaladores baixados pelo botao de atualizar.
+    ///
+    /// Fica em `cache_dir` porque e descartavel por definicao: depois de
+    /// instalar, o arquivo so ocupa espaco, e apagar a pasta inteira nao perde
+    /// nada que o usuario tenha criado.
+    pub fn updates_dir(&self) -> PathBuf {
+        self.cache_dir.join("updates")
+    }
+
     pub fn log_file(&self) -> PathBuf {
         self.data_dir.join("morune.log")
     }
@@ -120,6 +129,12 @@ mod tests {
     fn theme_directories_hang_off_the_themes_directory() {
         let p = AppPaths::portable(Path::new("D:/morune"));
         assert_eq!(p.theme_dir("midnight"), p.themes_dir().join("midnight"));
+    }
+
+    #[test]
+    fn downloaded_installers_are_discardable_cache() {
+        let p = AppPaths::portable(Path::new("D:/morune"));
+        assert!(p.updates_dir().starts_with(p.cache_dir()));
     }
 
     #[test]

@@ -1,5 +1,5 @@
 import { Theme, Layout } from "theme.slint";
-import { GlassEdge, Gloss, Glass, ScrollFade, Icon, IconRef, IconButton, PrimaryButton, GhostButton, SearchField, Slider, Artwork, PressableArea, Toggle, Logo, MenuRow } from "components.slint";
+import { GlassEdge, Gloss, Glass, ScrollFade, Icon, IconRef, IconButton, PrimaryButton, GhostButton, SearchField, Slider, Artwork, PressableArea, Toggle, Logo, MenuRow, AccountAvatar } from "components.slint";
 import { ListView } from "std-widgets.slint";
 
 // O Slint exige que um componente esteja declarado antes de ser usado, entao
@@ -303,6 +303,60 @@ component AppTitleBar inherits Rectangle {
         y: parent.height - Theme.border-width;
         height: Theme.border-width;
         background: Theme.border;
+    }
+}
+
+// Rodape da barra lateral quando ha sessao.
+//
+// **O que havia antes:** um `Text` solto com o identificador da conta, colado
+// na borda esquerda, um nivel de recuo diferente de todo o resto da coluna e em
+// cinza de texto secundario. Parecia sobra, nao informacao.
+//
+// Agora tem a geometria de um [`NavItem`] -- mesma altura, mesmo recuo, mesmo
+// realce sob o cursor -- e o avatar ocupa exatamente o lugar do icone, de modo
+// que o nome cai na mesma coluna dos rotulos de navegacao. Clicar leva as
+// Configuracoes, que e onde a conta se administra: sem isso o bloco seria um
+// alvo de clique que nao faz nada.
+component AccountRow inherits Rectangle {
+    in property <string> name;
+    in property <string> initial;
+    in property <image> avatar;
+    callback clicked();
+
+    height: 40px;
+    border-radius: Theme.radius-md;
+    background: touch.has-hover ? Theme.hover : transparent;
+
+    if touch.has-hover: Glass { radius: Theme.radius-md; }
+    animate background { duration: Theme.motion-fast; }
+
+    HorizontalLayout {
+        padding-left: Theme.space-md;
+        padding-right: Theme.space-md;
+        spacing: Theme.space-md;
+        alignment: Layout.sidebar-labels-shown ? LayoutAlignment.start : LayoutAlignment.center;
+
+        AccountAvatar {
+            initial: root.initial;
+            source: root.avatar;
+            size: Theme.control-icon-size-primary;
+            y: (parent.height - self.height) / 2;
+        }
+
+        if Layout.sidebar-labels-shown: Text {
+            text: root.name;
+            color: Theme.text;
+            font-size: Theme.size-md;
+            font-family: Theme.font-family;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    touch := PressableArea {
+        accessible-label: "Conta: " + root.name;
+        focus-radius: Theme.radius-md;
+        clicked => { root.clicked(); }
     }
 }
 
@@ -764,6 +818,8 @@ component Sidebar inherits Rectangle {
     in property <int> page;
     in property <bool> logged-in;
     in property <string> account-name;
+    in property <string> account-initial;
+    in property <image> account-avatar;
     in property <[CardItem]> playlists;
     callback navigate(int);
     callback toggle-sidebar();
@@ -823,22 +879,44 @@ component Sidebar inherits Rectangle {
             // precisa porque tem altura fixa.
             vertical-stretch: 0;
 
+            // A marca **e** o botao de expandir.
+            //
+            // Antes havia um chevron separado logo abaixo dela, e ele trazia
+            // dois problemas. O visual: duas coisas empilhadas numa coluna de
+            // 44 px, onde a marca sozinha ja ocupa o lugar todo. E um defeito
+            // de verdade: o rotulo de ajuda daquele botao nascia mais largo que
+            // a barra recolhida, comecava em `x` negativo e era cortado pela
+            // borda esquerda -- na tela aparecia "ndir barra lateral".
+            //
+            // A marca continua sendo a unica identificacao visivel do
+            // aplicativo quando recolhida, entao ela nao some. Expandir passa a
+            // ser clicar nela, que e o gesto que o usuario ja tentava.
+            //
+            // Sem rotulo de ajuda de proposito: qualquer caixa mais larga que
+            // 44 px repetiria o corte. O realce sob o cursor diz que e
+            // clicavel, e o nome acessivel diz o que faz.
             HorizontalLayout {
                 alignment: center;
-                Logo { }
-            }
 
-            // Sempre presente quando recolhida, mesmo que o tema desligue
-            // `collapsible`: sem ele nao haveria como voltar, e o usuario
-            // ficaria preso numa barra de icones.
-            HorizontalLayout {
-                alignment: center;
-                IconButton {
-                    label: "Expandir barra lateral";
-                    glyph: Icons.chevron-right;
-                    tint: Theme.text-muted;
-                    button-size: 28px;
-                    clicked => { root.toggle-sidebar(); }
+                marca := Rectangle {
+                    width: 40px;
+                    height: 40px;
+                    border-radius: Theme.radius-md;
+                    background: marca-touch.has-hover ? Theme.hover : transparent;
+
+                    if marca-touch.has-hover: Glass { radius: Theme.radius-md; }
+                    animate background { duration: Theme.motion-fast; }
+
+                    Logo {
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                    }
+
+                    marca-touch := PressableArea {
+                        accessible-label: "Expandir barra lateral";
+                        focus-radius: Theme.radius-md;
+                        clicked => { root.toggle-sidebar(); }
+                    }
                 }
             }
         }
@@ -948,12 +1026,13 @@ component Sidebar inherits Rectangle {
             clicked => { root.login(); }
         }
 
-        if Layout.sidebar-labels-shown && root.logged-in: Text {
-            text: root.account-name;
-            color: Theme.text-muted;
-            font-size: Theme.size-xs;
-            font-family: Theme.font-family;
-            overflow: elide;
+        // Recolhida, sobra so o avatar -- que continua identificando a conta e
+        // continua sendo o caminho para as Configuracoes.
+        if root.logged-in: AccountRow {
+            name: root.account-name;
+            initial: root.account-initial;
+            avatar: root.account-avatar;
+            clicked => { root.navigate(3); }
         }
     }
 }
@@ -2210,8 +2289,12 @@ component SettingsPage inherits VerticalLayout {
     in property <bool> dev-mode;
     in property <bool> logged-in;
     in property <string> account-name;
+    in property <string> account-initial;
+    in property <image> account-avatar;
     in property <bool> close-to-tray;
     in property <bool> autoplay;
+    in property <int> bitrate;
+    in property <bool> normalize;
     in property <bool> start-with-windows;
 
     in property <bool> has-background;
@@ -2226,6 +2309,11 @@ component SettingsPage inherits VerticalLayout {
     in property <bool> reduce-motion;
     in property <bool> hot-reload;
 
+    in property <int> update-phase;
+    in property <string> update-title;
+    in property <string> update-detail;
+    in property <float> update-progress;
+
     callback choose-background();
     callback clear-background();
     callback set-background-fit(int);
@@ -2237,8 +2325,15 @@ component SettingsPage inherits VerticalLayout {
     callback set-reduce-motion(bool);
     callback set-hot-reload(bool);
 
+    callback check-update();
+    callback download-update();
+    callback install-update();
+    callback open-releases-page();
+
     callback set-close-to-tray(bool);
     callback set-autoplay(bool);
+    callback set-bitrate(int);
+    callback set-normalize(bool);
     callback set-start-with-windows(bool);
     callback select-theme(string);
     callback import-theme();
@@ -2268,28 +2363,178 @@ component SettingsPage inherits VerticalLayout {
 
             SectionTitle { text: "Configurações"; }
 
-            HorizontalLayout {
-                spacing: Theme.space-sm;
-                height: 34px;
+            // Cartao da conta.
+            //
+            // Era uma linha de texto secundario com um botao ao lado, do mesmo
+            // peso visual de um ajuste qualquer -- e a conta e a primeira coisa
+            // da tela, nao um ajuste. Aqui ela ganha avatar, o nome em texto
+            // primario e uma segunda linha dizendo o que aquilo e.
+            Rectangle {
+                height: 64px;
+                border-radius: Theme.radius-md;
+                background: Theme.surface;
 
-                Text {
-                    text: root.logged-in ? root.account-name : "Não conectado";
-                    color: Theme.text-muted;
-                    font-size: Theme.size-md;
-                    font-family: Theme.font-family;
-                    vertical-alignment: center;
-                    horizontal-stretch: 1;
+                Glass { radius: Theme.radius-md; }
+
+                HorizontalLayout {
+                    padding-left: Theme.space-md;
+                    padding-right: Theme.space-md;
+                    spacing: Theme.space-md;
+
+                    if root.logged-in: AccountAvatar {
+                        initial: root.account-initial;
+                        source: root.account-avatar;
+                        size: 40px;
+                        y: (parent.height - self.height) / 2;
+                    }
+
+                    // Sem sessao o avatar seria um circulo com "?" -- a marca
+                    // diz melhor que ali ainda nao ha ninguem.
+                    if !root.logged-in: Logo {
+                        size: 40px;
+                        tint: Theme.border;
+                        y: (parent.height - self.height) / 2;
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+                        spacing: 2px;
+
+                        Text {
+                            text: root.logged-in ? root.account-name : "Não conectado";
+                            color: Theme.text;
+                            font-size: Theme.size-lg;
+                            font-weight: Theme.weight-medium;
+                            font-family: Theme.font-family;
+                            overflow: elide;
+                        }
+
+                        Text {
+                            text: root.logged-in
+                                ? "Conectado ao Spotify"
+                                : "Entre para ouvir sua biblioteca.";
+                            color: Theme.text-muted;
+                            font-size: Theme.size-xs;
+                            font-family: Theme.font-family;
+                            overflow: elide;
+                        }
+                    }
+
+                    if !root.logged-in: PrimaryButton {
+                        label: "Entrar no Spotify";
+                        y: (parent.height - self.height) / 2;
+                        clicked => { root.login(); }
+                    }
+
+                    if root.logged-in: GhostButton {
+                        label: "Sair";
+                        danger: true;
+                        y: (parent.height - self.height) / 2;
+                        clicked => { root.logout(); }
+                    }
                 }
+            }
 
-                if !root.logged-in: PrimaryButton {
-                    label: "Entrar no Spotify";
-                    clicked => { root.login(); }
-                }
+            Text {
+                text: "Atualizações";
+                color: Theme.text;
+                font-size: Theme.size-md;
+                font-weight: Theme.weight-bold;
+                font-family: Theme.font-family;
+            }
 
-                if root.logged-in: GhostButton {
-                    label: "Sair";
-                    danger: true;
-                    clicked => { root.logout(); }
+            // A altura vem do conteudo porque o bloco muda de tamanho com a
+            // fase: parado sao duas linhas, com versao nova sao as notas do
+            // lancamento inteiras. Uma altura fixa cortaria o texto justamente
+            // no estado que a pessoa precisa ler antes de decidir.
+            Rectangle {
+                height: atualizacao.preferred-height;
+
+                atualizacao := VerticalLayout {
+                    width: parent.width;
+                    spacing: Theme.space-sm;
+
+                    HorizontalLayout {
+                        spacing: Theme.space-md;
+                        height: 34px;
+
+                        VerticalLayout {
+                            alignment: center;
+                            horizontal-stretch: 1;
+
+                            Text {
+                                text: root.update-title;
+                                color: Theme.text;
+                                font-size: Theme.size-md;
+                                font-family: Theme.font-family;
+                                overflow: elide;
+                            }
+                        }
+
+                        // Um botao por vez, e o texto dele diz o que o proximo
+                        // clique faz -- nao "Atualizar" em toda fase, que
+                        // esconderia que baixar e instalar sao coisas
+                        // diferentes (instalar fecha o aplicativo).
+                        if root.update-phase == 3: PrimaryButton {
+                            label: "Baixar";
+                            y: (parent.height - self.height) / 2;
+                            clicked => { root.download-update(); }
+                        }
+
+                        if root.update-phase == 5: PrimaryButton {
+                            label: "Instalar e reiniciar";
+                            y: (parent.height - self.height) / 2;
+                            clicked => { root.install-update(); }
+                        }
+
+                        if root.update-phase != 3 && root.update-phase != 5: PrimaryButton {
+                            label: root.update-phase == 1
+                                ? "Procurando..."
+                                : (root.update-phase == 4 ? "Baixando..." : "Procurar atualizações");
+                            // Clicar de novo no meio da rede nao faz nada util,
+                            // e o botao apagado e o que diz isso sem texto.
+                            enabled: root.update-phase != 1 && root.update-phase != 4;
+                            y: (parent.height - self.height) / 2;
+                            clicked => { root.check-update(); }
+                        }
+                    }
+
+                    if root.update-detail != "": Text {
+                        text: root.update-detail;
+                        color: root.update-phase == 6 ? Theme.danger : Theme.text-muted;
+                        font-size: Theme.size-xs;
+                        font-family: Theme.font-family;
+                        wrap: word-wrap;
+                    }
+
+                    if root.update-phase == 4: Rectangle {
+                        height: 6px;
+                        border-radius: Theme.radius-sm;
+                        background: Theme.border;
+
+                        Rectangle {
+                            x: 0;
+                            y: 0;
+                            width: parent.width * root.update-progress;
+                            height: parent.height;
+                            border-radius: parent.border-radius;
+                            background: Theme.accent;
+                        }
+                    }
+
+                    // Saida manual: enquanto nao houver assinatura de codigo, o
+                    // SmartScreen pode barrar o instalador baixado aqui, e a
+                    // pessoa precisa de um caminho que nao dependa deste botao.
+                    if root.update-phase == 3 || root.update-phase == 6: HorizontalLayout {
+                        alignment: start;
+                        height: 32px;
+
+                        GhostButton {
+                            label: "Abrir a página de lançamentos";
+                            clicked => { root.open-releases-page(); }
+                        }
+                    }
                 }
             }
 
@@ -2306,6 +2551,55 @@ component SettingsPage inherits VerticalLayout {
                 hint: "Quando a fila acabar, toca uma estação baseada na última faixa.";
                 checked: root.autoplay;
                 toggled(v) => { root.set-autoplay(v); }
+            }
+
+            Text {
+                text: "Áudio";
+                color: Theme.text;
+                font-size: Theme.size-md;
+                font-weight: Theme.weight-bold;
+                font-family: Theme.font-family;
+            }
+
+            Rectangle {
+                height: 44px;
+                HorizontalLayout {
+                    spacing: Theme.space-sm;
+
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+                        Text {
+                            text: "Qualidade";
+                            color: Theme.text;
+                            font-size: Theme.size-md;
+                            font-family: Theme.font-family;
+                        }
+                        Text {
+                            // Diz quando vale porque nao vale agora: a
+                            // configuracao do reprodutor e congelada quando ele
+                            // nasce, e refazer o motor pararia a musica.
+                            text: "Vale a partir da próxima vez que o Morune abrir.";
+                            color: Theme.text-muted;
+                            font-size: Theme.size-xs;
+                            font-family: Theme.font-family;
+                        }
+                    }
+
+                    for option[index] in ["96 kbps", "160 kbps", "320 kbps"]: GhostButton {
+                        label: option;
+                        active: root.bitrate == index;
+                        y: (parent.height - self.height) / 2;
+                        clicked => { root.set-bitrate(index); }
+                    }
+                }
+            }
+
+            SettingRow {
+                label: "Nivelar o volume entre faixas";
+                hint: "Deixa músicas gravadas em volumes diferentes no mesmo nível. Vale ao reabrir.";
+                checked: root.normalize;
+                toggled(v) => { root.set-normalize(v); }
             }
 
             Rectangle {
@@ -2586,6 +2880,8 @@ export component AppWindow inherits Window {
     in property <bool> retry-available: false;
     in property <bool> logged-in: false;
     in property <string> account-name;
+    in property <string> account-initial;
+    in property <image> account-avatar;
 
     in property <[CardItem]> home-made-for-you;
     in property <[CardItem]> home-stations;
@@ -2633,6 +2929,8 @@ export component AppWindow inherits Window {
     in property <string> perf-text;
     in property <bool> close-to-tray: true;
     in property <bool> autoplay: true;
+    in property <int> bitrate;
+    in property <bool> normalize;
     in property <bool> start-with-windows: false;
     private property <bool> shortcuts-visible: false;
     in-out property <bool> mini-player: false;
@@ -2689,6 +2987,19 @@ export component AppWindow inherits Window {
     callback set-reduce-motion(bool);
     callback set-hot-reload(bool);
 
+    // Atualizacao. A fase decide qual botao aparece, e vem pronta do Rust:
+    // 0 parado, 1 verificando, 2 em dia, 3 disponivel, 4 baixando, 5 pronto
+    // para instalar, 6 falhou. Ver `AppState::update_status`.
+    in property <int> update-phase: 0;
+    in property <string> update-title;
+    in property <string> update-detail;
+    in property <float> update-progress;
+
+    callback check-update();
+    callback download-update();
+    callback install-update();
+    callback open-releases-page();
+
     callback toggle-play();
     callback stop-playback();
     callback next-track();
@@ -2722,6 +3033,8 @@ export component AppWindow inherits Window {
     callback detail-load-more();
     callback set-close-to-tray(bool);
     callback set-autoplay(bool);
+    callback set-bitrate(int);
+    callback set-normalize(bool);
     callback set-start-with-windows(bool);
     callback login();
     callback logout();
@@ -2843,6 +3156,8 @@ export component AppWindow inherits Window {
                     page: root.page;
                     logged-in: root.logged-in;
                     account-name: root.account-name;
+                    account-initial: root.account-initial;
+                    account-avatar: root.account-avatar;
                     playlists: root.sidebar-playlists;
                     navigate(p) => { root.navigate(p); }
                     toggle-sidebar => { root.toggle-sidebar(); }
@@ -2911,8 +3226,12 @@ export component AppWindow inherits Window {
                         dev-mode: root.dev-mode;
                         logged-in: root.logged-in;
                         account-name: root.account-name;
+                        account-initial: root.account-initial;
+                        account-avatar: root.account-avatar;
                         close-to-tray: root.close-to-tray;
                         autoplay: root.autoplay;
+                        bitrate: root.bitrate;
+                        normalize: root.normalize;
                         start-with-windows: root.start-with-windows;
                         has-background: root.has-background;
                         background-name: root.background-name;
@@ -2924,6 +3243,14 @@ export component AppWindow inherits Window {
                         window-opacity: root.window-opacity;
                         reduce-motion: root.reduce-motion;
                         hot-reload: root.hot-reload;
+                        update-phase: root.update-phase;
+                        update-title: root.update-title;
+                        update-detail: root.update-detail;
+                        update-progress: root.update-progress;
+                        check-update => { root.check-update(); }
+                        download-update => { root.download-update(); }
+                        install-update => { root.install-update(); }
+                        open-releases-page => { root.open-releases-page(); }
                         choose-background => { root.choose-background(); }
                         clear-background => { root.clear-background(); }
                         set-background-fit(v) => { root.set-background-fit(v); }
@@ -2936,6 +3263,8 @@ export component AppWindow inherits Window {
                         set-hot-reload(v) => { root.set-hot-reload(v); }
                         set-close-to-tray(v) => { root.set-close-to-tray(v); }
                         set-autoplay(v) => { root.set-autoplay(v); }
+                        set-bitrate(v) => { root.set-bitrate(v); }
+                        set-normalize(v) => { root.set-normalize(v); }
                         set-start-with-windows(v) => { root.set-start-with-windows(v); }
                         select-theme(id) => { root.select-theme(id); }
                         import-theme => { root.import-theme(); }
@@ -3078,6 +3407,8 @@ export component AppWindow inherits Window {
                     page: root.page;
                     logged-in: root.logged-in;
                     account-name: root.account-name;
+                    account-initial: root.account-initial;
+                    account-avatar: root.account-avatar;
                     playlists: root.sidebar-playlists;
                     navigate(p) => { root.navigate(p); }
                     toggle-sidebar => { root.toggle-sidebar(); }
@@ -3260,7 +3591,11 @@ export component TrayMenuWindow inherits Window {
     }
 
     Rectangle {
-        border-radius: Theme.radius-md;
+        // `radius-lg`, e nao `radius-md`: num cartao de 272 px de largura, 8 px
+        // de raio somem e o menu le como retangulo. O menu e uma janela solta
+        // sobre a area de trabalho, nao um painel dentro da janela -- e uma
+        // janela solta do Windows 11 tem canto visivelmente arredondado.
+        border-radius: Theme.radius-lg;
         border-width: Theme.border-width;
         border-color: Theme.border;
         // Piso opaco, e nao o `surface-raised` direto.
@@ -3273,8 +3608,10 @@ export component TrayMenuWindow inherits Window {
         // e a superficie de vidro vem por cima dele como em qualquer painel.
         background: Theme.background.with-alpha(1.0);
 
+        // Acompanha o raio do cartao: uma camada com raio menor deixa a cor
+        // do piso aparecer como quatro cunhas nos cantos.
         Rectangle {
-            border-radius: Theme.radius-md;
+            border-radius: Theme.radius-lg;
             background: Theme.surface-raised;
         }
 
@@ -3286,7 +3623,7 @@ export component TrayMenuWindow inherits Window {
         // titulo, e branco sobre branco e exatamente o defeito que este menu
         // tinha. Confinar o brilho a uma faixa nao resolve: a faixa cai em
         // cima da primeira linha, que e onde o nome da faixa vive.
-        GlassEdge { radius: Theme.radius-md; }
+        GlassEdge { radius: Theme.radius-lg; }
 
         VerticalLayout {
             padding: Theme.space-sm;

@@ -46,6 +46,17 @@ impl SessionState {
             _ => "",
         }
     }
+
+    /// Foto da conta, quando o perfil traz uma.
+    ///
+    /// Vazio e o caso normal, nao excecao: quem nunca escolheu foto no Spotify
+    /// nao tem uma, e o avatar volta a ser a inicial do nome.
+    pub fn avatar_url(&self) -> &str {
+        match self {
+            SessionState::LoggedIn(profile) => profile.avatar_url.as_deref().unwrap_or_default(),
+            _ => "",
+        }
+    }
 }
 
 /// O que uma tentativa de sessao produziu.
@@ -83,8 +94,10 @@ impl Session {
     pub fn new(
         credentials: Arc<dyn morune_core::auth::CredentialStore>,
         covers_dir: std::path::PathBuf,
+        audio: morune_core::playback::AudioSettings,
+        audio_cache_dir: &std::path::Path,
     ) -> Self {
-        match SpotifyBackend::new(credentials) {
+        match SpotifyBackend::new(credentials, audio, audio_cache_dir) {
             Ok(backend) => {
                 let browse = Browse::new(
                     backend.catalog(),
@@ -114,6 +127,13 @@ impl Session {
 
     pub fn state(&self) -> &SessionState {
         &self.state
+    }
+
+    /// Guarda preferencias de audio novas para o proximo motor.
+    pub fn set_audio(&self, audio: morune_core::playback::AudioSettings) {
+        if let Some(backend) = &self.backend {
+            backend.set_audio(audio);
+        }
     }
 
     /// Catalogo e biblioteca, quando ha backend.
@@ -316,9 +336,17 @@ mod tests {
     use morune_core::auth::MemoryCredentialStore;
 
     fn session() -> Session {
+        // Cache desligado: um teste nao pode criar pasta de audio na maquina de
+        // quem roda a suite.
+        let audio = morune_core::playback::AudioSettings {
+            cache_mb: 0,
+            ..Default::default()
+        };
         Session::new(
             Arc::new(MemoryCredentialStore::default()),
             std::env::temp_dir(),
+            audio,
+            std::path::Path::new(""),
         )
     }
 

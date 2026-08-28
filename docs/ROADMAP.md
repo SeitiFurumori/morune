@@ -114,7 +114,10 @@ Risco conhecido: librespot 0.8 exige `vergen` fixado em 9.0.x no `Cargo.lock`
    nas Configuracoes, por usuario e sem UAC; inicio automatico fica na bandeja.
 8. **Assinatura de codigo** do instalador. Sem ela o SmartScreen avisa em toda
    instalacao, o que e o maior atrito restante para um usuario real.
-9. **Atualizacao automatica**, ou pelo menos aviso de versao nova.
+9. **Atualizacao automatica** `[feito]`: botao nas Configuracoes que consulta os
+   lancamentos, baixa o instalador, confere o `.sha256` e instala em silencio,
+   com `/RESTART` reabrindo o aplicativo. Verificar e baixar so a partir de um
+   clique. Ver [RELEASING.md](RELEASING.md).
 10. **Migrar para MSVC** como alvo de release: binarios menores e alvo com mais
    rodagem no Windows.
 
@@ -138,3 +141,15 @@ Risco conhecido: librespot 0.8 exige `vergen` fixado em 9.0.x no `Cargo.lock`
 - Telemetria. Nao ha, e nao vai haver.
 - Editor visual de temas. TOML mais recarga a quente resolve o mesmo problema
   com uma fracao do custo.
+- **Letras.** Decidido em 28/08/2026. E o item de maior peso da lista pelo
+  menor retorno: exige um provedor a parte, sincronia por linha e uma tela
+  inteira que compete com a capa e com o tema -- em troca de algo que nao faz
+  ninguem trocar de player.
+- **Podcasts e audiolivros.** Decidido em 28/08/2026. Nao sao musica: pedem
+  progresso por episodio, velocidade de reproducao, marcador de onde parou e
+  um modelo de assinatura de serie. E um segundo produto dentro do primeiro,
+  e o Morune e um player de musica.
+
+Nenhum dos tres esta bloqueado por dificuldade tecnica -- os tres estao fora
+porque cada um adiciona peso permanente a um aplicativo cujo argumento e ser
+leve.

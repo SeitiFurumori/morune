@@ -95,18 +95,50 @@ VIAddVersionKey "OriginalFilename" "Morune-${VERSION}-setup.exe"
 
 ; ---------------------------------------------------------------------------
 
-; Fecha o Morune se ele estiver rodando, inclusive escondido na bandeja.
+; `1` quando o instalador foi chamado com /RESTART, pelo botao de atualizar do
+; proprio aplicativo. Ver a secao "Atualizacao pelo aplicativo", abaixo.
+Var RestartApp
+
+; Diz se o Morune esta rodando, inclusive escondido na bandeja.
 ;
 ; Deteccao sem plugin e sem busca em string: no formato CSV, `tasklist` responde
 ; `"morune.exe","1234",...` quando encontra o processo e `INFO: ...` quando nao
 ; encontra. Basta olhar o primeiro caractere.
-Function CloseRunningApp
+;
+; Deixa `1` ou `0` na pilha.
+Function AppIsRunning
     nsExec::ExecToStack 'cmd /c tasklist /FI "IMAGENAME eq ${APP_EXE}" /NH /FO CSV'
     Pop $0   ; codigo de saida
     Pop $1   ; saida
     StrCpy $2 $1 1
 
     ${If} $2 == '"'
+        Push 1
+    ${Else}
+        Push 0
+    ${EndIf}
+FunctionEnd
+
+; Fecha o Morune se ele estiver rodando.
+;
+; Ha dois caminhos, porque as duas situacoes sao diferentes:
+;
+; - **Instalacao normal.** A pessoa clicou no instalador com o aplicativo
+;   aberto. Perguntar e obrigatorio: matar um player no meio de uma musica sem
+;   avisar e inaceitavel.
+; - **Modo silencioso** (o botao de atualizar do proprio aplicativo). Nao ha
+;   janela para responder -- e uma `MessageBox` aqui apareceria escondida atras
+;   de tudo, travando a atualizacao para sempre. O aplicativo ja decidiu sair
+;   quando lancou este processo, entao a espera e pela saida dele, e o
+;   `taskkill` fica so como ultimo recurso para o caso de ele travar ao fechar.
+Function CloseRunningApp
+    Call AppIsRunning
+    Pop $3
+    ${If} $3 == 0
+        Return
+    ${EndIf}
+
+    ${IfNot} ${Silent}
         MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION \
             "O ${APP_NAME} esta aberto (pode estar apenas na bandeja, tocando).$\r$\n$\r$\nEle precisa ser fechado para continuar." \
             IDOK closeit
@@ -115,6 +147,48 @@ Function CloseRunningApp
         nsExec::ExecToLog 'taskkill /IM "${APP_EXE}" /F'
         Pop $0
         Sleep 1200
+        Return
+    ${EndIf}
+
+    ; Ate 15 segundos esperando a saida limpa. O Morune salva configuracao e
+    ; para a reproducao antes de sair; derrubar no meio disso perderia ajustes
+    ; que a pessoa acabou de fazer.
+    StrCpy $4 0
+    wait:
+        Sleep 500
+        Call AppIsRunning
+        Pop $3
+        ${If} $3 == 0
+            Return
+        ${EndIf}
+        IntOp $4 $4 + 1
+        ${If} $4 < 30
+            Goto wait
+        ${EndIf}
+
+    nsExec::ExecToLog 'taskkill /IM "${APP_EXE}" /F'
+    Pop $0
+    Sleep 1200
+FunctionEnd
+
+; ---------------------------------------------------------------------------
+; Atualizacao pelo aplicativo
+;
+; O botao "Instalar e reiniciar" da tela de configuracoes executa este mesmo
+; instalador com `/S /RESTART`. `/S` e do NSIS; `/RESTART` e nosso, e resolve o
+; que o modo silencioso deixa faltando: `MUI_FINISHPAGE_RUN` nao roda sem a
+; pagina final, entao sem isto a atualizacao terminaria com o aplicativo
+; fechado e nenhuma janela de volta -- do ponto de vista de quem clicou, o
+; Morune teria simplesmente sumido.
+;
+; A opcao e explicita, e nao "todo /S reabre", para que um `/S` usado por
+; ferramenta de implantacao continue sendo uma instalacao silenciosa de
+; verdade, sem abrir janela na cara de ninguem.
+; ---------------------------------------------------------------------------
+
+Function .onInstSuccess
+    ${If} $RestartApp == 1
+        Exec '"$INSTDIR\${APP_EXE}"'
     ${EndIf}
 FunctionEnd
 
@@ -175,6 +249,17 @@ Section /o "Abrir com o Windows" SecStartup
 SectionEnd
 
 Function .onInit
+    ; Lido antes de qualquer coisa: `CloseRunningApp` ja se comporta diferente
+    ; conforme o modo, e `.onInstSuccess` precisa da escolha registrada.
+    StrCpy $RestartApp 0
+    ${GetParameters} $R0
+    ClearErrors
+    ${GetOptions} $R0 "/RESTART" $R1
+    ${IfNot} ${Errors}
+        StrCpy $RestartApp 1
+    ${EndIf}
+    ClearErrors
+
     ; Instalar por cima de uma versao em execucao deixaria um executavel
     ; travado e uma instalacao pela metade.
     Call CloseRunningApp

@@ -2,8 +2,32 @@ use std::path::{Path, PathBuf};
 
 fn main() {
     compile_ui();
+    embed_release_tag();
     embed_brand_pixels();
     embed_exe_resources();
+}
+
+/// Grava no binario a tag do lancamento de onde ele saiu.
+///
+/// **Por que nao basta o `CARGO_PKG_VERSION`:** o `workspace.package.version`
+/// fica parado em `0.1.0` enquanto as tags avancam em `v0.1.0-alpha.5`,
+/// `alpha.6`, `alpha.7` -- o `release.yml` so exige que a parte numerica da tag
+/// bata com a do Cargo.toml, e o sufixo de pre-lancamento nao chega ao codigo.
+/// Sem isto, um alpha.5 instalado se apresentaria como `0.1.0`, que por semver
+/// e *mais novo* que qualquer alpha, e a verificacao de atualizacao concluiria
+/// que nao ha nada a fazer com tres lancamentos novos no ar.
+///
+/// Quem define a variavel e o workflow de publicacao. Num build local ela nao
+/// existe, e a versao do crate serve: ninguem lanca do proprio computador.
+fn embed_release_tag() {
+    println!("cargo:rerun-if-env-changed=MORUNE_RELEASE_TAG");
+
+    let tag = std::env::var("MORUNE_RELEASE_TAG")
+        .ok()
+        .filter(|tag| !tag.trim().is_empty())
+        .unwrap_or_else(|| format!("v{}", env!("CARGO_PKG_VERSION")));
+
+    println!("cargo:rustc-env=MORUNE_RELEASE={tag}");
 }
 
 fn compile_ui() {

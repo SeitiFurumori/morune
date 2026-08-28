@@ -55,6 +55,7 @@ slint = { version = "1.17", default-features = false, features = [
 ] }
 
 serde = { workspace = true }
+serde_json = { workspace = true }
 toml = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
@@ -64,6 +65,24 @@ thiserror = { workspace = true }
 # as caixas COM do sistema, sem trazer nenhum toolkit adicional.
 rfd = "0.15"
 png = { version = "0.18", optional = true }
+
+# Verificacao e download de atualizacao (`update.rs`). O `reqwest` ja esta no
+# binario pela librespot; entrar aqui como dependencia direta com
+# `default-features = false` mantem a **mesma** instancia do crate e o mesmo TLS
+# do sistema (schannel, via native-tls) -- ligar `rustls` acrescentaria uma
+# segunda pilha de TLS ao instalador por nada.
+#
+# A feature `blocking` existe porque este caminho vive numa thread propria, e
+# nao no runtime do backend: verificar atualizacao nao pode depender de haver
+# sessao do Spotify aberta.
+reqwest = { version = "0.12", default-features = false, features = [
+    "blocking",
+    "json",
+    "default-tls",
+] }
+# Confere o `.sha256` publicado ao lado do instalador. Ja esta no binario pela
+# librespot, entao nao acrescenta tamanho.
+sha2 = "0.10"
 # Icone de bandeja: fechar a janela nao pode encerrar a reproducao, e a bandeja
 # e o unico jeito visivel de voltar ou de sair de verdade.
 tray-icon = "0.21"

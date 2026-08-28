@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use morune_core::auth::{Authenticator, CredentialStore};
 use morune_core::catalog::{Artwork, Catalog, Library};
-use morune_core::playback::PlaybackEngine;
+use morune_core::playback::{AudioSettings, PlaybackEngine};
 use morune_core::{CoreError, CoreResult};
 
 use crate::artwork::SpotifyArtwork;
@@ -40,6 +40,12 @@ pub struct SpotifyBackend {
     catalog: Arc<SpotifyCatalog>,
     artwork: Arc<SpotifyArtwork>,
     session: SharedSession,
+    /// Preferencias de audio do usuario, lidas quando o motor nasce.
+    ///
+    /// Guardadas atras de um mutex porque a interface pode troca-las a qualquer
+    /// momento, e o motor seguinte tem de nascer com o valor novo. O motor que
+    /// ja existe nao muda -- ver [`SpotifyEngine::new`].
+    audio: std::sync::Mutex<AudioSettings>,
 }
 
 impl std::fmt::Debug for SpotifyBackend {
@@ -56,7 +62,14 @@ impl SpotifyBackend {
     /// Nao conecta nada: sem isto, abrir o aplicativo dependeria de rede, e o
     /// orcamento de startup nao permite. O login vem depois, por
     /// [`SpotifyBackend::restore`] ou pela acao do usuario.
-    pub fn new(credentials: Arc<dyn CredentialStore>) -> CoreResult<Self> {
+    /// `audio_cache_dir` e onde a librespot guarda o audio ja baixado. O
+    /// caminho vem de fora porque quem conhece as pastas do aplicativo e o
+    /// `morune-storage`, e este crate nao depende dele.
+    pub fn new(
+        credentials: Arc<dyn CredentialStore>,
+        audio: AudioSettings,
+        audio_cache_dir: &std::path::Path,
+    ) -> CoreResult<Self> {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(WORKER_THREADS)
             .thread_name("morune-spotify")
@@ -70,10 +83,10 @@ impl SpotifyBackend {
         // token, e por causa do refresh no cofre do Windows.
         let session = SharedSession::default();
         let tokens = Arc::new(TokenSource::new(credentials));
-        let authenticator = Arc::new(SpotifyAuthenticator::with_tokens(
-            tokens.clone(),
-            session.clone(),
-        ));
+        let authenticator = Arc::new(
+            SpotifyAuthenticator::with_tokens(tokens.clone(), session.clone())
+                .with_audio_cache(audio_cache_dir, audio.cache_mb),
+        );
         let catalog = Arc::new(SpotifyCatalog::new(session.clone()));
         let artwork = Arc::new(SpotifyArtwork::new(session.clone()));
 
@@ -83,6 +96,7 @@ impl SpotifyBackend {
             catalog,
             artwork,
             session,
+            audio: std::sync::Mutex::new(audio),
         })
     }
 
@@ -140,8 +154,20 @@ impl SpotifyBackend {
     /// Falha com [`CoreError::NotAuthenticated`] enquanto nao houver login --
     /// e a aplicacao continua com o `NullEngine`, sem tela quebrada.
     pub fn engine(&self) -> CoreResult<Arc<dyn PlaybackEngine>> {
-        let engine = SpotifyEngine::new(self.session.clone(), self.handle())?;
+        let audio = *self.audio.lock().unwrap();
+        let engine = SpotifyEngine::new(self.session.clone(), self.handle(), audio)?;
         Ok(Arc::new(engine))
+    }
+
+    /// Guarda preferencias novas para o **proximo** motor.
+    ///
+    /// Nao mexe no motor em uso, de proposito: a `PlayerConfig` da librespot e
+    /// consumida na construcao, e refazer o motor aqui pararia a musica que
+    /// esta tocando para atender a um ajuste. O tamanho do cache tambem so vale
+    /// para a proxima sessao, pelo mesmo motivo -- a `Cache` ja esta dentro da
+    /// `Session` aberta.
+    pub fn set_audio(&self, audio: AudioSettings) {
+        *self.audio.lock().unwrap() = audio;
     }
 
     /// Executa um future do backend a partir da thread da interface.
@@ -159,7 +185,31 @@ mod tests {
     use morune_core::auth::MemoryCredentialStore;
 
     fn backend() -> SpotifyBackend {
-        SpotifyBackend::new(Arc::new(MemoryCredentialStore::default())).expect("runtime sobe")
+        // Cache desligado: um teste nao pode criar pasta de audio na maquina de
+        // quem roda a suite.
+        let audio = AudioSettings {
+            cache_mb: 0,
+            ..AudioSettings::default()
+        };
+        SpotifyBackend::new(
+            Arc::new(MemoryCredentialStore::default()),
+            audio,
+            std::path::Path::new(""),
+        )
+        .expect("runtime sobe")
+    }
+
+    /// As preferencias guardadas sao as que o proximo motor recebe.
+    #[test]
+    fn audio_settings_are_kept_for_the_next_engine() {
+        let backend = backend();
+        let novo = AudioSettings {
+            bitrate_kbps: 320,
+            normalize: false,
+            cache_mb: 0,
+        };
+        backend.set_audio(novo);
+        assert_eq!(*backend.audio.lock().unwrap(), novo);
     }
 
     #[test]

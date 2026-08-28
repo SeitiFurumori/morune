@@ -133,8 +133,18 @@ jobs:
             choco install nsis --yes --no-progress
           }
 
+      # `MORUNE_RELEASE_TAG` e o que permite ao binario saber de qual
+      # lancamento ele saiu, sufixo de pre-lancamento incluido. Sem ela um
+      # `v0.1.0-alpha.7` se apresentaria como `0.1.0` -- final, e portanto mais
+      # novo que qualquer alpha -- e o botao "Procurar atualizações" nunca
+      # ofereceria nada. Ver `embed_release_tag` em crates/morune-app/build.rs.
+      #
+      # Nos ensaios a variavel fica vazia e o build cai na versao do Cargo.toml,
+      # que e o comportamento certo: ensaio nao vira release.
       - name: Compilar o executavel
         shell: pwsh
+        env:
+          MORUNE_RELEASE_TAG: ${{ env.MORUNE_TAG }}
         run: cargo build --locked --release -p morune-app
 
       - name: Gerar e verificar o instalador

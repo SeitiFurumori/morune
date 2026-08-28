@@ -22,12 +22,13 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use librespot_core::SpotifyUri;
-use librespot_playback::config::PlayerConfig;
+use librespot_playback::config::{Bitrate, PlayerConfig};
 use librespot_playback::mixer::NoOpVolume;
 use librespot_playback::player::{Player, PlayerEvent as LibrespotEvent};
 use morune_core::model::{Track, TrackId};
 use morune_core::playback::{
-    EngineCapabilities, PlaybackEngine, PlaybackState, PlayerCommand, PlayerEvent, PlayerSnapshot,
+    AudioSettings, EngineCapabilities, PlaybackEngine, PlaybackState, PlayerCommand, PlayerEvent,
+    PlayerSnapshot,
 };
 
 use morune_core::{CoreError, CoreResult};
@@ -153,6 +154,20 @@ impl Shared {
     }
 }
 
+/// Traduz kbps para o degrau que o Spotify oferece.
+///
+/// O provedor tem tres, e nao um numero livre. Um valor entre dois degraus cai
+/// no mais proximo **para baixo**: prometer 320 e entregar 160 e pior do que
+/// entregar o que foi pedido, e quem escolheu 200 kbps escolheu "nao quero o
+/// maximo".
+fn bitrate_from_kbps(kbps: u32) -> Bitrate {
+    match kbps {
+        0..=159 => Bitrate::Bitrate96,
+        160..=319 => Bitrate::Bitrate160,
+        _ => Bitrate::Bitrate320,
+    }
+}
+
 /// Motor de reproducao do Spotify.
 pub struct SpotifyEngine {
     commands: mpsc::UnboundedSender<PlayerCommand>,
@@ -173,7 +188,16 @@ impl SpotifyEngine {
     ///
     /// `handle` e o runtime onde a librespot vai viver -- o mesmo que executou
     /// o login, para nao haver dois runtimes disputando as mesmas conexoes.
-    pub fn new(session: SharedSession, handle: tokio::runtime::Handle) -> CoreResult<Self> {
+    ///
+    /// `audio` e congelado aqui: a `PlayerConfig` da librespot e consumida na
+    /// construcao do `Player` e nao tem setter para qualidade nem para
+    /// nivelamento. Trocar um desses ajustes so vale para o proximo motor, e a
+    /// interface diz isso em vez de fingir efeito imediato.
+    pub fn new(
+        session: SharedSession,
+        handle: tokio::runtime::Handle,
+        audio: AudioSettings,
+    ) -> CoreResult<Self> {
         let live = session.get().ok_or(CoreError::NotAuthenticated)?;
 
         let volume = Arc::new(SharedVolume::default());
@@ -188,8 +212,22 @@ impl SpotifyEngine {
         let sink =
             crate::sink::open(volume.clone(), flush.clone()).map_err(CoreError::AudioDevice)?;
 
+        // Registrado porque e invisivel de outro jeito: nada na tela nem no
+        // audio diz em qual qualidade a faixa chegou, e "mudei e nao senti
+        // diferenca" precisa ter resposta no log.
+        tracing::info!(
+            kbps = audio.bitrate_kbps,
+            nivelamento = audio.normalize,
+            cache_mb = audio.cache_mb,
+            "preferencias de audio aplicadas"
+        );
+
         let player = Player::new(
-            PlayerConfig::default(),
+            PlayerConfig {
+                bitrate: bitrate_from_kbps(audio.bitrate_kbps),
+                normalisation: audio.normalize,
+                ..PlayerConfig::default()
+            },
             live,
             // O volume e aplicado pelo nosso sink, depois da fila. Atenuar aqui
             // tambem faria o audio passar pela curva duas vezes.
@@ -560,5 +598,27 @@ mod tests {
         let snapshot = shared.snapshot.lock().unwrap();
         assert_eq!(snapshot.repeat, RepeatMode::One);
         assert!(snapshot.shuffle);
+    }
+
+    #[test]
+    fn os_tres_degraus_do_spotify_sao_exatos() {
+        assert_eq!(bitrate_from_kbps(96), Bitrate::Bitrate96);
+        assert_eq!(bitrate_from_kbps(160), Bitrate::Bitrate160);
+        assert_eq!(bitrate_from_kbps(320), Bitrate::Bitrate320);
+    }
+
+    /// Um valor entre degraus desce, nunca sobe: prometer 320 e entregar 160
+    /// seria mentir sobre o que esta tocando.
+    #[test]
+    fn valor_entre_degraus_desce() {
+        assert_eq!(bitrate_from_kbps(159), Bitrate::Bitrate96);
+        assert_eq!(bitrate_from_kbps(319), Bitrate::Bitrate160);
+    }
+
+    /// O `config.toml` e editavel a mao, entao qualquer numero pode chegar.
+    #[test]
+    fn valor_absurdo_nao_quebra() {
+        assert_eq!(bitrate_from_kbps(0), Bitrate::Bitrate96);
+        assert_eq!(bitrate_from_kbps(u32::MAX), Bitrate::Bitrate320);
     }
 }

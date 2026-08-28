@@ -126,6 +126,37 @@ pub enum PlayerEvent {
     Error(String),
 }
 
+/// Preferencias de audio que o usuario controla.
+///
+/// Vivem aqui, e nao no backend, porque nenhuma delas e do Spotify: qualquer
+/// provedor de streaming tem uma nocao de qualidade pedida, de nivelamento de
+/// volume e de quanto audio guardar em disco.
+///
+/// **Quando valem.** Sao aplicadas no momento em que o motor nasce. Trocar
+/// qualquer uma delas com musica tocando nao mexe na faixa atual -- o backend
+/// que as recebe as congela na construcao, e refazer o motor no meio de uma
+/// musica seria interromper a reproducao para atender a um ajuste.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AudioSettings {
+    /// Qualidade pedida ao provedor, em kbps. Um valor que o provedor nao
+    /// oferece cai no mais proximo que ele tenha.
+    pub bitrate_kbps: u32,
+    /// Nivela o volume entre faixas.
+    pub normalize: bool,
+    /// Teto do cache de audio em disco, em MiB. `0` desliga o cache.
+    pub cache_mb: u32,
+}
+
+impl Default for AudioSettings {
+    fn default() -> Self {
+        Self {
+            bitrate_kbps: 160,
+            normalize: true,
+            cache_mb: 1024,
+        }
+    }
+}
+
 /// O que este backend suporta. A UI usa isto para esconder controles que nao
 /// fazem sentido, em vez de mostrar botoes que falham em silencio.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
