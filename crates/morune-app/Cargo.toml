@@ -85,7 +85,7 @@ reqwest = { version = "0.12", default-features = false, features = [
 sha2 = "0.10"
 # Icone de bandeja: fechar a janela nao pode encerrar a reproducao, e a bandeja
 # e o unico jeito visivel de voltar ou de sair de verdade.
-tray-icon = "0.21"
+tray-icon = "0.24"
 
 [target.'cfg(windows)'.dependencies]
 # Integra os controles anterior/tocar-proxima ao preview nativo da barra de
