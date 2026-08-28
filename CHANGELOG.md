@@ -70,10 +70,15 @@ Versionamento semantico.
   e nao a cor de texto, porque aqueles botoes ficam sobre a miniatura que o
   *Windows* desenha, cujo fundo segue o tema do sistema. Trocar de tema
   redesenha os icones.
-- **O menu da bandeja fica arredondado de verdade.** As tres camadas do cartao
-  usavam `radius-md`; num cartao de 272 px de largura, 8 px de raio somem e o
-  menu le como retangulo. Passaram a `radius-lg`, as tres juntas -- uma camada
-  com raio menor deixaria a cor do piso aparecer como cunhas nos cantos.
+- **O menu da bandeja perde os cantos pretos e passa a ser arredondado pelo
+  proprio Windows.** A janela do menu pedia fundo `transparent` contando que o
+  cartao arredondado desenhasse sozinho, mas ela nao tem alfa por pixel: o que
+  nao era pintado o compositor mostrava como **preto**, e sobravam quatro cantos
+  pretos em volta do cartao. Agora a janela pinta o piso e o cartao nao tem raio
+  proprio -- a unica curva e a que o `DWMWCP_ROUND` recorta, igual a qualquer
+  outra janela solta do Windows 11. A borda morre nos cantos, cortada junto, e e
+  a troca certa: uma linha que termina na curva incomoda menos que quatro
+  meias-luas escuras.
 - **A barra lateral recolhida nao corta mais texto**, e expandir e clicar na
   marca. Havia um chevron logo abaixo do logo, e o rotulo de ajuda dele nascia
   mais largo que os 64 px da barra: comecava em `x` negativo e era cortado pela
@@ -102,10 +107,8 @@ Versionamento semantico.
 - **Nas Configuracoes**, virou um cartao com avatar, o nome em texto primario e
   uma linha dizendo o que aquilo e. Era uma linha de texto secundario com um
   botao ao lado, com o mesmo peso visual de um ajuste qualquer.
-- O avatar e a inicial do nome sobre o acento do tema. Nao ha foto porque o
-  caminho de login do Morune nao entrega uma -- nem nome de exibicao: o que
-  chega e o identificador da sessao. Recolhida, a barra lateral mostra so o
-  circulo.
+- Quem nao tem foto no perfil recebe um circulo com a inicial do nome, sobre o
+  acento do tema. Recolhida, a barra lateral mostra so o circulo.
 
 ### Adicionado
 

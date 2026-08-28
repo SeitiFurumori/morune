@@ -3572,10 +3572,17 @@ export component TrayMenuWindow inherits Window {
     // nada em volta, e a sombra fica por conta do proprio Windows.
     width: 272px;
     height: root.has-track ? 240px : 184px;
-    // A janela nao pinta nada: quem pinta e o cartao, que tem canto
-    // arredondado. Pintar aqui deixaria os quatro cantos quadrados por tras
-    // dele.
-    background: transparent;
+    // **Opaca, e nao transparente.** `transparent` aqui parecia certo -- deixar
+    // o cartao arredondado desenhar sozinho --, mas esta janela nao tem canal
+    // alfa por pixel: o Windows compoe o que nao foi pintado como **preto**, e
+    // o resultado eram quatro cantos pretos em volta do cartao.
+    //
+    // Transparencia de verdade exigiria `UpdateLayeredWindow` ou uma regiao
+    // recortada, e as duas trocam o canto suavizado do compositor por um canto
+    // serrilhado. O caminho barato e melhor: a janela pinta o mesmo piso que o
+    // cartao ja usa, e quem arredonda a silhueta e o proprio Windows, pelo
+    // `DWMWCP_ROUND` que `ensure_rounded_corners` aplica.
+    background: Theme.background.with-alpha(1.0);
     default-font-family: Theme.font-family;
     default-font-size: Theme.size-md;
     forward-focus: keys;
@@ -3591,11 +3598,21 @@ export component TrayMenuWindow inherits Window {
     }
 
     Rectangle {
-        // `radius-lg`, e nao `radius-md`: num cartao de 272 px de largura, 8 px
-        // de raio somem e o menu le como retangulo. O menu e uma janela solta
-        // sobre a area de trabalho, nao um painel dentro da janela -- e uma
-        // janela solta do Windows 11 tem canto visivelmente arredondado.
-        border-radius: Theme.radius-lg;
+        // **Sem raio proprio.** Quem arredonda esta janela e o compositor do
+        // Windows, pelo `DWMWCP_ROUND` que `ensure_rounded_corners` aplica.
+        //
+        // Duas tentativas antes desta erraram pelo mesmo motivo. `radius-lg`
+        // deixou o cartao mais curvo que a janela, e o que sobrava fora dele
+        // aparecia -- como a janela era transparente e nao ha alfa por pixel
+        // aqui, "o que sobrava" era **preto**. Baixar para `radius-md` e pintar
+        // a janela tirou o preto, mas as duas curvas ainda nao coincidem
+        // exatamente, e restava uma meia-lua do piso em cada canto.
+        //
+        // Com o cartao quadrado, a cor vai ate onde o compositor corta, e a
+        // unica curva e a dele. A borda some nos cantos, cortada junto -- e a
+        // troca certa: uma linha que morre na curva incomoda menos que quatro
+        // meias-luas escuras.
+        border-radius: 0;
         border-width: Theme.border-width;
         border-color: Theme.border;
         // Piso opaco, e nao o `surface-raised` direto.
@@ -3608,10 +3625,9 @@ export component TrayMenuWindow inherits Window {
         // e a superficie de vidro vem por cima dele como em qualquer painel.
         background: Theme.background.with-alpha(1.0);
 
-        // Acompanha o raio do cartao: uma camada com raio menor deixa a cor
-        // do piso aparecer como quatro cunhas nos cantos.
+        // Acompanha o cartao: qualquer raio aqui reintroduz a meia-lua.
         Rectangle {
-            border-radius: Theme.radius-lg;
+            border-radius: 0;
             background: Theme.surface-raised;
         }
 
@@ -3623,7 +3639,7 @@ export component TrayMenuWindow inherits Window {
         // titulo, e branco sobre branco e exatamente o defeito que este menu
         // tinha. Confinar o brilho a uma faixa nao resolve: a faixa cai em
         // cima da primeira linha, que e onde o nome da faixa vive.
-        GlassEdge { radius: Theme.radius-lg; }
+        GlassEdge { radius: 0; }
 
         VerticalLayout {
             padding: Theme.space-sm;
