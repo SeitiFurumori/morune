@@ -206,6 +206,9 @@ impl Catalog for SpotifyCatalog {
     /// recorte acontece aqui. So a fatia pedida vira requisicao de metadado --
     /// que e o que mantem de pe a regra de nunca carregar playlist grande
     /// inteira, mesmo com a lista de ids toda em maos.
+    ///
+    /// A lista de ids em si vem do cache do modulo interno, entao abrir a
+    /// playlist e depois paginar nao repetem o mesmo protobuf.
     fn playlist_tracks<'a>(
         &'a self,
         id: &'a PlaylistId,
@@ -219,9 +222,10 @@ impl Catalog for SpotifyCatalog {
 
             let fatia: Vec<String> = contents
                 .track_ids
-                .into_iter()
+                .iter()
                 .skip(offset as usize)
                 .take(clamp(limit, MAX_PLAYLIST_PAGE) as usize)
+                .cloned()
                 .collect();
 
             Ok(Page {
@@ -244,8 +248,9 @@ impl Catalog for SpotifyCatalog {
             let total = Some(contents.track_ids.len() as u32);
             let ids: Vec<String> = contents
                 .track_ids
-                .into_iter()
+                .iter()
                 .take(clamp(limit, MAX_PLAYLIST_PAGE) as usize)
+                .cloned()
                 .collect();
             Ok(Page {
                 items: self.tracks_by_id(&ids).await?,

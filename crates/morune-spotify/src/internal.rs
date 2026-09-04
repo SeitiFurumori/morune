@@ -22,8 +22,10 @@
 //! numa playlist de cem.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
+use futures_util::stream::{StreamExt, TryStreamExt};
 use librespot_core::{SpotifyId, SpotifyUri};
 use librespot_metadata::Metadata;
 use librespot_protocol::extended_metadata::{BatchedEntityRequest, EntityRequest, ExtensionQuery};
@@ -54,6 +56,41 @@ const ROOTLIST_LENGTH: usize = 200;
 /// E o mesmo teto que o Web API aceitava, e mantem o corpo da requisicao curto
 /// o bastante para nao atrasar a primeira tela visivel de uma playlist grande.
 const METADATA_BATCH: usize = 50;
+
+/// Quantos lotes de metadado saem ao mesmo tempo.
+///
+/// Os lotes eram sequenciais: uma pagina de 100 faixas custava duas idas a rede
+/// uma depois da outra, e o tempo de abrir uma playlist era a soma delas. Sao
+/// requisicoes independentes -- nada no lote 2 depende do lote 1 -- entao a
+/// espera era gratuita.
+///
+/// **Por que quatro, e nao "todos".** O criterio do produto e nao disputar
+/// recurso com quem esta jogando: soltar vinte requisicoes de uma vez numa
+/// playlist de mil faixas trocaria um problema de latencia por um pico de rede
+/// e de CPU no meio de uma partida. Quatro cobre o caso comum (uma pagina de
+/// 100 faixas vira uma ida so) e poe teto no caso grande.
+const METADATA_CONCURRENCY: usize = 4;
+
+/// Por quanto tempo o conteudo de uma playlist ja lida continua valendo.
+///
+/// Abrir uma playlist pedia o mesmo protobuf **duas vezes** -- uma por
+/// `Catalog::playlist`, para nome e tamanho, e outra por
+/// `Catalog::playlist_tracks`, para as faixas -- e cada "carregar mais" pedia
+/// de novo. Sao chamadas do mesmo gesto do usuario; a segunda nunca precisou
+/// existir.
+///
+/// Cinco minutos e curto de proposito: uma faixa adicionada pelo cliente
+/// oficial precisa aparecer sem exigir que o Morune seja reaberto, e ninguem
+/// espera cinco minutos de propria vontade entre abrir a mesma playlist duas
+/// vezes.
+const PLAYLIST_TTL: Duration = Duration::from_secs(300);
+
+/// Quantas playlists ficam guardadas.
+///
+/// Guarda ids, e nao metadado: uma playlist de 10 mil faixas custa ~220 KB
+/// aqui. Oito cobre o vai-e-volta entre a barra lateral e uma lista aberta sem
+/// virar um lugar onde memoria se acumula em silencio.
+const PLAYLIST_CACHE_MAX: usize = 8;
 
 /// Largura da capa que o Spotify chama de `SMALL`.
 ///
@@ -142,11 +179,50 @@ pub(crate) struct PlaylistContents {
 #[derive(Debug)]
 pub(crate) struct Internal {
     session: SharedSession,
+    /// Conteudo de playlists ja lidas, por id. Ver [`PLAYLIST_TTL`].
+    ///
+    /// `std::sync::Mutex` e nao o do tokio: o guard nunca cruza um `await` --
+    /// a leitura e a escrita sao dois trechos curtos, com a requisicao fora dos
+    /// dois.
+    playlists: Mutex<HashMap<String, (Instant, Arc<PlaylistContents>)>>,
 }
 
 impl Internal {
     pub(crate) fn new(session: SharedSession) -> Self {
-        Self { session }
+        Self {
+            session,
+            playlists: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Conteudo guardado de uma playlist, se ainda vale.
+    fn playlist_cached(&self, id: &str) -> Option<Arc<PlaylistContents>> {
+        let mut cache = self.playlists.lock().ok()?;
+        let (gravado, conteudo) = cache.get(id)?;
+        if gravado.elapsed() > PLAYLIST_TTL {
+            cache.remove(id);
+            return None;
+        }
+        Some(conteudo.clone())
+    }
+
+    /// Guarda o conteudo lido, descartando o mais antigo quando lota.
+    fn playlist_store(&self, id: &str, conteudo: Arc<PlaylistContents>) {
+        let Ok(mut cache) = self.playlists.lock() else {
+            return;
+        };
+        if cache.len() >= PLAYLIST_CACHE_MAX && !cache.contains_key(id) {
+            // Descarte pelo mais velho. Sao no maximo oito entradas, entao a
+            // varredura linear e mais barata que manter uma ordem a parte.
+            if let Some(velho) = cache
+                .iter()
+                .min_by_key(|(_, (gravado, _))| *gravado)
+                .map(|(k, _)| k.clone())
+            {
+                cache.remove(&velho);
+            }
+        }
+        cache.insert(id.to_string(), (Instant::now(), conteudo));
     }
 
     /// Todas as playlists da conta, como o cliente oficial as ve.
@@ -184,7 +260,11 @@ impl Internal {
     /// Nome e faixas de uma playlist pelo caminho interno.
     ///
     /// E o que faz Descobertas da Semana tocar: pelo Web API ela responde 404.
-    pub(crate) async fn playlist(&self, id: &str) -> CoreResult<PlaylistContents> {
+    pub(crate) async fn playlist(&self, id: &str) -> CoreResult<Arc<PlaylistContents>> {
+        if let Some(guardada) = self.playlist_cached(id) {
+            return Ok(guardada);
+        }
+
         let session = self.session.get().ok_or(CoreError::NotAuthenticated)?;
         let uri = SpotifyUri::from_uri(&format!("spotify:playlist:{id}"))
             .map_err(|e| CoreError::NotFound(format!("playlist {id}: {e}")))?;
@@ -203,10 +283,12 @@ impl Internal {
             })
             .collect();
 
-        Ok(PlaylistContents {
+        let conteudo = Arc::new(PlaylistContents {
             name: playlist.name().to_string(),
             track_ids,
-        })
+        });
+        self.playlist_store(id, conteudo.clone());
+        Ok(conteudo)
     }
     /// Ids da colecao da conta: curtidas, ou artistas seguidos.
     ///
@@ -319,24 +401,44 @@ impl Internal {
         // do pedido.
         let mut por_id: HashMap<String, ArtistMeta> = HashMap::with_capacity(ids.len());
 
-        for lote in ids.chunks(METADATA_BATCH) {
-            let mut pedido = BatchedEntityRequest::new();
-            for id in lote {
-                let mut consulta = ExtensionQuery::new();
-                consulta.extension_kind = EnumOrUnknown::new(ExtensionKind::ARTIST_V4);
+        // Os pedidos sao montados antes de virar futuros: montado dentro do
+        // `map`, o lote continuaria emprestado de `ids` e o compilador nao
+        // conseguiria provar que o futuro vive o bastante.
+        let pedidos: Vec<BatchedEntityRequest> = ids
+            .chunks(METADATA_BATCH)
+            .map(|lote| {
+                let mut pedido = BatchedEntityRequest::new();
+                for id in lote {
+                    let mut consulta = ExtensionQuery::new();
+                    consulta.extension_kind = EnumOrUnknown::new(ExtensionKind::ARTIST_V4);
 
-                let mut entidade = EntityRequest::new();
-                entidade.entity_uri = format!("spotify:artist:{id}");
-                entidade.query.push(consulta);
-                pedido.entity_request.push(entidade);
+                    let mut entidade = EntityRequest::new();
+                    entidade.entity_uri = format!("spotify:artist:{id}");
+                    entidade.query.push(consulta);
+                    pedido.entity_request.push(entidade);
+                }
+                pedido
+            })
+            .collect();
+
+        let lotes = pedidos.into_iter().map(|pedido| {
+            let session = session.clone();
+            async move {
+                session
+                    .spclient()
+                    .get_extended_metadata(pedido)
+                    .await
+                    .map_err(from_librespot)
             }
+        });
 
-            let resposta = session
-                .spclient()
-                .get_extended_metadata(pedido)
-                .await
-                .map_err(from_librespot)?;
+        // Ver [`METADATA_CONCURRENCY`]: lotes independentes, com teto.
+        let respostas: Vec<_> = futures_util::stream::iter(lotes)
+            .buffer_unordered(METADATA_CONCURRENCY)
+            .try_collect()
+            .await?;
 
+        for resposta in &respostas {
             for entidade in &resposta.extended_metadata {
                 for extensao in &entidade.extension_data {
                     let Some(dado) = extensao.extension_data.as_ref() else {
@@ -394,24 +496,46 @@ impl Internal {
         // por data que o passo anterior tinha acabado de fazer.
         let mut por_id: HashMap<String, TrackMeta> = HashMap::with_capacity(ids.len());
 
-        for lote in ids.chunks(METADATA_BATCH) {
-            let mut pedido = BatchedEntityRequest::new();
-            for id in lote {
-                let mut consulta = ExtensionQuery::new();
-                consulta.extension_kind = EnumOrUnknown::new(ExtensionKind::TRACK_V4);
+        // Os pedidos sao montados antes de virar futuros: montado dentro do
+        // `map`, o lote continuaria emprestado de `ids` e o compilador nao
+        // conseguiria provar que o futuro vive o bastante.
+        let pedidos: Vec<BatchedEntityRequest> = ids
+            .chunks(METADATA_BATCH)
+            .map(|lote| {
+                let mut pedido = BatchedEntityRequest::new();
+                for id in lote {
+                    let mut consulta = ExtensionQuery::new();
+                    consulta.extension_kind = EnumOrUnknown::new(ExtensionKind::TRACK_V4);
 
-                let mut entidade = EntityRequest::new();
-                entidade.entity_uri = format!("spotify:track:{id}");
-                entidade.query.push(consulta);
-                pedido.entity_request.push(entidade);
+                    let mut entidade = EntityRequest::new();
+                    entidade.entity_uri = format!("spotify:track:{id}");
+                    entidade.query.push(consulta);
+                    pedido.entity_request.push(entidade);
+                }
+                pedido
+            })
+            .collect();
+
+        let lotes = pedidos.into_iter().map(|pedido| {
+            let session = session.clone();
+            async move {
+                session
+                    .spclient()
+                    .get_extended_metadata(pedido)
+                    .await
+                    .map_err(from_librespot)
             }
+        });
 
-            let resposta = session
-                .spclient()
-                .get_extended_metadata(pedido)
-                .await
-                .map_err(from_librespot)?;
+        // Ver [`METADATA_CONCURRENCY`]. A ordem de chegada nao importa: o
+        // `por_id` acima ja existia porque a resposta nunca respeitou a ordem
+        // do pedido, e e ele que devolve a lista na ordem certa no fim.
+        let respostas: Vec<_> = futures_util::stream::iter(lotes)
+            .buffer_unordered(METADATA_CONCURRENCY)
+            .try_collect()
+            .await?;
 
+        for resposta in &respostas {
             for entidade in &resposta.extended_metadata {
                 for extensao in &entidade.extension_data {
                     let Some(dado) = extensao.extension_data.as_ref() else {
@@ -928,6 +1052,57 @@ pub(crate) fn summaries_for_debug(
 mod tests {
     use super::*;
     use librespot_protocol::playlist4_external::{Item, ListItems};
+
+    fn conteudo(nome: &str) -> Arc<PlaylistContents> {
+        Arc::new(PlaylistContents {
+            name: nome.into(),
+            track_ids: Vec::new(),
+        })
+    }
+
+    /// O segundo pedido da mesma playlist nao pode virar requisicao.
+    ///
+    /// E o defeito que o cache existe para consertar: abrir uma lista pedia o
+    /// mesmo protobuf duas vezes, uma por `Catalog::playlist` e outra por
+    /// `Catalog::playlist_tracks`.
+    #[test]
+    fn playlist_lida_uma_vez_volta_do_cache() {
+        let internal = Internal::new(SharedSession::default());
+        assert!(internal.playlist_cached("abc").is_none());
+
+        internal.playlist_store("abc", conteudo("Descobertas"));
+        let guardada = internal.playlist_cached("abc").expect("estava no cache");
+        assert_eq!(guardada.name, "Descobertas");
+    }
+
+    /// O cache nao pode crescer sem limite: e memoria que ninguem ve.
+    #[test]
+    fn cache_de_playlist_descarta_a_mais_antiga() {
+        let internal = Internal::new(SharedSession::default());
+        for i in 0..PLAYLIST_CACHE_MAX {
+            internal.playlist_store(&format!("id{i}"), conteudo(&format!("lista {i}")));
+            // Instantes iguais deixariam o "mais antigo" ambiguo.
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        internal.playlist_store("nova", conteudo("nova"));
+
+        assert_eq!(internal.playlists.lock().unwrap().len(), PLAYLIST_CACHE_MAX);
+        assert!(internal.playlist_cached("id0").is_none());
+        assert!(internal.playlist_cached("nova").is_some());
+    }
+
+    /// Reescrever uma entrada ja presente nao pode descartar outra.
+    #[test]
+    fn regravar_a_mesma_playlist_nao_descarta_ninguem() {
+        let internal = Internal::new(SharedSession::default());
+        for i in 0..PLAYLIST_CACHE_MAX {
+            internal.playlist_store(&format!("id{i}"), conteudo("x"));
+        }
+        internal.playlist_store("id0", conteudo("id0 de novo"));
+
+        assert_eq!(internal.playlists.lock().unwrap().len(), PLAYLIST_CACHE_MAX);
+        assert_eq!(internal.playlist_cached("id0").unwrap().name, "id0 de novo");
+    }
 
     fn summary(owner: &str, format: &str) -> PlaylistSummary {
         PlaylistSummary {

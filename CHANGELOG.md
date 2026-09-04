@@ -34,6 +34,19 @@ Versionamento semantico.
   aviso de "aberto sem janela" -- um dialogo, ou seja, um aplicativo travado
   esperando um clique.
 
+**Abrir uma playlist eram quatro idas a rede, e duas eram a mesma**
+- **O conteudo de uma playlist e lido uma vez.** `Catalog::playlist` (nome e
+  tamanho) e `Catalog::playlist_tracks` (as faixas) chamavam os dois o mesmo
+  `internal.playlist(id)`, e cada "carregar mais" pedia o protobuf inteiro de
+  novo. Agora ha cache por id, com cinco minutos de validade e teto de oito
+  playlists -- curto de proposito, para que uma faixa adicionada pelo cliente
+  oficial apareca sem reabrir o Morune.
+- **Os lotes de metadado saem em paralelo**, com teto de quatro. Eram
+  sequenciais: uma pagina de 100 faixas custava duas idas a rede uma depois da
+  outra, sendo requisicoes independentes. O teto existe pelo criterio do
+  produto -- soltar vinte requisicoes de uma vez numa playlist de mil faixas
+  trocaria latencia por um pico de rede e CPU no meio de uma partida.
+
 **Ajustes de audio que existiam no arquivo e nao faziam nada**
 - **Qualidade, nivelamento e cache de audio passam a valer.** `bitrate`,
   `normalize` e `audio_cache_mb` estavam no `config.toml`, com padrao e
