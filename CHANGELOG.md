@@ -77,6 +77,19 @@ Versionamento semantico.
   novo. Agora ha cache por id, com cinco minutos de validade e teto de oito
   playlists -- curto de proposito, para que uma faixa adicionada pelo cliente
   oficial apareca sem reabrir o Morune.
+- **O metadado das faixas tambem fica guardado**, por id e nao por playlist: a
+  mesma faixa aparece em varias listas, e nas curtidas ela aparece de novo --
+  amarrar o metadado a lista que o trouxe faria cada uma pagar por ela outra vez.
+  Meia hora de validade, contra os cinco minutos da lista, pela diferenca real
+  entre as duas: playlist muda quando alguem adiciona musica, e nome, artista e
+  duracao de uma faixa nao mudam praticamente nunca. Teto de 3 000 faixas
+  (~1,2 MB) -- por faixa, e nao por playlist, senao uma lista de dez mil moraria
+  na memoria sozinha sem que numero nenhum no codigo dissesse isso.
+- Medido com a conta real, pelo `cargo run -p morune-app --example
+  cache-playlist`: abrir A, abrir B e **voltar para A** custava 292 ms, 369 ms e
+  141 ms. Agora a volta para A custa **0 ms** -- nao sai uma requisicao. Antes do
+  cache de metadado a volta ainda ia a rede buscar as faixas visiveis, e o ganho
+  ficava na faixa em que nao se percebe.
 - **Os lotes de metadado saem em paralelo**, com teto de quatro. Eram
   sequenciais: uma pagina de 100 faixas custava duas idas a rede uma depois da
   outra, sendo requisicoes independentes. O teto existe pelo criterio do

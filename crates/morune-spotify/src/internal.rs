@@ -92,6 +92,28 @@ const PLAYLIST_TTL: Duration = Duration::from_secs(300);
 /// virar um lugar onde memoria se acumula em silencio.
 const PLAYLIST_CACHE_MAX: usize = 8;
 
+/// Por quanto tempo o metadado de uma faixa ja lida continua valendo.
+///
+/// Muito maior que o das playlists, e por uma diferenca real: o conteudo de uma
+/// playlist muda quando alguem adiciona uma musica, e isso acontece o tempo
+/// todo; nome, artista, album e duracao de uma faixa nao mudam praticamente
+/// nunca. O campo que envelhece e a disponibilidade no mercado, e meia hora e
+/// pouco diante de com que frequencia ela muda.
+const TRACK_TTL: Duration = Duration::from_secs(1800);
+
+/// Quantas faixas ficam guardadas.
+///
+/// **Por que o teto e por faixa, e nao por playlist.** Aqui se guarda metadado,
+/// e nao id: cada `TrackMeta` carrega nome, artistas, album e as URLs de capa,
+/// entre 300 e 500 bytes. Um teto "por playlist" deixaria uma lista de dez mil
+/// faixas ocupar sozinha varios MB sem que numero nenhum no codigo dissesse
+/// isso.
+///
+/// Tres mil faixas dao cerca de 1,2 MB -- perto de nada diante dos ~130 MB do
+/// processo -- e cobrem com folga o vai-e-volta entre as listas que uma pessoa
+/// realmente abre numa sessao.
+const TRACK_CACHE_MAX: usize = 3000;
+
 /// Largura da capa que o Spotify chama de `SMALL`.
 ///
 /// O protobuf entrega tamanho por enum, e nao em pixels. Os valores abaixo sao
@@ -185,6 +207,12 @@ pub(crate) struct Internal {
     /// a leitura e a escrita sao dois trechos curtos, com a requisicao fora dos
     /// dois.
     playlists: Mutex<HashMap<String, (Instant, Arc<PlaylistContents>)>>,
+    /// Metadado de faixa ja lido, por id. Ver [`TRACK_TTL`].
+    ///
+    /// Guardado a parte das playlists de proposito: a mesma faixa aparece em
+    /// varias listas, e nas curtidas ela aparece de novo. Amarrar o metadado a
+    /// playlist que o trouxe faria cada lista pagar pela faixa outra vez.
+    tracks: Mutex<HashMap<String, (Instant, TrackMeta)>>,
 }
 
 impl Internal {
@@ -192,6 +220,66 @@ impl Internal {
         Self {
             session,
             playlists: Mutex::new(HashMap::new()),
+            tracks: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Separa os ids ja conhecidos dos que precisam de rede.
+    ///
+    /// Devolve `(o que ja se tem, o que falta pedir)`. Entrada vencida e
+    /// removida na passagem: e o unico momento em que se olha para ela, e
+    /// deixa-la ali so adiaria a mesma remocao para a proxima leitura.
+    fn tracks_cached(&self, ids: &[String]) -> (HashMap<String, TrackMeta>, Vec<String>) {
+        let mut prontas = HashMap::new();
+        let Ok(mut cache) = self.tracks.lock() else {
+            // Cache envenenado nao pode calar a musica: sem ele, tudo vira
+            // pedido de rede, que e exatamente o comportamento anterior.
+            return (prontas, ids.to_vec());
+        };
+
+        let mut faltam = Vec::new();
+        for id in ids {
+            match cache.get(id) {
+                Some((gravado, faixa)) if gravado.elapsed() <= TRACK_TTL => {
+                    prontas.insert(id.clone(), faixa.clone());
+                }
+                Some(_) => {
+                    cache.remove(id);
+                    faltam.push(id.clone());
+                }
+                None => faltam.push(id.clone()),
+            }
+        }
+        (prontas, faltam)
+    }
+
+    /// Guarda o que a rede trouxe, respeitando o teto de faixas.
+    ///
+    /// O descarte e por lote e nao por entrada: varrer o mapa inteiro a cada
+    /// insercao numa pagina de 100 faixas seria cem varreduras. Quando estoura,
+    /// derruba o quarto mais velho de uma vez -- assim o custo de manutencao e
+    /// pago uma vez a cada muitas insercoes.
+    fn tracks_store(&self, novas: &HashMap<String, TrackMeta>) {
+        let Ok(mut cache) = self.tracks.lock() else {
+            return;
+        };
+
+        for (id, faixa) in novas {
+            cache.insert(id.clone(), (Instant::now(), faixa.clone()));
+        }
+
+        if cache.len() <= TRACK_CACHE_MAX {
+            return;
+        }
+
+        let excesso = cache.len() - TRACK_CACHE_MAX + TRACK_CACHE_MAX / 4;
+        let mut por_idade: Vec<(String, Instant)> = cache
+            .iter()
+            .map(|(id, (gravado, _))| (id.clone(), *gravado))
+            .collect();
+        por_idade.sort_by_key(|(_, gravado)| *gravado);
+        for (id, _) in por_idade.into_iter().take(excesso) {
+            cache.remove(&id);
         }
     }
 
@@ -489,17 +577,26 @@ impl Internal {
             return Ok(Vec::new());
         }
 
+        // O cache entra antes da sessao: reabrir uma lista ja vista nao pode
+        // depender de haver rede, e um pedido que nao sai e o unico que nunca
+        // atrapalha quem esta jogando.
+        let (mut por_id, faltam) = self.tracks_cached(ids);
+        if faltam.is_empty() {
+            return Ok(ids.iter().filter_map(|id| por_id.remove(id)).collect());
+        }
+        let ids_pedidos = faltam;
+
         let session = self.session.get().ok_or(CoreError::NotAuthenticated)?;
-        // Guardadas por id, e nao numa lista: a resposta **nao volta na ordem
-        // pedida**, e o pedido sai em lotes de 50. Acumular na ordem de chegada
-        // embaralhava a playlist inteira, e nas curtidas desfazia a ordenacao
-        // por data que o passo anterior tinha acabado de fazer.
-        let mut por_id: HashMap<String, TrackMeta> = HashMap::with_capacity(ids.len());
+        // As que vierem da rede entram num mapa proprio, e nao direto no
+        // `por_id`: e ele que vai para o cache no fim, e reguardar o que ja
+        // estava guardado renovaria o relogio de entradas que nao foram lidas
+        // de novo -- uma faixa nunca venceria.
+        let mut novas: HashMap<String, TrackMeta> = HashMap::with_capacity(ids_pedidos.len());
 
         // Os pedidos sao montados antes de virar futuros: montado dentro do
-        // `map`, o lote continuaria emprestado de `ids` e o compilador nao
-        // conseguiria provar que o futuro vive o bastante.
-        let pedidos: Vec<BatchedEntityRequest> = ids
+        // `map`, o lote continuaria emprestado de `ids_pedidos` e o compilador
+        // nao conseguiria provar que o futuro vive o bastante.
+        let pedidos: Vec<BatchedEntityRequest> = ids_pedidos
             .chunks(METADATA_BATCH)
             .map(|lote| {
                 let mut pedido = BatchedEntityRequest::new();
@@ -545,11 +642,14 @@ impl Internal {
                         continue;
                     };
                     if let Some(faixa) = TrackMeta::from_message(&message) {
-                        por_id.insert(faixa.id.clone(), faixa);
+                        novas.insert(faixa.id.clone(), faixa);
                     }
                 }
             }
         }
+
+        self.tracks_store(&novas);
+        por_id.extend(novas);
 
         // De volta a ordem pedida. Faixa que o servidor nao devolveu some da
         // lista, em vez de deixar um buraco ou empurrar as seguintes.
@@ -1073,6 +1173,74 @@ mod tests {
         internal.playlist_store("abc", conteudo("Descobertas"));
         let guardada = internal.playlist_cached("abc").expect("estava no cache");
         assert_eq!(guardada.name, "Descobertas");
+    }
+
+    fn faixa(id: &str) -> TrackMeta {
+        TrackMeta {
+            id: id.into(),
+            name: format!("faixa {id}"),
+            artists: Vec::new(),
+            album: None,
+            duration_ms: 1000,
+            number: None,
+            disc: None,
+            explicit: false,
+        }
+    }
+
+    fn guardar(internal: &Internal, ids: &[&str]) {
+        let novas: HashMap<String, TrackMeta> =
+            ids.iter().map(|id| (id.to_string(), faixa(id))).collect();
+        internal.tracks_store(&novas);
+    }
+
+    /// Reabrir uma lista ja vista nao pode pedir metadado de novo.
+    ///
+    /// E a segunda metade do cache: sem ela, a revisita pulava o protobuf da
+    /// playlist mas continuava indo a rede buscar nome, artista e duracao de
+    /// cada faixa visivel.
+    #[test]
+    fn faixa_ja_lida_nao_volta_a_ser_pedida() {
+        let internal = Internal::new(SharedSession::default());
+        guardar(&internal, &["a", "b"]);
+
+        let (prontas, faltam) = internal.tracks_cached(&["a".into(), "b".into()]);
+        assert_eq!(prontas.len(), 2);
+        assert!(faltam.is_empty(), "nada deveria ir para a rede");
+        assert_eq!(prontas["a"].name, "faixa a");
+    }
+
+    /// O caso comum nao e tudo ou nada: uma pagina nova de uma lista ja aberta
+    /// tem faixas conhecidas e desconhecidas misturadas, e so as segundas podem
+    /// virar requisicao.
+    #[test]
+    fn so_o_que_falta_vira_pedido() {
+        let internal = Internal::new(SharedSession::default());
+        guardar(&internal, &["a", "c"]);
+
+        let pedido: Vec<String> = ["a", "b", "c", "d"].iter().map(|s| s.to_string()).collect();
+        let (prontas, faltam) = internal.tracks_cached(&pedido);
+        assert_eq!(prontas.len(), 2);
+        assert_eq!(faltam, vec!["b".to_string(), "d".to_string()]);
+    }
+
+    /// Metadado ocupa muito mais que id, entao o teto aqui e por faixa. Sem
+    /// ele, uma playlist de dez mil faixas moraria na memoria sozinha.
+    #[test]
+    fn cache_de_faixa_respeita_o_teto() {
+        let internal = Internal::new(SharedSession::default());
+        let ids: Vec<String> = (0..TRACK_CACHE_MAX + 100)
+            .map(|i| format!("id{i}"))
+            .collect();
+        let novas: HashMap<String, TrackMeta> =
+            ids.iter().map(|id| (id.clone(), faixa(id))).collect();
+        internal.tracks_store(&novas);
+
+        let guardadas = internal.tracks.lock().unwrap().len();
+        assert!(
+            guardadas <= TRACK_CACHE_MAX,
+            "guardou {guardadas}, acima do teto de {TRACK_CACHE_MAX}"
+        );
     }
 
     /// O cache nao pode crescer sem limite: e memoria que ninguem ve.
