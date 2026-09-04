@@ -1383,6 +1383,10 @@ component TrackShelf inherits VerticalLayout {
         height: min(root.visible-height, rows.preferred-height);
 
         Flickable {
+            // `width` junto com `height`: dentro de um Rectangle -- que nao e
+            // layout -- um filho sem largura fica com a largura preferida, nao
+            // com a do pai.
+            width: 100%;
             height: 100%;
             viewport-height: rows.preferred-height;
             viewport-width: self.width;
@@ -1565,8 +1569,26 @@ component SearchPage inherits VerticalLayout {
         hint: "Tente outro termo ou confira a escrita de \"" + root.query + "\".";
     }
 
-    if !root.searching && (root.tracks.length > 0 || root.items.length > 0): Flickable {
+    // Os resultados vao dentro de um Rectangle, e nao soltos no layout.
+    //
+    // Um Flickable como filho direto de layout nao tem largura propria para
+    // oferecer, e o layout de cima passa a resolver a pagina pela largura
+    // PREFERIDA do conteudo -- que numa lista de faixas e o talo do texto
+    // elidido. A pagina inteira encolhia junto, campo de busca incluido, e o
+    // resto da janela ficava vazio. Com o estado vazio isso nao aparecia,
+    // porque ali nao ha Flickable nenhum.
+    //
+    // E o mesmo arranjo da pagina de biblioteca, que nunca teve o defeito:
+    // caixa que ocupa o que lhe derem, Flickable colado nela por dentro.
+    if !root.searching && (root.tracks.length > 0 || root.items.length > 0): Rectangle {
+        background: transparent;
+        min-height: 0px;
+        preferred-height: 0px;
         vertical-stretch: 1;
+
+        Flickable {
+        width: 100%;
+        height: 100%;
         viewport-height: results.preferred-height;
 
         results := VerticalLayout {
@@ -1591,6 +1613,7 @@ component SearchPage inherits VerticalLayout {
                     activated(id) => { root.activated(id); }
                 }
             }
+        }
         }
     }
 }

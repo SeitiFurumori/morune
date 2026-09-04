@@ -7,6 +7,18 @@ Versionamento semantico.
 
 ### Corrigido
 
+**A busca ocupava um quinto da largura da janela**
+- **A pagina de resultados volta a ocupar a largura toda.** O Flickable dos
+  resultados era filho direto do layout da pagina, e um Flickable nessa posicao
+  nao tem largura propria para oferecer: o layout de cima resolvia a pagina pela
+  largura PREFERIDA do conteudo -- numa lista de faixas, o talo do texto
+  elidido. O campo de busca encolhia junto e o resto da janela ficava vazio. Com
+  o estado vazio nada disso aparecia, porque ali nao ha Flickable nenhum.
+- As linhas das prateleiras de faixas apareciam espremidas contra a esquerda
+  pelo mesmo motivo, um nivel abaixo: dentro de um Rectangle -- que nao e
+  layout -- um filho sem largura fica com a largura preferida, e nao com a do
+  pai.
+
 **Ajustes de audio que existiam no arquivo e nao faziam nada**
 - **Qualidade, nivelamento e cache de audio passam a valer.** `bitrate`,
   `normalize` e `audio_cache_mb` estavam no `config.toml`, com padrao e
