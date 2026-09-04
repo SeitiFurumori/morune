@@ -152,6 +152,22 @@ Versionamento semantico.
 
 ### Adicionado
 
+**Medir CPU e GPU de verdade**
+- **`tools/measure.ps1 -Watch` mede um Morune que ja esta aberto**, sem abrir
+  nem fechar nada, e reporta CPU, GPU por motor (3D, Copy, VideoDecode...) e
+  memoria. E o que faltava para responder a metrica mais importante do
+  [PERFORMANCE.md](docs/PERFORMANCE.md) e a unica que nunca teve numero: quanto
+  o Morune custa com musica tocando e um jogo em tela cheia na frente. Esse
+  cenario nao da para montar sinteticamente, entao a ferramenta observa em vez
+  de encenar.
+- Uso de GPU por processo vem de `\GPU Engine(pid_...)`, somado por motor --
+  que e a conta que o Gerenciador de Tarefas mostra. Sem o contador na maquina,
+  o resultado e "nao medido", nunca zero: zero inventado viraria numero no
+  PERFORMANCE.md.
+- **A medicao se recusa a rodar com outro Morune aberto.** Instancia unica faz a
+  segunda copia so trazer a janela da primeira para frente e sair -- o relogio
+  media isso e chamava de startup. Numero falso que passava por bom.
+
 **Atualizacao pelo proprio aplicativo**
 - **Botao "Procurar atualizacoes"** nas configuracoes. Ele consulta os
   lancamentos publicados no GitHub, baixa o instalador da versao seguinte,

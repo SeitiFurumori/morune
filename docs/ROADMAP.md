@@ -69,10 +69,13 @@ ver o [handoff histórico](archive/PROJECT_HANDOFF_2026-08.md).
    [UX_AUDIT.md](UX_AUDIT.md).
 8. `[verificado]` **Fila gerenciavel**: insercoes manuais separadas do contexto,
    com tocar a seguir, adicionar ao fim, mover, remover e limpar.
-9. `[aberto]` **Medir o que importa**: CPU e GPU em segundo plano com musica
-   tocando, com um jogo em tela cheia rodando junto. E o criterio de desempenho
-   do produto e nunca foi medido — ver [PERFORMANCE.md](PERFORMANCE.md). RAM
-   entra como teto de crescimento, nao como meta de vitrine.
+9. `[ferramenta pronta, medicao pendente]` **Medir o que importa**: CPU e GPU
+   em segundo plano com musica tocando, com um jogo em tela cheia rodando junto.
+   E o criterio de desempenho do produto — ver
+   [PERFORMANCE.md](PERFORMANCE.md). `tools/measure.ps1 -Watch` ja reporta CPU,
+   GPU por motor e memoria de um Morune aberto, sem abrir nem fechar nada; o que
+   falta e rodar isso numa sessao real, com Premium tocando e um jogo na frente.
+   RAM entra como teto de crescimento, nao como meta de vitrine.
 
 `[escrito]` quer dizer: compila, tem teste de unidade e clippy limpo, mas o
 recurso novo ainda nao passou pela conta real. O restante do ciclo foi

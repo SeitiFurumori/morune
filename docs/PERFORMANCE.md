@@ -30,18 +30,18 @@ teto explicito para nao crescer sem limite, nao com meta de vitrine.
 
 | Metrica | Meta | Medido | Situacao |
 |---|---|---|---|
-| CPU em repouso, janela visivel | ~0% | **0,14%** | cumprido |
-| CPU na bandeja, janela oculta | ~0% | **0,00%** | cumprido |
-| GPU na bandeja | sem redesenho | — | nao medido |
-| Interferencia com jogo em tela cheia | imperceptivel | — | nao medido |
+| CPU em repouso, janela visivel | ~0% | **1,48%** | **regrediu** (era 0,14% em 19/08) |
+| CPU na bandeja, janela oculta | ~0% | **0,00%** (19/08) | nao remedido em 30/08 |
+| GPU em repouso, janela visivel | sem redesenho | **0,00%** | cumprido |
+| Interferencia com jogo em tela cheia | imperceptivel | — | ferramenta pronta, falta a sessao |
 | Resposta da interface | sem travar, nunca | — | exige sessao real prolongada |
 | CPU em reproducao | < 2% | — | exige reproducao real |
-| Startup ate o laco de eventos | < 1 s | **19 ms** | folgado |
-| Ciclo completo do processo | < 1 s | **509 ms** | cumprido |
-| RAM em repouso | teto, nao vitrine | **78,8 MB** | aceito |
+| Startup ate o laco de eventos | < 1 s | **62 ms** | folgado, mas 3x o de 19/08 |
+| Ciclo completo do processo | < 1 s | **1.015 ms** | **estourou** (era 509 ms) |
+| RAM em repouso | teto, nao vitrine | **135,6 MB** | **cresceu 72%** desde 19/08 |
 | RAM em reproducao com capas | crescimento limitado | — | cache em disco limitado; RAM nao medida |
-| Tamanho do instalador | < 40 MB | **5,31 MB** | folgado |
-| Tamanho do executavel | — | **13,78 MiB** | — |
+| Tamanho do instalador | < 40 MB | **5,31 MB** (19/08) | nao reempacotado |
+| Tamanho do executavel | — | **15,48 MiB** | +1,70 MiB desde 19/08 |
 | Dependencia de Chromium | nenhuma | nenhuma | cumprido |
 
 O executavel foi remedido em 20/08/2026 depois de habilitar AccessKit; cresceu
@@ -52,6 +52,43 @@ ser atualizado na proxima rodada de empacotamento.
 
 As linhas sem numero dependem de uma sessao Premium real, com musica tocando e
 um jogo em tela cheia. O teste sintetico nao substitui esse cenario.
+
+## Medicao de 30/08/2026
+
+Mesma maquina de 19/08. Binario de release do dia, **sem login** — a sessao do
+Gerenciador de Credenciais nao foi restaurada nesta rodada, entao os numeros sao
+do aplicativo parado, sem rede e sem audio.
+
+```
+executavel   : target\release\morune.exe
+tamanho      : 15,48 MiB (16,23 MB)
+
+startup interno          : primeiro 246,0 | mediana 62,0 | min 59,0 | max 246,0 ms
+startup processo inteiro : primeiro 1351,4 | mediana 1014,8 | min 1008,2 | max 1351,4 ms
+
+working set    : media 135,6 MB | pico 137,2 MB
+memoria privada: media 162,5 MB | pico 165,1 MB
+cpu em repouso : 1,48% de um nucleo   (20 amostras, janela visivel)
+gpu em repouso : 0,00% em todos os motores
+```
+
+**A GPU e a boa noticia, e e a que o produto mais precisava.** Zero em 3D, Copy
+e video ao longo de 20 s com a janela aberta e visivel: parado, o Morune nao
+acorda a GPU. Era uma das duas linhas sem numero nenhum desde que a pagina
+existe.
+
+**As outras quatro regrediram, e a causa nao foi investigada.** CPU em repouso
+saiu de 0,14% para 1,48%, o working set de 78,8 MB para 135,6 MB, o startup
+interno de 19 ms para 62 ms e o ciclo completo de 509 ms para 1,01 s. Entre as
+duas medicoes ha onze dias de trabalho — AccessKit, atualizador, mini-player,
+fundo com desfoque, menu de bandeja proprio, avatar da conta, painel de midia —
+e **nenhuma delas foi isolada**. Atribuir a regressao a qualquer uma agora seria
+palpite; o que esta registrado e o numero e a data.
+
+O caminho para investigar e o mesmo que ja funcionou uma vez aqui (a bandeja que
+reescrevia o menu a cada 150 ms e custava 0,22%): medir de novo depois de
+desligar um suspeito de cada vez. O primeiro suspeito e o temporizador de 150 ms
+que hoje carrega bandeja, barra de tarefas e painel de midia no mesmo laco.
 
 ## Medicao de 19/08/2026
 
@@ -166,8 +203,14 @@ da mudanca, nao porque alguem desconfiou.
 
 ## Riscos conhecidos
 
-**Interferencia com jogo nunca foi medida.** E a metrica mais importante da
-pagina e a unica sem nenhum dado. CPU em repouso 0,14% e um bom sinal, mas nao
+**CPU em repouso regrediu 10x e ninguem sabe por que.** Ver a medicao de
+30/08/2026. E o risco mais serio da pagina hoje: 1,48% de um nucleo com o
+aplicativo parado contradiz o criterio inteiro do produto, que e ser
+indistinguivel de um processo parado enquanto alguem joga.
+
+**Interferencia com jogo nunca foi medida.** Continua sem dado, mas a falta
+agora e so de sessao: o `-Watch` de `tools/measure.ps1` mede CPU e GPU por motor
+de um Morune aberto, e a GPU em repouso ja saiu em 0,00%. CPU em repouso 0,14% e um bom sinal, mas nao
 prova o que interessa: se o Morune acorda a GPU em segundo plano, quanto custa o
 primeiro quadro depois de horas na bandeja, e se algo dele aparece no tempo de
 quadro de um jogo em tela cheia. So faz sentido medir com reproducao real
@@ -193,5 +236,25 @@ cargo build --release -p morune-app
 .\tools\measure.ps1 -Runs 10 -IdleSeconds 12
 ```
 
-Registre o resultado aqui com a data e a maquina. Numero sem procedencia nao
-entra.
+A medicao **se recusa a rodar com outro Morune aberto**. Nao e frescura: com uma
+instancia viva, cada execucao de startup so traz a janela dela para frente e
+sai, e o relogio mediria isso. O numero sairia bonito e seria falso.
+
+### O cenario que so uma sessao real produz
+
+CPU e GPU com musica tocando e um jogo em tela cheia nao dao para montar
+sinteticamente — exigem login, Premium e o jogo aberto. Para esse caso a
+ferramenta observa em vez de encenar:
+
+```bash
+.\tools\measure.ps1 -Watch -IdleSeconds 60 -Rotulo "tocando + jogo"
+```
+
+Ela nao abre nem fecha nada: acha o `morune.exe` em execucao e amostra CPU, GPU
+por motor (3D, Copy, VideoDecode...) e memoria pelo tempo pedido. O uso de GPU
+por processo vem de `\GPU Engine(pid_...)`, somado por motor — a mesma conta da
+coluna GPU do Gerenciador de Tarefas. Numa maquina sem esse contador o resultado
+sai como "nao medido", e nunca como zero.
+
+Registre o resultado aqui com a data, a maquina e **o cenario**. Numero sem
+procedencia nao entra, e CPU sem dizer o que estava tocando nao e procedencia.
