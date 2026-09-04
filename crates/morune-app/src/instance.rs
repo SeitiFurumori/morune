@@ -165,7 +165,10 @@ impl SingleInstance {
             // SAFETY: handle valido, aberto com o direito de encerrar.
             unsafe { TerminateProcess(process, 1) }.is_ok()
         } else {
-            tracing::warn!(pid = alvo.pid, "pid reciclado por outro programa; nao encerrado");
+            tracing::warn!(
+                pid = alvo.pid,
+                "pid reciclado por outro programa; nao encerrado"
+            );
             false
         };
 
@@ -283,7 +286,8 @@ unsafe extern "system" fn visitar_janela(window: HWND, lparam: LPARAM) -> window
     }
 
     // SAFETY: pid vindo do sistema; o handle e fechado logo abaixo.
-    let Ok(process) = (unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) }) else {
+    let Ok(process) = (unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) })
+    else {
         return TRUE;
     };
     let morune = e_morune(process);
