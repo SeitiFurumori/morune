@@ -19,6 +19,21 @@ Versionamento semantico.
   layout -- um filho sem largura fica com a largura preferida, e nao com a do
   pai.
 
+**Encerrar um Morune travado podia matar outro programa**
+- **A instancia travada passa a ser identificada pelo executavel, e nao so pelo
+  titulo da janela.** O caminho de recuperacao achava a janela com
+  `FindWindowW(None, "Morune")` e oferecia encerrar o dono dela: qualquer
+  programa com uma janela de mesmo titulo virava candidato a `TerminateProcess`.
+  Agora a varredura e por `EnumWindows` e o processo dono precisa ser um
+  `morune.exe`; a checagem e refeita **com o handle ja aberto** antes de
+  encerrar, porque entre achar e matar houve uma pergunta ao usuario e nesse
+  intervalo um pid pode ser reciclado por outro programa.
+- Continua sendo o nome do arquivo, e nao o caminho inteiro: um Morune instalado
+  e um recem-compilado sao o mesmo aplicativo em pastas diferentes e disputam o
+  mesmo mutex. Exigir caminho identico faria um nao reconhecer o outro e cair no
+  aviso de "aberto sem janela" -- um dialogo, ou seja, um aplicativo travado
+  esperando um clique.
+
 **Ajustes de audio que existiam no arquivo e nao faziam nada**
 - **Qualidade, nivelamento e cache de audio passam a valer.** `bitrate`,
   `normalize` e `audio_cache_mb` estavam no `config.toml`, com padrao e
