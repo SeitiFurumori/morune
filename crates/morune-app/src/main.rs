@@ -84,7 +84,12 @@ fn main() -> anyhow::Result<()> {
     let _ = paths.ensure();
     init_logging(&paths);
     log_panics();
-    tracing::info!(versao = env!("CARGO_PKG_VERSION"), log = %paths.log_file().display(), "Morune iniciando");
+    // `MORUNE_RELEASE`, e nao `CARGO_PKG_VERSION`: a versao do crate fica parada
+    // em 0.1.0 enquanto as tags avancam, entao a primeira linha do log dizia
+    // "0.1.0" tanto para um alpha publicado quanto para um build local de hoje
+    // -- justamente a pergunta que se vai ao log para responder. Ver
+    // `embed_release_tag` em build.rs.
+    tracing::info!(versao = env!("MORUNE_RELEASE"), log = %paths.log_file().display(), "Morune iniciando");
 
     let mut state = AppState::load();
     state.open_page_from_env();
