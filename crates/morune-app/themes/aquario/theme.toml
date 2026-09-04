@@ -1,0 +1,157 @@
+# Aquario -- Frutiger Aero pelo ramo aquatico (Frutiger Aqua).
+#
+# **E um tema CLARO, e isso e o ponto.** A primeira versao era escura, e por
+# mais que acertasse forma e cor ela nunca ia chegar la: a linguagem inteira
+# daquela era e clara -- ceu, agua rasa, grama ao sol, branco. Escuro obrigava
+# a dessaturar tudo, e o resultado vivia numa faixa estreita de valor onde
+# nenhum pixel e branco e nenhum e preto. Vidro precisa dos dois.
+#
+# O que o tema escuro forcava, e que aqui deixou de existir: o texto branco
+# caia direto sobre o campo, entao o campo tinha de ser escuro. Com texto
+# escuro, o campo abre.
+#
+# O resto do estilo, na ordem em que aparece:
+#
+# 1. **Sao duas cores.** Azul de ceu e agua em cima, VERDE de grama embaixo.
+#    Frutiger Aero sem o verde e so um tema azul.
+# 2. **Alguma coisa em foco.** O `fundo.png` tem esferas de vidro nitidas na
+#    frente e o borrado atras. Desfoque sem sujeito nao le como profundidade.
+# 3. **Nada e chapado.** Toda superficie tem luz caindo sobre ela -- e o
+#    `gloss`, que desenha reflexo, fosco e orla.
+# 4. **Nada tem quina.** Botao e capsula, painel e gota.
+#
+# Nada de terceiros: nem fonte, nem icone, nem imagem. O fundo e gerado por
+# `tools/fundo-aquario.py`. Ver docs/DIREITOS-EM-TEMAS.md.
+
+[color]
+# Ceu. Alfa 0xf0 e o piso agora pelo motivo OPOSTO ao do tema escuro: aqui o
+# texto e escuro, entao o perigo e uma area de trabalho PRETA escurecendo o
+# fundo por baixo. A 94% ela nao alcanca.
+background = "#cfeafcf0"
+
+# **Os cartoes sao gel verde, e agora podem ser claros.** No tema escuro o
+# verde vivia preso em 24% de alfa para nao comer o texto branco; com texto
+# escuro por cima ele sobe para 90% e finalmente le como objeto de material
+# proprio, com a faixa de valor que faltava.
+surface        = "#b7e86ae6"
+surface_raised = "#cbf089f2"
+
+# Barra lateral e player em branco de vidro: sao moldura, nao objeto. Se
+# tambem fossem verdes, os cartoes deixariam de se destacar -- so que em verde.
+sidebar_background = "#ffffffc4"
+player_background  = "#ffffffd6"
+
+# Tinta com fundo de agua, nao preto neutro: preto puro sobre este campo fica
+# duro e sai da linguagem.
+text           = "#0e2b33"
+text_muted     = "#3d6470"
+text_on_accent = "#04222c"
+
+# O destaque e a bolha de vidro azul -- o objeto de vidro no meio do verde,
+# como a era Aqua fazia. Texto ESCURO por cima: e o que permite o azul ser
+# vivo de verdade em vez de ser escurecido ate caber texto branco.
+accent       = "#2fc0ee"
+accent_hover = "#5ad3f8"
+
+# 0x9e e o menor alfa que da 3:1 tambem sobre area de trabalho preta, o pior
+# caso de um tema claro translucido -- WCAG 1.4.11 para limite grafico.
+border = "#0a3a4a9e"
+# A aresta iluminada: num tema claro ela e branca e quase nao aparece sozinha,
+# mas e ela que fecha a quina do gel por cima do `gloss`.
+border_highlight = "#ffffffe6"
+hover      = "#0a3a4a12"
+selected   = "#2fc0ee4d"
+focus_ring = "#0b7fb8"
+
+success = "#2f8f3e"
+warning = "#a8720a"
+danger  = "#c1342f"
+
+# Sombra azul e fraca: e o que da espessura ao painel claro sem virar papel
+# recortado.
+shadow    = "#0a3a4a2e"
+scrollbar = "#0a3a4a9e"
+
+[typography]
+# Segoe UI: a fonte do Aero, ja instalada em todo Windows. A Frutiger de
+# verdade e licenciada e nao entra num tema que a gente distribui.
+family         = "Segoe UI"
+display_family = "Segoe UI"
+scale = 1.0
+size_xs      = 12.0
+size_sm      = 13.0
+size_md      = 15.0
+size_lg      = 19.0
+size_xl      = 25.0
+size_display = 36.0
+weight_normal = 400
+weight_medium = 600
+weight_bold   = 700
+line_height    = 1.45
+letter_spacing = 0.0
+
+[shape]
+# Raios grandes e proporcionais. O Aqua nao tinha "canto levemente
+# arredondado": tinha gota e capsula.
+radius_sm      = 9.0
+radius_md      = 16.0
+radius_lg      = 24.0
+radius_artwork = 12.0
+radius_avatar  = 999.0
+spacing_xs = 4.0
+spacing_sm = 9.0
+spacing_md = 15.0
+spacing_lg = 24.0
+spacing_xl = 36.0
+border_width = 1.0
+# 9px: a barra de progresso do Aqua e um tubo de gel, nao um fio. E a peca em
+# que o brilho aparece melhor, porque tem area para ele correr.
+progress_thickness = 9.0
+scrollbar_width    = 12.0
+
+[control]
+button_size         = 36.0
+button_radius       = 999.0
+# 50: o play e a bolha de vidro no centro do player -- o unico objeto da tela
+# que o estilo autoriza a ser grande.
+primary_button_size = 50.0
+icon_size           = 18.0
+icon_size_primary   = 24.0
+icon_stroke         = 1.9
+slider_knob         = 18.0
+tooltip_height      = 30.0
+
+[motion]
+enabled = true
+speed           = 0.9
+duration_fast   = 140
+duration_normal = 240
+duration_slow   = 400
+easing          = "ease-in-out"
+
+[effects]
+window_opacity = 0.97
+acrylic        = true
+# Num tema claro a sombra volta a ter trabalho: sem ela o painel branco sobre
+# campo claro perde o limite.
+shadow_strength = 0.35
+backdrop_blur   = 0.0
+gloss           = 0.8
+artwork_tint          = true
+artwork_tint_strength = 0.3
+
+[background]
+# Ceu e grama com esferas de vidro em foco. Desenhado por nos
+# (`tools/fundo-aquario.py`), nao baixado.
+#
+# Pintado ACIMA de `color.background` e abaixo de toda superficie -- quem da a
+# cor da tela e ele, e o token de fundo passa a ser o que aparece por
+# transparencia.
+image = "fundo.png"
+fit   = "cover"
+opacity = 0.92
+# O veu agora e BRANCO, e nao escuro: num tema claro a margem de legibilidade
+# se ganha clareando o campo, nao escurecendo.
+tint          = "#ffffff"
+tint_strength = 0.08
+blur          = 0.0

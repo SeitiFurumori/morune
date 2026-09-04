@@ -1,0 +1,57 @@
+# A composicao acompanha a cor: Frutiger Aero e generoso. Nada apertado, nada
+# em lista compacta -- capa grande, grade e player alto o bastante para o botao
+# de 50px caber inteiro.
+
+[window]
+default_width  = 1220.0
+default_height = 800.0
+min_width      = 720.0
+min_height     = 480.0
+custom_titlebar = false
+show_page_title = true
+
+[sidebar]
+position = "left"
+width = 232.0
+collapsed_width = 64.0
+collapsible = true
+start_collapsed = false
+show_icons = true
+show_labels = true
+show_playlists = true
+playlist_height = 44.0
+items = ["home", "search", "library"]
+
+[detail]
+cover_size = 200.0
+
+[player]
+position = "bottom"
+# 104: o botao primario tem 50px e o tubo de progresso 9px. Com a altura padrao
+# de 88 o conjunto encostava nas duas bordas e o tema perdia o ar que e metade
+# da leitura de Frutiger Aero.
+height = 104.0
+show_artwork = true
+artwork_size = 64.0
+show_progress = true
+progress_edge_to_edge = false
+show_volume = true
+show_shuffle_repeat = true
+show_queue_button = true
+show_stop_button = false
+show_times = true
+center_controls = true
+
+[content]
+density = "comfortable"
+view_mode = "grid"
+card_width = 190.0
+# 44, e nao 56: a densidade `comfortable` multiplica isto por 1,25, entao 56
+# virava linha de 70px e capa de 61px -- a lista comia a tela e cabiam seis
+# faixas onde deviam caber oito. Em 44 a linha sai com 55px, e o piso e o
+# texto: titulo de 15px e artista de 13px com entrelinha 1,45 somam 41px.
+row_height = 44.0
+max_content_width = 0.0
+show_hero = true
+hero_height = 240.0
+page_size = 100

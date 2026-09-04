@@ -13,10 +13,20 @@
 
 use std::path::Path;
 
+/// Conteudo de um arquivo empacotado.
+///
+/// Texto e bytes ficam separados porque a imagem de fundo do Aquario nao e
+/// UTF-8: `include_str!` nem compilaria com ela, e gravar TOML como bytes
+/// esconderia um arquivo mal formado ate a hora de carregar.
+enum BundledContents {
+    Text(&'static str),
+    Bytes(&'static [u8]),
+}
+
 /// Um arquivo de um tema empacotado.
 struct BundledFile {
     name: &'static str,
-    contents: &'static str,
+    contents: BundledContents,
 }
 
 /// Um tema empacotado.
@@ -31,15 +41,15 @@ const THEMES: &[BundledTheme] = &[
         files: &[
             BundledFile {
                 name: "manifest.toml",
-                contents: include_str!("../themes/paper/manifest.toml"),
+                contents: BundledContents::Text(include_str!("../themes/paper/manifest.toml")),
             },
             BundledFile {
                 name: "theme.toml",
-                contents: include_str!("../themes/paper/theme.toml"),
+                contents: BundledContents::Text(include_str!("../themes/paper/theme.toml")),
             },
             BundledFile {
                 name: "layout.toml",
-                contents: include_str!("../themes/paper/layout.toml"),
+                contents: BundledContents::Text(include_str!("../themes/paper/layout.toml")),
             },
         ],
     },
@@ -48,11 +58,11 @@ const THEMES: &[BundledTheme] = &[
         files: &[
             BundledFile {
                 name: "manifest.toml",
-                contents: include_str!("../themes/bruma/manifest.toml"),
+                contents: BundledContents::Text(include_str!("../themes/bruma/manifest.toml")),
             },
             BundledFile {
                 name: "theme.toml",
-                contents: include_str!("../themes/bruma/theme.toml"),
+                contents: BundledContents::Text(include_str!("../themes/bruma/theme.toml")),
             },
         ],
     },
@@ -61,11 +71,11 @@ const THEMES: &[BundledTheme] = &[
         files: &[
             BundledFile {
                 name: "manifest.toml",
-                contents: include_str!("../themes/cristal/manifest.toml"),
+                contents: BundledContents::Text(include_str!("../themes/cristal/manifest.toml")),
             },
             BundledFile {
                 name: "theme.toml",
-                contents: include_str!("../themes/cristal/theme.toml"),
+                contents: BundledContents::Text(include_str!("../themes/cristal/theme.toml")),
             },
         ],
     },
@@ -74,11 +84,32 @@ const THEMES: &[BundledTheme] = &[
         files: &[
             BundledFile {
                 name: "manifest.toml",
-                contents: include_str!("../themes/pulse/manifest.toml"),
+                contents: BundledContents::Text(include_str!("../themes/pulse/manifest.toml")),
             },
             BundledFile {
                 name: "theme.toml",
-                contents: include_str!("../themes/pulse/theme.toml"),
+                contents: BundledContents::Text(include_str!("../themes/pulse/theme.toml")),
+            },
+        ],
+    },
+    BundledTheme {
+        id: "aquario",
+        files: &[
+            BundledFile {
+                name: "manifest.toml",
+                contents: BundledContents::Text(include_str!("../themes/aquario/manifest.toml")),
+            },
+            BundledFile {
+                name: "theme.toml",
+                contents: BundledContents::Text(include_str!("../themes/aquario/theme.toml")),
+            },
+            BundledFile {
+                name: "layout.toml",
+                contents: BundledContents::Text(include_str!("../themes/aquario/layout.toml")),
+            },
+            BundledFile {
+                name: "fundo.png",
+                contents: BundledContents::Bytes(include_bytes!("../themes/aquario/fundo.png")),
             },
         ],
     },
@@ -103,7 +134,11 @@ pub fn install_missing(themes_dir: &Path) -> Vec<&'static str> {
 
         let mut ok = true;
         for file in theme.files {
-            if let Err(e) = std::fs::write(dir.join(file.name), file.contents) {
+            let escrita = match file.contents {
+                BundledContents::Text(t) => std::fs::write(dir.join(file.name), t),
+                BundledContents::Bytes(b) => std::fs::write(dir.join(file.name), b),
+            };
+            if let Err(e) = escrita {
                 tracing::warn!(theme = theme.id, file = file.name, error = %e, "falha ao gravar");
                 ok = false;
             }
@@ -208,7 +243,7 @@ mod tests {
         install_missing(&dir);
 
         let mut culpados = Vec::new();
-        for id in ["paper", "bruma", "cristal", "pulse"] {
+        for id in ["paper", "bruma", "cristal", "pulse", "aquario"] {
             for aviso in morune_theme::load(&dir, id).spec.contrast_warnings() {
                 culpados.push(format!("{id}: {} -- {}", aviso.field, aviso.message));
             }
