@@ -18,16 +18,68 @@ fn main() {
 /// que nao ha nada a fazer com tres lancamentos novos no ar.
 ///
 /// Quem define a variavel e o workflow de publicacao. Num build local ela nao
-/// existe, e a versao do crate serve: ninguem lanca do proprio computador.
+/// existe, e ai a tag vira `v0.1.0-dev.<hash>`: um pre-lancamento, e nao a
+/// final `v0.1.0`.
+///
+/// **Por que nao a versao do crate no build local:** `0.1.0` e uma versao
+/// *final*, e por semver e mais nova que qualquer `0.1.0-alpha.N`. Um binario
+/// compilado aqui se anunciava como a mais nova coisa que existe -- a
+/// verificacao nunca encontrava lancamento algum, e a tela dizia "você já está
+/// na versão mais recente" para sempre. Pior: todo build local se chamava
+/// `0.1.0`, entao nada na tela nem no log distinguia o de hoje do de duas
+/// semanas atras.
+///
+/// `dev` ordena **acima** de `alpha` (comparacao de texto, pelas regras do
+/// semver), e isso e a verdade: um build local sai de commits que os alphas
+/// publicados ainda nao tem. O efeito colateral desejado e que a verificacao
+/// nunca oferece um lancamento publicado a quem esta num build local -- seria
+/// um downgrade silencioso por cima do trabalho em andamento.
 fn embed_release_tag() {
     println!("cargo:rerun-if-env-changed=MORUNE_RELEASE_TAG");
 
-    let tag = std::env::var("MORUNE_RELEASE_TAG")
+    let publicado = std::env::var("MORUNE_RELEASE_TAG")
         .ok()
-        .filter(|tag| !tag.trim().is_empty())
-        .unwrap_or_else(|| format!("v{}", env!("CARGO_PKG_VERSION")));
+        .filter(|tag| !tag.trim().is_empty());
+
+    let local = publicado.is_none();
+    let tag = publicado
+        .unwrap_or_else(|| format!("v{}-dev.{}", env!("CARGO_PKG_VERSION"), commit_hash()));
 
     println!("cargo:rustc-env=MORUNE_RELEASE={tag}");
+    // De onde a tag veio. O teste do rotulo precisa saber: exigir
+    // pre-lancamento de toda tag reprovaria a primeira release final publicada.
+    println!(
+        "cargo:rustc-env=MORUNE_RELEASE_SOURCE={}",
+        if local { "local" } else { "workflow" }
+    );
+}
+
+/// Hash curto do commit de onde este build saiu.
+///
+/// `local` quando nao ha repositorio -- um tarball do codigo-fonte compila do
+/// mesmo jeito, e travar o build por causa de um rotulo seria trocar uma
+/// conveniencia por um erro. Nao carrega marca de arvore suja: o interesse aqui
+/// e "de qual commit isto saiu", e um `-sujo` grudado no identificador entraria
+/// na comparacao de versao sem significar nada para ela.
+fn commit_hash() -> String {
+    // O hash muda a cada commit sem que nenhum arquivo do crate mude, entao o
+    // cargo precisa ser avisado de onde olhar. `HEAD` cobre commit e troca de
+    // branch; o `packed-refs` cobre o caso de a ref do branch estar empacotada.
+    for caminho in ["../../.git/HEAD", "../../.git/packed-refs"] {
+        if Path::new(caminho).exists() {
+            println!("cargo:rerun-if-changed={caminho}");
+        }
+    }
+
+    std::process::Command::new("git")
+        .args(["rev-parse", "--short=7", "HEAD"])
+        .output()
+        .ok()
+        .filter(|saida| saida.status.success())
+        .and_then(|saida| String::from_utf8(saida.stdout).ok())
+        .map(|hash| hash.trim().to_string())
+        .filter(|hash| !hash.is_empty() && hash.chars().all(|c| c.is_ascii_alphanumeric()))
+        .unwrap_or_else(|| "local".into())
 }
 
 fn compile_ui() {

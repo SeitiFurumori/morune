@@ -7,6 +7,27 @@ Versionamento semantico.
 
 ### Corrigido
 
+**O aplicativo podia passar semanas rodando um binario velho sem dizer nada**
+- **Build local deixa de se anunciar como versao final.** Sem a variavel do
+  workflow de publicacao, `build.rs` caia em `v0.1.0` -- e `0.1.0` e, por semver,
+  **mais nova** que qualquer `0.1.0-alpha.N`. Um binario compilado na maquina se
+  apresentava como a coisa mais nova que existe: a verificacao nunca achava
+  lancamento algum e a tela respondia "você já está na versão mais recente" com
+  releases novas publicadas. Agora a tag vira `v0.1.0-dev.<hash do commit>`, e a
+  tela diz o que isso significa em vez de fingir que esta em dia.
+- **A verificacao passa a acontecer sozinha, no maximo uma vez por dia.** So
+  havia o botao, e o Morune inicia com o Windows e fica semanas aberto sem que
+  ninguem abra as Configuracoes. A marca do "ja verifiquei" fica em disco, e nao
+  em memoria, porque o caso que importa e o do processo que reinicia com a sessao
+  todo dia. Verificacao que ninguem pediu **nao escreve erro na tela**: sem
+  internet, quem so queria ouvir musica receberia "sem resposta do GitHub".
+- **O aplicativo percebe quando o proprio executavel muda em disco.** O Windows
+  deixa apagar e substituir um `.exe` em uso, e o processo segue vivo com o
+  codigo que ja carregou -- foi exatamente o que aconteceu: o Morune rodava de
+  uma pasta ja removida, com o dono testando um binario que nao existia mais.
+  Agora avisa que a versao nova espera um fechar e abrir. Nao reinicia sozinho:
+  derrubar um aplicativo que esta tocando e decisao de quem esta ouvindo.
+
 **A busca ocupava um quinto da largura da janela**
 - **A pagina de resultados volta a ocupar a largura toda.** O Flickable dos
   resultados era filho direto do layout da pagina, e um Flickable nessa posicao

@@ -284,10 +284,15 @@ pub struct AppState {
     /// visita.
     home_requested: bool,
     library_requested: bool,
-    /// Verificacao e download de versao nova. Nao toca a rede sozinho: existe
-    /// desde a abertura porque guardar o resultado da verificacao entre visitas
-    /// a tela de configuracoes custa menos que refaze-la.
+    /// Verificacao e download de versao nova. Toca a rede sozinho no maximo uma
+    /// vez por dia (ver `Updater::auto_check`); o download continua sendo
+    /// sempre por clique. Existe desde a abertura porque guardar o resultado da
+    /// verificacao entre visitas a tela de configuracoes custa menos que
+    /// refaze-la.
     updater: crate::update::Updater,
+    /// Vigia o proprio executavel: uma instalacao nova por baixo de um processo
+    /// que ficou dias aberto e invisivel de qualquer outro jeito.
+    binary: crate::update::BinaryWatch,
 }
 
 impl std::fmt::Debug for AppState {
@@ -413,6 +418,7 @@ impl AppState {
             home_requested: false,
             library_requested: false,
             updater: crate::update::Updater::new(updates_dir),
+            binary: crate::update::BinaryWatch::new(),
         };
 
         let mut loaded = loaded;
@@ -602,7 +608,20 @@ impl AppState {
 
         // Sai daqui sem custo quando ninguem clicou em verificar: `poll` so
         // olha um `Option` vazio.
+        self.updater.auto_check();
         changed |= self.updater.poll();
+
+        if let Some(versao) = self.updater.take_anuncio() {
+            self.status = format!("Versão {versao} disponível. Veja em Configurações.");
+            changed = true;
+        }
+
+        // Uma vez por sessao, e no minuto em que acontece.
+        if self.binary.poll() {
+            self.status =
+                "O Morune foi atualizado em disco. Feche e abra para usar a versão nova.".into();
+            changed = true;
+        }
 
         // Depois dos eventos do player: a troca de faixa acabou de ser
         // aplicada, entao a capa pedida aqui ja e a da faixa certa.
@@ -2056,6 +2075,35 @@ impl AppState {
                 .map(|r| r.notes.clone())
                 .unwrap_or_default()
         };
+
+        // Vale mais que qualquer fase: enquanto o executavel em disco nao for o
+        // que este processo carregou, "em dia" e "disponível" falam de um
+        // binario que nao e o que esta na frente da pessoa.
+        if self.binary.changed() {
+            return (
+                6,
+                atual,
+                "O executável do Morune mudou em disco depois que este processo abriu. \
+                 Feche e abra o aplicativo para usar a versão nova."
+                    .into(),
+                0.0,
+            );
+        }
+
+        // Build local nunca tem lancamento para receber -- ele sai de commits
+        // que os publicados ainda nao tem. Dizer "você já está na versão mais
+        // recente" aqui seria verdade sem informacao: o que a pessoa precisa
+        // saber e que este binario se atualiza recompilando, e nao pelo botao.
+        if self.updater.is_dev() && matches!(self.updater.phase(), Phase::Idle | Phase::UpToDate) {
+            return (
+                2,
+                atual,
+                "Build local, compilado fora do fluxo de publicação. \
+                 A atualização automática não vale para ele: recompile do repositório."
+                    .into(),
+                0.0,
+            );
+        }
 
         match self.updater.phase() {
             Phase::Idle => (0, atual, String::new(), 0.0),

@@ -7,10 +7,17 @@
 //!
 //! **Tres decisoes que definem o modulo:**
 //!
-//! 1. **So verifica quando alguem clica.** Nenhum relogio de fundo, nenhuma
-//!    requisicao no startup. O criterio de desempenho do projeto e nao
-//!    atrapalhar quem esta jogando, e uma consulta HTTP periodica e exatamente
-//!    o tipo de custo invisivel que se acumula.
+//! 1. **Verifica sozinho no maximo uma vez por dia, e mais nada.** A versao
+//!    anterior so verificava por clique, e isso falhou em uso real: o Morune
+//!    inicia com o Windows e fica semanas aberto sem que ninguem abra as
+//!    Configuracoes -- o dono passou duas semanas num binario velho achando que
+//!    estava em dia. Uma consulta por dia nao briga com o criterio de
+//!    desempenho do projeto (nao atrapalhar quem esta jogando); um relogio de
+//!    minutos brigaria. A marca do "ja verifiquei hoje" fica em disco, e nao em
+//!    memoria, porque o caso que importa e o do processo que reinicia junto com
+//!    a sessao do Windows todo dia.
+//!    Verificacao automatica **nao escreve erro na tela**: quem nao perguntou
+//!    nao pode receber "sem resposta do GitHub" no meio da musica.
 //! 2. **Baixar e instalar sao dois cliques.** Instalar fecha o aplicativo, e
 //!    fechar o aplicativo interrompe a musica. Isso nunca pode acontecer sem
 //!    que a pessoa tenha pedido, entao o download termina num botao novo, e nao
@@ -104,6 +111,17 @@ impl Version {
     /// `true` para `0.2.0-alpha.1`; `false` para `0.2.0`.
     pub fn is_prerelease(&self) -> bool {
         self.pre.is_some()
+    }
+
+    /// `true` num binario compilado fora do workflow de publicacao.
+    ///
+    /// O rotulo vem de `embed_release_tag` em `build.rs`, que sem a variavel do
+    /// workflow monta `v0.1.0-dev.<hash>`. Serve para a tela parar de prometer
+    /// atualizacao automatica a um binario que nao tem lancamento de onde vir.
+    pub fn is_dev(&self) -> bool {
+        self.pre
+            .as_deref()
+            .is_some_and(|pre| pre == "dev" || pre.starts_with("dev."))
     }
 
     /// Versao deste executavel.
@@ -242,6 +260,15 @@ pub struct Updater {
     pending: Option<Receiver<Message>>,
     /// Onde os instaladores baixados ficam.
     dir: PathBuf,
+    /// A verificacao em voo comecou sozinha, e nao por clique.
+    ///
+    /// Muda o desfecho de uma falha: quem clicou espera resposta na tela, e
+    /// quem nao clicou nao pode receber um erro de rede no meio do que estava
+    /// fazendo. Ver [`Updater::poll`].
+    automatica: bool,
+    /// Versao que a verificacao automatica achou e que a tela ainda nao
+    /// anunciou. Recolhida uma unica vez por [`Updater::take_anuncio`].
+    anuncio: Option<Version>,
 }
 
 impl std::fmt::Debug for Updater {
@@ -262,7 +289,21 @@ impl Updater {
             ready: None,
             pending: None,
             dir,
+            automatica: false,
+            anuncio: None,
         }
+    }
+
+    /// `true` quando este binario nao saiu do workflow de publicacao.
+    pub fn is_dev(&self) -> bool {
+        self.current.is_dev()
+    }
+
+    /// Recolhe o anuncio pendente da verificacao automatica, se houver.
+    ///
+    /// Consome: a mensagem na tela e escrita uma vez, e nao a cada tique.
+    pub fn take_anuncio(&mut self) -> Option<Version> {
+        self.anuncio.take()
     }
 
     pub fn phase(&self) -> &Phase {
@@ -287,12 +328,92 @@ impl Updater {
         self.ready.as_deref()
     }
 
+    /// Verifica sozinho, no maximo uma vez por dia.
+    ///
+    /// **Por que existe:** o botao "Procurar atualizações" so roda quando
+    /// alguem clica, e o Morune inicia com o Windows e fica semanas aberto sem
+    /// que ninguem abra as Configuracoes. O resultado real foi um aplicativo
+    /// rodando um binario de duas semanas atras com o dono achando que estava
+    /// em dia.
+    ///
+    /// A marca fica em disco, e nao em memoria, justamente porque o caso que
+    /// importa e o do processo que reinicia com a sessao do Windows todo dia:
+    /// uma marca em memoria verificaria a cada boot.
+    ///
+    /// Build local nao verifica: nao ha lancamento publicado que sirva de
+    /// atualizacao para ele (ver [`Version::is_dev`]), e a requisicao seria
+    /// gasto sem desfecho possivel.
+    pub fn auto_check(&mut self) {
+        if self.busy() || self.is_dev() || !self.auto_check_due() {
+            return;
+        }
+
+        self.stamp_auto_check();
+        self.automatica = true;
+        self.check_inner();
+    }
+
+    /// Passou um dia desde a ultima verificacao automatica.
+    ///
+    /// Marca ilegivel ou no futuro conta como vencida: o relogio do sistema
+    /// pode ter andado para tras, e o pior desfecho de verificar a mais e uma
+    /// requisicao extra.
+    fn auto_check_due(&self) -> bool {
+        const INTERVALO: Duration = Duration::from_secs(24 * 60 * 60);
+
+        let Ok(texto) = std::fs::read_to_string(self.stamp_path()) else {
+            return true;
+        };
+        let Ok(marcado) = texto.trim().parse::<u64>() else {
+            return true;
+        };
+        let Ok(agora) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) else {
+            return true;
+        };
+
+        agora.as_secs().saturating_sub(marcado) >= INTERVALO.as_secs()
+    }
+
+    /// Grava a marca **antes** de verificar, e nao depois.
+    ///
+    /// Uma falha de rede nao pode transformar cada tique em uma tentativa nova:
+    /// sem internet, gravar so no sucesso faria o aplicativo bater no GitHub a
+    /// cada 100 ms.
+    fn stamp_auto_check(&self) {
+        let Ok(agora) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) else {
+            return;
+        };
+        let _ = std::fs::create_dir_all(&self.dir);
+        if let Err(erro) = std::fs::write(self.stamp_path(), agora.as_secs().to_string()) {
+            // Sem a marca a verificacao volta a acontecer a cada abertura --
+            // chato, nao quebrado. Nao vale interromper nada por isso.
+            tracing::debug!(%erro, "nao consegui gravar a marca de verificacao");
+        }
+    }
+
+    fn stamp_path(&self) -> PathBuf {
+        self.dir.join("ultima-verificacao")
+    }
+
     /// Pergunta ao GitHub qual e a ultima versao.
+    ///
+    /// Num build local nao chega a perguntar: nenhum lancamento publicado pode
+    /// ser mais novo que ele (ver [`Version::is_dev`]), e a resposta seria
+    /// sempre a mesma. A tela explica o que esse desfecho significa.
     pub fn check(&mut self) {
         if self.busy() {
             return;
         }
+        if self.is_dev() {
+            self.release = None;
+            self.phase = Phase::UpToDate;
+            return;
+        }
+        self.automatica = false;
+        self.check_inner();
+    }
 
+    fn check_inner(&mut self) {
         let current = self.current.clone();
         let (tx, rx) = std::sync::mpsc::channel();
         let spawned = std::thread::Builder::new()
@@ -367,21 +488,37 @@ impl Updater {
                 }
                 Ok(Message::Checked(Ok(Some(release)))) => {
                     tracing::info!(versao = %release.version, "atualizacao disponivel");
+                    if self.automatica {
+                        self.anuncio = Some(release.version.clone());
+                    }
                     self.release = Some(*release);
                     self.phase = Phase::Available;
                     self.pending = None;
+                    self.automatica = false;
                     return true;
                 }
                 Ok(Message::Checked(Ok(None))) => {
                     self.release = None;
-                    self.phase = Phase::UpToDate;
+                    // Uma verificacao que ninguem pediu nao escreve "você já
+                    // está na versão mais recente" por cima da tela: quem nao
+                    // perguntou nao esta esperando resposta.
+                    if !self.automatica {
+                        self.phase = Phase::UpToDate;
+                    }
                     self.pending = None;
+                    self.automatica = false;
                     return true;
                 }
                 Ok(Message::Checked(Err(e))) | Ok(Message::Downloaded(Err(e))) => {
                     tracing::warn!(erro = %e, "atualizacao falhou");
-                    self.phase = Phase::Failed(e);
+                    // Idem para o erro, e aqui pesa mais: sem internet, a
+                    // verificacao automatica jogaria "Sem resposta do GitHub"
+                    // na tela de quem so queria ouvir musica.
+                    if !self.automatica {
+                        self.phase = Phase::Failed(e);
+                    }
                     self.pending = None;
+                    self.automatica = false;
                     return true;
                 }
                 Ok(Message::Downloaded(Ok(path))) => {
@@ -658,6 +795,94 @@ fn hex(bytes: &[u8]) -> String {
     })
 }
 
+/// Vigia o executavel em disco enquanto o processo roda.
+///
+/// **O defeito que isto pega:** o Windows deixa renomear e apagar um `.exe` em
+/// uso, e o processo continua vivo com o codigo que ja carregou. Um Morune que
+/// abre junto com a sessao e fica dias aberto atravessa uma instalacao nova sem
+/// perceber -- e quem esta na frente dele testa, o tempo todo, um binario que
+/// nao existe mais. Aconteceu: o aplicativo rodava de uma pasta ja removida, com
+/// o dono achando que estava na versao do dia.
+///
+/// Nao reinicia nada sozinho: derrubar um aplicativo que esta tocando musica
+/// para trocar de binario e decisao de quem esta ouvindo, nao do relogio.
+pub struct BinaryWatch {
+    /// Caminho do proprio executavel. `None` quando o sistema nao o informa --
+    /// ai nao ha o que vigiar, e o vigia simplesmente nao opina.
+    path: Option<PathBuf>,
+    /// Tamanho e data de modificacao vistos na abertura.
+    original: Option<(u64, std::time::SystemTime)>,
+    changed: bool,
+    last: std::time::Instant,
+}
+
+impl BinaryWatch {
+    /// Quanto tempo entre duas olhadas no disco.
+    ///
+    /// O tique da interface roda a cada 100 ms, e uma consulta de metadado a
+    /// cada tique seria I/O constante para responder uma pergunta que muda uma
+    /// vez por semana. Um minuto e cedo o bastante: o que se quer evitar e uma
+    /// tarde inteira testando o binario errado.
+    const INTERVALO: Duration = Duration::from_secs(60);
+
+    pub fn new() -> Self {
+        let path = std::env::current_exe().ok();
+        let original = path.as_deref().and_then(marca);
+        Self {
+            path,
+            original,
+            changed: false,
+            last: std::time::Instant::now(),
+        }
+    }
+
+    /// `true` **no tique em que** o executavel passa a estar diferente.
+    ///
+    /// Avisa uma vez so: repetir o alerta a cada minuto viraria ruido, e a
+    /// informacao continua disponivel em [`BinaryWatch::changed`].
+    pub fn poll(&mut self) -> bool {
+        if self.changed || self.original.is_none() || self.last.elapsed() < Self::INTERVALO {
+            return false;
+        }
+        self.last = std::time::Instant::now();
+
+        let Some(path) = self.path.as_deref() else {
+            return false;
+        };
+
+        // Apagado conta como mudado: e o caso da instalacao removida por baixo.
+        let agora = marca(path);
+        if agora == self.original {
+            return false;
+        }
+
+        tracing::warn!(
+            arquivo = %path.display(),
+            existe = agora.is_some(),
+            "o executavel mudou em disco desde que este processo abriu"
+        );
+        self.changed = true;
+        true
+    }
+
+    /// O executavel ja mudou em algum momento desta sessao.
+    pub fn changed(&self) -> bool {
+        self.changed
+    }
+}
+
+impl Default for BinaryWatch {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Tamanho e data de modificacao de um arquivo, quando ele existe.
+fn marca(path: &Path) -> Option<(u64, std::time::SystemTime)> {
+    let meta = std::fs::metadata(path).ok()?;
+    Some((meta.len(), meta.modified().ok()?))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -730,10 +955,71 @@ mod tests {
             Version::parse(tag).is_some(),
             "MORUNE_RELEASE={tag:?} nao e uma versao valida"
         );
-        // Num build local a tag e a do crate; num build de release ela traz o
-        // sufixo de pre-lancamento. Nos dois casos a parte numerica bate, e e
-        // o `release.yml` que garante isso na publicacao.
+        // Num build local a tag traz `-dev.<hash>`; num build de release, o
+        // sufixo de pre-lancamento da tag publicada. Nos dois casos a parte
+        // numerica bate, e e o `release.yml` que garante isso na publicacao.
         assert!(tag.starts_with(&format!("v{}", morune_core::VERSION)));
+    }
+
+    /// O defeito que isto pega: com a tag caindo em `v0.1.0`, todo build local
+    /// se anunciava como uma versao **final** -- por semver, mais nova que
+    /// qualquer alpha publicado. A verificacao nunca achava nada e a tela dizia
+    /// "você já está na versão mais recente" com lancamentos novos no ar.
+    #[test]
+    fn build_local_e_pre_lancamento_e_nao_versao_final() {
+        if env!("MORUNE_RELEASE_SOURCE") != "local" {
+            // Compilado pelo workflow: a tag e a publicada, e uma release
+            // final e legitima. Nada a exigir aqui.
+            return;
+        }
+
+        let tag = env!("MORUNE_RELEASE");
+        let versao = Version::parse(tag).unwrap();
+        assert!(
+            versao.is_dev(),
+            "MORUNE_RELEASE={tag:?} devia ser um build local marcado como -dev"
+        );
+        assert!(
+            versao.is_prerelease(),
+            "MORUNE_RELEASE={tag:?} se anuncia como versao final"
+        );
+    }
+
+    #[test]
+    fn dev_e_reconhecido_e_alpha_nao() {
+        assert!(Version::parse("v0.1.0-dev.268113d").unwrap().is_dev());
+        assert!(Version::parse("v0.1.0-dev").unwrap().is_dev());
+        assert!(!Version::parse("v0.1.0-alpha.9").unwrap().is_dev());
+        assert!(!Version::parse("v0.1.0").unwrap().is_dev());
+        // Nao basta comecar com as tres letras: `develop` seria outro rotulo.
+        assert!(!Version::parse("v0.1.0-developer").unwrap().is_dev());
+    }
+
+    /// Um build local sai de commits que os alphas publicados ainda nao tem,
+    /// entao ele e mais novo -- e por isso nenhum alpha lhe e oferecido.
+    #[test]
+    fn build_local_ordena_acima_dos_alphas() {
+        let dev = Version::parse("v0.1.0-dev.268113d").unwrap();
+        let alpha = Version::parse("v0.1.0-alpha.9").unwrap();
+        assert!(dev > alpha);
+
+        let lista = [
+            entrada("v0.1.0-alpha.9", false),
+            entrada("v0.1.0-alpha.8", false),
+        ];
+        assert!(
+            newest(&lista, &dev).is_none(),
+            "um alpha publicado seria um downgrade por cima do build local"
+        );
+    }
+
+    /// Executavel apagado por baixo do processo -- a instalacao removida com o
+    /// Morune ainda rodando -- precisa contar como "mudou", e nao passar batido
+    /// por falta de metadado.
+    #[test]
+    fn arquivo_que_nao_existe_nao_tem_marca() {
+        let inexistente = std::env::temp_dir().join("morune-nao-existe-mesmo.exe");
+        assert!(marca(&inexistente).is_none());
     }
 
     /// Constroi a resposta do GitHub reduzida ao que `newest` le.
