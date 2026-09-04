@@ -100,8 +100,10 @@ Risco conhecido: librespot 0.8 exige `vergen` fixado em 9.0.x no `Cargo.lock`
 
 ## Ciclo 4 — Produto
 
-1. **Teclas de midia** `[feito]`; integracao completa de metadados/capa com o
-   painel de reproducao do Windows (SMTC) `[pendente]`.
+1. **Teclas de midia** `[feito]`; integracao de metadados e capa com o painel de
+   reproducao do Windows (SMTC) `[escrito]` — capa, titulo, artista, album e os
+   tres botoes, em `crates/morune-app/src/smtc.rs`. Falta a conferencia visual
+   com musica real tocando.
 2. **Minimizar para a bandeja**, alem de fechar. Fica pendente porque o Slint
    nao expoe o evento de minimizacao da janela; exige alcançar o `HWND` pelo
    handle nativo, o que so vale a pena junto com as teclas de midia.

@@ -63,6 +63,12 @@ impl SessionState {
 enum Outcome {
     /// Restauracao encontrou (ou nao) uma sessao guardada.
     Restored(CoreResult<Option<UserProfile>>),
+    /// A autorizacao foi montada e ja da para mostrar o endereco.
+    ///
+    /// Chega **antes** do resultado, e e o ponto do fluxo novo: o usuario ve o
+    /// link enquanto o navegador ainda esta aberto, e pode leva-lo para outro
+    /// navegador se o que abriu sozinho for o perfil errado.
+    AuthUrl(String),
     /// Login interativo terminou.
     LoggedIn(CoreResult<UserProfile>),
 }
@@ -76,6 +82,17 @@ pub struct Session {
     /// Busca e biblioteca. Existe desde a abertura, junto com o backend: as
     /// consultas e que recusam trabalho enquanto nao ha sessao.
     browse: Option<Browse>,
+    /// Endereco de autorizacao do login em andamento.
+    ///
+    /// Vazio fora de um login. Enquanto tem valor, a tela mostra o link e
+    /// oferece copia-lo.
+    auth_url: String,
+    /// A tarefa que espera o navegador.
+    ///
+    /// Guardada para poder ser **abortada**: abortar solta a porta 5588, que e
+    /// o que o fluxo anterior nao permitia. Sem isso, desistir de um login
+    /// deixava o aplicativo sem como tentar de novo ate ser reiniciado.
+    login_task: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl std::fmt::Debug for Session {
@@ -111,6 +128,8 @@ impl Session {
                     state: SessionState::LoggedOut,
                     pending: None,
                     browse: Some(browse),
+                    auth_url: String::new(),
+                    login_task: None,
                 }
             }
             Err(e) => {
@@ -120,6 +139,8 @@ impl Session {
                     state: SessionState::Failed(format!("Spotify indisponível: {e}")),
                     pending: None,
                     browse: None,
+                    auth_url: String::new(),
+                    login_task: None,
                 }
             }
         }
@@ -127,6 +148,25 @@ impl Session {
 
     pub fn state(&self) -> &SessionState {
         &self.state
+    }
+
+    /// Endereco de autorizacao do login em andamento. Vazio fora dele.
+    pub fn auth_url(&self) -> &str {
+        &self.auth_url
+    }
+
+    /// Desiste do login em andamento.
+    ///
+    /// Abortar a tarefa derruba o `await` que espera o navegador, e com ele o
+    /// ouvinte da porta 5588 -- que e o que permite tentar de novo em seguida.
+    /// Antes deste caminho, desistir exigia fechar o aplicativo pela bandeja.
+    pub fn cancel_login(&mut self) {
+        if let Some(task) = self.login_task.take() {
+            task.abort();
+        }
+        self.pending = None;
+        self.auth_url.clear();
+        self.state = SessionState::LoggedOut;
     }
 
     /// Guarda preferencias de audio novas para o proximo motor.
@@ -196,23 +236,40 @@ impl Session {
         let Some(backend) = &self.backend else {
             return "Não foi possível iniciar o Spotify nesta máquina. Feche e abra o Morune para tentar de novo.".into();
         };
+        // A mensagem precisa dizer a saida, porque **nao ha outra**.
+        //
+        // O fluxo de OAuth da librespot abre o navegador, prende a porta 5588 e
+        // espera o retorno em `TcpListener::incoming()` -- sem tempo limite e
+        // sem cancelamento. Se a pessoa fecha o navegador sem concluir (o caso
+        // real: abriu no perfil errado do Chrome), aquela espera nunca termina.
+        // A tentativa fica pendurada para sempre, a porta continua tomada, e
+        // toda nova tentativa cai aqui.
+        //
+        // "Conclua no navegador" era conselho impossivel: o navegador que
+        // atenderia aquele login ja tinha sido fechado. Sair pela bandeja e a
+        // unica coisa que resolve -- fechar a janela nao adianta, porque o
+        // processo continua vivo com a porta na mao.
         if self.pending.is_some() {
-            return "Já há um login em andamento. Conclua no navegador.".into();
+            return "Já há um login em andamento. Se você fechou o navegador antes de concluir, saia pelo ícone na bandeja e abra o Morune de novo.".into();
         }
 
         let (tx, rx) = std::sync::mpsc::channel();
         let auth = backend.authenticator();
-        backend.handle().spawn(async move {
-            // `begin_login` so retorna depois que o usuario autoriza no
-            // navegador; `complete_login` abre a sessao com o token.
+        let task = backend.handle().spawn(async move {
+            // `begin_login` monta a autorizacao e devolve a URL sem esperar
+            // ninguem; `complete_login` e que aguarda o navegador voltar.
             let result = match auth.begin_login().await {
-                Ok(_) => auth.complete_login().await,
+                Ok(url) => {
+                    let _ = tx.send(Outcome::AuthUrl(url));
+                    auth.complete_login().await
+                }
                 Err(e) => Err(e),
             };
             let _ = tx.send(Outcome::LoggedIn(result));
         });
 
         self.pending = Some(rx);
+        self.login_task = Some(task);
         self.state = SessionState::Connecting;
         "Abrimos seu navegador para entrar no Spotify.".into()
     }
@@ -251,9 +308,22 @@ impl Session {
                 });
             }
         };
+        // A URL nao encerra nada: o login continua correndo, e este e o unico
+        // desfecho que deixa `pending` de pe.
+        if let Outcome::AuthUrl(url) = outcome {
+            self.auth_url = url;
+            return Some(SessionChange {
+                message: "Conclua no navegador. Se ele abriu na conta errada, copie o link.".into(),
+                engine: None,
+            });
+        }
+
         self.pending = None;
+        self.login_task = None;
+        self.auth_url.clear();
 
         match outcome {
+            Outcome::AuthUrl(_) => None,
             Outcome::Restored(Ok(None)) => {
                 self.state = SessionState::LoggedOut;
                 None

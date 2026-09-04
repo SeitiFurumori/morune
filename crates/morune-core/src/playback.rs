@@ -136,7 +136,7 @@ pub enum PlayerEvent {
 /// qualquer uma delas com musica tocando nao mexe na faixa atual -- o backend
 /// que as recebe as congela na construcao, e refazer o motor no meio de uma
 /// musica seria interromper a reproducao para atender a um ajuste.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AudioSettings {
     /// Qualidade pedida ao provedor, em kbps. Um valor que o provedor nao
     /// oferece cai no mais proximo que ele tenha.
@@ -145,6 +145,12 @@ pub struct AudioSettings {
     pub normalize: bool,
     /// Teto do cache de audio em disco, em MiB. `0` desliga o cache.
     pub cache_mb: u32,
+    /// Nome do dispositivo de saida. Vazio = o padrao do sistema.
+    ///
+    /// E um nome, e nao um identificador estavel, porque e o que o sistema
+    /// oferece para escolher e o que a pessoa reconhece na tela. Um nome que
+    /// sumiu (fone desconectado) volta ao padrao em vez de calar a musica.
+    pub output_device: String,
 }
 
 impl Default for AudioSettings {
@@ -153,6 +159,7 @@ impl Default for AudioSettings {
             bitrate_kbps: 160,
             normalize: true,
             cache_mb: 1024,
+            output_device: String::new(),
         }
     }
 }

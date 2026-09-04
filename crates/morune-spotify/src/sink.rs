@@ -142,16 +142,60 @@ impl Sink for MoruneSink {
     }
 }
 
-/// Abre a saida de audio padrao do sistema.
+/// Nomes dos dispositivos de saida disponiveis, na ordem em que o sistema os
+/// entrega.
+///
+/// Serve a tela de Configuracoes. Nao inclui a opcao "padrao do sistema" --
+/// essa e a ausencia de escolha, representada por nome vazio, e quem monta a
+/// lista e que decide como apresenta-la.
+///
+/// Um dispositivo pode sumir entre listar e abrir (fone desconectado, monitor
+/// desligado). Por isso [`open`] volta para o padrao em vez de falhar: uma
+/// escolha que deixou de existir nao pode impedir a musica de tocar.
+pub fn output_devices() -> Vec<String> {
+    let host = cpal::default_host();
+    let Ok(devices) = host.output_devices() else {
+        return Vec::new();
+    };
+    devices.filter_map(|d| d.name().ok()).collect()
+}
+
+/// Abre a saida de audio.
+///
+/// `preferido` vazio significa "o padrao do sistema", que e o que a maioria
+/// quer: o Windows ja tem um dispositivo padrao e trocar la deve trocar aqui.
+/// Um nome que nao esta mais presente cai no padrao **com aviso no log**, e
+/// nao em erro -- ver [`output_devices`].
 ///
 /// A negociacao de formato e a mesma da librespot, de proposito: estereo em
 /// 44,1 kHz quando o dispositivo aceita, senao a taxa padrao dele, senao o que
 /// houver. Sair disso trocaria uma reamostragem que hoje nao acontece por uma
 /// que aconteceria.
-pub(crate) fn open(volume: Arc<SharedVolume>, flush: FlushRequest) -> Result<MoruneSink, String> {
+pub(crate) fn open(
+    volume: Arc<SharedVolume>,
+    flush: FlushRequest,
+    preferido: &str,
+) -> Result<MoruneSink, String> {
     let host = cpal::default_host();
-    let device = host
-        .default_output_device()
+
+    let escolhido = if preferido.is_empty() {
+        None
+    } else {
+        let achado = host
+            .output_devices()
+            .ok()
+            .and_then(|mut ds| ds.find(|d| d.name().is_ok_and(|n| n == preferido)));
+        if achado.is_none() {
+            tracing::warn!(
+                dispositivo = %preferido,
+                "dispositivo escolhido nao esta disponivel; usando o padrao do sistema"
+            );
+        }
+        achado
+    };
+
+    let device = escolhido
+        .or_else(|| host.default_output_device())
         .ok_or_else(|| "nenhum dispositivo de saida disponivel".to_string())?;
 
     if let Ok(name) = device.name() {

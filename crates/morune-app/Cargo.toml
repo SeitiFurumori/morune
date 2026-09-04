@@ -107,6 +107,21 @@ windows = { version = "0.61.3", features = [
     "Win32_UI_Input_KeyboardAndMouse",
     # Cantos arredondados da janela. Ver `round_window_corners` em `main.rs`.
     "Win32_Graphics_Dwm",
+    # Area de transferencia, para o botao que copia o link de login.
+    # Ver `clipboard.rs`.
+    "Win32_System_DataExchange",
+    "Win32_System_Memory",
+    "Win32_System_Ole",
+    # Painel de reproducao do Windows (SMTC): capa, titulo e botoes na
+    # sobreposicao de volume e na tela de bloqueio. Ver `smtc.rs`.
+    #
+    # `Win32_System_WinRT` entra pela `ISystemMediaTransportControlsInterop`:
+    # aplicativo de area de trabalho obtem o SMTC por janela, e nao pelo
+    # construtor WinRT que so vale para aplicativo empacotado.
+    "Media",
+    "Foundation",
+    "Storage_Streams",
+    "Win32_System_WinRT",
 ] }
 
 [build-dependencies]

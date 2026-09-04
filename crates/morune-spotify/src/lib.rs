@@ -48,6 +48,11 @@ pub use auth::{SharedSession, SpotifyAuthenticator};
 pub use catalog::SpotifyCatalog;
 pub use engine::SpotifyEngine;
 pub use runtime::SpotifyBackend;
+/// Dispositivos de saida que a tela de Configuracoes oferece.
+///
+/// Fica exposto aqui, e nao no motor, porque a lista tem de existir antes de
+/// haver sessao: quem ainda nao entrou tambem escolhe onde o som vai sair.
+pub use sink::output_devices;
 
 /// Le um rootlist cru e devolve `(nome, dono, tamanho, formato)` de cada
 /// playlist.

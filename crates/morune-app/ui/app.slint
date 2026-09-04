@@ -819,11 +819,14 @@ component Sidebar inherits Rectangle {
     in property <bool> logged-in;
     in property <string> account-name;
     in property <string> account-initial;
+    in property <string> auth-url;
     in property <image> account-avatar;
     in property <[CardItem]> playlists;
     callback navigate(int);
     callback toggle-sidebar();
     callback login();
+    callback cancel-login();
+    callback copy-auth-url();
     callback filter-playlists(string);
     callback open-playlist(string);
     callback toggle-pin-playlist(string);
@@ -1434,6 +1437,8 @@ component HomePage inherits Rectangle {
     callback play-next(string);
     callback enqueue(string);
     callback login();
+    callback cancel-login();
+    callback copy-auth-url();
 
     // Verdadeiro enquanto nenhuma secao tem conteudo: antes do login, e nos
     // segundos entre entrar e as listas chegarem.
@@ -1623,6 +1628,8 @@ component LibraryPage inherits Rectangle {
     in property <bool> logged-in;
     in property <int> grid-columns: 5;
     callback login();
+    callback cancel-login();
+    callback copy-auth-url();
     callback activated(string);
     callback favorite-toggled(string);
     callback play-next(string);
@@ -2120,6 +2127,57 @@ component ThemePreviewChip inherits Rectangle {
     }
 }
 
+// Uma opcao de dispositivo de saida.
+//
+// Mesma anatomia de `ThemeRow`, sem a previa: a linha inteira e o alvo, o
+// estado ativo vem do tema e o rotulo elide quando o nome do dispositivo e
+// longo -- o Windows entrega nomes como "Alto-falantes (Realtek(R) Audio)".
+component OutputDeviceRow inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    callback chosen();
+
+    height: 34px;
+    border-radius: Theme.radius-sm;
+    background: root.active ? Theme.selected : (touch.has-hover ? Theme.hover : transparent);
+    animate background { duration: Theme.motion-fast; }
+
+    touch := PressableArea {
+        accessible-label: root.active
+            ? "Saída " + root.label + ", em uso"
+            : "Usar a saída " + root.label;
+        accessible-checkable: true;
+        accessible-checked: root.active;
+        focus-radius: Theme.radius-sm;
+        clicked => { root.chosen(); }
+    }
+
+    HorizontalLayout {
+        padding-left: Theme.space-md;
+        padding-right: Theme.space-md;
+        spacing: Theme.space-sm;
+
+        Text {
+            text: root.label;
+            color: root.active ? Theme.text : Theme.text-muted;
+            font-size: Theme.size-sm;
+            font-weight: root.active ? Theme.weight-medium : Theme.weight-normal;
+            font-family: Theme.font-family;
+            vertical-alignment: center;
+            overflow: elide;
+            horizontal-stretch: 1;
+        }
+
+        if root.active: Text {
+            text: "Em uso";
+            color: Theme.accent;
+            font-size: Theme.size-xs;
+            font-family: Theme.font-family;
+            vertical-alignment: center;
+        }
+    }
+}
+
 component ThemeRow inherits Rectangle {
     in property <ThemeItem> item;
     callback selected();
@@ -2313,11 +2371,14 @@ component SettingsPage inherits VerticalLayout {
     in property <bool> logged-in;
     in property <string> account-name;
     in property <string> account-initial;
+    in property <string> auth-url;
     in property <image> account-avatar;
     in property <bool> close-to-tray;
     in property <bool> autoplay;
     in property <int> bitrate;
     in property <bool> normalize;
+    in property <[string]> output-devices;
+    in property <string> output-device;
     in property <bool> start-with-windows;
 
     in property <bool> has-background;
@@ -2357,6 +2418,7 @@ component SettingsPage inherits VerticalLayout {
     callback set-autoplay(bool);
     callback set-bitrate(int);
     callback set-normalize(bool);
+    callback set-output-device(string);
     callback set-start-with-windows(bool);
     callback select-theme(string);
     callback import-theme();
@@ -2366,6 +2428,8 @@ component SettingsPage inherits VerticalLayout {
     callback open-theme-folder();
     callback reload-theme();
     callback login();
+    callback cancel-login();
+    callback copy-auth-url();
     callback logout();
 
     spacing: Theme.space-md;
@@ -2444,10 +2508,19 @@ component SettingsPage inherits VerticalLayout {
                         }
                     }
 
-                    if !root.logged-in: PrimaryButton {
+                    if !root.logged-in && root.auth-url == "": PrimaryButton {
                         label: "Entrar no Spotify";
                         y: (parent.height - self.height) / 2;
                         clicked => { root.login(); }
+                    }
+
+                    // Enquanto ha login em andamento, entrar de novo nao e o
+                    // que ajuda -- desistir e levar o link para outro navegador
+                    // sao.
+                    if root.auth-url != "": GhostButton {
+                        label: "Cancelar";
+                        y: (parent.height - self.height) / 2;
+                        clicked => { root.cancel-login(); }
                     }
 
                     if root.logged-in: GhostButton {
@@ -2455,6 +2528,53 @@ component SettingsPage inherits VerticalLayout {
                         danger: true;
                         y: (parent.height - self.height) / 2;
                         clicked => { root.logout(); }
+                    }
+                }
+            }
+
+            // O link do login, enquanto ele existe.
+            //
+            // So aparece durante uma tentativa: um endereco de OAuth ocupa duas
+            // linhas e nao tem por que estar na tela no caminho que funciona. E
+            // a saida de quem tem mais de um navegador -- o Morune abre o padrao
+            // do sistema, que pode ser o perfil errado.
+            if root.auth-url != "": Rectangle {
+                height: login.preferred-height + Theme.space-md * 2;
+                border-radius: Theme.radius-md;
+                background: Theme.surface;
+
+                Glass { radius: Theme.radius-md; }
+
+                login := VerticalLayout {
+                    x: Theme.space-md;
+                    y: Theme.space-md;
+                    width: parent.width - Theme.space-md * 2;
+                    spacing: Theme.space-sm;
+
+                    Text {
+                        text: "Abriu no navegador errado? Copie o link e cole no navegador da sua conta.";
+                        color: Theme.text;
+                        font-size: Theme.size-sm;
+                        font-family: Theme.font-family;
+                        wrap: word-wrap;
+                    }
+
+                    Text {
+                        text: root.auth-url;
+                        color: Theme.text-muted;
+                        font-size: Theme.size-xs;
+                        font-family: Theme.font-family;
+                        wrap: word-wrap;
+                    }
+
+                    HorizontalLayout {
+                        alignment: start;
+                        height: 34px;
+
+                        PrimaryButton {
+                            label: "Copiar link";
+                            clicked => { root.copy-auth-url(); }
+                        }
                     }
                 }
             }
@@ -2632,15 +2752,42 @@ component SettingsPage inherits VerticalLayout {
                         alignment: center;
                         horizontal-stretch: 1;
                         Text { text: "Saída de áudio"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
-                        Text { text: "Segue o dispositivo escolhido no Windows."; color: Theme.text-muted; font-size: Theme.size-xs; font-family: Theme.font-family; }
+                        Text {
+                            text: "Vale a partir da próxima vez que o Morune abrir.";
+                            color: Theme.text-muted;
+                            font-size: Theme.size-xs;
+                            font-family: Theme.font-family;
+                        }
                     }
                     Text {
-                        text: "Padrão do Windows";
+                        text: root.output-device == "" ? "Padrão do Windows" : root.output-device;
                         color: Theme.text-muted;
                         font-size: Theme.size-sm;
                         font-family: Theme.font-family;
                         vertical-alignment: center;
+                        overflow: elide;
+                        horizontal-alignment: right;
+                        max-width: 220px;
                     }
+                }
+            }
+
+            // Lista em vez de menu suspenso: sao poucos dispositivos, o Slint
+            // aqui e construido so com primitivas (sem `std-widgets`), e uma
+            // lista mostra a escolha atual sem exigir um clique para abrir.
+            VerticalLayout {
+                spacing: 2px;
+
+                OutputDeviceRow {
+                    label: "Padrão do Windows";
+                    active: root.output-device == "";
+                    chosen => { root.set-output-device(""); }
+                }
+
+                for device in root.output-devices: OutputDeviceRow {
+                    label: device;
+                    active: root.output-device == device;
+                    chosen => { root.set-output-device(device); }
                 }
             }
 
@@ -2904,6 +3051,7 @@ export component AppWindow inherits Window {
     in property <bool> logged-in: false;
     in property <string> account-name;
     in property <string> account-initial;
+    in property <string> auth-url;
     in property <image> account-avatar;
 
     in property <[CardItem]> home-made-for-you;
@@ -2954,6 +3102,8 @@ export component AppWindow inherits Window {
     in property <bool> autoplay: true;
     in property <int> bitrate;
     in property <bool> normalize;
+    in property <[string]> output-devices;
+    in property <string> output-device;
     in property <bool> start-with-windows: false;
     private property <bool> shortcuts-visible: false;
     in-out property <bool> mini-player: false;
@@ -3058,8 +3208,11 @@ export component AppWindow inherits Window {
     callback set-autoplay(bool);
     callback set-bitrate(int);
     callback set-normalize(bool);
+    callback set-output-device(string);
     callback set-start-with-windows(bool);
     callback login();
+    callback cancel-login();
+    callback copy-auth-url();
     callback logout();
     callback dismiss-status();
     callback undo-last();
@@ -3180,11 +3333,14 @@ export component AppWindow inherits Window {
                     logged-in: root.logged-in;
                     account-name: root.account-name;
                     account-initial: root.account-initial;
+                    auth-url: root.auth-url;
                     account-avatar: root.account-avatar;
                     playlists: root.sidebar-playlists;
                     navigate(p) => { root.navigate(p); }
                     toggle-sidebar => { root.toggle-sidebar(); }
                     login => { root.login(); }
+                    cancel-login => { root.cancel-login(); }
+                    copy-auth-url => { root.copy-auth-url(); }
                     filter-playlists(q) => { root.filter-playlists(q); }
                     open-playlist(id) => { root.play-track(id); }
                     toggle-pin-playlist(id) => { root.toggle-pin-playlist(id); }
@@ -3212,6 +3368,8 @@ export component AppWindow inherits Window {
                         liked: root.home-liked;
                         logged-in: root.logged-in;
                         login => { root.login(); }
+                        cancel-login => { root.cancel-login(); }
+                        copy-auth-url => { root.copy-auth-url(); }
                         activated(id) => { root.play-track(id); }
                         favorite-toggled(id) => { root.toggle-favorite(id); }
                         play-next(id) => { root.queue-play-next(id); }
@@ -3236,6 +3394,8 @@ export component AppWindow inherits Window {
                         logged-in: root.logged-in;
                         grid-columns: root.grid-columns;
                         login => { root.login(); }
+                        cancel-login => { root.cancel-login(); }
+                        copy-auth-url => { root.copy-auth-url(); }
                         explore => { root.navigate(1); }
                         activated(id) => { root.play-track(id); }
                         favorite-toggled(id) => { root.toggle-favorite(id); }
@@ -3250,11 +3410,14 @@ export component AppWindow inherits Window {
                         logged-in: root.logged-in;
                         account-name: root.account-name;
                         account-initial: root.account-initial;
+                        auth-url: root.auth-url;
                         account-avatar: root.account-avatar;
                         close-to-tray: root.close-to-tray;
                         autoplay: root.autoplay;
                         bitrate: root.bitrate;
                         normalize: root.normalize;
+                        output-devices: root.output-devices;
+                        output-device: root.output-device;
                         start-with-windows: root.start-with-windows;
                         has-background: root.has-background;
                         background-name: root.background-name;
@@ -3288,6 +3451,7 @@ export component AppWindow inherits Window {
                         set-autoplay(v) => { root.set-autoplay(v); }
                         set-bitrate(v) => { root.set-bitrate(v); }
                         set-normalize(v) => { root.set-normalize(v); }
+                        set-output-device(v) => { root.set-output-device(v); }
                         set-start-with-windows(v) => { root.set-start-with-windows(v); }
                         select-theme(id) => { root.select-theme(id); }
                         import-theme => { root.import-theme(); }
@@ -3297,6 +3461,8 @@ export component AppWindow inherits Window {
                         open-theme-folder => { root.open-theme-folder(); }
                         reload-theme => { root.reload-theme(); }
                         login => { root.login(); }
+                        cancel-login => { root.cancel-login(); }
+                        copy-auth-url => { root.copy-auth-url(); }
                         logout => { root.logout(); }
                     }
 
@@ -3431,11 +3597,14 @@ export component AppWindow inherits Window {
                     logged-in: root.logged-in;
                     account-name: root.account-name;
                     account-initial: root.account-initial;
+                    auth-url: root.auth-url;
                     account-avatar: root.account-avatar;
                     playlists: root.sidebar-playlists;
                     navigate(p) => { root.navigate(p); }
                     toggle-sidebar => { root.toggle-sidebar(); }
                     login => { root.login(); }
+                    cancel-login => { root.cancel-login(); }
+                    copy-auth-url => { root.copy-auth-url(); }
                     filter-playlists(q) => { root.filter-playlists(q); }
                     open-playlist(id) => { root.play-track(id); }
                     toggle-pin-playlist(id) => { root.toggle-pin-playlist(id); }

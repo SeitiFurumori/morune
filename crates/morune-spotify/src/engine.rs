@@ -209,8 +209,8 @@ impl SpotifyEngine {
         // esta em [`crate::sink`]. Abrir aqui, e nao dentro do construtor do
         // `Player`, e o que permite reportar falha de dispositivo como falha de
         // dispositivo -- a librespot chamaria `unwrap` e derrubaria o processo.
-        let sink =
-            crate::sink::open(volume.clone(), flush.clone()).map_err(CoreError::AudioDevice)?;
+        let sink = crate::sink::open(volume.clone(), flush.clone(), &audio.output_device)
+            .map_err(CoreError::AudioDevice)?;
 
         // Registrado porque e invisivel de outro jeito: nada na tela nem no
         // audio diz em qual qualidade a faixa chegou, e "mudei e nao senti
@@ -219,6 +219,7 @@ impl SpotifyEngine {
             kbps = audio.bitrate_kbps,
             nivelamento = audio.normalize,
             cache_mb = audio.cache_mb,
+            dispositivo = %audio.output_device,
             "preferencias de audio aplicadas"
         );
 

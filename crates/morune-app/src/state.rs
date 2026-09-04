@@ -181,6 +181,12 @@ pub struct AppState {
     /// thread da interface a cada acao e o que deixava os controles lentos.
     /// Recarregado por `refresh_themes` quando o conjunto muda.
     themes: Vec<loader::ThemeEntry>,
+    /// Nomes dos dispositivos de saida, lidos do sistema.
+    ///
+    /// Memoizado pelo mesmo motivo dos temas: `push_to_ui` roda a cada clique e
+    /// enumerar dispositivos de audio conversa com o driver. Relido ao entrar em
+    /// Configuracoes, que e quando um fone recem-conectado precisa aparecer.
+    output_devices: Vec<String>,
     /// O que a barra mostra em play/pause.
     ///
     /// Otimista: o clique escreve aqui antes de o motor confirmar, para o icone
@@ -366,6 +372,7 @@ impl AppState {
             ),
             player_events: None,
             themes,
+            output_devices: morune_spotify::output_devices(),
             playing: false,
             seek_target: None,
             search: TrackList::default(),
@@ -1935,6 +1942,37 @@ impl AppState {
         }
     }
 
+    /// Endereco de autorizacao do login em andamento. Vazio fora dele.
+    pub fn auth_url(&self) -> &str {
+        self.session.auth_url()
+    }
+
+    /// Desiste do login em andamento e libera a porta.
+    pub fn cancel_login(&mut self) {
+        self.session.cancel_login();
+        self.status = "Login cancelado.".into();
+    }
+
+    /// Copia o endereco de autorizacao para a area de transferencia.
+    ///
+    /// E a saida de quem tem mais de um navegador: o Morune abre o padrao do
+    /// sistema, que pode ser o perfil errado, e colar o link no navegador certo
+    /// e a unica forma de concluir sem reiniciar nada.
+    pub fn copy_auth_url(&mut self) {
+        let url = self.session.auth_url().to_string();
+        if url.is_empty() {
+            return;
+        }
+
+        match crate::clipboard::copy(&url) {
+            Ok(()) => self.status = "Link copiado. Cole no navegador da sua conta.".into(),
+            Err(e) => {
+                tracing::warn!(erro = %e, "nao foi possivel copiar o link");
+                self.status = "Não foi possível copiar. Selecione o link e copie à mão.".into();
+            }
+        }
+    }
+
     // ---- atualizacao ----
 
     /// Pergunta ao GitHub se ha versao nova. So a partir de um clique.
@@ -2235,6 +2273,35 @@ impl AppState {
         self.status = "A qualidade vale a partir da próxima vez que o Morune abrir.".into();
     }
 
+    /// Dispositivos oferecidos na tela, sem a opcao "padrao do sistema" --
+    /// essa a interface acrescenta como primeira linha.
+    pub fn output_devices(&self) -> &[String] {
+        &self.output_devices
+    }
+
+    /// Nome do dispositivo escolhido. Vazio = o padrao do sistema.
+    pub fn output_device(&self) -> &str {
+        &self.config.playback.output_device
+    }
+
+    /// Escolhe onde o som sai. Nome vazio devolve a escolha ao Windows.
+    ///
+    /// Vale so para o proximo motor, como qualidade e nivelamento: o
+    /// dispositivo e aberto quando o `Player` nasce e trocar agora pararia a
+    /// musica. A mensagem diz isso em vez de fingir efeito imediato.
+    pub fn set_output_device(&mut self, nome: &str) {
+        if self.config.playback.output_device == nome {
+            return;
+        }
+        self.config.playback.output_device = nome.to_string();
+        self.apply_audio_settings();
+        self.status = if nome.is_empty() {
+            "A saída volta a seguir o Windows na próxima vez que o Morune abrir.".into()
+        } else {
+            format!("A saída vale a partir da próxima vez que o Morune abrir: {nome}.")
+        };
+    }
+
     pub fn normalize(&self) -> bool {
         self.config.playback.normalize
     }
@@ -2282,6 +2349,51 @@ impl AppState {
         )
     }
 
+    /// O que o painel de midia do Windows deve mostrar. `None` sem faixa.
+    ///
+    /// Separado de [`AppState::tray_status`], que devolve uma linha unica: o
+    /// painel do sistema tem campos proprios para titulo, artista e album, e
+    /// juntar tudo numa string faria o Windows exibir o texto do Morune em vez
+    /// da faixa.
+    #[cfg(windows)]
+    pub fn media_status(&self) -> Option<crate::smtc::MediaStatus> {
+        let track = self.queue.current()?;
+        Some(crate::smtc::MediaStatus {
+            title: track.name.to_string(),
+            artist: track.artists_line(),
+            album: track
+                .album
+                .as_ref()
+                .map(|a| a.name.to_string())
+                .unwrap_or_default(),
+            // A mesma capa que o menu da bandeja usa, ja no cache em disco.
+            cover: self.now_cover.1.clone(),
+            playing: self.engine.snapshot().state == morune_core::PlaybackState::Playing,
+        })
+    }
+
+    /// Manda tocar, sem alternar.
+    ///
+    /// O painel do Windows tem botoes separados para tocar e pausar, e o
+    /// usuario pode clicar em "tocar" no que ja esta tocando. Alternar ali
+    /// pausaria o que ele acabou de mandar tocar.
+    pub fn play(&mut self) {
+        if self.queue.current().is_none() || self.playing {
+            return;
+        }
+        self.playing = true;
+        self.send(PlayerCommand::Play);
+    }
+
+    /// Manda pausar, sem alternar. Ver [`AppState::play`].
+    pub fn pause(&mut self) {
+        if self.queue.current().is_none() || !self.playing {
+            return;
+        }
+        self.playing = false;
+        self.send(PlayerCommand::Pause);
+    }
+
     /// Preenche o menu da bandeja com a faixa atual.
     ///
     /// O menu e a unica superficie de reproducao visivel com a janela fechada,
@@ -2321,6 +2433,10 @@ impl AppState {
 
     pub fn navigate(&mut self, page: i32) {
         self.page = Page::from_i32(page);
+        if self.page == Page::Settings {
+            // Um fone conectado depois de abrir o aplicativo so aparece aqui.
+            self.output_devices = morune_spotify::output_devices();
+        }
         if self.page != Page::Detail {
             self.detail_loading = false;
             self.detail_complete_requested = false;
@@ -2855,6 +2971,22 @@ impl AppState {
         self.pending_liked_play = None;
         self.home_requested = false;
         self.library_requested = false;
+
+        // As ofertas de recuperacao morrem com a sessao.
+        //
+        // "Tentar novamente" so faz sentido enquanto ha conta: sem sessao, o
+        // pedido refeito falha do mesmo jeito, e o botao vira um convite a
+        // repetir um erro. O mesmo vale para o pedido em voo, que se resolvia
+        // contra uma conta que nao esta mais aqui.
+        //
+        // Sem isto o botao ja nao apareceria -- `retry_available` exige que a
+        // mensagem na tela seja a que criou a oferta, e aqui ela vira "Sessao
+        // encerrada." --, mas o estado morto ficaria guardado. Limpar e o que
+        // impede uma mensagem futura de ressuscitar a oferta por coincidencia.
+        self.retry = None;
+        self.pending_retry = None;
+        self.discard_undo();
+
         self.status = "Sessão encerrada.".into();
     }
 
@@ -2886,6 +3018,13 @@ impl AppState {
         window.set_autoplay(self.config.playback.autoplay);
         window.set_bitrate(self.bitrate_code());
         window.set_normalize(self.normalize());
+        window.set_output_devices(slint::ModelRc::new(slint::VecModel::from(
+            self.output_devices()
+                .iter()
+                .map(|nome| SharedString::from(nome.as_str()))
+                .collect::<Vec<_>>(),
+        )));
+        window.set_output_device(SharedString::from(self.output_device()));
         let appearance = &self.config.appearance;
         window.set_has_background(!appearance.background_image.is_empty());
         window.set_background_name(SharedString::from(self.background_name()));
@@ -2899,6 +3038,8 @@ impl AppState {
         window.set_window_opacity(self.window_opacity_slider());
         window.set_search_query(self.search_query.as_str().into());
         window.set_searching(self.searching);
+
+        window.set_auth_url(SharedString::from(self.auth_url()));
 
         let (fase, titulo, detalhe, progresso) = self.update_status();
         window.set_update_phase(fase);
@@ -3091,6 +3232,7 @@ fn audio_settings(config: &morune_storage::config::PlaybackConfig) -> AudioSetti
         bitrate_kbps: config.bitrate,
         normalize: config.normalize,
         cache_mb: config.audio_cache_mb,
+        output_device: config.output_device.clone(),
     }
 }
 

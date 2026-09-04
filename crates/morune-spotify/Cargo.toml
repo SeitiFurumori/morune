@@ -45,3 +45,23 @@ librespot-playback = { version = "0.8", default-features = false, features = ["r
 rodio = { version = "0.21", default-features = false, features = ["playback"] }
 librespot-metadata = "0.8"
 librespot-oauth = "0.8"
+
+# Fluxo interativo de OAuth proprio.
+#
+# A librespot tem um, e ele continua sendo usado para **renovar** token, que e
+# silencioso e funciona bem. O que nao serve e o caminho interativo dela: a URL
+# de autorizacao so vai para `println!` -- perdida num build sem console -- e a
+# espera pelo retorno e um `TcpListener::incoming()` sem tempo limite e sem
+# cancelamento. Ver `token.rs`.
+#
+# Sem features de TLS: o `reqwest` que faz a troca e o mesmo que ja esta no
+# binario, com o TLS do sistema. Ligar `rustls-tls` aqui traria uma segunda
+# pilha de TLS so para o login.
+oauth2 = { version = "5.0", default-features = false, features = ["reqwest"] }
+# Cliente HTTP da troca de codigo por token. Ja esta no binario pela librespot;
+# entra como dependencia direta so para poder ser nomeado aqui, com
+# `default-features = false` para nao trazer uma segunda pilha de TLS.
+reqwest = { version = "0.12", default-features = false, features = ["default-tls"] }
+# Abre o navegador no login. A librespot ja depende dele; entra aqui direto
+# porque o caminho interativo agora e nosso.
+open = "5"

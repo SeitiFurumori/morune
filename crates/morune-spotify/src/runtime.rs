@@ -154,7 +154,7 @@ impl SpotifyBackend {
     /// Falha com [`CoreError::NotAuthenticated`] enquanto nao houver login --
     /// e a aplicacao continua com o `NullEngine`, sem tela quebrada.
     pub fn engine(&self) -> CoreResult<Arc<dyn PlaybackEngine>> {
-        let audio = *self.audio.lock().unwrap();
+        let audio = self.audio.lock().unwrap().clone();
         let engine = SpotifyEngine::new(self.session.clone(), self.handle(), audio)?;
         Ok(Arc::new(engine))
     }
@@ -207,8 +207,9 @@ mod tests {
             bitrate_kbps: 320,
             normalize: false,
             cache_mb: 0,
+            output_device: "Fone".into(),
         };
-        backend.set_audio(novo);
+        backend.set_audio(novo.clone());
         assert_eq!(*backend.audio.lock().unwrap(), novo);
     }
 

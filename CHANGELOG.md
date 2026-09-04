@@ -47,6 +47,29 @@ Versionamento semantico.
   produto -- soltar vinte requisicoes de uma vez numa playlist de mil faixas
   trocaria latencia por um pico de rede e CPU no meio de uma partida.
 
+**Login que travava sem saida**
+- **O fluxo interativo de OAuth passa a ser do Morune**, sobre o crate `oauth2`.
+  A renovacao silenciosa de token continua na librespot, que funciona bem; o
+  que saiu foi o caminho interativo dela, por tres defeitos sentidos em uso
+  real.
+- **O endereco de autorizacao aparece na tela, com botao de copiar.** A
+  librespot so o mandava para `println!`, e num build de release, que nao tem
+  console, ele era perdido no instante em que era escrito. Quem tem mais de um
+  navegador -- ou mais de um perfil no mesmo -- ficava preso ao que o sistema
+  abrisse: sem o link, nao havia como concluir noutro lugar. O contrato de
+  `begin_login` sempre prometeu devolver essa URL; agora ele cumpre.
+- **A espera tem prazo e botao de cancelar.** Antes era um
+  `TcpListener::incoming()` sem tempo limite: fechar o navegador sem concluir
+  deixava a porta 5588 tomada ate o processo morrer, e toda tentativa seguinte
+  respondia "ja ha um login em andamento". A unica saida era sair pela bandeja.
+  Cancelar agora solta a porta, e ha teste que prova isso -- pede a
+  autorizacao, desiste, pede de novo.
+- O retorno do navegador passa a ter o `state` anti-CSRF conferido. O fluxo
+  anterior aceitava qualquer codigo que chegasse na porta.
+- **Sair da conta limpa as ofertas de recuperacao.** "Tentar novamente", o
+  pedido em voo e o desfazer morriam junto com a sessao mas ficavam guardados;
+  sem conta, repetir so falharia de novo.
+
 **Ajustes de audio que existiam no arquivo e nao faziam nada**
 - **Qualidade, nivelamento e cache de audio passam a valer.** `bitrate`,
   `normalize` e `audio_cache_mb` estavam no `config.toml`, com padrao e
@@ -151,6 +174,38 @@ Versionamento semantico.
   acento do tema. Recolhida, a barra lateral mostra so o circulo.
 
 ### Adicionado
+
+**Painel de reproducao do Windows (SMTC)**
+- **O Morune aparece na sobreposicao de volume, na tela de bloqueio e no
+  Ctrl+Alt+Del**, com capa, titulo, artista, album e os botoes de anterior,
+  tocar/pausar e proxima. Era o item que faltava do "teclas de midia": as teclas
+  do teclado ja funcionavam por `WM_APPCOMMAND`, mas isso so vale com a janela
+  em primeiro plano, e o painel do sistema so existe para quem se registra no
+  `SystemMediaTransportControls`. Mexer no volume durante um jogo mostrava um
+  painel vazio -- ou o do navegador aberto atras.
+- Com o painel ativo, as teclas de midia passam a chegar tambem com a janela
+  escondida na bandeja.
+- Tocar e pausar sao comandos separados, e nao "alternar": o painel do sistema
+  tem os dois botoes, e alternar em cima de um "tocar" pausaria justamente o que
+  a pessoa acabou de mandar tocar.
+- Escreve so quando algo muda. `Update()` atravessa a fronteira do processo ate
+  o servico de midia do Windows, e o laco da interface roda a cada 150 ms --
+  reescrever a mesma faixa dez vezes por segundo e o mesmo gasto invisivel que
+  ja custou 0,22% de um nucleo no menu da bandeja.
+
+**Escolher a saida de audio**
+- **A saida de audio deixa de ser um texto fixo dizendo "Padrao do Windows".**
+  O campo `output_device` existia no `config.toml` desde o inicio e era o unico
+  dos quatro ajustes de audio que nao fazia nada: `sink.rs` abria sempre
+  `default_output_device()`. Agora as Configuracoes listam os dispositivos do
+  sistema, com "Padrao do Windows" como primeira opcao, e a escolha vale a
+  partir da proxima abertura -- como qualidade e nivelamento, e pelo mesmo
+  motivo: o dispositivo e aberto quando o reprodutor nasce.
+- Um dispositivo que sumiu (fone desconectado) **volta ao padrao com aviso no
+  log**, e nao vira erro. Uma escolha que deixou de existir nao pode impedir a
+  musica de tocar.
+- A lista e relida ao entrar em Configuracoes: um fone conectado depois de abrir
+  o aplicativo so apareceria na proxima sessao.
 
 **Medir CPU e GPU de verdade**
 - **`tools/measure.ps1 -Watch` mede um Morune que ja esta aberto**, sem abrir

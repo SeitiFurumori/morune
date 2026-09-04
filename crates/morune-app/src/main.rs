@@ -21,8 +21,12 @@ mod artwork;
 mod browse;
 mod bundled;
 #[cfg(windows)]
+mod clipboard;
+#[cfg(windows)]
 mod instance;
 mod session;
+#[cfg(windows)]
+mod smtc;
 #[cfg(feature = "snapshot")]
 mod snapshot;
 mod startup;
@@ -855,6 +859,12 @@ fn wire_taskbar(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState>>
     let state = state.clone();
     let mut controls: Option<taskbar::TaskbarControls> = None;
     let mut creation_failed = false;
+    // Mesmo temporizador que a barra de tarefas: os dois precisam da janela ja
+    // criada, leem o mesmo estado e escrevem so quando ele muda. Um segundo
+    // temporizador de 150 ms seria outro despertar do processo em repouso, e o
+    // criterio do projeto e nao aparecer no perfil de quem esta jogando.
+    let mut media: Option<smtc::MediaControls> = None;
+    let mut media_failed = false;
 
     let timer = slint::Timer::default();
     timer.start(slint::TimerMode::Repeated, tray::POLL_INTERVAL, move || {
@@ -890,6 +900,37 @@ fn wire_taskbar(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState>>
 
         let (now_playing, playing) = state.borrow().tray_status();
         controls.update(now_playing.is_some(), playing);
+
+        if media.is_none() && !media_failed {
+            match smtc::MediaControls::new(window.window()) {
+                Ok(created) => media = Some(created),
+                Err(error) => {
+                    media_failed = true;
+                    tracing::warn!(%error, "painel de midia do Windows indisponivel");
+                }
+            }
+        }
+
+        if let Some(media) = media.as_mut() {
+            for command in media.poll() {
+                match command {
+                    smtc::MediaCommand::Play => state.borrow_mut().play(),
+                    smtc::MediaCommand::Pause => state.borrow_mut().pause(),
+                    smtc::MediaCommand::TogglePlay => state.borrow_mut().toggle_play(),
+                    smtc::MediaCommand::Next => state.borrow_mut().next_track(),
+                    smtc::MediaCommand::Previous => state.borrow_mut().previous_track(),
+                }
+                state.borrow().push_to_ui(&window);
+            }
+
+            let status = state.borrow().media_status();
+            if let Err(error) = media.update(status.as_ref()) {
+                // Nao desliga o painel: uma falha aqui costuma ser passageira
+                // (o servico de midia reiniciando), e a proxima passagem
+                // reescreve tudo, porque o estado guardado nao foi atualizado.
+                tracing::warn!(%error, "painel de midia recusou a atualizacao");
+            }
+        }
     });
 
     timer
@@ -1088,6 +1129,16 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
         s.push_to_ui(&w);
     });
 
+    on!(on_cancel_login, |w, s| {
+        s.cancel_login();
+        s.push_to_ui(&w);
+    });
+
+    on!(on_copy_auth_url, |w, s| {
+        s.copy_auth_url();
+        s.push_to_ui(&w);
+    });
+
     on!(on_set_bitrate, |w, s, code: i32| {
         s.set_bitrate(code);
         s.push_to_ui(&w);
@@ -1095,6 +1146,11 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
 
     on!(on_set_normalize, |w, s, on: bool| {
         s.set_normalize(on);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_set_output_device, |w, s, nome: slint::SharedString| {
+        s.set_output_device(nome.as_str());
         s.push_to_ui(&w);
     });
 

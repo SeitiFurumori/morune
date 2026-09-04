@@ -46,8 +46,8 @@ use morune_core::catalog::BoxFuture;
 use morune_core::{CoreError, CoreResult};
 use serde::Deserialize;
 
-use crate::error::{from_librespot, from_oauth};
-use crate::token::{TokenSource, REDIRECT_URI};
+use crate::error::from_librespot;
+use crate::token::TokenSource;
 
 /// Sessao ativa da librespot, compartilhada entre autenticador e motor.
 ///
@@ -107,8 +107,11 @@ impl std::fmt::Debug for SharedSession {
 pub struct SpotifyAuthenticator {
     tokens: Arc<TokenSource>,
     session: SharedSession,
-    /// Token do login em andamento, entre `begin_login` e `complete_login`.
-    pending: Mutex<Option<OAuthToken>>,
+    /// Autorizacao em andamento, entre `begin_login` e `complete_login`.
+    ///
+    /// Antes guardava o token ja obtido, porque `begin_login` so retornava
+    /// depois de o login inteiro terminar. Agora guarda a espera em si.
+    pending: Mutex<Option<crate::token::PendingAuth>>,
     /// Cache de audio em disco, quando o usuario nao o desligou.
     ///
     /// **So audio.** A `Cache` da librespot tambem sabe guardar credenciais em
@@ -328,38 +331,42 @@ impl Authenticator for SpotifyAuthenticator {
         })
     }
 
+    /// Monta a autorizacao e devolve **a URL** que o usuario precisa abrir.
+    ///
+    /// Devolve antes de o usuario fazer qualquer coisa. A implementacao
+    /// anterior so retornava depois que o login inteiro terminava, e entregava
+    /// o endereco de retorno no lugar da URL -- o contrato pedia uma coisa e
+    /// recebia outra. Com a URL de verdade em maos, a tela pode oferece-la para
+    /// copiar, que e a saida de quem tem mais de um navegador.
     fn begin_login(&self) -> BoxFuture<'_, CoreResult<String>> {
         Box::pin(async move {
-            // O fluxo inteiro acontece aqui: a librespot abre o navegador, sobe
-            // um servidor local e espera o retorno. Bloqueia ate o usuario
-            // decidir, entao vai para uma thread propria.
-            //
-            // O contrato pede a URL que o usuario deve abrir, e a librespot nao
-            // a expoe -- ela mesma abre o navegador. Devolvemos o endereco de
-            // retorno, que e o que a tela precisa mostrar se o navegador nao
-            // abrir sozinho. Trocar isto por um fluxo proprio sobre `oauth2`
-            // devolveria a URL de verdade; ver docs/HANDOFF.md.
-            let token = tokio::task::spawn_blocking(|| {
-                TokenSource::interactive_client()
-                    .and_then(|c| c.get_access_token().map_err(from_oauth))
-            })
-            .await
-            .map_err(|e| CoreError::InvalidState(e.to_string()))??;
+            let pendente = TokenSource::begin_interactive().await?;
+            let url = pendente.url.clone();
 
-            *self.pending.lock().unwrap() = Some(token);
-            Ok(REDIRECT_URI.to_string())
+            // Abrir o navegador depois de a porta estar escutando: aberto
+            // antes, um retorno muito rapido bateria em porta fechada.
+            pendente.open_browser();
+
+            *self.pending.lock().unwrap() = Some(pendente);
+            Ok(url)
         })
     }
 
+    /// Espera o retorno do navegador e abre a sessao.
+    ///
+    /// A espera tem prazo e morre junto com a tarefa que a executa: cancelar
+    /// aqui **solta a porta**, ao contrario do fluxo anterior, que a segurava
+    /// ate o processo terminar.
     fn complete_login(&self) -> BoxFuture<'_, CoreResult<UserProfile>> {
         Box::pin(async move {
-            let token = self
+            let pendente = self
                 .pending
                 .lock()
                 .unwrap()
                 .take()
                 .ok_or_else(|| CoreError::InvalidState("nenhum login em andamento".into()))?;
 
+            let token = TokenSource::finish_interactive(pendente).await?;
             self.connect(token).await
         })
     }
