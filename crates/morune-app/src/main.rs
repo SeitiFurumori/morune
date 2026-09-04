@@ -502,6 +502,14 @@ fn wire_window_state(
         std::time::Duration::from_millis(500),
         move || {
             let Some(window) = weak.upgrade() else { return };
+            // Escondida na bandeja nao ha canto para arredondar, efeito para
+            // aplicar nem tamanho para lembrar -- e essas sao chamadas ao DWM,
+            // que atravessam a fronteira do processo. Duas por segundo a toa
+            // enquanto alguem joga e exatamente o custo invisivel que o
+            // criterio de desempenho do projeto existe para barrar.
+            if !window.window().is_visible() {
+                return;
+            }
             // Antes do desvio do mini-player: o canto arredondado vale para as
             // duas formas da janela. No caso comum sao duas chamadas baratas
             // que confirmam que ja esta certo.
@@ -613,6 +621,10 @@ fn wire_backend(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState>>
     let state = state.clone();
     let mut started = false;
 
+    // Mudanca que aconteceu com a janela escondida e que a tela ainda nao viu.
+    let mut pendente = false;
+    let mut estava_visivel = true;
+
     let timer = slint::Timer::default();
     timer.start(slint::TimerMode::Repeated, BACKEND_POLL, move || {
         let Some(window) = weak.upgrade() else { return };
@@ -622,9 +634,19 @@ fn wire_backend(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState>>
             state.borrow_mut().restore_session();
         }
 
-        if state.borrow_mut().poll_backend() {
+        // O backend continua sendo lido com a janela na bandeja: e o que faz a
+        // musica seguir, a fila andar e a bandeja mostrar a faixa certa. O que
+        // para e **escrever na interface** -- ver `push_to_ui`.
+        pendente |= state.borrow_mut().poll_backend();
+
+        let visivel = window.window().is_visible();
+        // Reaparecer conta como motivo para espelhar tudo, mesmo sem mudanca
+        // nova: a tela pode ter ficado minutos sem receber o que se acumulou.
+        if visivel && (pendente || !estava_visivel) {
             state.borrow().push_to_ui(&window);
+            pendente = false;
         }
+        estava_visivel = visivel;
     });
 
     timer
@@ -648,6 +670,13 @@ const PROGRESS_TICK: std::time::Duration = std::time::Duration::from_millis(250)
 /// Pausado nao custa nada: o tique sai antes de tocar na interface, entao o
 /// numero de CPU em repouso de `docs/PERFORMANCE.md` nao se mexe.
 ///
+/// **Com a janela na bandeja tambem nao custa nada**, e essa e a medida que
+/// motivou a checagem: tocando e escondido, a thread da interface gastava 1,93%
+/// de um nucleo contra 1,09% da saida de audio -- ou seja, o aplicativo gastava
+/// mais desenhando o que ninguem via do que tocando musica. A barra de
+/// progresso nao precisa andar numa janela que nao esta na tela; quando ela
+/// volta, `wire_backend` espelha tudo de uma vez.
+///
 /// O temporizador devolvido precisa continuar vivo.
 fn wire_progress_tick(
     window: &ui::AppWindow,
@@ -659,6 +688,9 @@ fn wire_progress_tick(
     let timer = slint::Timer::default();
     timer.start(slint::TimerMode::Repeated, PROGRESS_TICK, move || {
         let Some(window) = weak.upgrade() else { return };
+        if !window.window().is_visible() {
+            return;
+        }
         let state = state.borrow();
         if !state.is_playing() {
             return;

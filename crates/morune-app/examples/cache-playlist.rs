@@ -108,7 +108,11 @@ fn main() {
     println!(
         "\nvolta para A foi {:.0} ms {} que a primeira abertura.",
         ganho.abs() * 1000.0,
-        if ganho >= 0.0 { "mais rapida" } else { "MAIS LENTA" }
+        if ganho >= 0.0 {
+            "mais rapida"
+        } else {
+            "MAIS LENTA"
+        }
     );
     println!(
         "Lembrando o que o cache guarda: a lista de ids e o cabecalho. O metadado\n\

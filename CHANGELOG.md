@@ -7,6 +7,21 @@ Versionamento semantico.
 
 ### Corrigido
 
+**Com a janela na bandeja, o Morune gastava mais desenhando do que tocando**
+- **A interface para de trabalhar quando nao esta na tela.** Medido com musica
+  tocando e a janela escondida: a thread da interface gastava 1,93% de um nucleo
+  contra 1,09% da saida de audio. Tres tarefas rodavam sem ninguem olhando -- o
+  relogio de progresso escrevendo 4x por segundo, o espelhamento de estado, e
+  duas chamadas por segundo ao DWM para arredondar canto e aplicar efeito de
+  janela. Agora as tres saem cedo quando a janela nao esta visivel, e o que se
+  acumulou e espelhado de uma vez quando ela volta.
+- O total em reproducao caiu de **3,41% para 1,67%** de um nucleo, entrando na
+  meta de `< 2%` do [PERFORMANCE.md](docs/PERFORMANCE.md). E o cenario que mais
+  importa no criterio do projeto: e assim que o aplicativo fica enquanto alguem
+  joga.
+- O backend continua sendo lido escondido: a musica segue, a fila anda e a
+  bandeja mostra a faixa certa. O que parou foi so escrever na tela.
+
 **O aplicativo podia passar semanas rodando um binario velho sem dizer nada**
 - **Build local deixa de se anunciar como versao final.** Sem a variavel do
   workflow de publicacao, `build.rs` caia em `v0.1.0` -- e `0.1.0` e, por semver,

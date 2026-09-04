@@ -26,6 +26,43 @@ Dai a ordem de prioridade das metricas abaixo: **CPU e GPU em segundo plano
 primeiro, resposta da interface depois, memoria por ultimo** — e memoria com
 teto explicito para nao crescer sem limite, nao com meta de vitrine.
 
+## Medicao de 04/09/2026 -- reproducao real, pela primeira vez
+
+Ate aqui todo numero desta pagina era de aplicativo parado. Esta e a primeira
+medicao **com musica tocando**, que e o estado em que o Morune passa a vida.
+
+```
+cenario        : tocando, janela escondida na bandeja
+antes          : 3,41% de um nucleo   (60 s, processo aberto ha ~40 min)
+depois         : 1,67% de um nucleo   (3 x 60 s: 1,43 | 1,67 | 1,90)
+```
+
+**O que a medicao achou.** Com a janela escondida, a thread da **interface**
+gastava 1,93% de um nucleo contra 1,09% da saida de audio: o aplicativo gastava
+mais desenhando o que ninguem via do que tocando musica. Tres tarefas rodavam
+sem tela na frente -- o relogio de progresso escrevendo na interface 4x por
+segundo, o espelhamento de estado a cada mudanca, e duas chamadas ao DWM por
+segundo para arredondar canto e aplicar efeito de janela. As tres passaram a
+sair cedo quando `window().is_visible()` e falso, e o que se acumulou e
+espelhado de uma vez quando a janela volta.
+
+**O que a medicao desmentiu.** Amostras de 24% a 54% de um nucleo, colhidas mais
+cedo no mesmo dia, foram lidas como regime e nao eram: e o custo de aquecimento
+dos primeiros ~30 minutos -- capa baixando, listas populando, tint
+recalculando. A ordem cronologica denuncia (53,8 -> 46,8 -> 23,7 -> 3,4), e a
+hipotese de que o misturador do rodio custava caro caiu junto: a saida de audio
+aparece com 1,09% quando medida por thread.
+
+**Ressalva.** O "antes" foi medido num processo aberto ha 40 minutos e o
+"depois" num processo recem-aberto. A diferenca de 1,7 ponto e grande demais
+para ser so isso, e o mecanismo da correcao aponta para onde o ganho apareceu
+(a thread da interface saiu do topo), mas a comparacao nao e perfeitamente
+controlada.
+
+**Fica em aberto:** o custo de aquecimento. Se alguem abre o Morune e entra num
+jogo em seguida -- que e o gesto natural --, pega justamente a meia hora cara.
+Ninguem instrumentou o caminho de capas para saber onde esse tempo vai.
+
 ## Orcamento
 
 | Metrica | Meta | Medido | Situacao |
@@ -35,7 +72,8 @@ teto explicito para nao crescer sem limite, nao com meta de vitrine.
 | GPU em repouso, janela visivel | sem redesenho | **0,00%** | cumprido |
 | Interferencia com jogo em tela cheia | imperceptivel | — | ferramenta pronta, falta a sessao |
 | Resposta da interface | sem travar, nunca | — | exige sessao real prolongada |
-| CPU em reproducao | < 2% | — | exige reproducao real |
+| CPU em reproducao, janela oculta | < 2% | **1,67%** | cumprido (era 3,41% antes de 04/09) |
+| CPU em reproducao, janela visivel | < 2% | — | nao medido em regime |
 | Startup ate o laco de eventos | < 1 s | **62 ms** | folgado, mas 3x o de 19/08 |
 | Ciclo completo do processo | < 1 s | **1.015 ms** | **estourou** (era 509 ms) |
 | RAM em repouso | teto, nao vitrine | **135,6 MB** | **cresceu 72%** desde 19/08 |
