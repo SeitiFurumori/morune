@@ -14,8 +14,9 @@
 #
 # 1. **Sao duas cores.** Azul de ceu e agua em cima, VERDE de grama embaixo.
 #    Frutiger Aero sem o verde e so um tema azul.
-# 2. **Alguma coisa em foco.** O `fundo.png` tem esferas de vidro nitidas na
-#    frente e o borrado atras. Desfoque sem sujeito nao le como profundidade.
+# 2. **Alguma coisa em foco.** O `fundo.png` tem horizonte, margem e caminho de
+#    brilho nitidos, e o bokeh borrado atras. Desfoque sem sujeito nao le como
+#    profundidade -- le como degrade inacabado.
 # 3. **Nada e chapado.** Toda superficie tem luz caindo sobre ela -- e o
 #    `gloss`, que desenha reflexo, fosco e orla.
 # 4. **Nada tem quina.** Botao e capsula, painel e gota.
@@ -160,17 +161,30 @@ artwork_tint          = false
 artwork_tint_strength = 0.0
 
 [background]
-# Ceu e grama com esferas de vidro em foco. Desenhado por nos
+# Ceu, mar raso e grama ao sol, em camadas. Desenhado por nos
 # (`tools/fundo-aquario.py`), nao baixado.
 #
 # Pintado ACIMA de `color.background` e abaixo de toda superficie -- quem da a
 # cor da tela e ele, e o token de fundo passa a ser o que aparece por
 # transparencia.
+#
+# **Nao ha mais esferas de vidro.** Duas versoes tentaram salva-las e nas duas
+# elas leram como bola de plastico. O motivo esta no cabecalho do gerador: vidro
+# so le como vidro deformando uma cena com detalhe, e este campo e liso de
+# proposito -- ele passa por baixo de listas e cartoes. O item "alguma coisa em
+# foco" do estilo fica valendo pelo horizonte, pela margem e pelo caminho de
+# brilho, que sao formas nitidas.
 image = "fundo.png"
 fit   = "cover"
-opacity = 0.92
-# O veu agora e BRANCO, e nao escuro: num tema claro a margem de legibilidade
-# se ganha clareando o campo, nao escurecendo.
+# 0.96, e nao 0.92: o campo antigo era pastel e precisava do reforco do
+# `color.background` por baixo. O novo tem saturacao propria, e diluir isso
+# contra o azul chapado do token so devolvia o problema que ele veio resolver.
+opacity = 0.96
+# O veu e BRANCO, e nao escuro: num tema claro a margem de legibilidade se ganha
+# clareando o campo. Caiu de 0.08 para 0.04 porque o piso agora e MEDIDO -- o
+# gerador confere a luminancia relativa de cada pixel contra `color.text` pela
+# formula da WCAG e o pior deles esta em 7.4:1, acima do AAA. O veu de 8% era
+# margem para uma conta que nunca tinha sido feita.
 tint          = "#ffffff"
-tint_strength = 0.08
+tint_strength = 0.04
 blur          = 0.0
