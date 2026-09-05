@@ -895,6 +895,24 @@ export component Artwork inherits Rectangle {
         // aparecer por arredondamento de um pixel.
         image-fit: fill;
     }
+
+    // Contorno de 1px a 10%, por dentro da capa.
+    //
+    // **Por que preto ou branco puro, e nunca a cor de borda do tema:** um
+    // contorno tingido pega a superficie de baixo e aparece como sujeira na
+    // beirada da imagem. Puro, ele so separa a capa do fundo -- e e o que da
+    // profundidade parelha a vinte capas de cores diferentes lado a lado, que
+    // sozinhas nao teriam nenhuma relacao visual entre si.
+    //
+    // So sobre imagem: a ficha gerada ja tem contraste proprio contra o fundo, e
+    // um contorno ali viraria moldura em algo que nao e foto.
+    if root.source.width > 0: Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: root.radius;
+        border-width: 1px;
+        border-color: root.claro ? #0000001a : #ffffff1a;
+    }
 }
 
 // Avatar da conta: circulo com a inicial.

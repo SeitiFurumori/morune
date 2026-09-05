@@ -80,14 +80,14 @@ qualquer momento.
 |---|---|---|---|
 | — | `security-review` | 0 | **feito** — nenhum achado acima do corte |
 | — | `code-review` | 0 | **feito** — 2 achados, os dois corrigidos |
-| — | `better-ui` | 1 | pendente |
-| 002 | Barra lateral anima largura | 1 | pendente |
+| — | `better-ui` | 1 | **feito** — 3 achados aplicados |
+| 002 | Barra lateral anima largura | 1 | **fechado sem mudanca** — severidade reavaliada para MEDIA |
 | — | `ux-writing` | 2 | pendente |
 | 001 | Easing linear | 3 | pendente |
 | 003 | Preferência de movimento do sistema | 3 (livre) | pendente |
 | 004 | Fade só no cabeçalho | 3 | pendente |
 | 005 | Entrada com deslocamento | 3 | pendente |
-| 006 | Duplicação da barra lateral | 3 | pendente |
+| 006 | Duplicação da barra lateral | 3 | pendente — deixou de depender do 002 |
 | 007 | Oportunidades | 3 | pendente |
 
 ## Restrição que vale para todos

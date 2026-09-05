@@ -665,7 +665,13 @@ component Card inherits Rectangle {
     // 56px nao acompanhavam o tamanho de fonte nem a entrelinha do tema: em
     // Paper os descendentes do titulo ficavam serrados na base do cartao.
     height: conteudo.preferred-height;
-    border-radius: Theme.radius-md;
+    // **Raio concentrico:** externo = interno + espacamento. A capa dentro tem
+    // `radius-artwork` (6px) e esta a `space-sm` (8px) das quinas do cartao,
+    // entao o cartao pede 14 -- que e exatamente `radius-lg`. Com `radius-md`
+    // (8px) a capa ficava com a quina mais redonda que a caixa que a contem, e
+    // e a inconsistencia de raio em elemento aninhado que mais faz uma
+    // interface parecer montada as pressas.
+    border-radius: Theme.radius-lg;
     background: touch.has-hover ? Theme.surface-raised : Theme.surface;
 
     // Elevacao.
@@ -691,7 +697,7 @@ component Card inherits Rectangle {
 
     private property <bool> claro: Theme.background.to-hsv().value > 0.5;
 
-    Glass { radius: Theme.radius-md; }
+    Glass { radius: Theme.radius-lg; }
 
     conteudo := VerticalLayout {
         padding: Theme.space-sm;

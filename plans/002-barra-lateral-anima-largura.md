@@ -2,7 +2,7 @@
 
 - **Commit base:** `6b127aa`
 - **Fase:** 1 (estrutura) — ver [README](README.md)
-- **Severidade:** ALTA
+- **Severidade:** ~~ALTA~~ → **MÉDIA** (reavaliada em 05/09/2026, ver abaixo)
 - **Categoria:** desempenho
 
 ## O defeito
@@ -34,7 +34,33 @@ Porque a correção **não é ajustar a curva** — é trocar como a barra encol
 for feita depois, desfaz o que a fase de animação tiver encostado ali. Fazer
 junto com o `better-ui`, que já vai mexer nessa região, é uma mexida só.
 
-## A correção
+## Reavaliação de 05/09/2026 — a severidade estava errada
+
+Na hora de executar, a análise não se sustentou, e o registro fica aqui em vez
+de a mudança entrar calada.
+
+**Recolher a barra lateral tem de refazer o layout da área de conteúdo.** Isso
+é o que o gesto significa: a área ao lado ocupa o espaço que a barra devolveu.
+Não é escolha de implementação, e nenhum truque de `clip` + `x` muda isso — se
+a caixa externa mantém a largura, a página não reclama o espaço, e o gesto
+deixa de fazer o que promete.
+
+Logo, "não refazer layout por quadro" só é alcançável **não animando**.
+
+E a regra do playbook — animar só `transform` e `opacity` — é uma regra de
+navegador, onde o compositor desenha sem tocar no layout. No Slint cada quadro é
+um redesenho de qualquer jeito; o custo adicional é **uma passada de layout por
+quadro, por doze quadros, uma vez, num gesto raro e iniciado pela pessoa**. Isso
+não é a mesma categoria de um custo contínuo, e foi assim que eu classifiquei.
+
+**Decisão:** a animação fica. O achado vira MÉDIA e um registro de que o custo é
+conhecido e aceito, não uma dívida esquecida.
+
+**O que mudaria a decisão:** se a área de conteúdo passar a fazer trabalho caro
+por relayout — a grade recalcular colunas e redecodificar capas, por exemplo --,
+doze relayouts deixam de ser baratos. Aí vale medir e reconsiderar.
+
+## A correção que não vai ser feita (mantida para referência)
 
 Manter a caixa externa com largura fixa e mover o conteúdo por dentro, com
 recorte. O que anima passa a ser `x`, que não refaz layout.

@@ -7,6 +7,20 @@ Versionamento semantico.
 
 ### Corrigido
 
+**Raio aninhado errado, e capa sem separacao do fundo**
+- **O cartao passa a ter raio concentrico com a capa.** A regra e externo =
+  interno + espacamento: a capa tem `radius_artwork` (6px) e fica a `space_sm`
+  (8px) das quinas, entao o cartao pede 14 -- que ja existia como `radius_lg` e
+  nao era usado em cartao nenhum. Com 8px, a capa aparecia com a quina mais
+  redonda que a caixa que a contem, e raio aninhado inconsistente e o detalhe
+  que mais faz uma interface parecer montada as pressas.
+- **Capa ganha contorno de 1px a 10%**, preto puro em tema claro e branco puro
+  em tema escuro -- nunca a cor de borda do tema, porque contorno tingido pega a
+  superficie de baixo e aparece como sujeira na beirada da imagem. E o que da
+  profundidade parelha a vinte capas de cores diferentes lado a lado. So sobre
+  imagem: a ficha gerada ja tem contraste proprio, e ali o contorno viraria
+  moldura em algo que nao e foto.
+
 **Espacamento que vinha de porcentagem, e nao de espaco**
 - **A coluna de album comecava num x diferente em cada linha.** A causa nao era
   o espacamento: as celulas anunciavam ao layout a largura do proprio texto
