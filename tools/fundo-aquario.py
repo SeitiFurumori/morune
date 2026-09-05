@@ -39,15 +39,26 @@ import math
 import numpy as np
 from PIL import Image, ImageFilter
 
-W, H = 1600, 1000
+# 2:1, e nao 16:10.
+#
+# `image-fit: cover` corta o eixo que sobra. Com 1600x1000 (1.6:1) uma janela
+# maximizada de 1919x1030 (1.86:1) escala por largura e come 169px em cima e
+# embaixo -- o que empurra a margem para y=929, bem no meio do conteudo, e a
+# faixa de transicao sai cortada pela barra de reproducao. Na tela isso nao le
+# como praia: le como um degrade solto que parou no lugar errado.
+#
+# Numa imagem 2:1 qualquer janela mais estreita que isso escala por ALTURA, e a
+# composicao vertical chega inteira. O que sobra e corte lateral, e cortar
+# lateralmente uma cena que e uniforme na horizontal nao custa nada.
+W, H = 2000, 1000
 
 # Fonte de luz unica. Tudo nesta imagem obedece a ela: o bloom do ceu, o
 # caminho de brilho na agua, a direcao de cada especular, o lado de cada
 # sombra de contato e a densidade do bokeh.
 SOL = np.array([0.74, 0.11])
 
-HORIZONTE = 0.585  # onde o ceu encontra a agua
-MARGEM = 0.845  # onde a agua encontra a grama
+HORIZONTE = 0.600  # onde o ceu encontra a agua
+MARGEM = 0.880  # onde a agua encontra a grama
 
 # O piso de contraste, calculado em vez de chutado.
 #
@@ -83,6 +94,19 @@ def borrar(campo, raio):
     return np.asarray(img).astype(np.float32) / 255.0
 
 
+# A margem e CURVA, e isso conserta um defeito de leitura, nao de realismo.
+#
+# Horizonte reto esta certo -- horizonte e reto. Mas praia reta nao existe, e uma
+# linha horizontal atravessando a largura inteira logo acima da barra de
+# reproducao nao le como praia: le como componente da interface fora do lugar. A
+# curva resolve dizendo "isto e paisagem" antes de o olho perguntar.
+#
+# O deslocamento entra por uma coordenada vertical deformada, com peso zero no
+# horizonte e um na margem: assim o horizonte continua reto e so a agua rasa e a
+# praia entortam junto.
+desloc = 0.085 * np.sin(u * 2.1 + 0.7) + 0.028 * np.sin(u * 5.3 - 1.9)
+vw = v - desloc * suavizar(HORIZONTE, MARGEM, v)
+
 # ---------------------------------------------------------------------------
 # 1. A cena: ceu, agua rasa, grama ao sol
 # ---------------------------------------------------------------------------
@@ -97,8 +121,8 @@ PARADAS = [
     (HORIZONTE, (0.925, 0.973, 1.000)),  # bruma do horizonte, quase branco
     (HORIZONTE + 0.004, (0.400, 0.812, 0.855)),  # a agua comeca -- degrau
     (0.700, (0.478, 0.878, 0.812)),
-    (MARGEM - 0.045, (0.639, 0.925, 0.702)),  # a agua vira verde ao chegar na margem
-    (MARGEM + 0.030, (0.639, 0.847, 0.373)),  # grama -- a espuma da margem dilui o degrau
+    (MARGEM - 0.030, (0.639, 0.925, 0.702)),  # a agua vira verde ao chegar na margem
+    (MARGEM + 0.022, (0.639, 0.847, 0.373)),  # grama -- a espuma da margem dilui o degrau
     (1.000, (0.784, 0.906, 0.404)),
 ]
 
@@ -106,8 +130,8 @@ cena = np.zeros((H, W, 3), np.float32)
 for i in range(len(PARADAS) - 1):
     t0, c0 = PARADAS[i]
     t1, c1 = PARADAS[i + 1]
-    faixa = (v >= t0) & (v <= t1)
-    k = np.where(faixa, (v - t0) / max(t1 - t0, 1e-6), 0.0)
+    faixa = (vw >= t0) & (vw <= t1)
+    k = np.where(faixa, (vw - t0) / max(t1 - t0, 1e-6), 0.0)
     for c in range(3):
         cena[:, :, c] += np.where(faixa, c0[c] + (c1[c] - c0[c]) * k, 0.0)
 
@@ -157,12 +181,12 @@ cena = cena + (nuv * 0.30)[:, :, None] * (1.0 - cena)
 # versao anterior) o fim das ondas deixava uma emenda reta atravessando a
 # imagem inteira, logo acima da grama -- e emenda reta e a unica coisa que nao
 # pode existir num campo que so tem formas moles.
-agua = suavizar(HORIZONTE - 0.002, HORIZONTE + 0.010, v) * (1.0 - suavizar(MARGEM - 0.055, MARGEM + 0.020, v))
-prof = np.clip((v - HORIZONTE) / (MARGEM - HORIZONTE), 0, 1)  # 0 longe, 1 perto
+agua = suavizar(HORIZONTE - 0.002, HORIZONTE + 0.010, vw) * (1.0 - suavizar(MARGEM - 0.055, MARGEM + 0.020, vw))
+prof = np.clip((vw - HORIZONTE) / (MARGEM - HORIZONTE), 0, 1)  # 0 longe, 1 perto
 
 freq = 6.0 + 190.0 * (1.0 - prof) ** 2.4
-fase = np.sin(freq * (v - HORIZONTE) + 0.9 * np.sin(u * 5.0 + 1.3))
-fase2 = np.sin(freq * 0.43 * (v - HORIZONTE) - 1.2 * np.sin(u * 3.1 - 0.6))
+fase = np.sin(freq * (vw - HORIZONTE) + 0.9 * np.sin(u * 5.0 + 1.3))
+fase2 = np.sin(freq * 0.43 * (vw - HORIZONTE) - 1.2 * np.sin(u * 3.1 - 0.6))
 ondas = (fase * 0.62 + fase2 * 0.38) * (0.030 + 0.105 * prof) * suavizar(0.0, 0.08, prof)
 ondas = ondas * agua
 
@@ -194,7 +218,7 @@ esticado = np.asarray(
     Image.fromarray((grade * 255).astype(np.uint8), "L").resize((W, H), Image.BICUBIC)
 ).astype(np.float32) / 255.0
 lasca = np.clip((esticado - 0.62) * 3.0, 0.0, 1.0)
-lasca *= 0.35 + 0.65 * np.clip(np.sin(freq * (v - HORIZONTE)), 0, 1)  # so nas cristas
+lasca *= 0.35 + 0.65 * np.clip(np.sin(freq * (vw - HORIZONTE)), 0, 1)  # so nas cristas
 # O brilho morre antes da margem: lasca de luz sobre grama le como grama seca.
 cintilar = lasca * caminho * (0.45 + 0.45 * (1.0 - prof)) * agua
 cintilar *= 1.0 - suavizar(0.72, 0.92, prof)
@@ -212,7 +236,7 @@ cena = cena + (ondas + cintilar * 0.85)[:, :, None] * np.array([1.0, 1.0, 0.96],
 grama = borrar(rng.random((H, W)).astype(np.float32), 22.0)
 grama += borrar(rng.random((H, W)).astype(np.float32), 7.0) * 0.55
 grama = (grama - grama.mean()) * 3.4
-mask_g = suavizar(MARGEM - 0.02, MARGEM + 0.07, v)
+mask_g = suavizar(MARGEM - 0.02, MARGEM + 0.07, vw)
 cena[:, :, 0] += grama * 0.055 * mask_g
 cena[:, :, 1] += grama * 0.080 * mask_g
 cena[:, :, 2] -= grama * 0.045 * mask_g
@@ -308,9 +332,24 @@ cena = np.clip(cena, 0.0, 1.0)
 vin = suavizar(0.45, 1.15, np.sqrt(((u - 0.5) * 1.05) ** 2 + ((v - 0.5) * 0.95) ** 2) * 2)
 cena = cena + vin[:, :, None] * (1.0 - cena) * 0.16
 
-# Grao fino. Existe por um motivo tecnico, nao estetico: degrade suave em 8 bits
-# faz banda visivel, e um grao de meio nivel quebra a banda sem aparecer.
-cena += (rng.random((H, W, 1)).astype(np.float32) - 0.5) * (1.6 / 255.0)
+# Dither ordenado (Bayer 8x8). Existe por um motivo tecnico, nao estetico: o
+# degrade do ceu percorre ~600px com 146 niveis de 8 bits, o que da um degrau
+# visivel a cada 4px. Um deslocamento de meio nivel antes do arredondamento
+# quebra a banda sem aparecer.
+#
+# Ordenado, e nao aleatorio: os dois resolvem a banda igual, mas ruido aleatorio
+# e incompressivel e custava 767KB de PNG. A matriz de Bayer se repete a cada 8
+# pixels nos dois eixos, e os filtros do PNG comem periodicidade.
+bayer = np.array([[0, 32, 8, 40, 2, 34, 10, 42],
+                  [48, 16, 56, 24, 50, 18, 58, 26],
+                  [12, 44, 4, 36, 14, 46, 6, 38],
+                  [60, 28, 52, 20, 62, 30, 54, 22],
+                  [3, 35, 11, 43, 1, 33, 9, 41],
+                  [51, 19, 59, 27, 49, 17, 57, 25],
+                  [15, 47, 7, 39, 13, 45, 5, 37],
+                  [63, 31, 55, 23, 61, 29, 53, 21]], np.float32)
+bayer = (bayer / 64.0 - 0.5) * (1.4 / 255.0)
+cena += np.tile(bayer, (H // 8 + 1, W // 8 + 1))[:H, :W, None]
 
 cena = np.clip(cena, 0.0, 1.0)
 

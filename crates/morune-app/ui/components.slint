@@ -290,11 +290,23 @@ export component ScrollFade {
     width: 100%;
     height: 100%;
 
+    // **So quando o tema nao pinta imagem de fundo.**
+    //
+    // Este degrade termina na cor que o hospedeiro passa em `base`, quase sempre
+    // `Theme.background`. Isso e verdade num tema de cor chapada e mentira num
+    // tema com `background.image`: ali quem esta atras do conteudo e a imagem, e
+    // a cor do token so aparece por transparencia. No Aquario o resultado era uma
+    // tira azul-claro de 22px desenhada sobre a agua verde, colada acima da barra
+    // de reproducao -- exatamente com a cara de componente fora do lugar.
+    //
+    // Nao ha cor honesta para fechar um degrade sobre imagem arbitraria, entao a
+    // resposta e nao desenhar. O que se perde e o aviso de "ha mais abaixo" nos
+    // temas com imagem; o que se ganha e nao afirmar uma cor que nao esta ali.
     Rectangle {
         width: 100%;
         height: Theme.space-lg;
         y: parent.height - self.height;
-        visible: root.active;
+        visible: root.active && Theme.background-image.width == 0;
         background: @linear-gradient(180deg, transparent 0%, root.base 100%);
     }
 }
