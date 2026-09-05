@@ -8,6 +8,32 @@
 Não são defeito: são transições ausentes onde a interface hoje teleporta. Os
 três são independentes — dá para fazer um e parar.
 
+## Resultado da execução (05/09/2026)
+
+| | situação |
+|---|---|
+| 7.1 troca de faixa | **não feito** — ver motivo abaixo |
+| 7.2 troca de página | **não feito, e a especificação estava errada** |
+| 7.3 toast | **feito**, só a entrada |
+
+**7.2 contradiz o plano 004.** A especificação mandava usar "o mesmo mecanismo
+do detalhe (`init` + opacidade)" na página. Só que o 004 acabou de **tirar** a
+opacidade da raiz da página de detalhe, justamente porque opacidade parcial num
+pai faz o renderizador compor a subárvore inteira numa camada — cem linhas com
+capa, a cada quadro. Aplicar isso em Início, Buscar e Biblioteca repetiria o
+defeito recém-corrigido, multiplicado por quatro telas.
+
+A versão correta desaparece com o atalho: cada página teria de decidir **o que**
+some, e Início não tem cabeçalho para servir de âncora. Isso é trabalho de
+desenho, não de execução, e fica em aberto em vez de entrar errado.
+
+**7.1 precisa de máquina de estados, não de uma linha.** Um fade cruzado na
+troca de faixa exige duas cópias do bloco vivas ao mesmo tempo, ou um `states`
+com transição disparada por `changed now-id`. Nenhuma das duas é a "uma linha"
+que o plano sugeria, e as duas precisam ser vistas em movimento para valer --
+que é justamente o que não dá para conferir por captura de tela. Fica para
+quando o Felipe puder olhar rodando.
+
 ## 7.1 — Troca de faixa no rodapé
 
 **Onde:** a área de capa e título do `Player` em `app.slint` — o bloco sob

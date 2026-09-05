@@ -179,7 +179,7 @@ component WindowControl inherits Rectangle {
     background: root.danger && touch.has-hover
         ? Theme.danger
         : (touch.pressed ? Theme.selected : (touch.has-hover ? Theme.hover : transparent));
-    animate background { duration: Theme.motion-fast; }
+    animate background { duration: Theme.motion-fast; easing: ease; }
 
     Path {
         width: Theme.control-icon-size;
@@ -338,7 +338,7 @@ component AccountRow inherits Rectangle {
     background: touch.has-hover ? Theme.hover : transparent;
 
     if touch.has-hover: Glass { radius: Theme.radius-md; }
-    animate background { duration: Theme.motion-fast; }
+    animate background { duration: Theme.motion-fast; easing: ease; }
 
     HorizontalLayout {
         padding-left: Theme.space-md;
@@ -381,7 +381,7 @@ component NavItem inherits Rectangle {
     background: root.active ? Theme.selected : (touch.has-hover ? Theme.hover : transparent);
 
     if root.active || touch.has-hover: Glass { radius: Theme.radius-md; }
-    animate background { duration: Theme.motion-fast; }
+    animate background { duration: Theme.motion-fast; easing: ease; }
 
     HorizontalLayout {
         padding-left: Theme.space-md;
@@ -435,7 +435,7 @@ component TrackListRow inherits Rectangle {
     height: Layout.row-height;
     border-radius: Theme.radius-sm;
     background: touch.has-hover ? Theme.hover : transparent;
-    animate background { duration: Theme.motion-fast; }
+    animate background { duration: Theme.motion-fast; easing: ease; }
 
     // So com o cursor em cima: sem realce a linha nao tem superficie, e um
     // brilho sobre o nada apareceria como faixa clara solta na lista.
@@ -584,7 +584,7 @@ component TrackListRow inherits Rectangle {
         // Nao curtida so aparece com o cursor na linha; curtida fica sempre,
         // porque ai ela e estado e nao acao.
         opacity: root.track.favorite || touch.has-hover || self.has-focus ? 1.0 : 0.0;
-        animate opacity { duration: Theme.motion-fast; }
+        animate opacity { duration: Theme.motion-fast; easing: ease-out; }
         clicked => { root.favorite-toggled(); }
     }
 
@@ -604,7 +604,7 @@ component TrackListRow inherits Rectangle {
         height: parent.height;
         x: favorite-button.x - Theme.space-md - self.width;
         opacity: touch.has-hover || fila.has-focus || proxima.has-focus ? 1.0 : 0.0;
-        animate opacity { duration: Theme.motion-fast; }
+        animate opacity { duration: Theme.motion-fast; easing: ease-out; }
 
         proxima := IconButton {
             x: 0;
@@ -689,11 +689,11 @@ component Card inherits Rectangle {
     drop-shadow-blur: touch.has-hover ? 20px : 10px;
     drop-shadow-offset-y: touch.has-hover ? 6px : 3px;
 
-    animate background { duration: Theme.motion-fast; }
+    animate background { duration: Theme.motion-fast; easing: ease; }
     // Mais lenta que a cor: e o movimento que le como o cartao subindo, e a
     // 120 ms ele pula em vez de subir. `motion-normal` estava declarado no tema
     // e quase sem uso.
-    animate drop-shadow-blur, drop-shadow-offset-y { duration: Theme.motion-normal; }
+    animate drop-shadow-blur, drop-shadow-offset-y { duration: Theme.motion-normal; easing: ease-out; }
 
     private property <bool> claro: Theme.background.to-hsv().value > 0.5;
 
@@ -848,7 +848,7 @@ component PlaylistNavItem inherits Rectangle {
     height: Layout.sidebar-playlist-height;
     border-radius: Theme.radius-sm;
     background: touch.has-hover ? Theme.surface-raised : transparent;
-    animate background { duration: Theme.motion-fast; }
+    animate background { duration: Theme.motion-fast; easing: ease; }
 
     if touch.has-hover: Glass { radius: Theme.radius-sm; }
 
@@ -1039,7 +1039,7 @@ component Sidebar inherits Rectangle {
                     background: marca-touch.has-hover ? Theme.hover : transparent;
 
                     if marca-touch.has-hover: Glass { radius: Theme.radius-md; }
-                    animate background { duration: Theme.motion-fast; }
+                    animate background { duration: Theme.motion-fast; easing: ease; }
 
                     Logo {
                         x: (parent.width - self.width) / 2;
@@ -1853,7 +1853,7 @@ component SortChip inherits Rectangle {
     background: root.active
         ? Theme.surface-raised
         : (toque.has-hover ? Theme.hover : transparent);
-    animate background { duration: Theme.motion-fast; }
+    animate background { duration: Theme.motion-fast; easing: ease; }
 
     if root.active || toque.has-hover: Glass { radius: Theme.radius-sm; }
 
@@ -1921,15 +1921,14 @@ component DetailPage inherits VerticalLayout {
     // `motion-slow`, e um tema que quer movimento zero ja zera os tokens de
     // movimento -- e ai isto vira a troca instantanea de antes, sem nenhum
     // caminho de codigo novo. `motion-slow` estava declarado com zero usos.
+    // **A entrada mora no cabecalho, e nao na raiz.** Opacidade parcial num pai
+    // faz o renderizador compor a subarvore inteira numa camada: com ela aqui,
+    // eram o cabecalho, o filtro, os chips e as cem linhas da lista, com capa em
+    // cada uma, compostos a cada quadro por 320 ms. A lista aparecer pronta nao
+    // e perda -- o que precisava de transicao era a troca de contexto, e quem
+    // conta isso e o cabecalho.
     private property <bool> entrou: false;
     init => { root.entrou = true; }
-    opacity: root.entrou ? 1.0 : 0.0;
-    animate opacity {
-        duration: Theme.motion-slow;
-        // Rapida no comeco e assentando no fim: e como a tela chega, e nao
-        // como ela e empurrada.
-        easing: ease-out;
-    }
 
     HorizontalLayout {
         spacing: Theme.space-md;
@@ -1958,6 +1957,14 @@ component DetailPage inherits VerticalLayout {
         vertical-stretch: 0;
         min-height: Layout.show-hero ? Layout.hero-height : 0px;
 
+        opacity: root.entrou ? 1.0 : 0.0;
+        animate opacity {
+            duration: Theme.motion-slow;
+            // Rapida no comeco e assentando no fim: e como a tela chega, e nao
+            // como ela e empurrada.
+            easing: ease-out;
+        }
+
         Artwork {
             source: root.cover;
             initial: root.cover-initial;
@@ -1969,13 +1976,24 @@ component DetailPage inherits VerticalLayout {
             // `alignment: end`, entao centralizar a capa deixava a capa
             // terminando 40px acima do botao Tocar -- duas coisas do mesmo
             // cabecalho apoiadas em linhas diferentes.
-            y: parent.height - self.height;
+            //
+            // Os 8px somados na entrada sao a fisicalidade que faltava: nada no
+            // mundo real aparece por transparencia, aparece chegando de algum
+            // lugar. Poucos de proposito -- o bastante para o olho ler
+            // "chegou", pouco para nao virar animacao de apresentacao. Vai no
+            // `y` dos filhos porque num `HorizontalLayout` quem e gerenciado e
+            // o `x`; o `y` do proprio cabecalho seria engolido pelo layout de
+            // cima.
+            y: parent.height - self.height + (root.entrou ? 0px : 8px);
+            animate y { duration: Theme.motion-slow; easing: ease-out; }
         }
 
         VerticalLayout {
             alignment: end;
             spacing: Theme.space-xs;
             horizontal-stretch: 1;
+            y: root.entrou ? 0px : 8px;
+            animate y { duration: Theme.motion-slow; easing: ease-out; }
 
             Text {
                 text: root.kind;
@@ -2028,11 +2046,14 @@ component DetailPage inherits VerticalLayout {
             Text {
                 // O singular tambem passa por aqui: uma lista de uma faixa so
                 // dizia "1 faixas carregadas".
+                // "Mostrando", e nao "carregadas": quem le quer saber o que
+                // esta vendo, nao o que o programa terminou de fazer. Carregar
+                // e vocabulario de quem escreveu o codigo.
                 text: root.loading
-                    ? "Carregando mais faixas..."
+                    ? "Carregando..."
                     : root.loaded-count == 1
-                        ? "1 faixa carregada"
-                        : root.loaded-count + " faixas carregadas";
+                        ? "Mostrando 1 faixa"
+                        : "Mostrando " + root.loaded-count + " faixas";
                 color: Theme.text-muted;
                 font-size: Theme.size-sm;
                 font-family: Theme.font-family;
@@ -2041,7 +2062,9 @@ component DetailPage inherits VerticalLayout {
             }
 
             if root.has-more && !root.loading: GhostButton {
-                label: "Carregar mais";
+                // Verbo do ponto de vista de quem clica: ele quer ver mais,
+                // nao carregar mais.
+                label: "Mostrar mais";
                 clicked => { root.load-more(); }
             }
         }
@@ -2324,7 +2347,7 @@ component OutputDeviceRow inherits Rectangle {
     height: 34px;
     border-radius: Theme.radius-sm;
     background: root.active ? Theme.selected : (touch.has-hover ? Theme.hover : transparent);
-    animate background { duration: Theme.motion-fast; }
+    animate background { duration: Theme.motion-fast; easing: ease; }
 
     touch := PressableArea {
         accessible-label: root.active
@@ -2371,7 +2394,7 @@ component ThemeRow inherits Rectangle {
     height: 56px;
     border-radius: Theme.radius-md;
     background: root.item.active ? Theme.selected : (touch.has-hover ? Theme.hover : Theme.surface);
-    animate background { duration: Theme.motion-fast; }
+    animate background { duration: Theme.motion-fast; easing: ease; }
 
     Glass { radius: Theme.radius-md; }
 
@@ -3226,6 +3249,35 @@ component SettingsPage inherits VerticalLayout {
     }
 }
 
+// A caixa da barra lateral, sem o conteudo dela.
+//
+// Existe porque a barra aparece em dois ramos -- `sidebar-position` 0 e 1 -- e
+// as cinco linhas da caixa estavam duplicadas nos dois. Duplicar valor de
+// movimento e o tipo de coisa que diverge na primeira vez que alguem ajusta um
+// lado e esquece o outro.
+//
+// A alternativa seria um componente que recebesse as vinte ligacoes do
+// `Sidebar` como propriedades, o que so trocaria uma duplicacao por outra.
+// `@children` deixa a caixa ser caixa e o conteudo continuar onde estava.
+//
+// Sobre o `animate width`: ele **fica**. Recolher a barra tem de refazer o
+// layout da area de conteudo, porque e isso que o gesto significa; nao ha
+// arranjo que evite o relayout sem quebrar a promessa. O custo e uma passada de
+// layout por quadro, por doze quadros, num gesto raro. Ver `plans/002`.
+component SidebarShell inherits Rectangle {
+    width: Layout.sidebar-collapsed
+        ? Layout.sidebar-collapsed-width
+        : Layout.sidebar-width;
+    background: Theme.sidebar-background;
+    animate width { duration: Theme.motion-normal; easing: ease-in-out; }
+
+    // Coluna de altura inteira: a base encosta na barra de reproducao, e a luz
+    // de retorno viraria um risco entre as duas.
+    Glass { bottom: false; }
+
+    @children
+}
+
 export component AppWindow inherits Window {
     // --- estado vindo do Rust ---
     in property <int> page: 0;
@@ -3509,17 +3561,7 @@ export component AppWindow inherits Window {
         if !root.mini-player: HorizontalLayout {
             vertical-stretch: 1;
 
-            if Layout.sidebar-position == 0: Rectangle {
-                width: Layout.sidebar-collapsed
-                    ? Layout.sidebar-collapsed-width
-                    : Layout.sidebar-width;
-                background: Theme.sidebar-background;
-                animate width { duration: Theme.motion-normal; easing: ease-in-out; }
-
-                // Coluna de altura inteira: a base encosta na barra de
-                // reproducao, e a luz de retorno viraria um risco entre as duas.
-                Glass { bottom: false; }
-
+            if Layout.sidebar-position == 0: SidebarShell {
                 Sidebar {
                     width: 100%;
                     height: 100%;
@@ -3701,8 +3743,27 @@ export component AppWindow inherits Window {
                 }
 
                 if root.status-message != "": Rectangle {
+                    // Entrada da mensagem.
+                    //
+                    // Mensagem que pisca na periferia da tela e o caso classico
+                    // do que a pessoa nao le porque nao percebeu chegar. Oito
+                    // pixels vindo de baixo dizem "isto acabou de chegar" sem
+                    // roubar o olho de onde ele estava.
+                    //
+                    // **So a entrada.** A caixa some por `if`, e elemento
+                    // removido da arvore nao anima a saida. Mante-la viva com
+                    // opacidade zero daria a saida, mas deixaria um retangulo
+                    // invisivel de 420px interceptando clique no canto da tela
+                    // -- caro demais pelo que se ganha.
+                    private property <bool> entrou: false;
+                    init => { self.entrou = true; }
+                    opacity: self.entrou ? 1.0 : 0.0;
+                    animate opacity { duration: Theme.motion-normal; easing: ease-out; }
+
                     x: parent.width - self.width - Theme.space-lg;
-                    y: parent.height - self.height - Theme.space-lg;
+                    y: parent.height - self.height - Theme.space-lg
+                        + (self.entrou ? 0px : 8px);
+                    animate y { duration: Theme.motion-normal; easing: ease-out; }
                     width: min(420px, parent.width - Theme.space-lg * 2);
                     height: max(40px, status-text.preferred-height + Theme.space-md * 2);
                     border-radius: Theme.radius-md;
@@ -3776,17 +3837,7 @@ export component AppWindow inherits Window {
                 }
             }
 
-            if Layout.sidebar-position == 1: Rectangle {
-                width: Layout.sidebar-collapsed
-                    ? Layout.sidebar-collapsed-width
-                    : Layout.sidebar-width;
-                background: Theme.sidebar-background;
-                animate width { duration: Theme.motion-normal; easing: ease-in-out; }
-
-                // Coluna de altura inteira: a base encosta na barra de
-                // reproducao, e a luz de retorno viraria um risco entre as duas.
-                Glass { bottom: false; }
-
+            if Layout.sidebar-position == 1: SidebarShell {
                 Sidebar {
                     width: 100%;
                     height: 100%;

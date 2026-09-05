@@ -333,7 +333,12 @@ impl AppState {
 
         let overrides = UserOverrides {
             font_scale: config.appearance.font_scale_override,
-            reduce_motion: config.appearance.reduce_motion,
+            // O sistema so **tira** movimento, nunca devolve: quem desligou
+            // "Mostrar animacoes no Windows" pediu isso a todo aplicativo, e um
+            // tema com movimento nao pode desfazer o pedido. O caminho
+            // contrario continua livre -- desligar aqui vale mesmo com a
+            // animacao do sistema ligada.
+            reduce_motion: config.appearance.reduce_motion || !system_animation_enabled(),
             sidebar_collapsed: false,
         };
 
@@ -748,7 +753,7 @@ impl AppState {
 
                 if detail.tracks.is_empty() && detail.cards.is_empty() {
                     self.status =
-                        format!("{} nao tem nada que o Morune consiga tocar.", detail.title);
+                        format!("Nenhuma faixa de {} pode ser tocada aqui.", detail.title);
                     return;
                 }
 
@@ -833,7 +838,7 @@ impl AppState {
                 tracks,
             } => {
                 if tracks.is_empty() {
-                    self.status = format!("{title} nao tem nada que o Morune consiga tocar.");
+                    self.status = format!("Nenhuma faixa de {title} pode ser tocada aqui.");
                     return;
                 }
                 self.status = format!("Tocando {title}.");
@@ -899,7 +904,7 @@ impl AppState {
                     self.liked
                         .tracks
                         .truncate(crate::browse::SHELF_TRACKS as usize);
-                    self.status = format!("{} foi adicionada as Musicas curtidas.", track.name);
+                    self.status = format!("{} foi adicionada às Músicas curtidas.", track.name);
                 } else {
                     self.status = "Faixa adicionada às Músicas curtidas do Spotify.".into();
                 }
@@ -915,7 +920,7 @@ impl AppState {
                     }
                 }
                 self.status = track
-                    .map(|track| format!("{} foi removida das Musicas curtidas.", track.name))
+                    .map(|track| format!("{} foi removida das Músicas curtidas.", track.name))
                     .unwrap_or_else(|| "Faixa removida das Músicas curtidas do Spotify.".into());
             }
             Err(message) => {
@@ -987,7 +992,7 @@ impl AppState {
         let fixadas = &mut self.config.navigation.pinned_playlists;
         self.status = if let Some(posicao) = fixadas.iter().position(|saved| saved == tag) {
             fixadas.remove(posicao);
-            format!("{nome} nao esta mais fixada.")
+            format!("{nome} não está mais fixada.")
         } else {
             fixadas.insert(0, tag.to_string());
             fixadas.truncate(PINNED_LIMIT);
@@ -2307,7 +2312,10 @@ impl AppState {
 
     pub fn set_reduce_motion(&mut self, on: bool) {
         self.config.appearance.reduce_motion = on;
-        self.overrides.reduce_motion = on;
+        // A escolha vai inteira para o arquivo, mas o que vale na tela ainda
+        // passa pelo sistema: desligar o ajuste aqui nao pode devolver
+        // movimento a quem desligou animacao no Windows.
+        self.overrides.reduce_motion = on || !system_animation_enabled();
         self.save_config();
     }
 
@@ -2569,7 +2577,7 @@ impl AppState {
         // A busca depende do catalogo, que so responde depois do login. Sem
         // sessao, dizer isso e melhor que uma lista vazia sem explicacao.
         if !self.session.state().is_logged_in() {
-            self.status = format!("Busca por \"{query}\" precisa de uma sessao ativa.");
+            self.status = "Entre no Spotify para buscar.".to_string();
             return;
         }
 
@@ -2706,7 +2714,10 @@ impl AppState {
         let saved = !self.liked_ids.contains(&id);
         let Some(browse) = self.session.browse_mut() else {
             self.liked_pending.remove(&id);
-            self.status = "Spotify indisponível nesta sessão.".into();
+            // Beco sem saida virou saida: a frase antiga dizia o estado e parava
+            // ali, sem dizer o que fazer com ele.
+            self.status =
+                "Curtida não salva: sem conexão com o Spotify. Feche e abra o Morune.".into();
             return;
         };
         browse.set_track_saved(id, saved);
@@ -3674,6 +3685,43 @@ fn image_bytes(image: &slint::Image) -> usize {
 /// cor, em qualquer sessao e em qualquer maquina. Uma cor sorteada a cada
 /// abertura seria pior que o simbolo repetido -- o item deixaria de ser
 /// reconhecivel de relance, que e justamente o que a ficha existe para dar.
+/// A pessoa pediu ao Windows para nao ver animacao?
+///
+/// `SPI_GETCLIENTAREAANIMATION` e o que Acessibilidade -> Efeitos visuais ->
+/// "Mostrar animacoes no Windows" liga e desliga. O Morune ja tinha um ajuste
+/// proprio de movimento; o que faltava era o pedido feito ao sistema chegar
+/// ate aqui -- ninguem troca de tema, nem abre as Configuracoes de um tocador
+/// de musica, para conseguir usar o computador.
+///
+/// **Lido uma vez, na abertura.** Reagir a `WM_SETTINGCHANGE` seria escopo
+/// proprio, e quase nenhum aplicativo faz.
+#[cfg(windows)]
+fn system_animation_enabled() -> bool {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        SystemParametersInfoW, SPI_GETCLIENTAREAANIMATION, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
+    };
+
+    let mut ligada = windows::core::BOOL(1);
+    // SAFETY: ponteiro para variavel local valida, do tamanho que a API pede.
+    let resultado = unsafe {
+        SystemParametersInfoW(
+            SPI_GETCLIENTAREAANIMATION,
+            0,
+            Some(&mut ligada as *mut _ as *mut core::ffi::c_void),
+            SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0),
+        )
+    };
+
+    // Falha na consulta nao pode desligar o movimento de quem nao pediu isso:
+    // sem resposta, vale o comportamento normal.
+    resultado.is_err() || ligada.as_bool()
+}
+
+#[cfg(not(windows))]
+fn system_animation_enabled() -> bool {
+    true
+}
+
 fn cover_badge(nome: &str) -> (slint::SharedString, f32) {
     // FNV-1a de 32 bits sobre o nome normalizado. Escolhido por ser curto e
     // determinista; nao ha nada criptografico em jogo, so espalhamento.

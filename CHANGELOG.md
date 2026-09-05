@@ -7,6 +7,37 @@ Versionamento semantico.
 
 ### Corrigido
 
+**A interface falava como log, e 16 animacoes corriam em linha reta**
+- **Seis textos de interface estavam sem acento**, o mesmo defeito que um ciclo
+  anterior declarou corrigido: "Musicas curtidas", "nao esta mais fixada",
+  "sessao ativa". Agora acentuados.
+- **"100 faixas carregadas" virou "Mostrando 100 faixas"** e **"Carregar mais"
+  virou "Mostrar mais"**. Carregar e o que o programa faz; quem le quer saber o
+  que esta vendo. Pelo mesmo motivo, "X nao tem nada que o Morune consiga
+  tocar" virou "Nenhuma faixa de X pode ser tocada aqui".
+- **Dois becos sem saida ganharam saida.** "Busca precisa de uma sessao ativa"
+  virou "Entre no Spotify para buscar", e "Spotify indisponivel nesta sessao"
+  passou a dizer o que fazer com isso.
+- **Toda animacao passa a declarar a curva.** O Slint tem `EasingCurve::Linear`
+  como padrao, entao 16 dos 20 blocos `animate` corriam em linha reta sem que
+  ninguem tivesse escolhido isso -- e velocidade constante e a unica curva que
+  nunca le como fisica, porque nao tem comeco nem fim. Cor e hover em `ease`,
+  entrada e saida em `ease-out`.
+- **O movimento passa a respeitar o Windows.** Quem desliga "Mostrar animacoes
+  no Windows" pede isso a todo aplicativo, e o Morune ignorava -- o unico jeito
+  de zerar movimento era um tema zerar os tokens, que e escolha do tema e nao da
+  pessoa. O sistema so **tira** movimento: desligar o ajuste do Morune continua
+  valendo com a animacao do sistema ligada.
+- **O fade de entrada saiu da raiz da pagina de detalhe.** Opacidade parcial num
+  pai faz o renderizador compor a subarvore inteira numa camada: eram cem linhas
+  com capa compostas a cada quadro por 320 ms. Agora so o cabecalho, com 8px de
+  deslocamento junto -- nada no mundo real aparece por transparencia, aparece
+  chegando de algum lugar.
+- **A mensagem de status entra em vez de piscar.** Oito pixels vindo de baixo,
+  em `motion_normal`.
+- A caixa da barra lateral virou componente (`SidebarShell`), acabando com a
+  duplicacao entre as duas posicoes da barra.
+
 **Raio aninhado errado, e capa sem separacao do fundo**
 - **O cartao passa a ter raio concentrico com a capa.** A regra e externo =
   interno + espacamento: a capa tem `radius_artwork` (6px) e fica a `space_sm`

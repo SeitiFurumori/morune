@@ -372,7 +372,7 @@ export component IconButton inherits Rectangle {
         : (touch.has-hover && root.enabled ? Theme.hover : transparent);
     opacity: root.enabled ? 1.0 : 0.4;
 
-    animate background { duration: Theme.motion-fast; }
+    animate background { duration: Theme.motion-fast; easing: ease; }
 
     Icon {
         glyph: root.glyph;
@@ -435,7 +435,7 @@ export component PrimaryButton inherits Rectangle {
     background: touch.has-hover ? Theme.accent-hover : Theme.accent;
     opacity: root.enabled ? 1.0 : 0.45;
 
-    animate background { duration: Theme.motion-fast; }
+    animate background { duration: Theme.motion-fast; easing: ease; }
 
     text := Text {
         text: root.label;
@@ -475,7 +475,7 @@ export component GhostButton inherits Rectangle {
         ? Theme.selected
         : (touch.has-hover ? Theme.hover : transparent);
 
-    animate background { duration: Theme.motion-fast; }
+    animate background { duration: Theme.motion-fast; easing: ease; }
 
     text := Text {
         text: root.label;
@@ -512,7 +512,7 @@ export component Toggle inherits Rectangle {
     background: root.checked ? Theme.accent : Theme.border;
     opacity: root.enabled ? 1.0 : 0.45;
 
-    animate background { duration: Theme.motion-fast; }
+    animate background { duration: Theme.motion-fast; easing: ease; }
 
     knob := Rectangle {
         width: parent.height - 6px;
@@ -523,7 +523,7 @@ export component Toggle inherits Rectangle {
         background: root.checked ? Theme.text-on-accent : Theme.text-muted;
 
         animate x { duration: Theme.motion-fast; easing: ease-in-out; }
-        animate background { duration: Theme.motion-fast; }
+        animate background { duration: Theme.motion-fast; easing: ease; }
     }
 
     if root.interactive: PressableArea {
@@ -687,7 +687,7 @@ export component Slider inherits Rectangle {
             height: 100%;
             border-radius: root.thickness / 2;
             background: touch.has-hover || touch.pressed ? Theme.accent-hover : Theme.accent;
-            animate background { duration: Theme.motion-fast; }
+            animate background { duration: Theme.motion-fast; easing: ease; }
         }
     }
 
@@ -980,7 +980,7 @@ export component MenuRow inherits Rectangle {
     border-radius: Theme.radius-sm;
     background: touch.has-hover ? Theme.hover : transparent;
 
-    animate background { duration: Theme.motion-fast; }
+    animate background { duration: Theme.motion-fast; easing: ease; }
 
     if touch.has-hover: Glass { radius: Theme.radius-sm; }
 

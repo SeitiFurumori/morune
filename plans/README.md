@@ -82,13 +82,13 @@ qualquer momento.
 | — | `code-review` | 0 | **feito** — 2 achados, os dois corrigidos |
 | — | `better-ui` | 1 | **feito** — 3 achados aplicados |
 | 002 | Barra lateral anima largura | 1 | **fechado sem mudanca** — severidade reavaliada para MEDIA |
-| — | `ux-writing` | 2 | pendente |
-| 001 | Easing linear | 3 | pendente |
-| 003 | Preferência de movimento do sistema | 3 (livre) | pendente |
-| 004 | Fade só no cabeçalho | 3 | pendente |
-| 005 | Entrada com deslocamento | 3 | pendente |
-| 006 | Duplicação da barra lateral | 3 | pendente — deixou de depender do 002 |
-| 007 | Oportunidades | 3 | pendente |
+| — | `ux-writing` | 2 | **feito** — 6 strings sem acento e 5 de linguagem de sistema |
+| 001 | Easing linear | 3 | **feito** — 20 blocos com curva declarada |
+| 003 | Preferência de movimento do sistema | 3 (livre) | **feito** |
+| 004 | Fade só no cabeçalho | 3 | **feito** |
+| 005 | Entrada com deslocamento | 3 | **feito** |
+| 006 | Duplicação da barra lateral | 3 | **feito** — `SidebarShell` com `@children` |
+| 007 | Oportunidades | 3 | **parcial** — 7.3 feito; 7.1 e 7.2 em aberto, com motivo |
 
 ## Restrição que vale para todos
 
