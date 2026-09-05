@@ -7,6 +7,34 @@ Versionamento semantico.
 
 ### Corrigido
 
+**A lista de faixas era um esqueleto com uma coluna de icones**
+- **Coluna de album.** Entre o nome do artista e os icones da direita havia mais
+  de mil pixels de nada numa janela comum, e era o que mais fazia a lista
+  parecer esboco. O dado ja vinha pronto no `TrackRow` e nao era desenhado em
+  lugar nenhum. Aparece so no modo de exibicao 0 -- e com isso `view_mode`, que
+  declarava tres modos e mudava uma coisa so, ganha o segundo efeito.
+- **As acoes de fila aparecem no hover, e nao o tempo todo.** Eram tres icones
+  fixos por linha: numa lista de cem faixas, trezentos icones competindo com cem
+  titulos, sendo que a acao mais comum -- tocar -- e clicar na linha. Feito com
+  opacidade e nao com `visible`, porque elemento invisivel sai da ordem do Tab; o
+  bloco tambem acende quando um dos botoes recebe foco, senao o foco pousaria num
+  botao invisivel.
+- **O accent volta a significar alguma coisa.** Estava em quinze lugares --
+  play, coracoes, pin, volume, item selecionado, chips. Numa biblioteca inteira
+  de curtidas, cem coracoes na cor de destaque destacam a regra. Coracao e pin
+  sairam; o destaque fica com a acao primaria e com a reproducao. O estado
+  continua indo para o leitor de tela: o `quiet` novo do `IconButton` tira o
+  realce visual sem tirar o `accessible-checked`.
+- **Os cartoes ganharam elevacao.** Fundo, cartao e barra lateral ficavam dentro
+  de uns 10% de luminosidade entre si, sem sombra e sem borda -- nada flutuava
+  sobre nada, e uma tela toda no mesmo plano le como esboco. A sombra sobe no
+  hover, em `motion_normal`.
+- **Abrir uma lista deixou de ser um corte seco.** E o gesto de navegacao
+  principal, e a tela inteira trocava de conteudo entre dois quadros. Agora ha um
+  fade curto em `motion_slow` -- outro token que estava declarado sem nenhum uso.
+  Tema que quer movimento zero ja zera os tokens de movimento, e ai a troca volta
+  a ser instantanea sem nenhum caminho de codigo novo.
+
 **A marca do Morune tinha virado sinonimo de "faltou alguma coisa"**
 - **Capa ausente deixa de ser o simbolo do aplicativo.** Numa unica tela de
   Inicio eram **dezenove logos** -- oito nos cartoes, dez na barra lateral, um no

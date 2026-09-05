@@ -488,6 +488,47 @@ component TrackListRow inherits Rectangle {
             }
         }
 
+        // Coluna de album.
+        //
+        // **Por que ela existe:** entre o nome do artista e os icones da direita
+        // havia mais de mil pixels de nada numa janela comum, e era o que mais
+        // fazia a lista parecer esqueleto. O dado ja vinha pronto no `TrackRow`
+        // e nao era desenhado em lugar nenhum.
+        //
+        // **A condicao e o modo do tema, e nao a largura da linha.** Ler
+        // `root.width` aqui fecha um ciclo em `layoutinfo-h` -- a largura da
+        // linha passaria a depender do que a linha decide mostrar, que depende
+        // da largura -- e o Slint recusa compilar. O modo tambem e a resposta
+        // certa de produto: quem escolhe lista compacta esta pedindo mais linha
+        // e menos coluna.
+        //
+        // De quebra, `view-mode` ganha o segundo efeito. Ele declarava tres
+        // modos e mudava uma coisa so, e essa e parte da razao de trocar de tema
+        // quase nao mudar nada.
+        if Layout.view-mode == 0: Rectangle {
+            // **Largura fixa, e nao esticada.** Duas tentativas com
+            // `horizontal-stretch` sairam com cada album comecando num x
+            // diferente: o elemento condicional nao repassa o stretch do filho
+            // ao layout, entao a celula recebia a largura preferida do texto e
+            // vinha centralizada. Com largura fixa a coluna comeca sempre no
+            // mesmo lugar, que e a unica coisa que faz uma coluna ser coluna.
+            //
+            // 240px cabem a maioria dos nomes de album; o resto elide.
+            width: 240px;
+            Text {
+                x: 0;
+                width: 100%;
+                height: 100%;
+                text: root.track.album;
+                color: Theme.text-muted;
+                font-size: Theme.size-sm;
+                font-family: Theme.font-family;
+                vertical-alignment: center;
+                horizontal-alignment: left;
+                overflow: elide;
+            }
+        }
+
         Rectangle { width: root.actions-width; }
 
         Text {
@@ -517,27 +558,59 @@ component TrackListRow inherits Rectangle {
         glyph: Icons.heart;
         filled: root.track.favorite;
         active: root.track.favorite;
+        // Ativo, mas sem o fundo pintado: numa biblioteca inteira de curtidas,
+        // `selected` em cem coracoes vira uma coluna de caixinhas coloridas. O
+        // estado continua indo para o leitor de tela por `active`; quem mostra
+        // na tela e o icone cheio.
+        quiet: true;
         checkable: true;
-        tint: Theme.text-muted;
+        // Curtida cheia usa `text`, e nao `accent`. Numa biblioteca inteira de
+        // curtidas, cem coracoes na cor de destaque destacam o que e a regra --
+        // e o destaque passa a nao significar nada. O accent fica com a acao
+        // primaria e com o que esta tocando.
+        tint: root.track.favorite ? Theme.text : Theme.text-muted;
+        // Nao curtida so aparece com o cursor na linha; curtida fica sempre,
+        // porque ai ela e estado e nao acao.
+        opacity: root.track.favorite || touch.has-hover || self.has-focus ? 1.0 : 0.0;
+        animate opacity { duration: Theme.motion-fast; }
         clicked => { root.favorite-toggled(); }
     }
 
-    if root.queue-actions: IconButton {
+    // Acoes de fila: aparecem no hover, nao o tempo todo.
+    //
+    // **O ruido que isto tira:** eram tres icones fixos em cada linha. Numa
+    // lista de cem faixas, trezentos icones competindo com cem titulos -- e a
+    // acao mais comum, tocar, nao e nenhum deles: e clicar na linha.
+    //
+    // **Opacidade e nao `visible`, e o foco entra na conta.** Elemento invisivel
+    // sai da ordem do Tab, e a navegacao por teclado e um ponto forte deste
+    // projeto para ser derrubado por polimento visual. Com opacidade o botao
+    // continua alcancavel -- e por isso o container tambem acende quando um
+    // deles recebe foco, senao o foco pousaria num botao invisivel.
+    if root.queue-actions: Rectangle {
+        width: fila.width * 2 + Theme.space-md;
+        height: parent.height;
         x: favorite-button.x - Theme.space-md - self.width;
-        y: favorite-button.y;
-        label: "Adicionar " + root.track.title + " ao fim da fila";
-        glyph: Icons.queue-add;
-        tint: Theme.text-muted;
-        clicked => { root.enqueue(); }
-    }
+        opacity: touch.has-hover || fila.has-focus || proxima.has-focus ? 1.0 : 0.0;
+        animate opacity { duration: Theme.motion-fast; }
 
-    if root.queue-actions: IconButton {
-        x: favorite-button.x - Theme.space-md * 2 - self.width * 2;
-        y: favorite-button.y;
-        label: "Tocar " + root.track.title + " a seguir";
-        glyph: Icons.queue-next;
-        tint: Theme.text-muted;
-        clicked => { root.play-next(); }
+        proxima := IconButton {
+            x: 0;
+            y: (parent.height - self.height) / 2;
+            label: "Tocar " + root.track.title + " a seguir";
+            glyph: Icons.queue-next;
+            tint: Theme.text-muted;
+            clicked => { root.play-next(); }
+        }
+
+        fila := IconButton {
+            x: proxima.width + Theme.space-md;
+            y: proxima.y;
+            label: "Adicionar " + root.track.title + " ao fim da fila";
+            glyph: Icons.queue-add;
+            tint: Theme.text-muted;
+            clicked => { root.enqueue(); }
+        }
     }
 
     if root.queue-management: IconButton {
@@ -582,7 +655,29 @@ component Card inherits Rectangle {
     height: conteudo.preferred-height;
     border-radius: Theme.radius-md;
     background: touch.has-hover ? Theme.surface-raised : Theme.surface;
+
+    // Elevacao.
+    //
+    // **O que isto conserta:** fundo, cartao e barra lateral ficavam dentro de
+    // uns 10% de luminosidade entre si, sem sombra e sem borda. Nada flutuava
+    // sobre nada, e uma tela inteira no mesmo plano le como esboco. A sombra e
+    // o unico jeito de separar planos sem gastar mais um passo de cor -- que o
+    // contrato de tema nao tem para dar.
+    //
+    // A intensidade sai do proprio tema, e nao de um slot novo: em tema claro a
+    // mesma sombra de tema escuro apareceria como sujeira cinza em volta do
+    // cartao.
+    drop-shadow-color: root.claro ? #00000024 : #00000073;
+    drop-shadow-blur: touch.has-hover ? 20px : 10px;
+    drop-shadow-offset-y: touch.has-hover ? 6px : 3px;
+
     animate background { duration: Theme.motion-fast; }
+    // Mais lenta que a cor: e o movimento que le como o cartao subindo, e a
+    // 120 ms ele pula em vez de subir. `motion-normal` estava declarado no tema
+    // e quase sem uso.
+    animate drop-shadow-blur, drop-shadow-offset-y { duration: Theme.motion-normal; }
+
+    private property <bool> claro: Theme.background.to-hsv().value > 0.5;
 
     Glass { radius: Theme.radius-md; }
 
@@ -771,7 +866,9 @@ component PlaylistNavItem inherits Rectangle {
         // que aquela lista esta ali.
         if Layout.sidebar-labels-shown && root.item.pinned: Icon {
             glyph: Icons.pin;
-            tint: Theme.accent;
+            // Fora do accent pelo mesmo motivo do coracao: destaque gasto em
+            // marca de estado nao sobra para a acao primaria.
+            tint: Theme.text-muted;
             size: 14px;
             y: (parent.height - self.height) / 2;
         }
@@ -1786,7 +1883,26 @@ component DetailPage inherits VerticalLayout {
     callback enqueue(string);
     callback load-more();
 
-    spacing: Theme.space-md;
+    // Entrada da tela.
+    //
+    // **Por que ha movimento aqui e quase em lugar nenhum.** Abrir uma lista e
+    // o gesto de navegacao principal do aplicativo, e ate agora era um corte
+    // seco: a tela inteira trocava de conteudo entre dois quadros. Um fade
+    // curto e o que separa "navegou" de "piscou".
+    //
+    // **Nao ha portao de tela cheia a acrescentar aqui:** a duracao vem de
+    // `motion-slow`, e um tema que quer movimento zero ja zera os tokens de
+    // movimento -- e ai isto vira a troca instantanea de antes, sem nenhum
+    // caminho de codigo novo. `motion-slow` estava declarado com zero usos.
+    private property <bool> entrou: false;
+    init => { root.entrou = true; }
+    opacity: root.entrou ? 1.0 : 0.0;
+    animate opacity {
+        duration: Theme.motion-slow;
+        // Rapida no comeco e assentando no fim: e como a tela chega, e nao
+        // como ela e empurrada.
+        easing: ease-out;
+    }
 
     HorizontalLayout {
         spacing: Theme.space-md;

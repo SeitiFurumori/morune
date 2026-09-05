@@ -350,19 +350,38 @@ export component IconButton inherits Rectangle {
     in property <bool> active: false;
     in property <bool> checkable: false;
     in property <bool> enabled: true;
+    /// Para quem revela o botao so no hover: sem isto, um botao com opacidade
+    /// zero continua no caminho do Tab e o foco desaparece da tela.
+    out property <bool> has-focus: touch.has-focus;
+    /// Ativo sem pintar o fundo.
+    ///
+    /// Existe para nao ter de escolher entre acessibilidade e ruido visual:
+    /// numa lista de curtidas, `active` em cem coracoes desenha cem caixinhas
+    /// coloridas, mas tirar `active` tiraria junto o `accessible-checked` que
+    /// diz ao leitor de tela que a faixa esta curtida. Com isto o estado
+    /// continua sendo anunciado e quem mostra que esta marcado e o proprio
+    /// icone, cheio em vez de contornado.
+    in property <bool> quiet: false;
     callback clicked();
 
     width: root.button-size;
     height: root.button-size;
     border-radius: min(Theme.control-button-radius, root.button-size / 2);
-    background: root.active ? Theme.selected : (touch.has-hover && root.enabled ? Theme.hover : transparent);
+    background: root.active && !root.quiet
+        ? Theme.selected
+        : (touch.has-hover && root.enabled ? Theme.hover : transparent);
     opacity: root.enabled ? 1.0 : 0.4;
 
     animate background { duration: Theme.motion-fast; }
 
     Icon {
         glyph: root.glyph;
-        tint: root.active ? Theme.accent : root.tint;
+        // `quiet` tambem tira o accent do icone, e nao so o fundo do botao. Era
+        // aqui que os cem coracoes de uma biblioteca de curtidas viravam cem
+        // manchas na cor de destaque: quem esta ativo pinta de accent, e curtir
+        // e a regra e nao a excecao numa lista de curtidas. Quem quer o accent
+        // continua tendo -- basta nao pedir `quiet`.
+        tint: root.active && !root.quiet ? Theme.accent : root.tint;
         size: root.icon-size;
         filled: root.filled;
     }
