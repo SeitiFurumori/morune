@@ -33,8 +33,18 @@ accent_hover = "#7bd8ff"
 # 0x77 e o menor alfa que da 3:1 no pior caso de area de trabalho, o minimo
 # da WCAG 1.4.11 para limite grafico.
 border = "#ffffff77"
-hover = "#ffffff1a"
-selected = "#ffffff2e"
+# **Realce derivado do accent, e nao de branco.**
+#
+# `hover` e `selected` eram branco (ou preto) de baixa opacidade em quase todos
+# os temas. Funciona como realce, mas nao pertence a tema nenhum: trocar de tema
+# nao mudava a cor de passar o cursor. O realce e a resposta mais frequente que a
+# interface da -- acontece a cada linha sob o cursor --, e deixa-lo neutro joga
+# fora a chance mais barata de o tema aparecer.
+#
+# Alfa baixo de proposito: isto fica ATRAS de texto, entao o que se quer e um
+# vies de matiz, nao um bloco de cor.
+hover = "#5ac8fa2e"
+selected = "#5ac8fa52"
 focus_ring = "#5ac8fa"
 
 success = "#5ce0a8"

@@ -1,7 +1,7 @@
 schema_version = 1
 id = "paper"
 name = "Paper"
-version = "1.1.0"
+version = "1.2.0"
 author = "Morune"
 description = "Tema claro editorial: serifa no titulo, sans na interface, quinas retas e barra lateral a direita."
 license = "MIT"

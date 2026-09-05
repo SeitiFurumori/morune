@@ -80,8 +80,16 @@ impl Default for ColorTokens {
             // entre uma regiao e a seguinte.
             border: Color::rgba(0xff, 0xff, 0xff, 0x57),
             border_highlight: Color::rgba(0x00, 0x00, 0x00, 0x00),
-            hover: Color::rgba(0xff, 0xff, 0xff, 0x0d),
-            selected: Color::rgba(0xff, 0xff, 0xff, 0x1a),
+            // Realce derivado do `accent`, e nao branco de baixa opacidade.
+            //
+            // Branco funciona como realce mas nao pertence a tema nenhum:
+            // trocar de tema nao mudava a cor de passar o cursor. O realce e a
+            // resposta mais frequente que a interface da -- uma vez por linha
+            // sob o cursor --, e deixa-lo neutro joga fora a chance mais barata
+            // de o tema aparecer. Alfa baixo porque isto fica ATRAS de texto: o
+            // que se quer e vies de matiz, nao bloco de cor.
+            hover: Color::rgba(0x6d, 0xd4, 0x9e, 0x24),
+            selected: Color::rgba(0x6d, 0xd4, 0x9e, 0x3d),
             focus_ring: Color::rgb(0x6d, 0xd4, 0x9e),
             success: Color::rgb(0x5c, 0xc9, 0x8a),
             warning: Color::rgb(0xe4, 0xb3, 0x5c),

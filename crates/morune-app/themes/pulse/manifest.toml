@@ -1,7 +1,7 @@
 schema_version = 1
 id = "pulse"
 name = "Pulse"
-version = "1.0.0"
+version = "1.1.0"
 author = "Morune"
 description = "Escuro saturado, cantos muito arredondados e animacao rapida. Herda a composicao do tema embutido."
 license = "MIT"

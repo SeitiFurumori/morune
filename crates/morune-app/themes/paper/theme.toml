@@ -49,8 +49,18 @@ accent_hover = "#96382a"
 # 9% de preto ela sumia no fundo claro, e nao dava para ver onde a musica
 # estava.
 border = "#0000006c"
-hover = "#0000000a"
-selected = "#00000014"
+# **Realce derivado do accent, e nao de branco.**
+#
+# `hover` e `selected` eram branco (ou preto) de baixa opacidade em quase todos
+# os temas. Funciona como realce, mas nao pertence a tema nenhum: trocar de tema
+# nao mudava a cor de passar o cursor. O realce e a resposta mais frequente que a
+# interface da -- acontece a cada linha sob o cursor --, e deixa-lo neutro joga
+# fora a chance mais barata de o tema aparecer.
+#
+# Alfa baixo de proposito: isto fica ATRAS de texto, entao o que se quer e um
+# vies de matiz, nao um bloco de cor.
+hover = "#7d2b2014"
+selected = "#7d2b2029"
 focus_ring = "#7d2b20"
 
 success = "#38603d"

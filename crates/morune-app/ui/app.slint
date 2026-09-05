@@ -1516,10 +1516,32 @@ component ScrollableCardShelf inherits VerticalLayout {
     in property <[CardItem]> items;
     callback activated(string);
 
-    spacing: Theme.space-sm;
     vertical-stretch: 0;
 
-    SectionTitle { text: root.title; }
+    // **A folga existe para a sombra do cartao caber.**
+    //
+    // `Flickable` recorta o que passa do viewport, e o viewport tinha
+    // exatamente a altura dos cartoes. A sombra do `Card` alcanca
+    // `blur + offset-y` para baixo -- 26px sob o cursor -- e era cortada numa
+    // linha reta. Na tela isso nao le como sombra: le como a sombra parando do
+    // nada, que foi como o defeito chegou.
+    //
+    // Os quatro valores saem da propria sombra, e nao de um numero escolhido:
+    // 20px de desfoque com 6px de deslocamento vertical alcancam 26 para baixo,
+    // 14 para cima e 20 para os lados. O `spacing` do painel vai a zero porque
+    // a folga de cima ja e maior que ele era.
+    private property <length> folga-lado: 20px;
+    private property <length> folga-cima: 14px;
+    private property <length> folga-baixo: 26px;
+
+    spacing: 0px;
+
+    // O titulo acompanha o recuo lateral da folga, senao ele e a primeira capa
+    // deixam de estar na mesma coluna.
+    HorizontalLayout {
+        padding-left: root.folga-lado;
+        SectionTitle { text: root.title; }
+    }
 
     Flickable {
         height: cards.preferred-height;
@@ -1527,6 +1549,10 @@ component ScrollableCardShelf inherits VerticalLayout {
         viewport-height: self.height;
 
         cards := HorizontalLayout {
+            padding-left: root.folga-lado;
+            padding-right: root.folga-lado;
+            padding-top: root.folga-cima;
+            padding-bottom: root.folga-baixo;
             spacing: Theme.space-md;
             alignment: start;
             for item in root.items: Card {
