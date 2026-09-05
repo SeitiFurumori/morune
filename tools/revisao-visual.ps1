@@ -189,8 +189,22 @@ try {
 
         # So a linha do tema muda. O resto da configuracao -- conta, opacidade,
         # preferencias de audio -- fica intacto.
-        $novo = $backup -replace '(?m)^theme\s*=\s*".*"$', "theme = `"$tema`""
-        if ($novo -eq $backup) { Write-Error "nao achei a linha 'theme =' no config" }
+        # Sem ancora de fim no padrao: em .NET o cifrao do modo multilinha casa
+        # antes da quebra de linha, e com terminacao CRLF sobra o retorno de
+        # carro no meio -- o padrao nao casava e o script morria dizendo que nao
+        # achou a linha. O arquivo nasce com LF e vira CRLF na primeira gravacao
+        # por `Set-Content`, entao o defeito so aparecia da segunda execucao em
+        # diante.
+        #
+        # A conferencia e sobre o PADRAO ter casado, e nao sobre o texto ter
+        # mudado: quando o tema pedido ja e o que esta ativo, a substituicao
+        # devolve o mesmo arquivo, e comparar os dois acusaria falta de uma linha
+        # que esta ali.
+        $padrao = '(?m)^theme\s*=\s*"[^"]*"'
+        if (-not [regex]::IsMatch($backup, $padrao)) {
+            Write-Error "nao achei a linha 'theme =' no config"
+        }
+        $novo = $backup -replace $padrao, "theme = `"$tema`""
         Set-Content $configPath $novo -Encoding utf8
 
         $proc = Start-Process -FilePath $Exe -PassThru

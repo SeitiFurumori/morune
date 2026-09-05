@@ -2440,9 +2440,11 @@ component OutputDeviceRow inherits Rectangle {
             horizontal-stretch: 1;
         }
 
+        // `text`, e nao `accent`: a linha ativa ja tem `selected` de fundo, que
+        // agora e o proprio accent diluido. Accent sobre accent nao le.
         if root.active: Text {
             text: "Em uso";
-            color: Theme.accent;
+            color: Theme.text;
             font-size: Theme.size-xs;
             font-family: Theme.font-family;
             vertical-alignment: center;
@@ -2507,9 +2509,11 @@ component ThemeRow inherits Rectangle {
             }
         }
 
+        // Mesmo motivo do "Em uso" da saida de audio: o fundo da linha ativa e
+        // `selected`, que deriva do accent.
         if root.item.active: Text {
             text: "Ativo";
-            color: Theme.accent;
+            color: Theme.text;
             font-size: Theme.size-sm;
             font-weight: Theme.weight-medium;
             font-family: Theme.font-family;

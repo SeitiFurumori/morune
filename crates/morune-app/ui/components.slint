@@ -405,9 +405,12 @@ export component IconButton inherits Rectangle {
     width: root.button-size;
     height: root.button-size;
     border-radius: min(Theme.control-button-radius, root.button-size / 2);
-    background: root.active && !root.quiet
-        ? Theme.selected
-        : (touch.has-hover && root.enabled ? Theme.hover : transparent);
+    // **Ativo nao pinta o fundo.** Quem diz "ligado" e o icone em `accent`, logo
+    // abaixo. Pintar tambem o fundo com `selected` poe accent atras de accent --
+    // e desde que `selected` passou a derivar do proprio `accent` os dois ficaram
+    // a um passo um do outro. Icone e limite grafico: a WCAG 1.4.11 pede 3:1, e
+    // accent sobre accent a 30% nao chega perto disso.
+    background: touch.has-hover && root.enabled ? Theme.hover : transparent;
     opacity: root.enabled ? 1.0 : 0.4;
 
     animate background { duration: Theme.motion-fast; easing: ease; }
@@ -506,11 +509,23 @@ export component GhostButton inherits Rectangle {
     min-width: text.preferred-width + Theme.space-md * 2;
     border-radius: Theme.radius-md;
     border-width: Theme.border-width;
-    // Ativo se distingue por contorno e cor de texto, nao por sombra: e a
-    // mesma regra que o resto da interface segue.
+    // **A opcao escolhida e solida, e nao contorno com texto colorido.**
+    //
+    // Era `background: selected` com `color: accent`. Ja era arriscado -- dois
+    // tons da mesma cor, um atras do outro -- e virou defeito no dia em que
+    // `selected` passou a derivar do `accent`: no Aquario o chip "320 kbps" saiu
+    // com texto #2fc0ee sobre fundo #2fc0ee a 30%, medidos na captura em
+    // **1.39:1**. Ilegivel, e ilegivel em todos os temas ao mesmo tempo, porque
+    // a colisao e estrutural e nao de paleta.
+    //
+    // Preencher com `accent` e escrever com `text-on-accent` resolve por
+    // construcao: `text_on_accent` existe no contrato justamente para ser lido
+    // sobre `accent`, e os temas de fabrica o declaram com folga -- 7.8:1 no
+    // Aquario, 10:1 no Cristal, 8.9:1 no Paper, 6.5:1 no Pulse. E o desenho
+    // normal de um grupo de opcoes: o segmento escolhido e cheio.
     border-color: root.active ? Theme.accent : Theme.border;
     background: root.active
-        ? Theme.selected
+        ? Theme.accent
         : (touch.has-hover ? Theme.hover : transparent);
 
     animate background { duration: Theme.motion-fast; easing: ease; }
@@ -519,7 +534,7 @@ export component GhostButton inherits Rectangle {
         text: root.label;
         color: root.danger
             ? Theme.danger
-            : (root.active ? Theme.accent : Theme.text);
+            : (root.active ? Theme.text-on-accent : Theme.text);
         font-size: Theme.size-sm;
         font-family: Theme.font-family;
         vertical-alignment: center;
