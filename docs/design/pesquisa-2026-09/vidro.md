@@ -9,11 +9,15 @@ O material atual dos dois temas está medido em
 
 ## 1. Liquid Glass, pela sessão da Apple
 
-Fonte: [Meet Liquid Glass, WWDC25](https://developer.apple.com/videos/play/wwdc2025/219/).
+Fontes primárias: a sessão [Meet Liquid Glass, WWDC25](https://developer.apple.com/videos/play/wwdc2025/219/)
+e as páginas [Materials](https://developer.apple.com/design/human-interface-guidelines/materials)
+e [Color](https://developer.apple.com/design/human-interface-guidelines/color)
+da HIG.
 
-A HIG em si não foi lida: `developer.apple.com/design` é aplicação JavaScript e
-devolve página vazia a quem busca, e o endpoint JSON que ela usa responde 404. A
-sessão do WWDC, essa sim, veio inteira — e é fonte primária.
+**Nota de método:** a HIG é aplicação JavaScript e devolve página vazia a quem a
+busca por HTTP; o endpoint JSON dela responde 404. As duas páginas foram lidas
+pelo navegador do Felipe, que executa o script — é a diferença entre citar a
+Apple e citar quem leu a Apple.
 
 ### O que é
 
@@ -98,6 +102,77 @@ existe, e é justamente a que separa camada de cromo de camada de conteúdo.
 | Reduce Transparency | mais fosco, esconde mais do que está atrás |
 | Increase Contrast | peças quase pretas ou brancas, com borda contrastante |
 | Reduce Motion | reduz efeitos e desliga a elasticidade |
+
+### A regra da camada, nas palavras da Apple
+
+> "**Don't use Liquid Glass in the content layer.** Liquid Glass works best when
+> it provides a clear distinction between interactive elements and content, and
+> including it in the content layer can result in unnecessary complexity and a
+> confusing visual hierarchy. **Instead, use standard materials for elements in
+> the content layer**, such as app backgrounds."
+
+Com **uma exceção nomeada**, que interessa ao Morune:
+
+> "An exception to this is for controls in the content layer with a transient
+> interactive element like **sliders and toggles**; in these cases, the element
+> takes on a Liquid Glass appearance to emphasize its interactivity **when a
+> person activates it**."
+
+Ou seja: o `Slider` de progresso e de volume pode legitimamente virar vidro **no
+momento em que é usado** — e só nele.
+
+E o teto de uso:
+
+> "Use Liquid Glass effects sparingly... **Limit these effects to the most
+> important functional elements in your app.**"
+
+### Materiais padrão: quatro espessuras, escolhidas por significado
+
+Para a camada de conteúdo a Apple manda usar **material padrão**, que vem em
+`ultraThin`, `thin`, `regular` e `thick`.
+
+> "Thicker materials, which are more opaque, can provide better contrast for
+> text and other elements with fine features. Thinner materials, which are more
+> translucent, can help people retain their context."
+
+E a regra de escolha, que é a que o Morune quebra ao escolher superfície por cor:
+
+> "**Avoid selecting a material or effect based on the apparent color it imparts
+> to your interface**, because system settings can change its appearance and
+> behavior. Instead, match the material or vibrancy style to your specific use
+> case."
+
+### Cor no vidro — e aqui o Bruma acerta metade
+
+> "**By default, Liquid Glass has no inherent color**, and instead takes on
+> colors from the content directly behind it."
+
+> "For smaller elements like toolbars and tab bars, the system can adapt Liquid
+> Glass between a light and dark appearance in response to the underlying
+> content. By default, symbols and text on these elements follow a
+> **monochromatic** color scheme... **Liquid Glass appears more opaque in larger
+> elements like sidebars** to preserve legibility."
+
+> "Apply color sparingly... **To emphasize primary actions, apply color to the
+> background rather than to symbols or text.** ... **Refrain from adding color to
+> the background of multiple controls.**"
+
+> "If your app features colorful backgrounds or visually rich content, **prefer a
+> monochromatic appearance** for toolbars and tab bars."
+
+Isso **corrige** o que a versão anterior desta pesquisa disse. O cromo
+monocromático do Bruma está certo — um tocador de música é conteúdo colorido, e
+monocromático é a recomendação. A barra lateral ser mais opaca (70%) que a
+superfície (12%) também está certo, e pela razão que a Apple dá.
+
+O que falta é o **um** lugar onde a cor é obrigatória: a ação primária. Com
+`accent = #f2f4f8`, o botão Tocar não tem cor de fundo nenhuma — o tema aplicou
+"monocromático" também onde a regra pede exceção.
+
+### Valor concreto para a variante Clear
+
+> "If the underlying content is bright, consider adding a **dark dimming layer
+> of 35% opacity**."
 
 ### O que a Apple proíbe
 
@@ -224,12 +299,37 @@ inventado.
 
 ### Os motivos, pela comunidade
 
-Fonte: [frutiger-aero.org](https://frutiger-aero.org/frutiger-aero) e a Wikipédia.
+Fontes: [CARI](https://cari.institute/aesthetics/frutiger-aero) — lida pelo
+navegador, porque recusa acesso automatizado —,
+[frutiger-aero.org](https://frutiger-aero.org/frutiger-aero) e a Wikipédia.
 
 Período 2004–2013, sucedendo o Y2K. Motivos: esqueuomorfismo, textura
 brilhante, gradiente linear, *lens flare* e bokeh, céu nublado, água, bolhas,
 peixe tropical, aurora, objeto 3D renderizado. Paleta de azuis e verdes "to
 align with its natural influences", mais amarelos.
+
+A lista da própria CARI — a instituição que cunhou o nome, lida direto do site —
+é mais curta e mais precisa:
+
+> Skeumorphism in UI/UX design · Glossy design · **Frutiger/humanist sans-serif
+> typefaces** · **Tertiary color palettes** · Glassy/transparent materials ·
+> Photographs of aurora borealis · Bokeh photography · **Macro photographs of
+> grass**
+
+Dois itens dessa lista não estavam em nenhuma outra fonte e mudam decisão:
+
+**"Tertiary color palettes."** Não é "azul e verde": é a família terciária —
+turquesa, verde-limão, âmbar, azul-celeste. É por isso que o estilo lê como
+ciano e lima, e não como azul e verde primários. O `accent = #2fc0ee` do Aquário
+já está nessa família; a `surface = #b7e86a` também. O problema nunca foi a
+matiz — foi a camada em que ela foi aplicada.
+
+**"Macro photographs of grass."** Fotografia macro, não ilustração. É uma
+instrução direta para o `fundo.png`, hoje gerado por script como campo de
+gradiente com esferas.
+
+A CARI credita o nome a **Froyo Tam e Sofi Xian**, e lista como nomes
+alternativos "Aero, Aqua, Web 2.0".
 
 Fim do estilo: substituído pelo design plano no começo dos anos 2010, com o
 **Frutiger Metro** do Windows 8 (2012) como transição.
@@ -303,9 +403,12 @@ o que faz o vidro estar *acima*. Sem ela o material é um véu na mesma altura.
 **4. Trocar acrílico por Mica na janela.** É a recomendação da plataforma, e
 resolve de graça o pior caso do projeto (o app sobre um jogo em tela cheia).
 
-**5. Tinta que significa.** O `accent` do Bruma é `#f2f4f8`, branco frio, da
-mesma família do texto: o tema não tem cor de ação. E a tinta do Liquid Glass é
-uma faixa de tons mapeada ao brilho do que está atrás, não uma cor chapada.
+**5. Cor só na ação primária, e ela está faltando.** O cromo monocromático do
+Bruma está **certo** — a HIG recomenda monocromático para app de conteúdo
+colorido. O erro é ter aplicado isso também ao único lugar em que a cor é
+obrigatória: "to emphasize primary actions, apply color to the background". Com
+`accent = #f2f4f8`, o botão Tocar não tem cor. E a tinta do Liquid Glass é uma
+faixa de tons mapeada ao brilho do que está atrás, não uma cor chapada por cima.
 
 **6. O Aquário inverteu as camadas, e esse é o erro maior do tema.**
 `surface = #b7e86a` põe verde-limão a 90% no painel. Verde e azul são a paleta do
