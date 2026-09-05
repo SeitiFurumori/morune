@@ -468,6 +468,13 @@ component TrackListRow inherits Rectangle {
         VerticalLayout {
             alignment: center;
             horizontal-stretch: 1;
+            // **Nao anuncia largura preferida.** Sem isto o layout entrega a
+            // cada celula a largura do proprio texto **mais** a fatia do espaco
+            // livre, e a coluna de album passava a comecar num x diferente em
+            // cada linha -- proporcional ao tamanho do titulo. Zerado, a divisao
+            // e so do espaco livre: metade para cada, sempre no mesmo lugar.
+            min-width: 0px;
+            preferred-width: 0px;
 
             Text {
                 text: root.track.title;
@@ -505,17 +512,22 @@ component TrackListRow inherits Rectangle {
         // De quebra, `view-mode` ganha o segundo efeito. Ele declarava tres
         // modos e mudava uma coisa so, e essa e parte da razao de trocar de tema
         // quase nao mudar nada.
-        if Layout.view-mode == 0: Rectangle {
-            // **Largura fixa, e nao esticada.** Duas tentativas com
-            // `horizontal-stretch` sairam com cada album comecando num x
-            // diferente: o elemento condicional nao repassa o stretch do filho
-            // ao layout, entao a celula recebia a largura preferida do texto e
-            // vinha centralizada. Com largura fixa a coluna comeca sempre no
-            // mesmo lugar, que e a unica coisa que faz uma coluna ser coluna.
-            //
-            // 240px cabem a maioria dos nomes de album; o resto elide.
-            width: 240px;
-            Text {
+        // **A celula existe sempre; quem e condicional e o texto dentro dela.**
+        // Um `if` no lugar da celula nao repassa `horizontal-stretch` ao
+        // layout: a celula recebia a largura preferida do texto e vinha
+        // centralizada, cada album comecando num x diferente. Com largura fixa
+        // a coluna ficava certa mas grudada nos icones, e o vazio so mudava de
+        // lugar -- passava a ficar entre o artista e o album.
+        //
+        // Assim titulo e album dividem o espaco livre pela metade: duas colunas
+        // de verdade, cada uma comecando sempre no mesmo x, e o vazio deixa de
+        // existir em vez de se mudar.
+        Rectangle {
+            horizontal-stretch: Layout.view-mode == 0 ? 1 : 0;
+            // Pelo mesmo motivo do titulo: a celula so divide o espaco livre.
+            min-width: 0px;
+            preferred-width: 0px;
+            if Layout.view-mode == 0: Text {
                 x: 0;
                 width: 100%;
                 height: 100%;
@@ -1241,9 +1253,15 @@ component PlayerBar inherits Rectangle {
                     y: (parent.height - self.height) / 2;
                 }
 
+                // Sem `horizontal-stretch`: com ele, o titulo esticava ate o
+                // fim da coluna de 26% e levava o coracao junto, que ia parar
+                // no meio da barra, longe da faixa a que pertence e longe dos
+                // controles. Agora titulo e coracao ficam colados, o teto
+                // impede que um nome comprido empurre o resto, e o vazio da
+                // coluna vai para depois deles.
                 VerticalLayout {
                     alignment: center;
-                    horizontal-stretch: 1;
+                    max-width: 280px;
 
                     Text {
                         text: root.has-track ? root.title : "Nada tocando";
@@ -1276,6 +1294,9 @@ component PlayerBar inherits Rectangle {
                     y: (parent.height - self.height) / 2;
                     clicked => { root.toggle-favorite(); }
                 }
+
+                // O vazio da coluna mora aqui, depois do conteudo.
+                Rectangle { horizontal-stretch: 1; }
             }
 
             VerticalLayout {
@@ -1938,7 +1959,11 @@ component DetailPage inherits VerticalLayout {
             pending: root.cover-pending;
             width: Layout.show-hero ? Layout.detail-cover-size : 96px;
             height: self.width;
-            y: (parent.height - self.height) / 2;
+            // Pela base, e nao pelo centro. O bloco de texto ao lado e
+            // `alignment: end`, entao centralizar a capa deixava a capa
+            // terminando 40px acima do botao Tocar -- duas coisas do mesmo
+            // cabecalho apoiadas em linhas diferentes.
+            y: parent.height - self.height;
         }
 
         VerticalLayout {

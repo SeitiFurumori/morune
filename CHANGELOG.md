@@ -7,6 +7,22 @@ Versionamento semantico.
 
 ### Corrigido
 
+**Espacamento que vinha de porcentagem, e nao de espaco**
+- **A coluna de album comecava num x diferente em cada linha.** A causa nao era
+  o espacamento: as celulas anunciavam ao layout a largura do proprio texto
+  **mais** a fatia do espaco livre, entao um titulo comprido empurrava a coluna
+  seguinte. Titulo e album passam a nao anunciar largura preferida -- dividem so
+  o espaco livre, metade para cada, e as duas colunas ficam ancoradas.
+- **O coracao do rodape morava no meio da barra.** O bloco da esquerda tem 26%
+  da largura e o titulo esticava ate o fim dele, levando o coracao junto: numa
+  janela larga ele terminava longe da faixa a que pertence e longe dos controles.
+  Agora titulo e coracao ficam colados, com teto para o titulo, e o vazio da
+  coluna vai para depois deles.
+- **No cabecalho, a capa terminava 40px acima do botao Tocar.** A capa estava
+  centralizada na altura e o bloco de texto ao lado, alinhado pela base -- duas
+  partes do mesmo cabecalho apoiadas em linhas diferentes. As duas passam a
+  fechar pela mesma base.
+
 **A lista de faixas era um esqueleto com uma coluna de icones**
 - **Coluna de album.** Entre o nome do artista e os icones da direita havia mais
   de mil pixels de nada numa janela comum, e era o que mais fazia a lista
