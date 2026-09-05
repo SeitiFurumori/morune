@@ -212,6 +212,39 @@ E há uma ironia registrada na própria fonte:
 O que o Vista usou foi a Segoe UI, inspirada nela. Ou seja: o `Segoe UI` do
 Aquário é a escolha historicamente certa — mas por parentesco, não por citação.
 
+### A origem não é a Microsoft: é uma fábrica de imagem coreana
+
+O achado que mais muda a leitura do estilo, e que só apareceu nas fontes S.
+
+A **Aesthetics Wiki** credita a criação a "**Asadal Design**, Microsoft, Apple" —
+nessa ordem — e a imagem que ela usa como capa do verbete é
+
+> "A stock image template created by the South Korean design firm **Asadal
+> Design** circa 2007–2008... a computer monitor acting as a portal to nature,
+> with tropical fish and water splashing out of the screen."
+
+A CARI publicou uma entrevista com o presidente da Asadal, Chang N. Suh, feita
+por Yunseon Yang com introdução de Sofi Xian. O que ela conta:
+
+- A empresa montou uma **"design factory"** de imagem de banco: ícones
+  vetoriais, gráficos com textura de aquarela, fotografias — vendidos como
+  **"editable images"**, com tudo separado em camadas editáveis. "When users
+  opened the files, everything—from water droplets to monitors, fish..."
+- O critério de qualidade era o mercado, não o gosto: *"the best design was not
+  the most artistic one. The best design was the one **most frequently chosen**
+  by our customers and users."* Designers recebiam bônus por download, e
+  **quando um estilo vendia, todos copiavam**.
+- Isso se espalhou pelo web design coreano e depois pelo Leste Asiático inteiro.
+
+Ou seja: o vocabulário visual do Frutiger Aero foi **selecionado por vendas**
+numa fábrica de templates, e só depois encontrou o Windows Aero. Peixe, bolha,
+globo e grama não são citação da Microsoft — são o estoque que o mercado
+escolheu, replicado até virar linguagem.
+
+Consequência para o Aquário: copiar o Vista é copiar o distribuidor, não a
+fonte. O que caracteriza o estilo é a **imagem de banco em camadas** — e o
+`fundo.png` é justamente a peça onde isso se aplica.
+
 **O cânone é muito maior que a Microsoft.** Os exemplos que a literatura cita:
 
 | categoria | exemplos |
@@ -220,6 +253,23 @@ Aquário é a escolha historicamente certa — mas por parentesco, não por cita
 | aparelho | Nintendo Wii, iPhone de 1ª geração (2007), Galaxy S (2010) |
 | jogo | Wii Sports (2006), Purble Place (2007), The Sims 3 (2009), Fruit Ninja (2010) |
 | outros | MSN Messenger, embalagem, arquitetura de loja |
+
+E as marcas, pela Aesthetics Wiki: Microsoft (Vista/7), Apple (Mac OS X
+10.5–10.9, iOS 1–6), **Nintendo** (Wii, DS Lite, Wii U), **Samsung** (TouchWiz
+Nature UX), **Sony** (XMB/PS3), LG (Flatron/era Chocolate).
+
+Duas coisas dessa fonte que corrigem o tema:
+
+**As cores-chave são "Blue, green, white, tertiary colours".** Branco está na
+lista, e é o que falta no Aquário — cuja superfície é lima saturada.
+
+**O controle usava gradiente e realce, e é aí que mora o brilho:** "Buttons and
+other user interface elements often used **linear gradients and highlights** to
+create a tactile, realistic feel."
+
+E o revival tem nome próprio: **Neo-Aero** (2022–hoje). Um tema feito em 2026
+está fazendo Neo-Aero, não reprodução de 2007 — e vale decidir isso de propósito
+em vez de por acidente.
 
 Windows Aero é **um** artefato dessa lista. Acontece de ser o único com
 mecanismo documentado em patente — por isso a seção seguinte existe —, mas
@@ -364,7 +414,40 @@ Configurações, **economia de bateria**, hardware fraco, **janela desativada**,
 Windows anterior ao 22000. A terceira e a quarta são o critério de desempenho do
 Morune escrito por outra pessoa.
 
-E as duas regras finais da página:
+### A receita do acrílico, e o que ela custa
+
+A página do [acrílico](https://learn.microsoft.com/en-us/windows/apps/design/style/acrylic)
+publica a ordem das camadas:
+
+> "The acrylic recipe: **background, blur, exclusion blend, color/tint overlay,
+> noise**"
+
+> "We added an **exclusion blend mode** layer to ensure contrast and legibility
+> of UI placed on an acrylic background."
+
+Duas camadas dessa receita não existem no Morune: a mistura por exclusão — que é
+o que garante legibilidade sem escurecer tudo — e o **ruído**. O `Frost` faz o
+véu e o `Gloss` faz o brilho; contraste e textura ficaram de fora.
+
+E o custo, dito pela Microsoft:
+
+> "Rendering acrylic surfaces is **GPU-intensive, which can increase device
+> power consumption and shorten battery life**. Acrylic effects are
+> automatically disabled when a device enters Battery Saver mode."
+
+Para um aplicativo cujo critério é não atrapalhar quem está jogando, isso
+encerra a discussão sozinho.
+
+Os "don'ts" da página batem um a um com os dois temas:
+
+> "**Don't** put desktop acrylic on large background surfaces of your app."
+>
+> "**Don't** place multiple acrylic panes next to each other because this
+> results in an undesirable visible seam."
+>
+> "**Don't** place accent-colored text over acrylic surfaces."
+
+E as duas regras finais da página de materiais:
 
 > "**Don't** apply backdrop material more than once in an application."
 >
@@ -446,3 +529,34 @@ sob os painéis — o efeito sem o custo por quadro.
 
 **Realce que segue o aparelho.** Exigiria alimentar o gradiente por quadro. O
 substituto honesto é o item 2: uma luz fixa em espaço de janela.
+
+---
+
+## 6. Placar das fontes
+
+Contra a lista de tiers do Felipe, para ficar claro o que sustenta o quê.
+
+| tier | fonte | lida? |
+|---|---|---|
+| 🟩 S | Aesthetics Wiki | **sim** — pelo navegador; recusa acesso automatizado (402) |
+| 🟩 S | CARI | **sim** — verbete e a entrevista da Asadal; recusa automatizado (403) |
+| 🟩 S | Apple HIG / Developer | **sim** — Materials e Color, pelo navegador (é SPA) |
+| 🟩 S | WWDC / Apple Design | **parcial** — só "Meet Liquid Glass" (219) |
+| 🟨 A | Wikipédia | sim — mas **nenhuma** das referências acadêmicas que ela cita |
+| 🟨 A | 2000 Aesthetics Wiki | **não** |
+| 🟨 A | Apple Developer — doc do Liquid Glass | **não** (Adopting Liquid Glass, API `glassEffect`) |
+| 🟨 A | galerias de referência | **não** |
+| 🟧 B | Are.na / Pinterest / Dribbble | **não** |
+
+Fora da lista, e que entraram porque são primárias de mecanismo: as duas
+patentes do Aero, a documentação de materiais do Windows (Mica e acrílico), e a
+engenharia reversa do DWM.
+
+**Identificada e não lida:** o guia de design do Windows 7
+(`tilsgee.github.io/DesignGuidelinesArchive/aero7.pdf`) — o PDF passa de 10 MB e
+estourou o limite da ferramenta. É a lacuna de maior valor que sobra.
+
+**Limite de método que vale repetir:** quase tudo aqui é **normativo** — o que as
+empresas dizem que se deve fazer. Medição do artefato renderizado só existe para
+o Aero, pela engenharia reversa do DWM. Para o Liquid Glass não há nada
+equivalente nesta pesquisa.
