@@ -560,3 +560,51 @@ estourou o limite da ferramenta. É a lacuna de maior valor que sobra.
 empresas dizem que se deve fazer. Medição do artefato renderizado só existe para
 o Aero, pela engenharia reversa do DWM. Para o Liquid Glass não há nada
 equivalente nesta pesquisa.
+
+---
+
+## 7. Os artefatos, olhados
+
+O Felipe forneceu capturas de três exemplos canônicos: Wii Menu, XMB do PS3 e
+iOS 6.
+
+**Limite, dito de frente:** foram **olhados, não medidos**. Imagem colada na
+conversa não dá para amostrar pixel, então não há aqui altura de realce em
+porcentagem nem parada de gradiente. Para medir, os arquivos precisam estar em
+disco. Nada nesta seção deve ser lido como número.
+
+**Wii Menu.** A lição não é o brilho, é a **moldura**. Cada canal é um cartão
+branco com contorno ciano fino e sombra suave, e o conteúdo vive **dentro** de
+uma moldura, sem encostar na borda. O cromo é branco; o acento aparece só em
+contorno e em fio. A barra inferior é uma **curva**, com um fio de acento
+correndo por cima dela. E os canais vazios são brancos com um cinza fraco —
+placeholder **neutro, sem símbolo**, que é a mesma decisão que o Morune tomou na
+ficha de capa, por outro caminho.
+
+**XMB do PS3.** O mesmo princípio no extremo: **não há painel nenhum**. Fundo
+com uma fita de luz atravessando, e a interface inteira é glifo branco e texto
+pequeno por cima. Zero cor no cromo, cor toda no campo.
+
+**iOS 6.** A lição do brilho. O realce do ícone é uma **forma curva** ocupando a
+metade de cima, com a borda inferior arqueada — não é gradiente linear. E está
+no **controle**, não no fundo.
+
+**A convergência dos três, numa frase:** a cor vive na cena, o cromo é claro e
+neutro, e o brilho é uma curva no controle. O Aquário hoje faz o inverso nos
+três eixos.
+
+---
+
+## 8. Decisão conjunta: o guia do Windows 7 fica de fora
+
+Registrado como **decisão**, e não como lacuna — a diferença importa para quem
+ler isto depois.
+
+O `aero7.pdf` foi identificado, e não foi lido: passa de 10 MB e estoura o
+limite da ferramenta de busca. Havia saída (baixar o arquivo localmente), e o
+Felipe avaliou que não era necessário — as duas patentes e a engenharia reversa
+do DWM já cobrem o mecanismo, e o guia é sobre diretriz de aplicativo Windows,
+que não é o que falta aqui.
+
+Fica registrado que a fonte existe, onde ela está, e por que ninguém foi atrás:
+para o caso de a pergunta voltar.
