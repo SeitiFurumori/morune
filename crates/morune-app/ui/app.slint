@@ -136,8 +136,23 @@ component EmptyState inherits VerticalLayout {
     in property <string> title;
     in property <string> hint;
     in property <string> action-label;
+    /// Altura util da pagina, quando quem hospeda pode informa-la.
+    ///
+    /// **`alignment: center` sozinho nao centraliza nada.** Ele centraliza os
+    /// filhos DENTRO desta caixa, e a caixa nascia com a altura do proprio
+    /// conteudo -- umas 120px de titulo, dica e botao. Dentro de um visor de
+    /// rolagem cujo viewport e `preferred-height`, isso deixa o bloco inteiro
+    /// colado no topo, com a pagina vazia embaixo. Deslogado, o unico caminho
+    /// que a tela oferece -- o botao de entrar -- ficava no alto, longe do
+    /// centro do olhar.
+    ///
+    /// Quem esta num visor de rolagem passa a altura visivel aqui. Quem esta
+    /// solto num layout usa `vertical-stretch: 1`, que resolve o mesmo por outro
+    /// caminho.
+    in property <length> altura-util: 0px;
     callback action();
 
+    min-height: root.altura-util;
     alignment: center;
     spacing: Theme.space-sm;
 
@@ -1680,6 +1695,7 @@ component HomePage inherits Rectangle {
             padding-bottom: Theme.space-lg;
 
         if root.empty && !root.logged-in: EmptyState {
+            altura-util: rolagem.height;
             title: "Nada por aqui ainda";
             hint: "Entre na sua conta para ver suas músicas curtidas, o que você mais ouve e suas playlists.";
             action-label: "Entrar no Spotify";
@@ -1687,6 +1703,7 @@ component HomePage inherits Rectangle {
         }
 
         if root.empty && root.logged-in: EmptyState {
+            altura-util: rolagem.height;
             title: "Carregando sua conta";
             hint: "Suas listas aparecem aqui em instantes.";
         }
@@ -1774,16 +1791,19 @@ component SearchPage inherits VerticalLayout {
     }
 
     if root.searching: EmptyState {
+        vertical-stretch: 1;
         title: "Buscando";
         hint: "Procurando faixas, álbuns, artistas e playlists para você.";
     }
 
     if !root.searching && root.tracks.length == 0 && root.items.length == 0 && root.query == "": EmptyState {
+        vertical-stretch: 1;
         title: "Busque por música";
         hint: "Digite uma faixa, álbum, artista ou playlist. A busca começa enquanto você escreve.";
     }
 
     if !root.searching && root.tracks.length == 0 && root.items.length == 0 && root.query != "": EmptyState {
+        vertical-stretch: 1;
         title: "Nenhum resultado";
         hint: "Tente outro termo ou confira a escrita de \"" + root.query + "\".";
     }
@@ -1871,9 +1891,14 @@ component LibraryPage inherits Rectangle {
         alignment: start;
         padding-bottom: Theme.space-lg;
 
-        SectionTitle { text: "Biblioteca"; }
+        // O titulo so aparece quando ha o que listar. Com ele, o estado vazio
+        // recebe a altura da pagina INTEIRA e o viewport passa a ser maior que
+        // a area visivel: a tela vazia rolava. E o proprio estado vazio ja diz
+        // onde voce esta -- "Sua biblioteca comeca aqui".
+        if root.items.length > 0: SectionTitle { text: "Biblioteca"; }
 
         if root.items.length == 0 && !root.logged-in: EmptyState {
+            altura-util: rolagem.height;
             title: "Sua biblioteca começa aqui";
             hint: "Entre no Spotify para ver sua biblioteca e suas Músicas curtidas.";
             action-label: "Entrar no Spotify";
@@ -1881,6 +1906,7 @@ component LibraryPage inherits Rectangle {
         }
 
         if root.items.length == 0 && root.logged-in: EmptyState {
+            altura-util: rolagem.height;
             title: "Sua biblioteca está vazia";
             hint: "Use o coração para salvar no Spotify. Suas Músicas curtidas ficam na barra lateral.";
             action-label: "Explorar músicas";
