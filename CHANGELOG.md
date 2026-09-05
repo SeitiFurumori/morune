@@ -7,6 +7,29 @@ Versionamento semantico.
 
 ### Corrigido
 
+**A marca do Morune tinha virado sinonimo de "faltou alguma coisa"**
+- **Capa ausente deixa de ser o simbolo do aplicativo.** Numa unica tela de
+  Inicio eram **dezenove logos** -- oito nos cartoes, dez na barra lateral, um no
+  rodape. No lugar entra uma ficha gerada: matiz derivada do nome, com a inicial
+  no meio. A cor e estavel para o mesmo nome, entao a playlist e reconhecivel de
+  relance; sorteada a cada abertura seria pior que o simbolo repetido. Ela nao e
+  enfeite: boa parte das playlists nao tem imagem alguma na resposta do Spotify,
+  porque o mosaico que o cliente oficial mostra e montado por ele.
+- **"Carregando" e "sem capa" deixam de ser o mesmo desenho.** Eram significados
+  opostos com a mesma aparencia. Agora quem ainda espera a imagem mostra uma
+  superficie neutra, e so quem nao tem capa nenhuma recebe a ficha.
+- **A mesma playlist aparecia com capa na barra lateral e sem capa no
+  cabecalho**, a vinte centimetros de distancia. Sao duas fontes: o cartao vem do
+  rootlist, que traz a imagem, e o cabecalho vem de `Catalog::playlist`, que no
+  protocolo interno devolve so nome e ids de faixa. O cabecalho passa a
+  aproveitar a capa que os cartoes ja conhecem.
+- **O cabecalho de lista virou vitrine.** `show_hero` e `hero_height` estavam
+  declarados no tema com **zero usos** em qualquer linha de interface -- parte da
+  razao de trocar de tema quase nao mudar nada. Agora o portao escolhe entre
+  capa no tamanho do token com o nome em `size_display` (32px) e um cabecalho
+  compacto. A capa tambem parou de ser cortada em 128px: o tema pedia 160 e um
+  `min()` embutido no codigo mandava mais que o tema.
+
 **Com a janela na bandeja, o Morune gastava mais desenhando do que tocando**
 - **A interface para de trabalhar quando nao esta na tela.** Medido com musica
   tocando e a janela escondida: a thread da interface gastava 1,93% de um nucleo

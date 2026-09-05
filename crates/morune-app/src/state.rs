@@ -775,6 +775,7 @@ impl AppState {
                     self.page = Page::Detail;
                 }
 
+                self.borrow_cover_from_cards();
                 self.resolve_detail_cover();
                 self.resolve_detail_cards();
             }
@@ -1233,6 +1234,47 @@ impl AppState {
                 }
             }
             None => {}
+        }
+    }
+
+    /// Empresta ao cabecalho a capa que os cartoes ja conhecem.
+    ///
+    /// **O defeito que isto conserta:** a mesma playlist aparecia com a capa
+    /// certa na barra lateral e sem capa nenhuma no cabecalho, a vinte
+    /// centimetros de distancia. Sao duas fontes diferentes -- o cartao vem do
+    /// rootlist, que traz a imagem; o cabecalho vem de `Catalog::playlist`, que
+    /// no protocolo interno devolve `PlaylistContents { name, track_ids }` e
+    /// nada mais. Nao ha imagem para pedir, entao o cabecalho ficava vazio para
+    /// sempre, sem que nada estivesse falhando.
+    ///
+    /// Copiar do cartao e o conserto certo aqui, e nao um remendo: e a mesma
+    /// playlist, o dado ja esta em memoria e foi obtido pelo caminho que o
+    /// carrega. Fazer o protobuf da playlist entregar a imagem seria melhor, e
+    /// continua valendo -- mas exige mexer no parser, e nao pode ser condicao
+    /// para o cabecalho parar de mentir.
+    fn borrow_cover_from_cards(&mut self) {
+        let Some(tag) = self
+            .detail
+            .as_ref()
+            .filter(|d| d.cover.is_empty())
+            .and_then(|d| d.source.as_ref().map(|alvo| alvo.tag()))
+        else {
+            return;
+        };
+
+        let achada = self
+            .home_playlists
+            .iter()
+            .chain(&self.home_made_for_you)
+            .chain(&self.home_stations)
+            .chain(&self.home_retrospectives)
+            .chain(&self.library)
+            .find(|card| card.tag == tag && !card.cover.is_empty())
+            .map(|card| (card.cover.clone(), card.cover_path.clone()));
+
+        if let (Some((url, path)), Some(detail)) = (achada, self.detail.as_mut()) {
+            detail.cover = url;
+            detail.cover_path = path;
         }
     }
 
@@ -2461,6 +2503,15 @@ impl AppState {
                 menu.set_now_title(track.name.as_ref().into());
                 menu.set_now_artist(track.artists_line().into());
                 menu.set_now_cover(cover_image(self.now_cover.1.as_deref()));
+                let (initial, hue) = cover_badge(
+                    track
+                        .album
+                        .as_ref()
+                        .map(|a| a.name.as_ref())
+                        .unwrap_or(track.name.as_ref()),
+                );
+                menu.set_now_cover_initial(initial);
+                menu.set_now_cover_hue(hue);
             }
             None => {
                 menu.set_has_track(false);
@@ -3108,6 +3159,11 @@ impl AppState {
             window.set_detail_subtitle(detail.subtitle.as_str().into());
             window.set_detail_kind(detail.kind.as_str().into());
             window.set_detail_cover(cover_image(detail.cover_path.as_deref()));
+            let (initial, hue) = cover_badge(&detail.title);
+            window.set_detail_cover_initial(initial);
+            window.set_detail_cover_hue(hue);
+            window
+                .set_detail_cover_pending(!detail.cover.is_empty() && detail.cover_path.is_none());
             window.set_detail_tracks(track_rows(
                 self.detail_tracks(),
                 current,
@@ -3193,6 +3249,16 @@ impl AppState {
 
         window.set_has_track(current.is_some());
         window.set_now_cover(cover_image(self.now_cover.1.as_deref()));
+        // A ficha da faixa tocando sai do album, igual a das linhas de lista.
+        let (initial, hue) = cover_badge(
+            current
+                .and_then(|t| t.album.as_ref().map(|a| a.name.as_ref()))
+                .or_else(|| current.map(|t| t.name.as_ref()))
+                .unwrap_or(""),
+        );
+        window.set_now_cover_initial(initial);
+        window.set_now_cover_hue(hue);
+        window.set_now_cover_pending(!self.now_cover.0.is_empty() && self.now_cover.1.is_none());
         window.set_playing(self.playing);
         window.set_progress(if duration.is_zero() {
             0.0
@@ -3341,26 +3407,37 @@ fn track_rows(
 ) -> ModelRc<ui::TrackRow> {
     let rows: Vec<ui::TrackRow> = tracks
         .into_iter()
-        .map(|t| ui::TrackRow {
-            id: Target::Track(t.id.clone()).tag().into(),
-            title: t.name.as_ref().into(),
-            artist: t.artists_line().into(),
-            album: t
-                .album
-                .as_ref()
-                .map(|a| a.name.as_ref())
-                .unwrap_or("")
-                .into(),
-            cover: cover_image(
-                track_cover_url(t)
-                    .as_deref()
-                    .and_then(|url| covers.get(url))
-                    .map(|p| p.as_path()),
-            ),
-            duration: format_time(t.duration).into(),
-            playable: t.playable,
-            playing: current.is_some_and(|c| c.id == t.id),
-            favorite: liked_ids.contains(&t.id),
+        .map(|t| {
+            let url = track_cover_url(t);
+            let arquivo = url.as_deref().and_then(|url| covers.get(url));
+            // A ficha da faixa sai do **album**, e nao do titulo: e o album que
+            // desenha a capa, entao duas faixas do mesmo disco ganham a mesma
+            // cor -- que e o que a capa faria se existisse.
+            let (initial, hue) = cover_badge(
+                t.album
+                    .as_ref()
+                    .map(|a| a.name.as_ref())
+                    .unwrap_or(t.name.as_ref()),
+            );
+            ui::TrackRow {
+                id: Target::Track(t.id.clone()).tag().into(),
+                title: t.name.as_ref().into(),
+                artist: t.artists_line().into(),
+                album: t
+                    .album
+                    .as_ref()
+                    .map(|a| a.name.as_ref())
+                    .unwrap_or("")
+                    .into(),
+                cover: cover_image(arquivo.map(|p| p.as_path())),
+                initial,
+                hue,
+                cover_pending: url.is_some() && arquivo.is_none(),
+                duration: format_time(t.duration).into(),
+                playable: t.playable,
+                playing: current.is_some_and(|c| c.id == t.id),
+                favorite: liked_ids.contains(&t.id),
+            }
         })
         .collect();
     ModelRc::new(VecModel::from(rows))
@@ -3433,11 +3510,18 @@ fn sidebar_items(cards: &[&Card], pinned: &[String]) -> ModelRc<ui::CardItem> {
 }
 
 fn card_item(c: &Card) -> ui::CardItem {
+    let (initial, hue) = cover_badge(&c.title);
     ui::CardItem {
         id: c.tag.as_str().into(),
         title: c.title.as_str().into(),
         subtitle: c.subtitle.as_str().into(),
         cover: cover_image(c.cover_path.as_deref()),
+        initial,
+        hue,
+        // Ha capa e ela ainda nao chegou ao disco. Sem esta distincao, o item
+        // que esta baixando e o que nunca vai ter capa aparecem iguais -- e foi
+        // assim que o simbolo do Morune passou a significar as duas coisas.
+        cover_pending: !c.cover.is_empty() && c.cover_path.is_none(),
         pinned: false,
     }
 }
@@ -3576,6 +3660,37 @@ impl<K: std::hash::Hash + Eq + Clone, V: Clone> LruCache<K, V> {
 fn image_bytes(image: &slint::Image) -> usize {
     let size = image.size();
     size.width as usize * size.height as usize * 4
+}
+
+/// Inicial e matiz da ficha que substitui a capa ausente.
+///
+/// **Por que isto vive no Rust.** O Slint nao fatia string nem le codigo de
+/// caractere, entao nem a inicial nem uma matiz derivada do nome dao para
+/// calcular la. A alternativa era mandar uma cor pronta, mas cor pronta ignora
+/// o tema -- assim o Rust manda so o angulo e o `Artwork` decide saturacao e
+/// brilho conforme o tema for claro ou escuro.
+///
+/// A matiz e **estavel para o mesmo nome**: a mesma playlist tem sempre a mesma
+/// cor, em qualquer sessao e em qualquer maquina. Uma cor sorteada a cada
+/// abertura seria pior que o simbolo repetido -- o item deixaria de ser
+/// reconhecivel de relance, que e justamente o que a ficha existe para dar.
+fn cover_badge(nome: &str) -> (slint::SharedString, f32) {
+    // FNV-1a de 32 bits sobre o nome normalizado. Escolhido por ser curto e
+    // determinista; nao ha nada criptografico em jogo, so espalhamento.
+    let mut hash: u32 = 0x811c_9dc5;
+    for byte in nome.trim().to_lowercase().bytes() {
+        hash ^= byte as u32;
+        hash = hash.wrapping_mul(0x0100_0193);
+    }
+
+    let inicial = nome
+        .trim()
+        .chars()
+        .find(|c| c.is_alphanumeric())
+        .map(|c| c.to_uppercase().to_string())
+        .unwrap_or_default();
+
+    (inicial.into(), (hash % 360) as f32)
 }
 
 /// Carrega a capa do arquivo, ou devolve uma imagem vazia.

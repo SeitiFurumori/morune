@@ -798,31 +798,74 @@ export component Logo {
 // Marcador de capa. Enquanto nao ha download de imagem, desenha um bloco com a
 // inicial do titulo -- deliberadamente estavel para nao causar "pulo" de layout
 // quando a capa real chegar.
+// Capa de um item, com dois estados de ausencia que nao sao o mesmo.
+//
+// **Por que a marca saiu daqui.** Antes, tudo que nao tinha imagem virava o
+// simbolo do Morune. Numa unica tela de Inicio isso dava **dezenove logos** --
+// oito nos cartoes, dez na barra lateral, um no rodape -- e a marca passou a
+// significar "faltou alguma coisa". Pior: o mesmo desenho aparecia enquanto a
+// capa ainda estava baixando, entao "carregando" e "nao existe" -- que sao o
+// oposto um do outro -- eram indistinguiveis.
+//
+// Agora sao tres estados separados:
+//
+// | estado | como se sabe | o que aparece |
+// |---|---|---|
+// | tem capa | `source` chegou | a imagem |
+// | ainda chegando | `pending`, capa vazia | superficie neutra, sem simbolo |
+// | nao tem capa | nem `source` nem `pending` | ficha gerada: matiz do nome + inicial |
+//
+// A ficha gerada nao e enfeite. Boa parte das playlists nao tem imagem alguma
+// na resposta do Spotify -- o mosaico que o cliente oficial mostra e montado
+// por ele a partir das faixas. Repetir o mesmo desenho em todas elas apagava a
+// diferenca entre listas; uma cor propria por nome devolve identidade a cada
+// uma, e a inicial da o que ler quando o cartao e pequeno demais para o titulo.
 export component Artwork inherits Rectangle {
-    in property <string> seed;
+    /// Inicial do nome, ja recortada pelo lado Rust: o Slint nao fatia string.
+    in property <string> initial;
+    /// Matiz da ficha, 0..360, derivada do nome. Vem pronta do Rust pelo mesmo
+    /// motivo -- nao ha como somar os codigos das letras aqui.
+    in property <float> hue;
+    /// `true` enquanto a capa existe e ainda esta a caminho do cache.
+    in property <bool> pending;
     in property <length> radius: Theme.radius-artwork;
     // Capa de verdade. Vazia enquanto ela nao chega do cache, e o bloco neutro
     // abaixo ocupa o lugar sem mudar o layout quando ela chegar.
     in property <image> source;
 
+    // Claro ou escuro sai do proprio tema, e nao de um token novo: o contrato
+    // de tema e um conjunto fechado de slots, e ler o valor do fundo responde a
+    // mesma pergunta sem abrir mais um.
+    private property <bool> claro: Theme.background.to-hsv().value > 0.5;
+
     border-radius: root.radius;
     background: Theme.surface-raised;
     clip: true;
 
-    // Sem capa, a marca do Morune.
-    //
-    // Boa parte das playlists nao tem imagem nenhuma na resposta do Spotify --
-    // o mosaico que o cliente oficial desenha e montado por ele a partir das
-    // faixas. Um bloco neutro nesses casos parecia carregamento eterno; a
-    // marca diz "não há capa" em vez de "ainda não chegou".
-    //
-    // Discreta de proposito: numa grade de vinte cartoes sem capa, a marca em
-    // cor cheia viraria vinte logos disputando atencao com os titulos.
-    if root.source.width == 0: Logo {
-        size: parent.width * 0.42;
-        tint: Theme.border;
-        x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
+    // Sem nome nao ha ficha: o rodape sem musica tocando cairia numa cor
+    // sorteada do texto vazio, e um quadrado colorido ao lado de "Nada tocando"
+    // promete um conteudo que nao existe.
+    if root.source.width == 0 && !root.pending && root.initial != "": Rectangle {
+        // Diagonal, e nao chapado: o gradiente e o que faz vinte fichas lado a
+        // lado parecerem capas em vez de vinte retangulos de cor.
+        background: @linear-gradient(135deg,
+            hsv(root.hue, root.claro ? 0.34 : 0.52, root.claro ? 0.94 : 0.42) 0%,
+            hsv(root.hue, root.claro ? 0.24 : 0.44, root.claro ? 0.80 : 0.24) 100%);
+
+        Text {
+            text: root.initial;
+            // Acompanha a caixa: a mesma ficha serve a linha de 40px da lista e
+            // ao cartao de 160px, e uma inicial de tamanho fixo sumiria numa e
+            // estouraria na outra.
+            font-size: parent.height * 0.42;
+            font-family: Theme.font-family;
+            font-weight: Theme.weight-bold;
+            color: root.claro ? hsv(root.hue, 0.55, 0.32) : hsv(root.hue, 0.22, 0.97);
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            width: 100%;
+            height: 100%;
+        }
     }
 
     Image {

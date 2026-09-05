@@ -14,6 +14,12 @@ export struct TrackRow {
     artist: string,
     album: string,
     cover: image,
+    // Ficha gerada para quando nao ha capa. `initial` e `hue` vem prontas do
+    // Rust porque o Slint nao fatia string nem soma codigo de letra; `cover-
+    // pending` separa "ainda chegando" de "nao existe". Ver `Artwork`.
+    initial: string,
+    hue: float,
+    cover-pending: bool,
     duration: string,
     playable: bool,
     playing: bool,
@@ -26,6 +32,10 @@ export struct CardItem {
     subtitle: string,
     // Capa ja em disco. Vazia enquanto o cache nao a entrega.
     cover: image,
+    // Ficha gerada para quando nao ha capa -- ver `TrackRow` e `Artwork`.
+    initial: string,
+    hue: float,
+    cover-pending: bool,
     // So a barra lateral usa; nas prateleiras do Inicio chega sempre `false`.
     pinned: bool,
 }
@@ -448,7 +458,9 @@ component TrackListRow inherits Rectangle {
 
         Artwork {
             source: root.track.cover;
-            seed: root.track.title;
+            initial: root.track.initial;
+            hue: root.track.hue;
+            pending: root.track.cover-pending;
             width: Layout.row-height - Theme.space-sm;
             height: self.width;
         }
@@ -579,8 +591,10 @@ component Card inherits Rectangle {
         spacing: Theme.space-sm;
 
         Artwork {
-            seed: root.item.title;
             source: root.item.cover;
+            initial: root.item.initial;
+            hue: root.item.hue;
+            pending: root.item.cover-pending;
             width: parent.width - Theme.space-sm * 2;
             height: self.width;
         }
@@ -733,7 +747,9 @@ component PlaylistNavItem inherits Rectangle {
 
         Artwork {
             source: root.item.cover;
-            seed: root.item.title;
+            initial: root.item.initial;
+            hue: root.item.hue;
+            pending: root.item.cover-pending;
             radius: Theme.radius-sm;
             width: Layout.sidebar-playlist-height - Theme.space-xs * 2;
             height: self.width;
@@ -1056,6 +1072,9 @@ component PlayerBar inherits Rectangle {
     // Capa da faixa tocando. Vazia enquanto o cache nao a entrega, e o bloco
     // neutro do `Artwork` ocupa o lugar sem mudar o layout.
     in property <image> cover;
+    in property <string> cover-initial;
+    in property <float> cover-hue;
+    in property <bool> cover-pending;
 
     callback toggle-play();
     callback stop();
@@ -1116,8 +1135,10 @@ component PlayerBar inherits Rectangle {
                 width: root.mini-player ? 36% : 26%;
 
                 if Layout.player-artwork: Artwork {
-                    seed: root.title;
                     source: root.cover;
+                    initial: root.cover-initial;
+                    hue: root.cover-hue;
+                    pending: root.cover-pending;
                     width: Layout.player-artwork-size;
                     height: Layout.player-artwork-size;
                     y: (parent.height - self.height) / 2;
@@ -1743,6 +1764,9 @@ component DetailPage inherits VerticalLayout {
     in property <string> subtitle;
     in property <string> kind;
     in property <image> cover;
+    in property <string> cover-initial;
+    in property <float> cover-hue;
+    in property <bool> cover-pending;
     in property <[TrackRow]> tracks;
     in property <[CardItem]> items;
     in property <int> sort;
@@ -1777,15 +1801,28 @@ component DetailPage inherits VerticalLayout {
     }
 
     // Cabecalho: capa grande, tipo, nome e o que ha dentro.
+    //
+    // **`show-hero` e `hero-height` passam a valer aqui.** Os dois estavam
+    // declarados no tema com zero usos em qualquer linha de interface, e era
+    // parte da razao de trocar de tema quase nao mudar nada. Agora o portao
+    // escolhe entre um cabecalho de vitrine -- capa no tamanho do token, nome em
+    // `size-display` -- e um compacto, para quem quer mais lista na tela.
+    //
+    // A capa tambem parou de ser cortada em 128px: o tema pedia 160 e o
+    // `min(...)` embutido no codigo mandava mais que o tema.
     HorizontalLayout {
         spacing: Theme.space-lg;
         vertical-stretch: 0;
+        min-height: Layout.show-hero ? Layout.hero-height : 0px;
 
         Artwork {
             source: root.cover;
-            seed: root.title;
-            width: min(Layout.detail-cover-size, 128px);
+            initial: root.cover-initial;
+            hue: root.cover-hue;
+            pending: root.cover-pending;
+            width: Layout.show-hero ? Layout.detail-cover-size : 96px;
             height: self.width;
+            y: (parent.height - self.height) / 2;
         }
 
         VerticalLayout {
@@ -1803,7 +1840,7 @@ component DetailPage inherits VerticalLayout {
             Text {
                 text: root.title;
                 color: Theme.text;
-                font-size: Theme.size-xl;
+                font-size: Layout.show-hero ? Theme.size-display : Theme.size-xl;
                 font-weight: Theme.weight-bold;
                 font-family: Theme.font-family;
                 overflow: elide;
@@ -3072,11 +3109,18 @@ export component AppWindow inherits Window {
     in property <string> now-title;
     in property <string> now-id;
     in property <image> now-cover;
+    // Ficha gerada da faixa tocando e do cabecalho de detalhe. Ver `Artwork`.
+    in property <string> now-cover-initial;
+    in property <float> now-cover-hue;
+    in property <bool> now-cover-pending;
     in property <[CardItem]> sidebar-playlists;
     in property <string> detail-title;
     in property <string> detail-subtitle;
     in property <string> detail-kind;
     in property <image> detail-cover;
+    in property <string> detail-cover-initial;
+    in property <float> detail-cover-hue;
+    in property <bool> detail-cover-pending;
     in property <[TrackRow]> detail-tracks;
     in property <[CardItem]> detail-items;
     in property <int> detail-sort;
@@ -3290,6 +3334,9 @@ export component AppWindow inherits Window {
             title: root.now-title;
             artist: root.now-artist;
             cover: root.now-cover;
+            cover-initial: root.now-cover-initial;
+            cover-hue: root.now-cover-hue;
+            cover-pending: root.now-cover-pending;
             playing: root.playing;
             has-track: root.has-track;
             favorite: root.now-favorite;
@@ -3471,6 +3518,9 @@ export component AppWindow inherits Window {
                         subtitle: root.detail-subtitle;
                         kind: root.detail-kind;
                         cover: root.detail-cover;
+                        cover-initial: root.detail-cover-initial;
+                        cover-hue: root.detail-cover-hue;
+                        cover-pending: root.detail-cover-pending;
                         tracks: root.detail-tracks;
                         items: root.detail-items;
                         sort: root.detail-sort;
@@ -3617,6 +3667,9 @@ export component AppWindow inherits Window {
             title: root.now-title;
             artist: root.now-artist;
             cover: root.now-cover;
+            cover-initial: root.now-cover-initial;
+            cover-hue: root.now-cover-hue;
+            cover-pending: root.now-cover-pending;
             playing: root.playing;
             has-track: root.has-track;
             favorite: root.now-favorite;
@@ -3746,6 +3799,8 @@ export component TrayMenuWindow inherits Window {
     in property <string> now-title;
     in property <string> now-artist;
     in property <image> now-cover;
+    in property <string> now-cover-initial;
+    in property <float> now-cover-hue;
     in property <bool> playing: false;
     in property <bool> has-track: false;
     in property <float> volume: 0.7;
@@ -3845,7 +3900,8 @@ export component TrayMenuWindow inherits Window {
                     width: 44px;
                     height: 44px;
                     source: root.now-cover;
-                    seed: root.now-title;
+                    initial: root.now-cover-initial;
+                    hue: root.now-cover-hue;
                 }
 
                 VerticalLayout {
