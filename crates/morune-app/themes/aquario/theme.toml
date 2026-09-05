@@ -33,8 +33,21 @@ background = "#cfeafcf0"
 # verde vivia preso em 24% de alfa para nao comer o texto branco; com texto
 # escuro por cima ele sobe para 90% e finalmente le como objeto de material
 # proprio, com a faixa de valor que faltava.
-surface        = "#b7e86ae6"
-surface_raised = "#cbf089f2"
+# **A cor mora na cena, nao no painel.**
+#
+# Isto era verde-lima a 90%, e era o erro central do tema. Verde e azul sao a
+# paleta do **motivo** do Frutiger Aero -- ceu, agua, grama, aurora --, e motivo
+# e imagem. O canone do estilo (Wii, iPhone 1, XMB do PS3) poe a cor na cena e
+# deixa o controle como gel claro e brilhante por cima; o Wii chega ao ponto de
+# usar cartao **branco** com um fio de acento, e o XMB nao tem painel nenhum.
+#
+# A propria CARI lista as cores-chave como "blue, green, white, tertiary
+# colours" -- branco esta la, e era o que faltava aqui.
+#
+# Superficie quase branca, levemente fria, deixando o campo de fundo aparecer
+# atraves dela. Quem carrega a identidade e `fundo.png` e o brilho dos controles.
+surface        = "#f2fbffd9"
+surface_raised = "#ffffffe6"
 
 # Barra lateral e player em branco de vidro: sao moldura, nao objeto. Se
 # tambem fossem verdes, os cartoes deixariam de se destacar -- so que em verde.
@@ -137,8 +150,14 @@ acrylic        = true
 shadow_strength = 0.35
 backdrop_blur   = 0.0
 gloss           = 0.8
-artwork_tint          = true
-artwork_tint_strength = 0.3
+# **Desligado, e o motivo vem da formula do Aero.**
+#
+# O DWM do Windows 7 desfoca o que esta atras, **dessatura** essa copia e so
+# entao a tinge com uma cor unica do sistema. Tingir com a cor **saturada** da
+# capa e o passo contrario: a superficie troca de identidade a cada faixa, e o
+# tema deixa de ter cor propria.
+artwork_tint          = false
+artwork_tint_strength = 0.0
 
 [background]
 # Ceu e grama com esferas de vidro em foco. Desenhado por nos

@@ -1,5 +1,8 @@
 ﻿schema_version = 1
 id = "cristal"
 name = "Cristal"
+# Sem este campo, a atualizacao de tema embutido nao consegue comparar e o
+# tema instalado fica congelado para sempre. Ver `bundled.rs`.
+version = "1.0.0"
 author = "Morune"
 appearance = "dark"

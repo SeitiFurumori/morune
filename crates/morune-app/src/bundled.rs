@@ -178,17 +178,23 @@ pub fn install_missing(themes_dir: &Path) -> Vec<&'static str> {
 /// A versao embutida e maior que a instalada?
 ///
 /// Le so a linha `version` do manifesto dos dois lados, porque e o unico campo
-/// que decide. Faltando versao de qualquer um dos lados, nao ha comparacao e
-/// nada e substituido -- o desfecho seguro aqui e o que nao mexe.
+/// que decide. Sem versao no **embutido** nada e substituido; sem versao no
+/// **instalado**, a copia e anterior ao versionamento e recebe a atualizacao.
 fn bundled_is_newer(theme: &BundledTheme, dir: &Path) -> bool {
     let instalada = std::fs::read_to_string(dir.join("manifest.toml"))
         .ok()
         .and_then(|texto| manifest_version(&texto));
-    // Sem versao legivel do lado instalado nao ha comparacao possivel, e a
-    // saida segura e **nao** mexer: atualizar no escuro reescreveria a cada
-    // arranque todo tema cujo manifesto nao declara versao.
+    // Sem versao do lado instalado, a copia e **anterior ao versionamento** --
+    // e nao "desconhecida". Todo tema embutido declara versao hoje, entao o
+    // unico jeito de faltar la e a pasta ter sido gravada por uma versao do
+    // Morune que nao versionava tema.
+    //
+    // Isto termina: depois da substituicao o manifesto instalado passa a ter
+    // versao, e a proxima comparacao e normal. A primeira redacao disto
+    // devolvia `false` aqui, por medo de reescrever a cada arranque, e o efeito
+    // foi o Bruma nunca receber a propria correcao.
     let Some(instalada) = instalada else {
-        return false;
+        return true;
     };
 
     let embutida = theme
@@ -274,6 +280,33 @@ mod tests {
         let dir = temp_dir("em-dia");
         install_missing(&dir);
         assert!(install_missing(&dir).is_empty());
+    }
+
+    /// Copia gravada antes de haver versionamento de tema tem de ser
+    /// atualizada -- e **uma vez so**. A primeira redacao disto nao atualizava,
+    /// e o efeito foi o Bruma nunca receber a propria correcao.
+    #[test]
+    fn copia_anterior_ao_versionamento_atualiza_uma_vez() {
+        let dir = temp_dir("sem-versao");
+        install_missing(&dir);
+
+        let manifesto = dir.join("bruma").join("manifest.toml");
+        let sem_versao: String = std::fs::read_to_string(&manifesto)
+            .unwrap()
+            .lines()
+            .filter(|l| !l.trim_start().starts_with("version ="))
+            .collect::<Vec<_>>()
+            .join(
+                "
+",
+            );
+        std::fs::write(&manifesto, sem_versao).unwrap();
+
+        assert!(install_missing(&dir).contains(&"bruma"), "devia atualizar");
+        assert!(
+            install_missing(&dir).is_empty(),
+            "e nao pode reescrever de novo no arranque seguinte"
+        );
     }
 
     #[test]

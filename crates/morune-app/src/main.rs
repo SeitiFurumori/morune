@@ -208,8 +208,8 @@ fn main() -> anyhow::Result<()> {
     ensure_rounded_corners(window.window());
     #[cfg(windows)]
     {
-        let (opacity, acrylic) = state.borrow().window_effects();
-        ensure_window_effects(window.window(), opacity, acrylic);
+        let (opacity, material) = state.borrow().window_effects();
+        ensure_window_effects(window.window(), opacity, backdrop_da_janela(material));
     }
     #[cfg(windows)]
     let _taskbar_poll = wire_taskbar(&window, &state);
@@ -343,11 +343,53 @@ fn ensure_rounded_corners(window: &slint::Window) {
 /// Chamada repetidamente pelo mesmo motivo de `ensure_rounded_corners`: o HWND
 /// pode nao existir logo depois de `show()`, e reabrir a janela a recria.
 #[cfg(windows)]
-fn ensure_window_effects(window: &slint::Window, opacity: f32, acrylic: bool) {
+/// O material que o tema pede, traduzido para a janela do aplicativo.
+///
+/// O campo do tema continua se chamando `acrylic` -- o contrato de tema e um
+/// conjunto fechado de slots e renomear quebraria todo tema existente --, mas o
+/// que ele liga na janela principal passa a ser Mica. Ver [`Backdrop`].
+#[cfg(windows)]
+fn backdrop_da_janela(pedido_do_tema: bool) -> Backdrop {
+    if pedido_do_tema {
+        Backdrop::Mica
+    } else {
+        Backdrop::None
+    }
+}
+
+/// Qual material de fundo o Windows deve pintar atras da janela.
+///
+/// **Por que dois, e nao um interruptor.** A documentacao de materiais do
+/// Windows e explicita: "Acrylic is used **only** for transient, light-dismiss
+/// surfaces such as flyouts and context menus", e Mica e o material "of
+/// long-lived windows such as apps and settings". Sao superficies diferentes com
+/// materiais diferentes, e o Morune tem as duas.
+///
+/// Isto tambem conserta o pior caso conhecido do projeto: acrilico amostra o que
+/// esta atras da janela e, sobre um jogo em tela cheia, colapsa em cinza
+/// chapado. Mica amostra o papel de parede **uma vez so** -- a propria Microsoft
+/// diz que ele "is specifically designed for app performance" --, e acrilico e
+/// descrito como "GPU-intensive, which can increase device power consumption and
+/// shorten battery life". Para um aplicativo que existe para nao atrapalhar quem
+/// esta jogando, a escolha se faz sozinha.
+#[cfg(windows)]
+#[derive(Clone, Copy, PartialEq)]
+enum Backdrop {
+    /// Sem material: o tema pinta o fundo inteiro.
+    None,
+    /// Janela de vida longa. O material do aplicativo.
+    Mica,
+    /// Superficie transitoria: o menu da bandeja.
+    Acrylic,
+}
+
+#[cfg(windows)]
+fn ensure_window_effects(window: &slint::Window, opacity: f32, backdrop: Backdrop) {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
     use windows::Win32::Foundation::{COLORREF, HWND};
     use windows::Win32::Graphics::Dwm::{
-        DwmSetWindowAttribute, DWMSBT_NONE, DWMSBT_TRANSIENTWINDOW, DWMWA_SYSTEMBACKDROP_TYPE,
+        DwmSetWindowAttribute, DWMSBT_MAINWINDOW, DWMSBT_NONE, DWMSBT_TRANSIENTWINDOW,
+        DWMWA_SYSTEMBACKDROP_TYPE,
     };
     use windows::Win32::Graphics::Gdi::{
         RedrawWindow, RDW_ALLCHILDREN, RDW_ERASE, RDW_FRAME, RDW_INVALIDATE,
@@ -366,10 +408,10 @@ fn ensure_window_effects(window: &slint::Window, opacity: f32, acrylic: bool) {
     };
     let hwnd = HWND(raw.hwnd.get() as *mut std::ffi::c_void);
 
-    let backdrop = if acrylic {
-        DWMSBT_TRANSIENTWINDOW
-    } else {
-        DWMSBT_NONE
+    let backdrop = match backdrop {
+        Backdrop::Mica => DWMSBT_MAINWINDOW,
+        Backdrop::Acrylic => DWMSBT_TRANSIENTWINDOW,
+        Backdrop::None => DWMSBT_NONE,
     };
     // SAFETY: `hwnd` vem da janela viva; o ponteiro aponta para um inteiro do
     // tamanho declarado, vivo durante a chamada.
@@ -384,7 +426,7 @@ fn ensure_window_effects(window: &slint::Window, opacity: f32, acrylic: bool) {
     if let Err(error) = written {
         // Windows 10 nao conhece este atributo. Nao ha o que o usuario possa
         // fazer, entao fica so no log.
-        tracing::debug!(%error, "fundo acrilico indisponivel nesta versao do Windows");
+        tracing::debug!(%error, "material de fundo indisponivel nesta versao do Windows");
     }
 
     // A janela so vira "em camada" quando o tema realmente pede transparencia.
@@ -517,8 +559,8 @@ fn wire_window_state(
             ensure_rounded_corners(window.window());
             #[cfg(windows)]
             {
-                let (opacity, acrylic) = state.borrow().window_effects();
-                ensure_window_effects(window.window(), opacity, acrylic);
+                let (opacity, material) = state.borrow().window_effects();
+                ensure_window_effects(window.window(), opacity, backdrop_da_janela(material));
             }
             if window.get_mini_player() {
                 return;
@@ -765,8 +807,16 @@ fn wire_tray(
             // composicao.
             #[cfg(windows)]
             {
-                let (opacity, _) = state.borrow().window_effects();
-                ensure_window_effects(menu.window().window(), opacity, false);
+                // Acrilico aqui, e nao nada: o menu da bandeja e exatamente a
+                // "transient, light-dismiss surface" para a qual a documentacao
+                // do Windows reserva o material.
+                let (opacity, material) = state.borrow().window_effects();
+                let backdrop = if material {
+                    Backdrop::Acrylic
+                } else {
+                    Backdrop::None
+                };
+                ensure_window_effects(menu.window().window(), opacity, backdrop);
             }
         }
 
@@ -1456,8 +1506,8 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
         s.set_window_opacity(v);
         #[cfg(windows)]
         {
-            let (opacidade, acrilico) = s.window_effects();
-            ensure_window_effects(w.window(), opacidade, acrilico);
+            let (opacidade, material) = s.window_effects();
+            ensure_window_effects(w.window(), opacidade, backdrop_da_janela(material));
         }
         s.push_to_ui(&w);
     });

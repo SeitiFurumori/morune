@@ -17,14 +17,28 @@ sidebar_background = "#2a2a32b3"
 
 text           = "#f7f7f8"
 text_muted     = "#e4e4e6"
-text_on_accent = "#1c1c22"
+text_on_accent = "#ffffff"
 
 # Vidro nao tem cor propria. O controle ativo e feito da mesma materia da
 # superficie -- um branco fosco levemente frio --, e nao de uma tinta por cima
 # dela. Com o azul, o botao de tocar era o unico objeto da tela que nao parecia
 # vidro.
-accent       = "#f2f4f8"
-accent_hover = "#ffffff"
+# **Cor num lugar so: a acao primaria.**
+#
+# O cromo monocromatico deste tema esta certo, e a HIG da Apple diz por que --
+# "if your app features colorful backgrounds or visually rich content, prefer a
+# monochromatic appearance for toolbars and tab bars". Um tocador de musica e
+# conteudo colorido.
+#
+# O que estava errado era aplicar monocromatico tambem onde a regra pede
+# excecao: "to emphasize primary actions, apply color to the background rather
+# than to symbols or text". Com o accent branco, o botao Tocar nao tinha cor
+# nenhuma, e o destaque do tema deixava de existir.
+#
+# O violeta e o da marca (`assets/brand`), e nao uma cor nova: o accent do
+# aplicativo e o lugar onde a identidade dele aparece.
+accent       = "#8b63f6"
+accent_hover = "#a884f9"
 
 # 0xaa, e nao 0x45: e o menor alfa que alcanca 3:1 tambem sobre uma area de
 # trabalho clara, o pior caso de um tema translucido. Num tema de vidro isso

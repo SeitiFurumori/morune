@@ -447,9 +447,16 @@ component TrackListRow inherits Rectangle {
     background: touch.has-hover ? Theme.hover : transparent;
     animate background { duration: Theme.motion-fast; easing: ease; }
 
-    // So com o cursor em cima: sem realce a linha nao tem superficie, e um
-    // brilho sobre o nada apareceria como faixa clara solta na lista.
-    if touch.has-hover: Glass { radius: Theme.radius-sm; }
+    // **Sem vidro aqui, e a regra e das duas plataformas.** A Apple: "Don't use
+    // Liquid Glass in the content layer... Instead, use standard materials for
+    // elements in the content layer." A Microsoft: "Don't apply backdrop
+    // material to a UI element." Linha de faixa e conteudo, e vidro sobre
+    // conteudo apaga a fronteira entre o que flutua e o que esta embaixo --
+    // quando tudo e vidro, nada esta acima de nada.
+    //
+    // O realce de hover continua existindo: e a cor de `hover` do tema, que e
+    // exatamente o "low-opacity solid color" que a documentacao do Windows
+    // manda usar na camada de conteudo.
 
     HorizontalLayout {
         padding-left: Theme.space-md;
@@ -724,7 +731,9 @@ component Card inherits Rectangle {
 
     private property <bool> claro: Theme.background.to-hsv().value > 0.5;
 
-    Glass { radius: root.border-radius; }
+    // Cartao e conteudo, entao nao leva vidro -- ver a nota em `TrackListRow`.
+    // O que da profundidade a ele e a sombra, que e o que a especificacao do
+    // Liquid Glass usa para dizer que uma peca esta acima de outra.
 
     conteudo := VerticalLayout {
         padding: Theme.space-sm;
@@ -877,7 +886,11 @@ component PlaylistNavItem inherits Rectangle {
     background: touch.has-hover ? Theme.surface-raised : transparent;
     animate background { duration: Theme.motion-fast; easing: ease; }
 
-    if touch.has-hover: Glass { radius: Theme.radius-sm; }
+    // A barra lateral inteira ja e a peca de vidro. Por um item dentro dela ter
+    // vidro proprio, seria vidro sobre vidro -- "glass-on-glass stacking" na
+    // lista de anti-padroes da Apple, e "don't apply backdrop material more than
+    // once in an application" na do Windows. O item se distingue pela cor de
+    // superficie, nao por um segundo material.
 
     HorizontalLayout {
         padding-left: Theme.space-sm;

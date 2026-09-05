@@ -7,6 +7,43 @@ Versionamento semantico.
 
 ### Corrigido
 
+**Os dois temas de vidro, contra a fonte primaria de cada estilo**
+- **A janela passa a usar Mica, e o menu da bandeja passa a usar acrilico.** A
+  documentacao do Windows e explicita: acrilico e "used **only** for transient,
+  light-dismiss surfaces such as flyouts and context menus", e Mica pinta "the
+  background of **long-lived windows** such as apps and settings". O Morune tinha
+  os dois invertidos -- acrilico na janela do aplicativo, nada no menu. Isso
+  tambem conserta o pior caso conhecido: acrilico amostra o que esta atras e,
+  sobre um jogo em tela cheia, colapsa em cinza; Mica amostra o papel de parede
+  uma vez so e e, nas palavras da Microsoft, "specifically designed for app
+  performance", enquanto acrilico e "GPU-intensive... shorten battery life".
+- **Vidro sai da camada de conteudo.** Apple: "Don't use Liquid Glass in the
+  content layer." Microsoft: "Don't apply backdrop material to a UI element." O
+  `Glass` estava na linha de faixa, no cartao e na linha de playlist -- e vidro
+  sobre conteudo apaga a fronteira entre o que flutua e o que esta embaixo.
+  Continua onde deve: barra de titulo, barra lateral, rodape, paineis e menus.
+- **O Bruma ganha cor na acao primaria.** O cromo monocromatico estava certo --
+  a HIG recomenda monocromatico para aplicativo de conteudo colorido --, mas o
+  tema aplicou isso tambem ao unico lugar em que a cor e obrigatoria: "to
+  emphasize primary actions, apply color to the background". Com `accent`
+  branco, o botao Tocar nao tinha cor nenhuma. Agora e o violeta da marca.
+- **O Aquario para de pintar o painel de verde.** Verde e azul sao a paleta do
+  **motivo** do Frutiger Aero -- ceu, agua, grama --, e o canone do estilo (Wii,
+  XMB do PS3, iPhone 1) poe a cor na cena e deixa o controle claro por cima; o
+  Wii usa cartao branco com fio de acento, e o XMB nao tem painel nenhum. A
+  propria CARI lista as cores-chave como "blue, green, white, tertiary colours".
+  A superficie virou quase branca, e o campo de fundo aparece atraves dela.
+- **O Aquario para de tingir com a cor da capa.** A formula do vidro do Windows 7
+  desfoca o que esta atras, **dessatura** e so entao tinge. Tingir com a cor
+  saturada da capa e o passo contrario: a superficie trocava de identidade a
+  cada faixa.
+- **Bruma e Cristal ganharam `version` no manifesto.** Sem esse campo a
+  atualizacao de tema embutido nao consegue comparar, e os dois ficariam
+  congelados para sempre. E copia instalada **sem** versao passa a ser tratada
+  como anterior ao versionamento -- ela recebe a atualizacao, uma vez so, e nao
+  como "desconhecida, nao mexer", que foi a primeira redacao e teria impedido o
+  Bruma de receber a propria correcao.
+
 **Tema embutido corrigido nunca chegava a quem ja o tinha**
 - **Tema de fabrica passa a ser atualizado, e nao so instalado.** `install_missing`
   pulava qualquer tema cuja pasta ja existisse, e o efeito apareceu inteiro: a
