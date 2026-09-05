@@ -665,13 +665,25 @@ component Card inherits Rectangle {
     // 56px nao acompanhavam o tamanho de fonte nem a entrelinha do tema: em
     // Paper os descendentes do titulo ficavam serrados na base do cartao.
     height: conteudo.preferred-height;
-    // **Raio concentrico:** externo = interno + espacamento. A capa dentro tem
-    // `radius-artwork` (6px) e esta a `space-sm` (8px) das quinas do cartao,
-    // entao o cartao pede 14 -- que e exatamente `radius-lg`. Com `radius-md`
-    // (8px) a capa ficava com a quina mais redonda que a caixa que a contem, e
-    // e a inconsistencia de raio em elemento aninhado que mais faz uma
-    // interface parecer montada as pressas.
-    border-radius: Theme.radius-lg;
+    // **Raio concentrico, calculado e nao escolhido a dedo.**
+    //
+    // A regra e externo = interno + espacamento. A primeira versao disto usava
+    // `radius-lg`, porque no tema embutido 6 + 8 da 14 e `radius-lg` e 14 --
+    // coincidencia, nao relacao. Nos temas de fabrica o numero nao bate em
+    // nenhum: Bruma pede 22 e declara 26, Cristal pede 24 e declara 28, Pulse
+    // pede 24 e declara 26, Aquario pede 21 e declara 24. Um token escolhido a
+    // dedo so acerta no tema em que foi escolhido.
+    //
+    // Somando os dois tokens, o cartao e concentrico **em qualquer tema**, e
+    // continua sendo quando alguem mexer em um dos dois.
+    //
+    // A excecao e o tema que escolheu quina viva: com `radius-artwork` zero,
+    // somar o espacamento daria um cartao arredondado em volta de uma capa
+    // quadrada -- que e a mesma discordancia, ao contrario. No Paper os dois
+    // ficam retos, como o tema pede.
+    border-radius: Theme.radius-artwork > 0px
+        ? Theme.radius-artwork + Theme.space-sm
+        : 0px;
     background: touch.has-hover ? Theme.surface-raised : Theme.surface;
 
     // Elevacao.
@@ -697,7 +709,7 @@ component Card inherits Rectangle {
 
     private property <bool> claro: Theme.background.to-hsv().value > 0.5;
 
-    Glass { radius: Theme.radius-lg; }
+    Glass { radius: root.border-radius; }
 
     conteudo := VerticalLayout {
         padding: Theme.space-sm;

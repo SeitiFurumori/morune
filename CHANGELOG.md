@@ -39,12 +39,14 @@ Versionamento semantico.
   duplicacao entre as duas posicoes da barra.
 
 **Raio aninhado errado, e capa sem separacao do fundo**
-- **O cartao passa a ter raio concentrico com a capa.** A regra e externo =
-  interno + espacamento: a capa tem `radius_artwork` (6px) e fica a `space_sm`
-  (8px) das quinas, entao o cartao pede 14 -- que ja existia como `radius_lg` e
-  nao era usado em cartao nenhum. Com 8px, a capa aparecia com a quina mais
-  redonda que a caixa que a contem, e raio aninhado inconsistente e o detalhe
-  que mais faz uma interface parecer montada as pressas.
+- **O cartao passa a ter raio concentrico com a capa, em qualquer tema.** A
+  regra e externo = interno + espacamento, e agora o valor e **somado** em vez de
+  escolhido a dedo: `radius_artwork + space_sm`. A primeira versao usava
+  `radius_lg`, que no tema embutido calha de dar o numero certo -- e em nenhum
+  dos temas de fabrica da: Bruma pede 22 e declara 26, Cristal pede 24 e declara
+  28, Pulse pede 24 e declara 26, Aquario pede 21 e declara 24. Tema que escolheu
+  quina viva continua com quina viva: com `radius_artwork` zero o cartao tambem
+  fica reto, senao seria a mesma discordancia ao contrario.
 - **Capa ganha contorno de 1px a 10%**, preto puro em tema claro e branco puro
   em tema escuro -- nunca a cor de borda do tema, porque contorno tingido pega a
   superficie de baixo e aparece como sujeira na beirada da imagem. E o que da
