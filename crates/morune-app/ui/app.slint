@@ -1672,6 +1672,8 @@ component HomePage inherits Rectangle {
         sections := VerticalLayout {
             spacing: Theme.space-lg;
             alignment: start;
+            // O ar que o conteiner perdeu, agora rolando junto.
+            padding-bottom: Theme.space-lg;
 
         if root.empty && !root.logged-in: EmptyState {
             title: "Nada por aqui ainda";
@@ -1807,6 +1809,7 @@ component SearchPage inherits VerticalLayout {
         results := VerticalLayout {
             spacing: Theme.space-lg;
             alignment: start;
+            padding-bottom: Theme.space-lg;
 
             if root.tracks.length > 0: TrackShelf {
                 title: "Faixas";
@@ -1862,6 +1865,7 @@ component LibraryPage inherits Rectangle {
         content := VerticalLayout {
         spacing: Theme.space-lg;
         alignment: start;
+        padding-bottom: Theme.space-lg;
 
         SectionTitle { text: "Biblioteca"; }
 
@@ -2273,6 +2277,7 @@ component QueuePage inherits Rectangle {
         content := VerticalLayout {
         spacing: Theme.space-lg;
         alignment: start;
+        padding-bottom: Theme.space-lg;
 
         SectionTitle { text: "Fila"; }
 
@@ -2723,6 +2728,7 @@ component SettingsPage inherits VerticalLayout {
         pagina := VerticalLayout {
             spacing: Theme.space-md;
             alignment: start;
+            padding-bottom: Theme.space-lg;
 
             SectionTitle { text: "Configurações"; }
 
@@ -3662,7 +3668,24 @@ export component AppWindow inherits Window {
                 background: transparent;
 
                 VerticalLayout {
-                    padding: Theme.space-lg;
+                    // **Sem recuo embaixo, e o de baixo era o unico errado.**
+                    //
+                    // `padding` punha `space-lg` nos quatro lados. Nos tres
+                    // primeiros isso e ar; no quarto e uma faixa morta entre a
+                    // pagina e a barra de reproducao, larga o bastante para
+                    // aparecer -- 24px no Aquario, 22 no Bruma. Como toda pagina
+                    // aqui rola por dentro, o efeito era a lista terminar cortada
+                    // e ainda sobrar campo vazio: nenhuma delas conseguia encostar
+                    // na barra, por mais que se rolasse.
+                    //
+                    // O ar continua existindo, so que DENTRO do visor de rolagem:
+                    // cada pagina ganhou `padding-bottom` no proprio conteudo
+                    // rolado, entao o ultimo item ainda sobe livre da barra -- a
+                    // diferenca e que agora ele PODE chegar ate ela.
+                    padding-left: Theme.space-lg;
+                    padding-right: Theme.space-lg;
+                    padding-top: Theme.space-lg;
+                    padding-bottom: 0px;
                     spacing: Theme.space-md;
 
                     if root.page == 0: HomePage {
