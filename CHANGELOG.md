@@ -7,6 +7,32 @@ Versionamento semantico.
 
 ### Corrigido
 
+**Tema embutido corrigido nunca chegava a quem ja o tinha**
+- **Tema de fabrica passa a ser atualizado, e nao so instalado.** `install_missing`
+  pulava qualquer tema cuja pasta ja existisse, e o efeito apareceu inteiro: a
+  correcao de contraste feita nos temas em agosto **nunca chegou** -- o Paper
+  instalado ainda estava com a borda reprovada que o projeto acreditava ter
+  consertado, semanas depois. Agora a `version` do manifesto decide, comparada
+  como numero e nao como texto, e a pasta antiga vira `<id>.bak` antes de a nova
+  entrar: perder edicao alheia para entregar uma correcao seria trocar um
+  problema por um pior.
+- **O tema Paper foi redesenhado.** Tinha cinco superficies dentro de 4% de
+  luminosidade entre si, serifa de texto corrido usada ate em rotulo de 11px, e
+  acento tijolo saturado preenchendo botao inteiro -- lia como planilha bege.
+  Agora a superficie elevada e **branco puro**, que num tema de papel e o gesto
+  certo (folha sobre a mesa) e cria hierarquia sem sombra; a interface usa sans
+  e o titulo usa serifa; e o acento virou carmim escuro de correcao.
+- **`display_family` deixou de ser token morto.** Estava declarado desde sempre
+  e nao era lido por nenhuma linha de interface -- por isso um tema editorial
+  tinha de escolher entre titulo bonito e rotulo legivel. Agora vale no titulo
+  grande, e tema de uma familia so continua com uma.
+- **A coluna de album passa a valer no modo lista**, e nao so na grade. A regra
+  anterior estava errada: album e o que faz uma lista parecer indice, entao o
+  modo lista e quem mais precisa dele. Sai so no compacto.
+- **O botao de estado vazio parou de ocupar a largura da tela.** Num
+  `VerticalLayout` o filho estica, entao ele virava uma barra de 840px na cor de
+  destaque -- um banner, e nao uma acao.
+
 **A interface falava como log, e 16 animacoes corriam em linha reta**
 - **Seis textos de interface estavam sem acento**, o mesmo defeito que um ciclo
   anterior declarou corrigido: "Musicas curtidas", "nao esta mais fixada",

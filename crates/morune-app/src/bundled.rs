@@ -115,9 +115,21 @@ const THEMES: &[BundledTheme] = &[
     },
 ];
 
-/// Grava os temas que ainda nao existem em `themes_dir`.
+/// Grava os temas embutidos que faltam, e atualiza os que ficaram para tras.
 ///
-/// Devolve os ids instalados nesta chamada. Erros sao registrados e ignorados:
+/// **Por que atualizar, e nao so instalar.** A versao anterior pulava qualquer
+/// tema cuja pasta ja existisse, e o efeito foi este: uma correcao de contraste
+/// feita nos temas de fabrica em agosto nunca chegou a quem ja os tinha --
+/// meses depois, o Paper instalado ainda estava com a borda reprovada que o
+/// projeto acreditava ter consertado. Tema embutido e parte do aplicativo, e
+/// aplicativo que se atualiza tem de atualizar o que ele traz.
+///
+/// **O que decide e a `version` do manifesto**, comparada campo a campo. Tema
+/// que o usuario editou nao perde a edicao em silencio: a pasta antiga vira
+/// `<id>.bak` antes de a nova ser gravada. Perder trabalho alheio para entregar
+/// uma correcao seria trocar um problema por um pior.
+///
+/// Devolve os ids instalados ou atualizados. Erros sao registrados e ignorados:
 /// nao poder gravar um tema de exemplo nao e motivo para o aplicativo nao abrir.
 pub fn install_missing(themes_dir: &Path) -> Vec<&'static str> {
     let mut installed = Vec::new();
@@ -125,7 +137,19 @@ pub fn install_missing(themes_dir: &Path) -> Vec<&'static str> {
     for theme in THEMES {
         let dir = themes_dir.join(theme.id);
         if dir.exists() {
-            continue;
+            if !bundled_is_newer(theme, &dir) {
+                continue;
+            }
+            let backup = themes_dir.join(format!("{}.bak", theme.id));
+            let _ = std::fs::remove_dir_all(&backup);
+            if let Err(e) = std::fs::rename(&dir, &backup) {
+                tracing::warn!(theme = theme.id, error = %e, "nao consegui guardar a copia antiga; tema mantido como esta");
+                continue;
+            }
+            tracing::info!(
+                theme = theme.id,
+                "tema embutido atualizado; copia antiga em .bak"
+            );
         }
         if let Err(e) = std::fs::create_dir_all(&dir) {
             tracing::warn!(theme = theme.id, error = %e, "nao foi possivel criar a pasta do tema");
@@ -151,6 +175,56 @@ pub fn install_missing(themes_dir: &Path) -> Vec<&'static str> {
     installed
 }
 
+/// A versao embutida e maior que a instalada?
+///
+/// Le so a linha `version` do manifesto dos dois lados, porque e o unico campo
+/// que decide. Faltando versao de qualquer um dos lados, nao ha comparacao e
+/// nada e substituido -- o desfecho seguro aqui e o que nao mexe.
+fn bundled_is_newer(theme: &BundledTheme, dir: &Path) -> bool {
+    let instalada = std::fs::read_to_string(dir.join("manifest.toml"))
+        .ok()
+        .and_then(|texto| manifest_version(&texto));
+    // Sem versao legivel do lado instalado nao ha comparacao possivel, e a
+    // saida segura e **nao** mexer: atualizar no escuro reescreveria a cada
+    // arranque todo tema cujo manifesto nao declara versao.
+    let Some(instalada) = instalada else {
+        return false;
+    };
+
+    let embutida = theme
+        .files
+        .iter()
+        .find(|f| f.name == "manifest.toml")
+        .and_then(|f| match f.contents {
+            BundledContents::Text(t) => manifest_version(t),
+            BundledContents::Bytes(_) => None,
+        });
+    let Some(embutida) = embutida else {
+        return false;
+    };
+
+    embutida > instalada
+}
+
+/// `version = "1.2.3"` do manifesto, como tres numeros comparaveis.
+///
+/// Comparar como texto poria `1.10.0` antes de `1.9.0`, que e o erro classico
+/// -- e um que este projeto ja pagou noutro lugar, na comparacao de versao do
+/// atualizador.
+fn manifest_version(texto: &str) -> Option<(u32, u32, u32)> {
+    let linha = texto
+        .lines()
+        .map(str::trim)
+        .find(|l| l.starts_with("version"))?;
+    let valor = linha.split('=').nth(1)?.trim().trim_matches('"');
+    let mut partes = valor.split('.');
+    Some((
+        partes.next()?.trim().parse().ok()?,
+        partes.next().unwrap_or("0").trim().parse().unwrap_or(0),
+        partes.next().unwrap_or("0").trim().parse().unwrap_or(0),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -160,6 +234,53 @@ mod tests {
         let _ = std::fs::remove_dir_all(&p);
         std::fs::create_dir_all(&p).unwrap();
         p
+    }
+
+    /// O defeito que a atualizacao conserta: uma correcao nos temas de fabrica
+    /// nunca chegava a quem ja tinha o tema instalado.
+    #[test]
+    fn tema_desatualizado_e_substituido_e_o_antigo_vira_bak() {
+        let dir = temp_dir("atualiza");
+        install_missing(&dir);
+
+        let paper = dir.join("paper");
+        let manifesto = paper.join("manifest.toml");
+        let original = std::fs::read_to_string(&manifesto).unwrap();
+        // Finge uma instalacao antiga.
+        std::fs::write(&manifesto, original.replace("1.1.0", "1.0.0")).unwrap();
+        std::fs::write(paper.join("theme.toml"), "editado a mao").unwrap();
+
+        let atualizados = install_missing(&dir);
+        assert!(
+            atualizados.contains(&"paper"),
+            "paper devia ter sido atualizado"
+        );
+        assert!(
+            std::fs::read_to_string(&manifesto)
+                .unwrap()
+                .contains("1.1.0"),
+            "o manifesto instalado devia ser o novo"
+        );
+        assert_eq!(
+            std::fs::read_to_string(dir.join("paper.bak").join("theme.toml")).unwrap(),
+            "editado a mao",
+            "a copia antiga precisa sobreviver: perder edicao alheia seria pior que o defeito"
+        );
+    }
+
+    /// Sem isto, todo arranque reescreveria os cinco temas em disco.
+    #[test]
+    fn tema_em_dia_nao_e_reescrito() {
+        let dir = temp_dir("em-dia");
+        install_missing(&dir);
+        assert!(install_missing(&dir).is_empty());
+    }
+
+    #[test]
+    fn versao_do_manifesto_compara_como_numero() {
+        assert!(manifest_version("version = \"1.10.0\"") > manifest_version("version = \"1.9.0\""));
+        assert_eq!(manifest_version("version = \"2.1\""), Some((2, 1, 0)));
+        assert_eq!(manifest_version("nada aqui"), None);
     }
 
     #[test]
@@ -266,7 +387,10 @@ mod tests {
         std::fs::write(&edited, "[color]\naccent = \"#123456\"\n").unwrap();
 
         let installed = install_missing(&dir);
-        assert!(installed.is_empty(), "reinstalou por cima: {installed:?}");
+        assert!(
+            installed.is_empty(),
+            "mesma versao nao pode reinstalar por cima: {installed:?}"
+        );
         assert!(std::fs::read_to_string(&edited).unwrap().contains("123456"));
 
         let _ = std::fs::remove_dir_all(&dir);

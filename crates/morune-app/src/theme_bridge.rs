@@ -168,6 +168,14 @@ fn apply_typography(t: &UiTheme<'_>, s: &ThemeSpec, over: UserOverrides) {
     let sized = |base: f32| ((base * scale) * 2.0).round() / 2.0;
 
     t.set_font_family(SharedString::from(typo.family.as_str()));
+    // Vazio cai na familia principal: e o que faz um tema de uma familia so
+    // continuar com uma familia so, sem precisar repetir o nome.
+    let display = if typo.display_family.trim().is_empty() {
+        typo.family.as_str()
+    } else {
+        typo.display_family.as_str()
+    };
+    t.set_display_family(SharedString::from(display));
     t.set_size_xs(sized(typo.size_xs));
     t.set_size_sm(sized(typo.size_sm));
     t.set_size_md(sized(typo.size_md));

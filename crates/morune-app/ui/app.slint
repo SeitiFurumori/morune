@@ -158,9 +158,19 @@ component EmptyState inherits VerticalLayout {
         wrap: word-wrap;
     }
 
-    if root.action-label != "": PrimaryButton {
-        label: root.action-label;
-        clicked => { root.action(); }
+    // O botao nao ocupa a largura da tela.
+    //
+    // Num `VerticalLayout` o filho estica na horizontal, entao o botao de um
+    // estado vazio virava uma barra de 840px na cor de destaque -- um banner, e
+    // nao uma acao. Numa area sem conteudo, o botao e o unico elemento com
+    // peso: se ele tomar a largura toda, e a unica coisa que a tela diz.
+    if root.action-label != "": HorizontalLayout {
+        alignment: center;
+
+        PrimaryButton {
+            label: root.action-label;
+            clicked => { root.action(); }
+        }
     }
 }
 
@@ -512,6 +522,11 @@ component TrackListRow inherits Rectangle {
         // De quebra, `view-mode` ganha o segundo efeito. Ele declarava tres
         // modos e mudava uma coisa so, e essa e parte da razao de trocar de tema
         // quase nao mudar nada.
+        //
+        // **Sai so no modo compacto**, e nao "so na grade" como na primeira
+        // versao. Aquilo estava errado: o album e o que faz uma lista parecer
+        // indice, entao o modo lista e justamente quem mais precisa dele. Quem
+        // pede compacto e que esta pedindo mais linha e menos coluna.
         // **A celula existe sempre; quem e condicional e o texto dentro dela.**
         // Um `if` no lugar da celula nao repassa `horizontal-stretch` ao
         // layout: a celula recebia a largura preferida do texto e vinha
@@ -523,11 +538,11 @@ component TrackListRow inherits Rectangle {
         // de verdade, cada uma comecando sempre no mesmo x, e o vazio deixa de
         // existir em vez de se mudar.
         Rectangle {
-            horizontal-stretch: Layout.view-mode == 0 ? 1 : 0;
+            horizontal-stretch: Layout.view-mode != 2 ? 1 : 0;
             // Pelo mesmo motivo do titulo: a celula so divide o espaco livre.
             min-width: 0px;
             preferred-width: 0px;
-            if Layout.view-mode == 0: Text {
+            if Layout.view-mode != 2: Text {
                 x: 0;
                 width: 100%;
                 height: 100%;
@@ -2019,7 +2034,11 @@ component DetailPage inherits VerticalLayout {
                 color: Theme.text;
                 font-size: Layout.show-hero ? Theme.size-display : Theme.size-xl;
                 font-weight: Theme.weight-bold;
-                font-family: Theme.font-family;
+                // O unico lugar da interface com `display-family`: e o titulo
+                // grande, que e onde uma serifa acrescenta e onde ela nao
+                // atrapalha a leitura de rotulo pequeno. Tema de uma familia so
+                // recebe a mesma de sempre.
+                font-family: Theme.display-family;
                 overflow: elide;
             }
 

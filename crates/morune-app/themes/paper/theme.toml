@@ -1,19 +1,48 @@
 # Paper e o contraponto do tema embutido: claro, quadrado e sem brilho.
 # Serve tambem como prova de que a troca de tema muda mais que cor.
+#
+# **Redesenhado em 05/09/2026.** A versao anterior tinha cinco superficies
+# dentro de 4% de luminosidade entre si -- cinco beges que nao se separavam de
+# nada --, serifa de texto corrido usada ate em rotulo de 11px, e o acento
+# tijolo saturado preenchendo botao inteiro. Lia como planilha bege, nao como
+# papel.
+#
+# As tres decisoes que mudam isso:
+#
+# 1. **A folha branca e a superficie elevada.** Num tema papel, o que sobe nao
+#    fica mais escuro: fica mais claro, como uma folha em cima da mesa. Cartao
+#    e painel viram branco puro sobre a mesa creme, e ai a hierarquia existe sem
+#    precisar de sombra -- que este tema quase nao tem, de proposito.
+# 2. **Duas familias, e nao uma.** Serifa e para titulo; interface e sans. A
+#    Georgia em 11px de rotulo ficava borrada e pesada. Agora `display_family`
+#    carrega a serifa e `family` carrega a sans, que e exatamente para isso que
+#    os dois campos existem -- e de quebra o tema passa a provar que da para
+#    trocar tipografia por papel, e nao so a fonte.
+# 3. **Acento de tinta, nao de tijolo.** O carmim escuro le como marca de
+#    caneta vermelha na margem. O tom anterior, mais claro e mais saturado,
+#    virava bloco quente de 800px quando caia num botao largo.
 
 [color]
-background = "#f6f4ef"
-surface = "#efece4"
-surface_raised = "#e6e2d8"
-player_background = "#eae6dc"
-sidebar_background = "#efece4"
+# A mesa: creme quente, um degrau mais clara que antes para a folha branca ter
+# de onde subir.
+background = "#f7f4ed"
+# Painel e barra ficam junto da mesa; quem separa e a borda, nao o tom. Cinco
+# tons quase iguais nao criavam hierarquia nenhuma, so sujeira.
+surface = "#f2eee5"
+# A folha. Branco puro de proposito: e o unico valor que le como papel novo.
+surface_raised = "#ffffff"
+player_background = "#f2eee5"
+sidebar_background = "#f2eee5"
 
-text = "#20211f"
-text_muted = "#6b6a63"
-text_on_accent = "#f8f7f4"
+# Tinta, e nao cinza escuro: um preto levemente quente assenta sobre creme.
+text = "#1c1a16"
+text_muted = "#6d675c"
+text_on_accent = "#fbf9f5"
 
-accent = "#8c3b2e"
-accent_hover = "#a24a3b"
+# Carmim de correcao. Escuro o bastante para preencher botao sem virar bloco
+# quente, e saturado o bastante para nunca ser confundido com o texto.
+accent = "#7d2b20"
+accent_hover = "#96382a"
 
 # 0x6c e o menor alfa que da 3:1 contra o fundo, o minimo da WCAG 1.4.11
 # para limite grafico. A trilha da barra de progresso usa esta mesma cor: a
@@ -22,11 +51,11 @@ accent_hover = "#a24a3b"
 border = "#0000006c"
 hover = "#0000000a"
 selected = "#00000014"
-focus_ring = "#8c3b2e"
+focus_ring = "#7d2b20"
 
-success = "#3f6b45"
-warning = "#8a6a1f"
-danger = "#a33a2f"
+success = "#38603d"
+warning = "#7d5f1a"
+danger = "#93332a"
 
 shadow = "#00000022"
 # Mesmo 3:1 da borda: a barra de rolagem diz onde a lista esta, e a WCAG
@@ -34,7 +63,9 @@ shadow = "#00000022"
 scrollbar = "#0000006c"
 
 [typography]
-family = "Georgia"
+# Sans na interface, serifa no titulo. Segoe UI existe em todo Windows desde o
+# Vista, entao nao ha risco de cair num substituto imprevisivel.
+family = "Segoe UI"
 display_family = "Georgia"
 scale = 1.0
 size_xs = 11.0

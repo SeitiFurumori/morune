@@ -38,6 +38,13 @@ export global Theme {
 
     // --- tipografia ---
     in-out property <string> font-family: "";
+    /// Familia dos titulos grandes.
+    ///
+    /// Vazia = usa `font-family`, que e o caso de todo tema de uma familia so.
+    /// Existe porque serifa e boa em titulo e ruim em rotulo de 11px: sem este
+    /// par, um tema editorial tinha de escolher entre um titulo bonito e uma
+    /// interface legivel.
+    in-out property <string> display-family: "";
     in-out property <length> size-xs: 11px;
     in-out property <length> size-sm: 12px;
     in-out property <length> size-md: 14px;
