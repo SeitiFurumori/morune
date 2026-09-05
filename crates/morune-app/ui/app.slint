@@ -1999,6 +1999,16 @@ component DetailPage inherits VerticalLayout {
     private property <bool> entrou: false;
     init => { root.entrou = true; }
 
+    // **Esta pagina nao tinha `spacing`, e as outras quatro tinham.**
+    //
+    // `VerticalLayout` sem `spacing` empilha com zero, e o respiro que sobrava
+    // vinha do recheio de cada peca -- que nao existe em todas. Medido na captura
+    // do detalhe de "Musicas curtidas": entre a base da capa e o campo de filtro
+    // havia **1px**, e entre o campo e a linha do "Mostrando" havia **0**. As
+    // tres pecas encostavam umas nas outras, e logo abaixo vinha um vao de 59px
+    // ate os chips de ordenacao. Nao era ritmo apertado, era ritmo nenhum.
+    spacing: Theme.space-md;
+
     HorizontalLayout {
         spacing: Theme.space-md;
         vertical-stretch: 0;
@@ -2138,6 +2148,11 @@ component DetailPage inherits VerticalLayout {
                 // Verbo do ponto de vista de quem clica: ele quer ver mais,
                 // nao carregar mais.
                 label: "Mostrar mais";
+                // Centralizado a mao: num `HorizontalLayout` o filho de altura
+                // fixa nao estica, e nasce colado no topo. Medi 8,5px acima do
+                // meio do texto ao lado -- duas coisas da mesma linha apoiadas
+                // em alturas diferentes.
+                y: (parent.height - self.height) / 2;
                 clicked => { root.load-more(); }
             }
         }
