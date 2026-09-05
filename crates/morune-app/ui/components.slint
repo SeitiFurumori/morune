@@ -219,6 +219,32 @@ export component Rim inherits Rectangle {
 // Nao intercepta ponteiro nem entra em layout: e um filho solto do retangulo
 // que hospeda, desenhado por cima do fundo e por baixo do conteudo. Por isso
 // vai declarado logo depois do `background:` do hospedeiro.
+// **Onde este componente pode entrar, e a lista e fechada.**
+//
+// A regra e das duas plataformas, com as proprias palavras. Apple: "Don't use
+// Liquid Glass in the content layer... Instead, use standard materials for
+// elements in the content layer." Microsoft: "Don't apply backdrop material to
+// a UI element", e acrilico "only for transient, light-dismiss surfaces such as
+// flyouts and context menus". Quando tudo e vidro, nada esta acima de nada.
+//
+// Logo, `Glass` so vale em duas familias:
+//
+// 1. **Moldura da janela** -- barra de titulo, barra de reproducao, casca da
+//    barra lateral. Sao a borda do aplicativo, nao o conteudo dele.
+// 2. **Superficie transitoria** -- menu de contexto, aviso de rodape, dialogo
+//    de atalhos, sobreposicao de diagnostico. Aparecem, sao dispensadas, e
+//    enquanto estao ali precisam dizer que flutuam acima de tudo.
+//
+// Fora dessas duas, a resposta e a cor do tema: `surface` para o painel,
+// `hover`/`selected` para o realce -- que e o "low-opacity solid color" que a
+// documentacao do Windows manda usar na camada de conteudo. Oito chamadas foram
+// removidas por esta regra (linha de faixa, cartao, item de navegacao, chip de
+// ordenacao, linha de tema e os paineis das Configuracoes); em todas elas ja
+// havia cor solida por baixo, entao o vidro era puramente aditivo.
+//
+// Nos cartoes que perderam o vidro o contorno passou a ser `border` do proprio
+// Rectangle. Sem isso, num tema cuja `surface` e branco a 12% -- o Bruma --, o
+// painel ficava sem nenhuma aresta e desaparecia no fundo.
 export component Glass {
     in property <length> radius: 0px;
     in property <bool> bottom: true;

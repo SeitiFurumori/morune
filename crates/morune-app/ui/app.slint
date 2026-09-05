@@ -347,7 +347,6 @@ component AccountRow inherits Rectangle {
     border-radius: Theme.radius-md;
     background: touch.has-hover ? Theme.hover : transparent;
 
-    if touch.has-hover: Glass { radius: Theme.radius-md; }
     animate background { duration: Theme.motion-fast; easing: ease; }
 
     HorizontalLayout {
@@ -390,7 +389,6 @@ component NavItem inherits Rectangle {
     border-radius: Theme.radius-md;
     background: root.active ? Theme.selected : (touch.has-hover ? Theme.hover : transparent);
 
-    if root.active || touch.has-hover: Glass { radius: Theme.radius-md; }
     animate background { duration: Theme.motion-fast; easing: ease; }
 
     HorizontalLayout {
@@ -1078,7 +1076,6 @@ component Sidebar inherits Rectangle {
                     border-radius: Theme.radius-md;
                     background: marca-touch.has-hover ? Theme.hover : transparent;
 
-                    if marca-touch.has-hover: Glass { radius: Theme.radius-md; }
                     animate background { duration: Theme.motion-fast; easing: ease; }
 
                     Logo {
@@ -1895,8 +1892,6 @@ component SortChip inherits Rectangle {
         : (toque.has-hover ? Theme.hover : transparent);
     animate background { duration: Theme.motion-fast; easing: ease; }
 
-    if root.active || toque.has-hover: Glass { radius: Theme.radius-sm; }
-
     rotulo := Text {
         // A seta so aparece no criterio ativo: repetida em todos, viraria
         // ruido, e num criterio inativo ela nao significa nada.
@@ -2438,9 +2433,9 @@ component ThemeRow inherits Rectangle {
     height: 56px;
     border-radius: Theme.radius-md;
     background: root.item.active ? Theme.selected : (touch.has-hover ? Theme.hover : Theme.surface);
+    border-width: Theme.border-width;
+    border-color: Theme.border;
     animate background { duration: Theme.motion-fast; easing: ease; }
-
-    Glass { radius: Theme.radius-md; }
 
     // Fica atras do conteudo: os botoes Duplicar e Exportar continuam com
     // alvos independentes, em vez de o clique ser roubado pela linha inteira.
@@ -2711,8 +2706,8 @@ component SettingsPage inherits VerticalLayout {
                 height: 64px;
                 border-radius: Theme.radius-md;
                 background: Theme.surface;
-
-                Glass { radius: Theme.radius-md; }
+                border-width: Theme.border-width;
+                border-color: Theme.border;
 
                 HorizontalLayout {
                     padding-left: Theme.space-md;
@@ -2793,8 +2788,8 @@ component SettingsPage inherits VerticalLayout {
                 height: login.preferred-height + Theme.space-md * 2;
                 border-radius: Theme.radius-md;
                 background: Theme.surface;
-
-                Glass { radius: Theme.radius-md; }
+                border-width: Theme.border-width;
+                border-color: Theme.border;
 
                 login := VerticalLayout {
                     x: Theme.space-md;
@@ -3274,8 +3269,8 @@ component SettingsPage inherits VerticalLayout {
                     height: diag.preferred-height + Theme.space-sm * 2;
                     border-radius: Theme.radius-sm;
                     background: Theme.surface;
-
-                    Glass { radius: Theme.radius-sm; }
+                    border-width: Theme.border-width;
+                    border-color: Theme.border;
 
                     diag := Text {
                         text: d.field + ": " + d.message;
