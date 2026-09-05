@@ -115,9 +115,57 @@ contêiner.
 
 ---
 
-## 2. Aero, pelas patentes da Microsoft
+## 2. Frutiger Aero: primeiro o estilo, depois o Windows
 
-A parte mais concreta desta pesquisa, porque patente descreve mecanismo.
+**Correção de premissa, feita depois que o Felipe apontou.** A primeira versão
+desta pesquisa tratou o Windows Aero como a fonte do estilo. Está errado, e a
+diferença muda o que o tema deve copiar.
+
+Fonte: [Frutiger Aero — Wikipédia](https://en.wikipedia.org/wiki/Frutiger_Aero).
+
+**O nome é retrônimo, e de comunidade.** Foi cunhado em 2017–2018 por Sofi Xian
+(antes Sofia Lee), do **Consumer Aesthetics Research Institute** — um coletivo
+que cataloga estética de consumo. No auge de sua influência, o estilo **não
+tinha nome nenhum**. Só virou fenômeno de internet em 2022–2023.
+
+O nome soma "Aero", a diretriz do Vista, à fonte Frutiger, de Adrian Frutiger.
+E há uma ironia registrada na própria fonte:
+
+> "the Frutiger family was **never used in a major user interface** associated
+> with the style"
+
+O que o Vista usou foi a Segoe UI, inspirada nela. Ou seja: o `Segoe UI` do
+Aquário é a escolha historicamente certa — mas por parentesco, não por citação.
+
+**O cânone é muito maior que a Microsoft.** Os exemplos que a literatura cita:
+
+| categoria | exemplos |
+|---|---|
+| sistema | Windows Vista (2006) e 7 (2009), KDE Plasma 4 |
+| aparelho | Nintendo Wii, iPhone de 1ª geração (2007), Galaxy S (2010) |
+| jogo | Wii Sports (2006), Purble Place (2007), The Sims 3 (2009), Fruit Ninja (2010) |
+| outros | MSN Messenger, embalagem, arquitetura de loja |
+
+Windows Aero é **um** artefato dessa lista. Acontece de ser o único com
+mecanismo documentado em patente — por isso a seção seguinte existe —, mas
+copiar a moldura do Vista dá "moldura do Vista", não Frutiger Aero.
+
+**E o estilo é sobre uma ideia, não sobre um efeito.** A leitura que a
+literatura registra: o natural "intertwined" com um futuro digital, "a utopia
+where efficiency and the environment coexist", concebida numa época de
+ingenuidade sobre o custo da tecnologia. Contra o Y2K, que é ansioso, este é
+**esperançoso** — e o revival de 2023 o lê como "the future we were promised but
+never delivered".
+
+Isso tem consequência direta de projeto: a identidade do Aquário mora na
+**imagem** — céu, água, grama, bolha, peixe, lens flare — e nos **controles em
+gel**, não numa cor de painel. A superfície verde-limão é uma tentativa de pôr o
+motivo na camada errada.
+
+### Aero, pelas patentes da Microsoft
+
+A parte mais concreta desta pesquisa, porque patente descreve mecanismo — e
+vale como mecanismo, não como definição do estilo.
 
 ### O realce é um bitmap, não um gradiente
 
@@ -174,17 +222,17 @@ Os valores padrão de `ColorizationColorBalance` e companhia **não foram
 encontrados** em fonte nenhuma. Sem eles, qualquer número de balanço aqui seria
 inventado.
 
-### O estilo em volta do artefato
+### Os motivos, pela comunidade
 
-Fonte: [frutiger-aero.org](https://frutiger-aero.org/frutiger-aero).
+Fonte: [frutiger-aero.org](https://frutiger-aero.org/frutiger-aero) e a Wikipédia.
 
-Período 2004–2013. Motivos: esqueuomorfismo, textura brilhante, gradiente
-linear, *lens flare* e bokeh, céu nublado, água, bolhas, peixe tropical, aurora,
-objeto 3D renderizado. Paleta de verdes e azuis. Tipografia: **Frutiger**, de
-Adrian Frutiger — o nome do estilo.
+Período 2004–2013, sucedendo o Y2K. Motivos: esqueuomorfismo, textura
+brilhante, gradiente linear, *lens flare* e bokeh, céu nublado, água, bolhas,
+peixe tropical, aurora, objeto 3D renderizado. Paleta de azuis e verdes "to
+align with its natural influences", mais amarelos.
 
-O Aquário usa `Segoe UI`, que é a humanista que a Microsoft desenhou para o
-Vista, na mesma linhagem. É a escolha certa, e a mesma do artefato.
+Fim do estilo: substituído pelo design plano no começo dos anos 2010, com o
+**Frutiger Metro** do Windows 8 (2012) como transição.
 
 ---
 
@@ -259,10 +307,15 @@ resolve de graça o pior caso do projeto (o app sobre um jogo em tela cheia).
 mesma família do texto: o tema não tem cor de ação. E a tinta do Liquid Glass é
 uma faixa de tons mapeada ao brilho do que está atrás, não uma cor chapada.
 
-**6. O Aquário inverteu as camadas.** `surface = #b7e86a` põe verde-limão a 90%
-no painel; na fonte, verde e azul são a paleta do **motivo** — céu, água, grama —
-e a superfície do vidro é neutra tingida de leve. O verde vive na imagem atrás,
-não no painel na frente.
+**6. O Aquário inverteu as camadas, e esse é o erro maior do tema.**
+`surface = #b7e86a` põe verde-limão a 90% no painel. Verde e azul são a paleta do
+**motivo** — céu, água, grama, aurora —, e motivo é imagem, não superfície de
+controle. O cânone do estilo (Wii, iPhone 1, Sims 3) põe a cor na cena e deixa o
+controle como **gel neutro e brilhante** por cima. O Aquário fez o contrário:
+pintou o controle de verde e deixou a cena de fundo genérica.
+
+Corolário: a identidade do tema deveria estar quase toda em `fundo.png` e no
+brilho dos controles, e quase nada na cor do painel.
 
 **7. O Aquário tinge o que é saturado.** `artwork_tint_strength = 0.3` puxa a cor
 dominante da capa. O Aero dessatura primeiro e tinge depois, com **uma** cor do
