@@ -78,8 +78,8 @@ qualquer momento.
 
 | # | Plano | Fase | Status |
 |---|---|---|---|
-| — | `security-review` | 0 | pendente |
-| — | `code-review` | 0 | pendente |
+| — | `security-review` | 0 | **feito** — nenhum achado acima do corte |
+| — | `code-review` | 0 | **feito** — 2 achados, os dois corrigidos |
 | — | `better-ui` | 1 | pendente |
 | 002 | Barra lateral anima largura | 1 | pendente |
 | — | `ux-writing` | 2 | pendente |

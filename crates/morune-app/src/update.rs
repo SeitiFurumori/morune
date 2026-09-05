@@ -35,7 +35,7 @@
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, TryRecvError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use sha2::{Digest, Sha256};
 
@@ -269,6 +269,17 @@ pub struct Updater {
     /// Versao que a verificacao automatica achou e que a tela ainda nao
     /// anunciou. Recolhida uma unica vez por [`Updater::take_anuncio`].
     anuncio: Option<Version>,
+    /// Quando vale a pena olhar a marca em disco de novo.
+    ///
+    /// **Por que existe:** `auto_check` roda no tique de 100 ms, e sem isto
+    /// `auto_check_due` abria e lia um arquivo dez vezes por segundo pelo resto
+    /// da sessao -- centenas de milhares de leituras por dia, todas com a mesma
+    /// resposta. E a mesma classe de gasto invisivel que ja custou 0,22% de um
+    /// nucleo no menu da bandeja.
+    ///
+    /// `None` significa "nunca olhei nesta sessao"; dai a primeira consulta le
+    /// o disco e as seguintes so comparam relogio.
+    proxima_consulta: Option<Instant>,
 }
 
 impl std::fmt::Debug for Updater {
@@ -291,6 +302,7 @@ impl Updater {
             dir,
             automatica: false,
             anuncio: None,
+            proxima_consulta: None,
         }
     }
 
@@ -344,11 +356,28 @@ impl Updater {
     /// atualizacao para ele (ver [`Version::is_dev`]), e a requisicao seria
     /// gasto sem desfecho possivel.
     pub fn auto_check(&mut self) {
-        if self.busy() || self.is_dev() || !self.auto_check_due() {
+        if self.busy() || self.is_dev() {
+            return;
+        }
+
+        // Antes de tocar o disco: no caso comum -- que e todo tique depois do
+        // primeiro -- a resposta ja esta em memoria.
+        if let Some(quando) = self.proxima_consulta {
+            if Instant::now() < quando {
+                return;
+            }
+        }
+
+        if !self.auto_check_due() {
+            // Nao vence hoje: so volta a olhar o disco daqui a uma hora. Uma
+            // hora e curto diante do intervalo de um dia e longo diante do
+            // tique de 100 ms, que e o que se quer evitar.
+            self.proxima_consulta = Some(Instant::now() + Duration::from_secs(3600));
             return;
         }
 
         self.stamp_auto_check();
+        self.proxima_consulta = Some(Instant::now() + Duration::from_secs(3600));
         self.automatica = true;
         self.check_inner();
     }
@@ -427,12 +456,24 @@ impl Updater {
 
         match spawned {
             Ok(_) => {
-                self.phase = Phase::Checking;
+                // Verificacao que ninguem pediu nao acende "Procurando..." na
+                // tela: quem abrir as Configuracoes no meio dela veria o
+                // aplicativo trabalhando por conta propria sem ter pedido nada.
+                if !self.automatica {
+                    self.phase = Phase::Checking;
+                }
                 self.pending = Some(rx);
             }
             // Falta de recurso do sistema. A tela precisa sair de "verificando"
-            // de qualquer jeito.
-            Err(e) => self.phase = Phase::Failed(format!("Não foi possível verificar: {e}")),
+            // de qualquer jeito -- mas so se ela chegou a entrar nele.
+            Err(e) => {
+                if self.automatica {
+                    tracing::debug!(erro = %e, "verificacao automatica nao pode comecar");
+                    self.automatica = false;
+                } else {
+                    self.phase = Phase::Failed(format!("Não foi possível verificar: {e}"));
+                }
+            }
         }
     }
 
