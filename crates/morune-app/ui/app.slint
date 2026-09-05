@@ -755,7 +755,11 @@ component Card inherits Rectangle {
             overflow: elide;
         }
 
-        Text {
+        // Condicional, e nao um `Text` vazio: sem isto o cartao de playlist --
+        // que passou a nao ter legenda nenhuma -- continuaria reservando a
+        // altura de uma linha embaixo do titulo, e a fileira inteira ficaria com
+        // um vao sem explicacao.
+        if root.item.subtitle != "": Text {
             text: root.item.subtitle;
             color: Theme.text-muted;
             font-size: Theme.size-sm;

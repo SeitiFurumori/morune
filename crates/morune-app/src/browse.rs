@@ -621,12 +621,11 @@ async fn resolve(
             Outcome::Detail(Box::new(Detail {
                 origin: QueueOrigin::Playlist(playlist.id.canonical()),
                 title: playlist.name.to_string(),
-                subtitle: match playlist.owner.as_deref() {
-                    Some(dono) => {
-                        format!("{dono} — {} faixas", total.unwrap_or(loaded))
-                    }
-                    None => format!("{} faixas", total.unwrap_or(loaded)),
-                },
+                // Sem o dono, pelo mesmo motivo do cartao: quando a playlist
+                // nao traz nome de exibicao, o que sobra e o identificador cru
+                // do Spotify. A contagem fica -- aqui ela e o cabecalho da
+                // lista que vem logo abaixo, e nao enfeite sob uma capa.
+                subtitle: format!("{} faixas", total.unwrap_or(loaded)),
                 kind: "Playlist".into(),
                 cover: cover(&playlist.images),
                 cover_path: None,
@@ -694,12 +693,22 @@ fn playlist_card(p: &morune_core::model::Playlist) -> Card {
     Card {
         tag: Target::Playlist(p.id.clone()).tag(),
         title: p.name.to_string(),
-        subtitle: match (p.owner.as_deref(), p.total_tracks) {
-            (Some(owner), Some(total)) => format!("{owner} — {total} faixas"),
-            (Some(owner), None) => owner.to_string(),
-            (None, Some(total)) => format!("{total} faixas"),
-            (None, None) => String::new(),
-        },
+        // **Cartao de playlist nao tem legenda.**
+        //
+        // Era `"{dono} — {n} faixas"`, e as duas metades estavam erradas.
+        //
+        // O dono: numa lista que e quase toda do proprio usuario, dizer o dono
+        // nao informa nada. E quando a playlist nao traz nome de exibicao, o
+        // que sobra e o identificador cru do Spotify -- na tela apareciam
+        // `12142733817` e `22omscgucasvvoxwllzdua7v...` embaixo da capa.
+        //
+        // A contagem: o numero de faixas nao ajuda a escolher o que ouvir, e
+        // ele ja esta na tela de detalhe, que e onde ele significa alguma
+        // coisa.
+        //
+        // Album e artista continuam com legenda, porque ali ela responde a
+        // pergunta que o titulo deixa aberta: de quem e, e de que genero.
+        subtitle: String::new(),
         cover: cover(&p.images),
         cover_path: None,
     }
@@ -880,26 +889,24 @@ mod tests {
     }
 
     #[test]
-    fn a_playlist_card_says_who_made_it_and_how_big_it_is() {
+    fn a_playlist_card_shows_the_name_and_nothing_else() {
         let card = playlist_card(&playlist("Descobertas", Some("Spotify"), Some(30)));
         assert_eq!(card.title, "Descobertas");
-        assert_eq!(card.subtitle, "Spotify — 30 faixas");
+        // Nem dono nem contagem: ver a nota em `playlist_card`.
+        assert_eq!(card.subtitle, "");
         assert_eq!(card.tag, "playlist/spotify:37i9");
     }
 
     #[test]
-    fn a_card_without_owner_or_total_still_has_a_usable_subtitle() {
-        // Playlist colaborativa as vezes chega sem dono; a grade nao pode
-        // mostrar um travessao solto por causa disso.
-        assert_eq!(playlist_card(&playlist("x", None, None)).subtitle, "");
-        assert_eq!(
-            playlist_card(&playlist("x", None, Some(4))).subtitle,
-            "4 faixas"
-        );
-        assert_eq!(
-            playlist_card(&playlist("x", Some("Felipe"), None)).subtitle,
-            "Felipe"
-        );
+    fn a_playlist_card_never_leaks_the_spotify_user_id() {
+        // O caso que motivou tirar a legenda: playlist sem nome de exibicao
+        // chegava com o identificador cru no lugar do dono, e ele ia parar
+        // embaixo da capa.
+        for dono in [None, Some("Felipe"), Some("22omscgucasvvoxwllzdua7v")] {
+            for total in [None, Some(4)] {
+                assert_eq!(playlist_card(&playlist("x", dono, total)).subtitle, "");
+            }
+        }
     }
 
     #[test]

@@ -405,12 +405,27 @@ export component IconButton inherits Rectangle {
     width: root.button-size;
     height: root.button-size;
     border-radius: min(Theme.control-button-radius, root.button-size / 2);
-    // **Ativo nao pinta o fundo.** Quem diz "ligado" e o icone em `accent`, logo
-    // abaixo. Pintar tambem o fundo com `selected` poe accent atras de accent --
-    // e desde que `selected` passou a derivar do proprio `accent` os dois ficaram
-    // a um passo um do outro. Icone e limite grafico: a WCAG 1.4.11 pede 3:1, e
-    // accent sobre accent a 30% nao chega perto disso.
-    background: touch.has-hover && root.enabled ? Theme.hover : transparent;
+    // **Ativo e pastilha cheia de `accent`, com o icone em `text-on-accent`.**
+    //
+    // Duas tentativas antes desta, e a homologacao mediu as duas:
+    //
+    // 1. Fundo `selected` com icone `accent`. Depois que `selected` passou a
+    //    derivar do accent, virou accent atras de accent.
+    // 2. Sem fundo, so o icone em `accent`. Resolveu a colisao e criou outra: no
+    //    Aquario, o `#2fc0ee` do aleatorio ligado contra a barra quase branca
+    //    ficou em **2.06:1**, e a WCAG 1.4.11 pede 3:1 para elemento grafico. O
+    //    estado "ligado" existia e quase nao se via.
+    //
+    // Pastilha cheia resolve os dois por construcao, pelo mesmo argumento do
+    // `GhostButton`: `text_on_accent` existe no contrato para ser lido sobre
+    // `accent`, e todo tema o declara com folga. E o desenho que um interruptor
+    // pede -- ligado e cheio.
+    //
+    // `quiet` continua fora disto: numa biblioteca de curtidas, cem coracoes
+    // ligados virariam cem pastilhas.
+    background: root.active && !root.quiet
+        ? Theme.accent
+        : (touch.has-hover && root.enabled ? Theme.hover : transparent);
     opacity: root.enabled ? 1.0 : 0.4;
 
     animate background { duration: Theme.motion-fast; easing: ease; }
@@ -422,7 +437,7 @@ export component IconButton inherits Rectangle {
         // manchas na cor de destaque: quem esta ativo pinta de accent, e curtir
         // e a regra e nao a excecao numa lista de curtidas. Quem quer o accent
         // continua tendo -- basta nao pedir `quiet`.
-        tint: root.active && !root.quiet ? Theme.accent : root.tint;
+        tint: root.active && !root.quiet ? Theme.text-on-accent : root.tint;
         size: root.icon-size;
         filled: root.filled;
     }
