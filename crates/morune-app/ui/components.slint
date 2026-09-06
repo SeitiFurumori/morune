@@ -480,6 +480,76 @@ export component IconButton inherits Rectangle {
     }
 }
 
+// **Material desenhado, e nao efeito de motor.**
+//
+// O diagnostico que levou a isto estava errado pela metade. E verdade que o
+// Slint nao tem `backdrop-filter`, filtro nem reflexo -- mas **Aero, Wii e XMB
+// tambem nao tinham**. Aquelas interfaces eram BITMAP: a rampa de brilho, o
+// reflexo e o realce eram imagens que alguem desenhou e o sistema esticou por
+// cima do controle. O efeito nunca veio do motor grafico; veio do artista.
+//
+// `tools/material-gel.py` desenha essas folhas. Elas sao neutras -- branco e
+// preto com alfa --, entao a mesma folha veste qualquer tema: quem da a cor e a
+// superficie por baixo.
+//
+// **Bitmap para o brilho, vetor para a orla.** A folha vai de bordo a bordo, sem
+// canto arredondado e sem orla; quem recorta e o `clip` daqui, com o raio que o
+// tema mandar. Desenhar a orla na folha obrigaria a um raio fixo -- 28px contra
+// os 18 do Aquario e 22 do Bruma --, e o canto sairia errado em quase todo tema.
+//
+// **A escolha da folha sai do `gloss`, e isso e provisorio.** `gloss` ja existe
+// no contrato e todo tema declara, entao da para ver o resultado hoje sem mexer
+// no contrato de tema. O certo e um token proprio -- `material = "gel" | "vidro"
+// | "nenhum"` --, porque brilho e material sao coisas diferentes e um dia um
+// tema vai querer gel discreto ou vidro forte.
+export component Material inherits Rectangle {
+    in property <length> radius: 0px;
+    /// Quanto da folha entra. Peca pequena aguenta menos que painel grande.
+    in property <float> forca: 1.0;
+
+    width: 100%;
+    height: 100%;
+    border-radius: root.radius;
+    clip: true;
+
+    if Theme.gloss >= 0.62: Image {
+        width: 100%;
+        height: 100%;
+        image-fit: fill;
+        source: @image-url("materiais/gel.png");
+        opacity: root.forca;
+    }
+
+    if Theme.gloss >= 0.20 && Theme.gloss < 0.62: Image {
+        width: 100%;
+        height: 100%;
+        image-fit: fill;
+        source: @image-url("materiais/vidro.png");
+        opacity: root.forca;
+    }
+}
+
+// A varredura especular das pecas redondas.
+//
+// Rampa nao serve num circulo: numa esfera a luz e um ovalo deslocado para o
+// alto e para a esquerda, com a orla devolvendo luz em volta. E a diferenca
+// entre "botao brilhante" e "botao esferico", e o botao de tocar e a unica peca
+// grande e redonda da interface -- e onde o olho pousa.
+export component MaterialRedondo inherits Rectangle {
+    in property <float> forca: 1.0;
+
+    width: 100%;
+    height: 100%;
+
+    if Theme.gloss >= 0.20: Image {
+        width: 100%;
+        height: 100%;
+        image-fit: fill;
+        source: @image-url("materiais/reflexo.png");
+        opacity: root.forca * (Theme.gloss >= 0.62 ? 1.0 : 0.55);
+    }
+}
+
 export component PrimaryButton inherits Rectangle {
     in property <string> label;
     in property <bool> enabled: true;
@@ -492,6 +562,8 @@ export component PrimaryButton inherits Rectangle {
     opacity: root.enabled ? 1.0 : 0.45;
 
     animate background { duration: Theme.motion-fast; easing: ease; }
+
+    Material { radius: Theme.radius-md; }
 
     text := Text {
         text: root.label;

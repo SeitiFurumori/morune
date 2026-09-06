@@ -1,5 +1,5 @@
 import { Theme, Layout } from "theme.slint";
-import { GlassEdge, Gloss, Glass, ScrollFade, Icon, IconRef, IconButton, PrimaryButton, GhostButton, SearchField, Slider, Artwork, PressableArea, Toggle, Logo, MenuRow, AccountAvatar } from "components.slint";
+import { Material, MaterialRedondo, GlassEdge, Gloss, Glass, ScrollFade, Icon, IconRef, IconButton, PrimaryButton, GhostButton, SearchField, Slider, Artwork, PressableArea, Toggle, Logo, MenuRow, AccountAvatar } from "components.slint";
 import { ListView } from "std-widgets.slint";
 
 // O Slint exige que um componente esteja declarado antes de ser usado, entao
@@ -721,6 +721,14 @@ component Card inherits Rectangle {
         : 0px;
     background: touch.has-hover ? Theme.surface-raised : Theme.surface;
 
+    // O material do tema, desenhado por `tools/material-gel.py`. Fraco de
+    // proposito: um cartao e grande, e a rampa cheia que veste um botao de 34px
+    // vira um degrade de parede num painel de 190px.
+    Material {
+        radius: parent.border-radius;
+        forca: 0.55;
+    }
+
     // Elevacao.
     //
     // **O que isto conserta:** fundo, cartao e barra lateral ficavam dentro de
@@ -1395,6 +1403,8 @@ component PlayerBar inherits Rectangle {
                         border-radius: self.width / 2;
                         background: Theme.accent;
                         opacity: root.has-track ? 1.0 : 0.45;
+
+                        MaterialRedondo { }
 
                         Icon {
                             glyph: root.playing ? Icons.pause : Icons.play;
@@ -4279,6 +4289,8 @@ export component TrayMenuWindow inherits Window {
                     height: self.width;
                     border-radius: self.width / 2;
                     background: Theme.accent;
+
+                    MaterialRedondo { }
 
                     Icon {
                         glyph: root.playing ? Icons.pause : Icons.play;
