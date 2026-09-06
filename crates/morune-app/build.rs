@@ -63,10 +63,31 @@ fn embed_release_tag() {
 /// na comparacao de versao sem significar nada para ela.
 fn commit_hash() -> String {
     // O hash muda a cada commit sem que nenhum arquivo do crate mude, entao o
-    // cargo precisa ser avisado de onde olhar. `HEAD` cobre commit e troca de
-    // branch; o `packed-refs` cobre o caso de a ref do branch estar empacotada.
-    for caminho in ["../../.git/HEAD", "../../.git/packed-refs"] {
-        if Path::new(caminho).exists() {
+    // cargo precisa ser avisado de onde olhar.
+    //
+    // **`HEAD` sozinho nao bastava, e por isso o rotulo ficou parado.** Num
+    // commit comum o `.git/HEAD` nao e reescrito: ele continua com o mesmo
+    // texto, `ref: refs/heads/main`. Quem muda e o arquivo da ref apontada. Na
+    // maquina onde isto foi encontrado, `.git/HEAD` estava com data de 28/08 e
+    // `.git/refs/heads/main` com a data do commit daquele minuto -- ou seja, o
+    // build nao era refeito havia onze dias e a tela de Configuracoes mostrava
+    // um commit antigo. E justamente a protecao que existe para saber qual
+    // build esta instalado, quebrada em silencio.
+    //
+    // Agora vao os tres: `HEAD` (cobre troca de branch), a ref que ele aponta
+    // (cobre commit no mesmo branch) e o `packed-refs` (cobre a ref empacotada,
+    // caso em que o arquivo solto nem existe).
+    let mut vigiar = vec![
+        "../../.git/HEAD".to_string(),
+        "../../.git/packed-refs".to_string(),
+    ];
+    if let Ok(head) = std::fs::read_to_string("../../.git/HEAD") {
+        if let Some(ref_rel) = head.trim().strip_prefix("ref: ") {
+            vigiar.push(format!("../../.git/{ref_rel}"));
+        }
+    }
+    for caminho in vigiar {
+        if Path::new(&caminho).exists() {
             println!("cargo:rerun-if-changed={caminho}");
         }
     }
