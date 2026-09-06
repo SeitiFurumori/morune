@@ -153,6 +153,11 @@ pub struct AppState {
     /// `apply_theme_to` decodificaria um JPEG a cada recarga de tela.
     wallpaper: crate::wallpaper::Wallpaper,
     overrides: UserOverrides,
+    /// Ha um aplicativo de outro processo ocupando a tela inteira na frente.
+    ///
+    /// Atualizado pelo vigia em [`crate::tela_cheia`], nunca lido do arquivo de
+    /// configuracao: e estado do momento, nao preferencia.
+    tela_cheia: bool,
     page: Page,
     status: String,
     /// A mensagem que o relogio de expiracao esta contando, e desde quando.
@@ -362,6 +367,7 @@ impl AppState {
             theme,
             wallpaper: Default::default(),
             overrides,
+            tela_cheia: false,
             page: Page::Home,
             status: String::new(),
             status_seen: (String::new(), Instant::now()),
@@ -2312,11 +2318,35 @@ impl AppState {
 
     pub fn set_reduce_motion(&mut self, on: bool) {
         self.config.appearance.reduce_motion = on;
-        // A escolha vai inteira para o arquivo, mas o que vale na tela ainda
-        // passa pelo sistema: desligar o ajuste aqui nao pode devolver
-        // movimento a quem desligou animacao no Windows.
-        self.overrides.reduce_motion = on || !system_animation_enabled();
+        self.recalcular_movimento();
         self.save_config();
+    }
+
+    /// Avisa que ha (ou deixou de haver) um aplicativo em tela cheia na frente.
+    ///
+    /// Devolve `true` quando o estado mudou -- so ai vale a pena reaplicar o
+    /// tema, que e a operacao cara. O vigia le a cada segundo e na quase
+    /// totalidade das leituras nada mudou.
+    pub fn set_tela_cheia(&mut self, cheia: bool) -> bool {
+        if self.tela_cheia == cheia {
+            return false;
+        }
+        self.tela_cheia = cheia;
+        self.recalcular_movimento();
+        true
+    }
+
+    /// As tres razoes para nao haver movimento, resolvidas num valor so.
+    ///
+    /// A regra e a mesma para as tres: elas so **tiram** movimento, nunca
+    /// devolvem. Quem desligou animacao no Windows pediu isso a todo
+    /// aplicativo; quem esta com um jogo em tela cheia na frente nao quer o
+    /// player gastando placa de video atras; e quem desligou aqui decidiu por
+    /// conta propria. Basta uma para zerar.
+    fn recalcular_movimento(&mut self) {
+        self.overrides.reduce_motion = self.config.appearance.reduce_motion
+            || !system_animation_enabled()
+            || self.tela_cheia;
     }
 
     pub fn set_close_to_tray(&mut self, on: bool) {

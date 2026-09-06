@@ -33,6 +33,7 @@ mod startup;
 mod state;
 #[cfg(windows)]
 mod taskbar;
+mod tela_cheia;
 mod theme_bridge;
 mod tint;
 mod tray;
@@ -136,6 +137,7 @@ fn main() -> anyhow::Result<()> {
     let _tray_poll = wire_tray(&window, &state, tray.clone());
     let _backend_poll = wire_backend(&window, &state);
     let _progress_tick = wire_progress_tick(&window, &state);
+    let _fullscreen_gate = wire_fullscreen_gate(&window, &state);
     let _window_state_poll = wire_window_state(&window, &state);
     wire_close_behavior(&window, &state, tray.is_some());
 
@@ -720,6 +722,48 @@ const PROGRESS_TICK: std::time::Duration = std::time::Duration::from_millis(250)
 /// volta, `wire_backend` espelha tudo de uma vez.
 ///
 /// O temporizador devolvido precisa continuar vivo.
+/// De quanto em quanto tempo o vigia de tela cheia olha.
+///
+/// Um segundo. Entrar num jogo nao e urgencia -- ninguem percebe o visual
+/// mudar meio segundo depois --, e a leitura custa duas chamadas ao sistema.
+/// Mais rapido que isso seria gasto invisivel, que e o que o orcamento de
+/// desempenho do projeto proibe.
+const VIGIA_TELA_CHEIA: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// Liga o portao de tela cheia.
+///
+/// Enquanto um aplicativo de outro processo ocupa a tela inteira, o Morune
+/// entra no mesmo estado de "movimento reduzido" que ja existia -- e daqui para
+/// frente e por este mesmo caminho que os efeitos caros vao ser desligados.
+///
+/// **Reaplica o tema so quando o estado vira**, e nao a cada leitura: aplicar
+/// tema reescreve dezenas de propriedades e forca um redesenho. Na quase
+/// totalidade das leituras nada mudou, e entao nada acontece.
+fn wire_fullscreen_gate(
+    window: &ui::AppWindow,
+    state: &Rc<std::cell::RefCell<AppState>>,
+) -> slint::Timer {
+    let weak = window.as_weak();
+    let state = state.clone();
+
+    let timer = slint::Timer::default();
+    timer.start(slint::TimerMode::Repeated, VIGIA_TELA_CHEIA, move || {
+        let Some(window) = weak.upgrade() else { return };
+        let cheia = crate::tela_cheia::app_em_tela_cheia();
+
+        let mudou = state.borrow_mut().set_tela_cheia(cheia);
+        if mudou {
+            state.borrow().apply_theme_to(&window);
+            // `info` e nao `debug`: acontece duas vezes por partida de jogo, e
+            // e a primeira coisa que alguem vai querer no registro quando
+            // reclamar de "o visual sumiu" ou "gastou video durante o jogo".
+            tracing::info!(tela_cheia = cheia, "portao de tela cheia");
+        }
+    });
+
+    timer
+}
+
 fn wire_progress_tick(
     window: &ui::AppWindow,
     state: &Rc<std::cell::RefCell<AppState>>,
