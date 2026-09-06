@@ -185,6 +185,21 @@ E, na lista de anti-padrões: *glass-on-glass stacking*, *multiple separate glas
 effects without container*, *mixing Regular and Clear variants*, *tinting
 everything*, *content layer glass*, *overuse — "glass everywhere"*.
 
+> **Correção de 06/09/2026.** Eu vinha citando só o primeiro item desta lista, e
+> concluí dele que vidro dentro de vidro é proibido. Está errado, e a própria
+> lista tem a correção no item seguinte: o que se proíbe é vidro solto **sem
+> recipiente**. Aninhar é o padrão — a Apple tem uma peça de API só para agrupar
+> vidros, e a Central de Controle do iOS é um painel de vidro cheio de botões de
+> vidro, cada um com orla e brilho próprios. O Felipe mandou a captura.
+>
+> O que a regra realmente protege é contra **borrar o que já está borrado**:
+> camadas refazendo o desfoque umas das outras até o resultado virar papa. Se
+> toda peça lê a mesma cópia do fundo, na posição dela, aninhar não custa nada e
+> não degrada nada.
+>
+> Isto chegou a virar código — itens da barra lateral ficaram sem vidro por causa
+> da citação pela metade. Desfeito.
+
 Forma padrão: **cápsula**. Raio: `.containerConcentric`, que casa com a quina do
 contêiner.
 

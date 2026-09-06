@@ -410,13 +410,9 @@ component NavItem inherits Rectangle {
 
     animate background { duration: Theme.motion-fast; easing: ease; }
 
-    // `com-vidro: false` pelo motivo escrito em `PlaylistNavItem`: a barra
-    // lateral inteira ja e a peca de vidro, e um item dentro dela com vidro
-    // proprio seria vidro sobre vidro. O corpo, o brilho, o fio de luz e a
-    // sombra continuam -- e sao eles que fazem o item acender.
+    // Com vidro, sim -- ver a nota sobre recipiente em `Realce`.
     Realce {
         radius: Theme.radius-md;
-        com-vidro: false;
         aceso: root.active ? 1.0 : (touch.has-hover ? 0.75 : 0.0);
     }
 
@@ -948,15 +944,21 @@ component PlaylistNavItem inherits Rectangle {
     border-radius: Theme.radius-sm;
     background: transparent;
 
-    // A barra lateral inteira ja e a peca de vidro. Por um item dentro dela ter
-    // vidro proprio, seria vidro sobre vidro -- "glass-on-glass stacking" na
-    // lista de anti-padroes da Apple, e "don't apply backdrop material more than
-    // once in an application" na do Windows. Dai o `com-vidro: false`: o item
-    // acende por corpo, brilho, fio de luz e sombra, sem um segundo material de
-    // fundo.
+    // **Vidro dentro da barra lateral, que tambem e vidro -- e isso esta certo.**
+    //
+    // Havia aqui uma nota dizendo o contrario, citando "glass-on-glass stacking"
+    // da lista de anti-padroes da Apple. A citacao estava pela metade. A lista
+    // diz *"multiple separate glass effects **without container**"*, e a Apple
+    // tem uma peca de API so para agrupar vidros justamente porque aninhar e
+    // esperado -- a Central de Controle do iOS e um painel de vidro cheio de
+    // botoes de vidro.
+    //
+    // O que e proibido e **borrar o que ja esta borrado**: cada camada refazendo
+    // o desfoque da anterior, ate virar papa. Aqui isso nao acontece por
+    // construcao: toda peca le a MESMA copia borrada do fundo, na posicao dela,
+    // e nenhuma le o resultado da outra. Ver `Vidro`.
     Realce {
         radius: Theme.radius-sm;
-        com-vidro: false;
         aceso: touch.has-hover ? 1.0 : 0.0;
     }
 

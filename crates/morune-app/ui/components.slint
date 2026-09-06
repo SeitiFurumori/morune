@@ -636,9 +636,22 @@ export component MaterialRedondo inherits Rectangle {
 //  3. um fio de luz na borda, que da contorno;
 //  4. uma sombra curta, que levanta a peca do plano.
 //
-// `com-vidro` fica desligado dentro da barra lateral e do rodape: aquelas duas
-// ja sao a peca de vidro da regiao, e vidro sobre vidro esta na lista de
-// anti-padroes das duas plataformas.
+// **Sobre aninhar vidro dentro de vidro: pode, e o oficial faz.**
+//
+// Houve aqui uma restricao baseada em citacao pela metade. A lista de
+// anti-padroes da Apple diz *"multiple separate glass effects **without
+// container**"* -- a segunda metade e a que importa. Aninhar e esperado; a
+// propria API tem uma peca so para agrupar vidros, e a Central de Controle do
+// iOS e um painel de vidro cheio de botoes de vidro, cada um com orla e brilho
+// proprios.
+//
+// O que e proibido e **borrar o que ja esta borrado**: camadas refazendo o
+// desfoque umas das outras ate o resultado virar papa. Aqui isso nao acontece
+// por construcao -- toda peca le a MESMA copia borrada do fundo, na posicao
+// dela, e nenhuma le o resultado da outra.
+//
+// `com-vidro: false` continua existindo, mas para o caso em que nao ha fundo
+// para mostrar, e nao como regra de estilo.
 export component Realce inherits Rectangle {
     in property <length> radius: 0px;
     /// Quanto do realce esta aceso. Anima sozinho.
