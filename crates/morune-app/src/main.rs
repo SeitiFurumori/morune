@@ -1,4 +1,4 @@
-//! Ponto de entrada do Morune.
+﻿//! Ponto de entrada do Morune.
 //!
 //! A ordem de inicializacao aqui e deliberada e faz parte do orcamento de
 //! startup: nada que dependa de rede acontece antes da janela aparecer.
@@ -210,8 +210,9 @@ fn main() -> anyhow::Result<()> {
     ensure_rounded_corners(window.window());
     #[cfg(windows)]
     {
-        let (opacity, material) = state.borrow().window_effects();
-        ensure_window_effects(window.window(), opacity, backdrop_da_janela(material));
+        let s = state.borrow();
+        let (opacity, material) = s.window_effects();
+        ensure_window_effects(window.window(), opacity, backdrop_da_janela(material, s.tela_cheia_ativa()));
     }
     #[cfg(windows)]
     let _taskbar_poll = wire_taskbar(&window, &state);
@@ -347,13 +348,29 @@ fn ensure_rounded_corners(window: &slint::Window) {
 #[cfg(windows)]
 /// O material que o tema pede, traduzido para a janela do aplicativo.
 ///
-/// O campo do tema continua se chamando `acrylic` -- o contrato de tema e um
-/// conjunto fechado de slots e renomear quebraria todo tema existente --, mas o
-/// que ele liga na janela principal passa a ser Mica. Ver [`Backdrop`].
+/// **Voltou a ser acrilico, e Mica foi um desvio.** A documentacao do Windows
+/// diz "acrylic is used only for transient, light-dismiss surfaces" e reserva
+/// Mica para "long-lived windows such as apps and settings", e por isso a janela
+/// principal passou a usar Mica. Duas coisas derrubam essa leitura aqui:
+///
+/// 1. **A frase e conselho de estilo e de bateria, nao impedimento.** O que ela
+///    protege -- gasto de video -- e coberto pelo portao de tela cheia, que nao
+///    existia quando a troca foi feita.
+/// 2. **Mica nao entrega o que o tema de vidro precisa.** Ele amostra o papel de
+///    parede, uma vez. Numa maquina onde o papel de parede e desenhado por outro
+///    programa (Wallpaper Engine e o caso aqui), o Windows nao tem arquivo
+///    nenhum para apontar e o resultado e nada. Acrilico amostra o que esta
+///    ATRAS DA JANELA, que e a definicao do efeito.
+///
+/// O caso ruim conhecido do acrilico -- colapsar em cinza sobre um jogo em tela
+/// cheia, porque o desktop nao esta visivel -- deixa de acontecer: o portao
+/// desliga o material antes disso.
+///
+/// `tela_cheia` desliga tudo. E o mesmo portao do movimento.
 #[cfg(windows)]
-fn backdrop_da_janela(pedido_do_tema: bool) -> Backdrop {
-    if pedido_do_tema {
-        Backdrop::Mica
+fn backdrop_da_janela(pedido_do_tema: bool, tela_cheia: bool) -> Backdrop {
+    if pedido_do_tema && !tela_cheia {
+        Backdrop::Acrylic
     } else {
         Backdrop::None
     }
@@ -561,8 +578,13 @@ fn wire_window_state(
             ensure_rounded_corners(window.window());
             #[cfg(windows)]
             {
-                let (opacity, material) = state.borrow().window_effects();
-                ensure_window_effects(window.window(), opacity, backdrop_da_janela(material));
+                let s = state.borrow();
+                let (opacity, material) = s.window_effects();
+                ensure_window_effects(
+                    window.window(),
+                    opacity,
+                    backdrop_da_janela(material, s.tela_cheia_ativa()),
+                );
             }
             if window.get_mini_player() {
                 return;
@@ -754,6 +776,20 @@ fn wire_fullscreen_gate(
         let mudou = state.borrow_mut().set_tela_cheia(cheia);
         if mudou {
             state.borrow().apply_theme_to(&window);
+            // O material do Windows tambem entra e sai por aqui: acrilico
+            // amostra o desktop, e sobre um jogo em tela cheia o desktop nao
+            // esta visivel -- ele colapsaria em cinza chapado. Desligar antes e
+            // o que torna acrilico aceitavel numa janela de vida longa.
+            #[cfg(windows)]
+            {
+                let s = state.borrow();
+                let (opacidade, material) = s.window_effects();
+                ensure_window_effects(
+                    window.window(),
+                    opacidade,
+                    backdrop_da_janela(material, s.tela_cheia_ativa()),
+                );
+            }
             // `info` e nao `debug`: acontece duas vezes por partida de jogo, e
             // e a primeira coisa que alguem vai querer no registro quando
             // reclamar de "o visual sumiu" ou "gastou video durante o jogo".
@@ -1551,7 +1587,7 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
         #[cfg(windows)]
         {
             let (opacidade, material) = s.window_effects();
-            ensure_window_effects(w.window(), opacidade, backdrop_da_janela(material));
+            ensure_window_effects(w.window(), opacidade, backdrop_da_janela(material, s.tela_cheia_ativa()));
         }
         s.push_to_ui(&w);
     });
@@ -1562,3 +1598,5 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
         s.push_to_ui(&w);
     });
 }
+
+

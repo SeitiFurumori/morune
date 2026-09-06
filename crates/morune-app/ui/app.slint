@@ -1,4 +1,4 @@
-import { Theme, Layout } from "theme.slint";
+﻿import { Theme, Layout } from "theme.slint";
 import { Realce, Vidro, Material, MaterialRedondo, GlassEdge, Gloss, Glass, ScrollFade, Icon, IconRef, IconButton, PrimaryButton, GhostButton, SearchField, Slider, Artwork, PressableArea, Toggle, Logo, MenuRow, AccountAvatar } from "components.slint";
 import { ListView } from "std-widgets.slint";
 
@@ -411,9 +411,12 @@ component NavItem inherits Rectangle {
     animate background { duration: Theme.motion-fast; easing: ease; }
 
     // Com vidro, sim -- ver a nota sobre recipiente em `Realce`.
+    //
+    // Fraco: item de navegacao fica aceso o tempo todo, e o que passa numa lista
+    // e aceitavel num realce de passagem vira peso quando nao apaga nunca.
     Realce {
         radius: Theme.radius-md;
-        aceso: root.active ? 1.0 : (touch.has-hover ? 0.75 : 0.0);
+        aceso: root.active ? 0.45 : (touch.has-hover ? 0.30 : 0.0);
     }
 
     HorizontalLayout {
@@ -474,9 +477,13 @@ component TrackListRow inherits Rectangle {
 
     // A linha acende como objeto. Ver a nota em `Realce`: veu de cor sobre o
     // proprio fundo era invisivel por construcao.
+    //
+    // 0,45 e o mesmo valor da playlist na barra lateral e do item de navegacao.
+    // Estava em 1,0 e destoava de tudo: passar o cursor numa faixa acendia mais
+    // que qualquer outra coisa da tela.
     Realce {
         radius: Theme.radius-sm;
-        aceso: touch.has-hover ? 1.0 : 0.0;
+        aceso: touch.has-hover ? 0.30 : 0.0;
     }
 
     // **Sem vidro aqui, e a regra e das duas plataformas.** A Apple: "Don't use
@@ -752,7 +759,7 @@ component Card inherits Rectangle {
         // chapada sobre uma peca de vidro le como um adesivo colado em cima
         // dela; o que uma peca translucida faz quando ganha atencao e deixar
         // ver mais do que esta atras.
-        forca: touch.has-hover ? 0.8 : 0.5;
+        forca: touch.has-hover ? 0.6 : 0.45;
     }
 
     // O material do tema, desenhado por `tools/material-gel.py`. Fraco de
@@ -959,7 +966,7 @@ component PlaylistNavItem inherits Rectangle {
     // e nenhuma le o resultado da outra. Ver `Vidro`.
     Realce {
         radius: Theme.radius-sm;
-        aceso: touch.has-hover ? 1.0 : 0.0;
+        aceso: touch.has-hover ? 0.30 : 0.0;
     }
 
     HorizontalLayout {
@@ -1671,6 +1678,12 @@ component TrackShelf inherits VerticalLayout {
     Rectangle {
         // Lista curta nao ganha area vazia: o bloco encolhe para caber nela.
         height: min(root.visible-height, rows.preferred-height);
+
+        // A base da lista era um corte reto: a ultima linha terminava numa quina
+        // viva no meio da tela, e nada mais na interface termina assim. Com o
+        // raio do tema e o recorte, a lista fecha como as outras pecas fecham.
+        border-radius: Theme.radius-md;
+        clip: true;
 
         Flickable {
             // `width` junto com `height`: dentro de um Rectangle -- que nao e
@@ -2578,7 +2591,7 @@ component ThemeRow inherits Rectangle {
     // Abre sob o cursor, como o cartao de playlist.
     Vidro {
         radius: parent.border-radius;
-        forca: root.item.active ? 0.8 : (touch.has-hover ? 0.7 : 0.45);
+        forca: root.item.active ? 0.6 : (touch.has-hover ? 0.6 : 0.45);
     }
 
     // Fica atras do conteudo: os botoes Duplicar e Exportar continuam com
@@ -3473,7 +3486,7 @@ component SidebarShell inherits Rectangle {
     //
     // O `Vidro` vem antes do `Glass`: primeiro o que se ve atraves, depois a luz
     // que cai sobre a superficie.
-    Vidro { forca: 0.75; }
+    Vidro { forca: 0.7; }
 
     // Coluna de altura inteira: a base encosta na barra de reproducao, e a luz
     // de retorno viraria um risco entre as duas.
@@ -3806,10 +3819,14 @@ export component AppWindow inherits Window {
             Rectangle {
                 horizontal-stretch: 1;
                 // Sem fundo proprio: a janela ja pinta `Theme.background` atras
-                // de tudo. Repintar aqui empilhava dois veus da mesma cor --
-                // com alfa 0,7 o resultado desenhado virava 0,91, e nenhum
-                // valor de tema alcancava vidro fino. Tambem era o que cobria a
-                // imagem de fundo justamente na area de conteudo.
+                // de tudo, e a area de conteudo e o CAMPO -- o escuro contra o
+                // qual as pecas claras existem.
+                //
+                // Houve aqui um veu branco de 12%, para a home clarear como as
+                // barras. A ideia era manter uma direcao so, e estava errada de
+                // partida: se tudo clareia, nao sobra escuro para nada se
+                // destacar contra. Quem clareia e o que se pode tocar -- linha
+                // sob o cursor, cartao, item escolhido do menu. O resto cobre.
                 background: transparent;
 
                 VerticalLayout {
@@ -4169,9 +4186,9 @@ export component AppWindow inherits Window {
                 Text { text: "Ctrl + K     Buscar"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
                 Text { text: "Ctrl + ,     Configurações"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
                 Text { text: "Espaço       Reproduzir ou pausar"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
-                Text { text: "Ctrl + →     Próxima faixa"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
-                Text { text: "Ctrl + ←     Faixa anterior"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
-                Text { text: "Alt + ←      Voltar"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
+                Text { text: "Ctrl + â†’     Próxima faixa"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
+                Text { text: "Ctrl + â†     Faixa anterior"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
+                Text { text: "Alt + â†      Voltar"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
                 Text { text: "Ctrl + /     Mostrar estes atalhos"; color: Theme.text-muted; font-size: Theme.size-md; font-family: Theme.font-family; }
             }
         }
@@ -4460,3 +4477,4 @@ export component TrayMenuWindow inherits Window {
 
 // Reexportados para que o Rust consiga aplicar o tema em tempo de execucao.
 export { Theme, Layout }
+

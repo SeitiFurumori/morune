@@ -2322,6 +2322,11 @@ impl AppState {
         self.save_config();
     }
 
+    /// Ha um aplicativo em tela cheia na frente agora?
+    pub fn tela_cheia_ativa(&self) -> bool {
+        self.tela_cheia
+    }
+
     /// Avisa que ha (ou deixou de haver) um aplicativo em tela cheia na frente.
     ///
     /// Devolve `true` quando o estado mudou -- so ai vale a pena reaplicar o

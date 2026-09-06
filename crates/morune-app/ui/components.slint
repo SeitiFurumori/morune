@@ -149,13 +149,21 @@ export component Gloss inherits Rectangle {
     // cai so na quina superior esquerda: o resto do topo fica sem luz nenhuma.
     // Perto da vertical, a luz corre a largura toda e a diagonal aparece como
     // deslocamento, que e o que se quer.
-    background: @linear-gradient(160deg,
-        #ffffff 0%,
-        #ffffff45 20%,
-        #ffffff00 46%,
-        #ffffff00 74%,
-        #ffffff2b 93%,
-        #ffffff6b 100%);
+    // **Nao ha degrade nenhum. So a linha.**
+    //
+    // Este componente foi, em ordem: um veu vertical, um veu diagonal com dois
+    // brilhos, e um degrade curto nas duas pontas. Os tres estavam errados pelo
+    // mesmo motivo -- o original nao tem veu. O que ele tem e uma LINHA de luz
+    // na quina, e o resto da peca limpo.
+    //
+    // Medido na versao com degrade curto: a luminancia dentro da barra lateral
+    // ainda ia de 0,067 a 0,759. Encurtar as paradas diminuiu o problema sem
+    // resolver, porque o problema era existir.
+    //
+    // O preenchimento fica transparente e quem desenha a linha e o `GlassEdge`,
+    // que ja existia e ja acompanha o raio da peca. Este componente vira o lugar
+    // onde o `gloss` do tema controla a INTENSIDADE dessa linha -- nada mais.
+    background: transparent;
 }
 
 // Densidade do fosco.
@@ -179,12 +187,15 @@ export component Frost inherits Rectangle {
     // o anel do meio e a orla; o total somado entra por cima de toda superficie
     // de vidro da tela, e Bruma ja e um tema claro -- generoso aqui, a interface
     // inteira desbota.
-    background: @radial-gradient(circle,
-        #ffffff17 0%,
-        #ffffff10 26%,
-        #ffffff03 55%,
-        #ffffff0d 83%,
-        #ffffff1c 100%);
+    // **Tambem sem degrade.** Este era o terceiro veu empilhado sobre a mesma
+    // peca -- fosco, brilho e orla, todos radiais, todos por cima de tudo. Com
+    // acrilico de verdade atras, o fosco ja e feito pelo Windows: imitar de novo
+    // aqui so lava o que aparece atraves.
+    //
+    // Sobra transparente. O componente fica porque o `Glass` o compoe e porque
+    // um tema sem material de sistema pode voltar a querer o veu; hoje nenhum
+    // quer.
+    background: transparent;
 }
 
 // A torcao da luz na orla.
@@ -204,11 +215,14 @@ export component Rim inherits Rectangle {
     height: 100%;
     border-radius: root.radius;
     opacity: Theme.gloss;
+    // A orla e o unico degrade que fica, e ela e estreita de proposito: comeca
+    // em 94% do raio. E a linha de luz da quina, nao um veu -- some antes de
+    // chegar ao miolo da peca.
     background: @radial-gradient(circle,
         #ffffff00 0%,
-        #ffffff00 86%,
-        #ffffff33 95%,
-        #ffffff0d 100%);
+        #ffffff00 94%,
+        #ffffff26 98%,
+        #ffffff00 100%);
 }
 
 // Uma superficie de vidro inteira: brilho, aresta de cima e luz de retorno.
@@ -267,7 +281,7 @@ export component Glass {
 // Diz que a lista continua alem da borda.
 //
 // Uma lista rolavel que termina em corte reto no meio de um texto nao le como
-// "hÃ¡ mais abaixo": le como defeito de desenho. O degrade resolve isso sem
+// "há mais abaixo": le como defeito de desenho. O degrade resolve isso sem
 // ocupar altura -- ele e desenhado por cima do conteudo, na propria faixa que
 // seria cortada.
 //
@@ -523,6 +537,23 @@ export component Vidro inherits Rectangle {
     private property <length> sobra-x: (Theme.background-blurred.width * 1px * root.escala - Theme.window-width) / 2;
     private property <length> sobra-y: (Theme.background-blurred.height * 1px * root.escala - Theme.window-height) / 2;
 
+    // **Piso opaco, por baixo do borrao.**
+    //
+    // Com o borrao vivo, o que se copia e o quadro do proprio aplicativo -- e
+    // onde ele nao desenhou nada, o pixel e transparente. Transparente entra na
+    // media do desfoque como PRETO, entao um painel sobre area vazia ficava com
+    // um borrao escuro em vez do que ha atras. Foi o que apareceu no Bruma.
+    //
+    // A cor do tema por baixo resolve: onde a copia nao tem conteudo, o que se
+    // ve e o fundo do tema, que e o que estaria ali de qualquer modo.
+    if Theme.background-blurred.width > 0: Rectangle {
+        width: 100%;
+        height: 100%;
+        background: Theme.background;
+        opacity: root.forca;
+        animate opacity { duration: Theme.motion-fast; easing: ease; }
+    }
+
     // A condicao nao olha a forca, so a existencia da imagem: quem controla o
     // quanto e a opacidade, e ela precisa poder ir de zero ate o valor cheio
     // sem o elemento nascer e morrer no meio -- senao o realce de cursor
@@ -663,7 +694,13 @@ export component Realce inherits Rectangle {
     height: 100%;
     border-radius: root.radius;
 
-    background: Theme.surface-raised;
+    // `surface`, e nao `surface-raised`.
+    //
+    // `surface-raised` e a peca mais clara do tema -- 42% de branco no Bruma --
+    // e usar isso num realce de passagem dava o contraste mais forte da tela
+    // para a coisa mais passageira dela. `surface` e a superficie normal de uma
+    // peca, que e o que a linha sob o cursor vira.
+    background: Theme.surface;
     border-width: root.aceso > 0 ? Theme.border-width : 0px;
     border-color: Theme.border-highlight;
     opacity: root.aceso;

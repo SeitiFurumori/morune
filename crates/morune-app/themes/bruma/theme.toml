@@ -9,15 +9,87 @@
 # Escuro o bastante para sobreviver a uma area de trabalho BRANCA. Com o
 # cinza medio original o texto secundario caia para 2,79:1 sobre fundo claro:
 # o vidro clareia junto com o que esta atras, e o piso tem de vir daqui.
-background         = "#2e2e36a8"
-surface            = "#ffffff1f"
-surface_raised     = "#ffffff2e"
-player_background  = "#26262db8"
-sidebar_background = "#2a2a32b3"
+# **Cinza neutro, e mais transparente. O vidro estava preto.**
+#
+# Duas coisas erradas ao mesmo tempo. O tom tinha um vies azul-violeta
+# (`#2e2e36` contra `#33333d`, quase neutro), e a opacidade era alta demais:
+# 66% no fundo, 70% e 72% nas barras. Com o material do Windows por tras, isso
+# escurecia e tingia tudo o que passava -- o resultado nao era vidro fosco, era
+# vidro fume.
+#
+# O original nao tinge. O Liquid Glass e neutro: ele desfoca e CLAREIA, e quem
+# da cor e o que esta atras. Na Central de Controle do iOS os botoes ficam mais
+# claros que o fundo atras deles, nunca mais escuros.
+#
+# **Os numeros vem de medicao, nao de gosto.**
+#
+# Duas capturas do iOS 26 -- a Central de Controle aberta sobre uma foto, e a
+# mesma foto sem ela -- foram comparadas pixel a pixel (`bench-out/IMG_8755` e
+# `IMG_8756`, 1320x2868, PNG sem recompressao). O ajuste fecha com erro de 5 em
+# 255, entao os valores abaixo sao o que o sistema faz, nao o que eu acho.
+#
+# **O fundo.** A Central escurece a tela inteira multiplicando o brilho por 0,36
+# e somando 0,06: tudo e espremido na faixa 0,06 a 0,42. Um veu escuro a 64%
+# sobre um cinza de 9% reproduz exatamente isso -- e o que estes valores fazem.
+# Antes era 50% de um cinza mais claro, ou seja, escurecia de menos.
+#
+# **A tinta das pecas.** Medida em cinco pecas diferentes: 16%, 25%, 34%, 37% e
+# 42% de branco. A media fica perto de 30%, e as pecas maiores ficam nas pontas
+# baixas -- painel grande usa menos, botao pequeno usa mais.
+#
+# E a DIFERENCA entre os dois -- campo escuro contra vidro claro -- que faz o
+# vidro existir. Eu errava nos dois lados ao mesmo tempo.
+# **O escuro do original, e um so em toda parte.**
+#
+# `#181818` a 64% e exatamente o que a medicao do iOS devolveu: a Central de
+# Controle multiplica o brilho do que esta atras por 0,36 e soma 0,06. Um veu de
+# alfa 0,64 sobre um cinza de 9% da esse mesmo par -- 1-0,64 = 0,36 de ganho, e
+# 0,64 x 0,094 = 0,06 de deslocamento.
+#
+# Cinza puro, sem o vies azul que este tema tinha (`#171720`): o original nao
+# tinge.
+#
+# **Todos os fundos usam este mesmo valor.** Barra lateral, rodape, titulo e
+# superficie de painel. A divisao entre as regioes fica so por conta da linha
+# branca do contorno.
+background         = "#181818a3"
+# Transparente pelo mesmo motivo da moldura: pintar o valor do fundo aqui
+# empilharia um segundo veu e o painel sairia mais escuro que o campo.
+surface            = "#00000000"
+# 42%: o topo da faixa medida, que na Central e a capsula do perfil -- a peca
+# que o sistema mais destaca.
+surface_raised     = "#ffffff6b"
+# **Branco fraquissimo: a moldura e peca, nao um segundo campo.**
+#
+# Percorreu tres estados ate aqui, e vale registrar para nao voltar:
+#
+# 1. Branco a 25%. Clareava demais -- com tudo clareando, nao sobrava escuro
+#    contra o qual nada se destacasse.
+# 2. Escuro a 75%, mais escuro que o proprio fundo. Resolveu o item 1 e criou o
+#    problema real: passaram a existir DOIS campos, um preto e um cinza, e o
+#    olho lia como dois fundos brigando. No original isso nao acontece porque la
+#    so ha um campo.
+# 3. Este. O veu escuro subiu para a janela inteira, e a moldura volta a ser
+#    peca -- so que com um branco bem fraco, o bastante para se separar do campo
+#    sem virar o destaque da tela.
+#
+# 4. Este teste: **transparente**, e nao "a mesma cor do fundo".
+#
+#    Pintar o mesmo `#181818a3` aqui NAO da o mesmo resultado: a moldura desenha
+#    por cima do fundo da janela, e dois veus de 64% empilhados dao 87%. Foi o
+#    que aconteceu -- a lateral saiu visivelmente mais escura que a home mesmo
+#    com o valor identico escrito nos dois lugares.
+#
+#    Transparente e o unico jeito de a moldura mostrar exatamente o veu da
+#    janela, sem somar um segundo. A divisao entre as regioes fica so por conta
+#    da linha branca do contorno.
+player_background  = "#00000000"
+sidebar_background = "#00000000"
 
 text           = "#f7f7f8"
 text_muted     = "#e4e4e6"
-text_on_accent = "#ffffff"
+# Escuro, porque o accent agora e branco frio. Contra `#eef0f4` isto da 14:1.
+text_on_accent = "#1c1c24"
 
 # Vidro nao tem cor propria. O controle ativo e feito da mesma materia da
 # superficie -- um branco fosco levemente frio --, e nao de uma tinta por cima
@@ -30,15 +102,20 @@ text_on_accent = "#ffffff"
 # monochromatic appearance for toolbars and tab bars". Um tocador de musica e
 # conteudo colorido.
 #
-# O que estava errado era aplicar monocromatico tambem onde a regra pede
-# excecao: "to emphasize primary actions, apply color to the background rather
-# than to symbols or text". Com o accent branco, o botao Tocar nao tinha cor
-# nenhuma, e o destaque do tema deixava de existir.
+# **Sem cor nenhuma, e isso e uma decisao de produto, nao de estilo.**
 #
-# O violeta e o da marca (`assets/brand`), e nao uma cor nova: o accent do
-# aplicativo e o lugar onde a identidade dele aparece.
-accent       = "#8b63f6"
-accent_hover = "#a884f9"
+# Esteve violeta -- o roxo da marca -- porque a HIG abre excecao ao monocromatico
+# para a acao primaria: "to emphasize primary actions, apply color to the
+# background rather than to symbols or text". A regra e boa e nao se aplica aqui.
+#
+# O Bruma nao e o tema do Morune. Ele e o tema VIDRO: existe para mostrar o que
+# esta atras, e cor de marca dentro dele e identidade competindo com o papel de
+# parede de quem usa. A identidade do aplicativo mora nos outros temas.
+#
+# Branco frio, entao. Continua sendo destaque -- e a coisa mais clara da tela --,
+# so nao carrega cor.
+accent       = "#eef0f4"
+accent_hover = "#ffffff"
 
 # 0xaa, e nao 0x45: e o menor alfa que alcanca 3:1 tambem sobre uma area de
 # trabalho clara, o pior caso de um tema translucido. Num tema de vidro isso
@@ -56,8 +133,8 @@ border_highlight = "#ffffffb0"
 #
 # Alfa baixo de proposito: isto fica ATRAS de texto, entao o que se quer e um
 # vies de matiz, nao um bloco de cor.
-hover      = "#8b63f62e"
-selected   = "#8b63f652"
+hover      = "#ffffff2b"
+selected   = "#ffffff45"
 focus_ring = "#ffffff"
 
 success = "#5ed6a4"

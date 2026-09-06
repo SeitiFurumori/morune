@@ -1,4 +1,4 @@
-[package]
+﻿[package]
 name = "morune-app"
 description = "Interface e ponto de entrada do Morune."
 version.workspace = true
@@ -129,3 +129,5 @@ slint-build = "1.17"
 # Decodifica os PNGs da marca em tempo de build, para que o executavel carregue
 # pixels crus e nao um decodificador. Ver `embed_brand_pixels` em build.rs.
 png = "0.18"
+
+
