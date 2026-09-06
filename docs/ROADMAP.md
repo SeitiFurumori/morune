@@ -97,6 +97,25 @@ Risco conhecido: librespot 0.8 exige `vergen` fixado em 9.0.x no `Cargo.lock`
 4. **Painel de diagnosticos** com o resultado do `sanitize` do tema atual.
 5. **Icones por tema**, vindos de `assets/`.
 6. **Fontes empacotadas** registradas de verdade (`bundled_font`).
+7. **Fundo em movimento**: o tema aceita um `.mp4` no lugar da imagem parada,
+   em laco. Decidido em 06/09/2026, com o criterio explicito de ser o mais
+   facil possivel para quem customiza: a pessoa larga na pasta do tema o mesmo
+   arquivo que ja baixou para o Wallpaper Engine, sem exportar quadro nenhum e
+   sem converter nada.
+
+   Decodificacao pelo **Media Foundation**, que ja vem no Windows: nao aumenta
+   o tamanho do instalador, usa a placa de video para decodificar e abre o que
+   as pessoas realmente tem (H.264 em `.mp4`). `ffmpeg` foi descartado -- pesa
+   dezenas de megabytes e traz licenca junto.
+
+   O gasto continuo e real, e por isso este item nao existiria sem o portao de
+   tela cheia, que ja esta pronto: com jogo na frente o video congela e o custo
+   some. Fora dele, o teto e um quadro do video por quadro da interface, com
+   descarte quando a janela esta oculta ou na bandeja.
+
+   Estimativa: 3 a 5 dias. O grosso nao e decodificar -- e o caminho do quadro
+   ate o Slint sem copia extra por quadro, e o comportamento nas bordas
+   (video que falta, formato que o Windows nao abre, laco sem engasgo).
 
 ## Ciclo 4 — Produto
 
