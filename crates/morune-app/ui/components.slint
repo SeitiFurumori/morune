@@ -480,6 +480,65 @@ export component IconButton inherits Rectangle {
     }
 }
 
+// **Vidro fosco de verdade, sem filtro de fundo.**
+//
+// O Slint nao desfoca o que esta atras de um elemento, e nao vai desfocar: nao
+// existe `backdrop-filter` aqui. Mas o desfoque so precisa existir onde o olho
+// vai olhar, e no Morune o que esta atras de um painel e quase sempre o fundo da
+// janela -- nao outra parte da interface.
+//
+// Entao: o Rust guarda uma copia JA borrada do fundo, feita uma vez quando o
+// tema carrega. Este componente descobre onde ele mesmo esta dentro da janela e
+// mostra o pedaco daquela copia que cai exatamente atras dele. O resultado e o
+// mesmo que um desfoque de fundo daria, e o custo por quadro e o de desenhar um
+// pedaco de bitmap.
+//
+// **A conta.** O fundo e desenhado com `image-fit: cover`, que escolhe a maior
+// das duas escalas e centraliza o que sobra. Para achar o pedaco certo e preciso
+// refazer essa conta ao contrario: quanto a imagem foi ampliada, quanto sobrou
+// de cada lado, e entao converter a posicao deste elemento na janela para
+// posicao dentro da imagem.
+//
+// **O que ele nao faz.** Vidro sobre uma lista rolando nao funciona -- ali o que
+// esta atras nao e o fundo. Para isso seria preciso ler de volta o que o Slint
+// ja desenhou, que e outro trabalho e outro custo.
+export component Vidro inherits Rectangle {
+    in property <length> radius: 0px;
+    /// Quanto do fundo borrado aparece. O resto e a superficie do tema.
+    in property <float> forca: 1.0;
+
+    width: 100%;
+    height: 100%;
+    border-radius: root.radius;
+    clip: true;
+
+    // Escala do `cover`: a maior das duas, para a imagem cobrir a janela
+    // inteira sem deixar borda.
+    private property <float> escala-x: Theme.window-width / (Theme.background-blurred.width * 1px);
+    private property <float> escala-y: Theme.window-height / (Theme.background-blurred.height * 1px);
+    private property <float> escala: max(root.escala-x, root.escala-y);
+
+    // Quanto sobrou para fora da janela, de um lado so. `cover` centraliza, e e
+    // por isso que a metade do que sobrou e o deslocamento.
+    private property <length> sobra-x: (Theme.background-blurred.width * 1px * root.escala - Theme.window-width) / 2;
+    private property <length> sobra-y: (Theme.background-blurred.height * 1px * root.escala - Theme.window-height) / 2;
+
+    if Theme.background-blurred.width > 0 && root.forca > 0: Image {
+        width: 100%;
+        height: 100%;
+        image-fit: fill;
+        source: Theme.background-blurred;
+        opacity: root.forca;
+
+        // Da posicao na janela para posicao na imagem: soma o que sobrou fora
+        // da janela e divide pela ampliacao.
+        source-clip-x: (parent.absolute-position.x + root.sobra-x) / root.escala / 1px;
+        source-clip-y: (parent.absolute-position.y + root.sobra-y) / root.escala / 1px;
+        source-clip-width: root.width / root.escala / 1px;
+        source-clip-height: root.height / root.escala / 1px;
+    }
+}
+
 // **Material desenhado, e nao efeito de motor.**
 //
 // O diagnostico que levou a isto estava errado pela metade. E verdade que o

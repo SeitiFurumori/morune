@@ -1,5 +1,5 @@
 import { Theme, Layout } from "theme.slint";
-import { Material, MaterialRedondo, GlassEdge, Gloss, Glass, ScrollFade, Icon, IconRef, IconButton, PrimaryButton, GhostButton, SearchField, Slider, Artwork, PressableArea, Toggle, Logo, MenuRow, AccountAvatar } from "components.slint";
+import { Vidro, Material, MaterialRedondo, GlassEdge, Gloss, Glass, ScrollFade, Icon, IconRef, IconButton, PrimaryButton, GhostButton, SearchField, Slider, Artwork, PressableArea, Toggle, Logo, MenuRow, AccountAvatar } from "components.slint";
 import { ListView } from "std-widgets.slint";
 
 // O Slint exige que um componente esteja declarado antes de ser usado, entao
@@ -720,6 +720,16 @@ component Card inherits Rectangle {
         ? Theme.radius-artwork + Theme.space-sm
         : 0px;
     background: touch.has-hover ? Theme.surface-raised : Theme.surface;
+
+    // O fundo borrado, aparecendo atraves do cartao. Vai ANTES do material:
+    // primeiro o que se ve atraves do vidro, depois a luz que cai sobre ele.
+    Vidro {
+        radius: parent.border-radius;
+        // A superficie do tema ja tem alfa e ja deixa passar alguma coisa; o
+        // vidro entra por cima dela, nao no lugar dela. Meio a meio deixa o
+        // cartao com identidade propria em vez de virar um buraco no fundo.
+        forca: 0.5;
+    }
 
     // O material do tema, desenhado por `tools/material-gel.py`. Fraco de
     // proposito: um cartao e grande, e a rampa cheia que veste um botao de 34px
@@ -3503,8 +3513,24 @@ export component AppWindow inherits Window {
     // alguem redimensionar a janela: na largura padrao cabem quatro, e a
     // quinta coluna sangrava pela borda direita da grade -- em todos os temas,
     // toda vez que o aplicativo abria.
-    init => { root.grid-columns = root.colunas-que-cabem(); }
-    changed width => { root.grid-columns = root.colunas-que-cabem(); }
+    // O tamanho da janela tambem vai para a global do tema.
+    //
+    // Quem precisa e o `Vidro`: para achar o pedaco do fundo que cai atras de um
+    // painel, ele refaz a conta que o `image-fit: cover` fez, e essa conta
+    // depende do tamanho da area onde a imagem foi desenhada. Um componente la
+    // no meio da arvore nao tem como perguntar isso a janela, entao a janela
+    // conta. Por atribuicao, e nao por ligacao: global nao aceita ligacao vinda
+    // de um componente.
+    init => {
+        root.grid-columns = root.colunas-que-cabem();
+        Theme.window-width = root.width;
+        Theme.window-height = root.height;
+    }
+    changed width => {
+        root.grid-columns = root.colunas-que-cabem();
+        Theme.window-width = root.width;
+    }
+    changed height => { Theme.window-height = root.height; }
     changed sidebar-is-collapsed => { root.grid-columns = root.colunas-que-cabem(); }
 
     // --- eventos para o Rust ---

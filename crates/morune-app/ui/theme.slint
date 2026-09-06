@@ -77,8 +77,23 @@ export global Theme {
     // A imagem chega decodificada, reduzida e ja desfocada do Rust. Aqui ela e
     // so um bitmap: nada nesta camada recalcula nada por quadro.
     in-out property <image> background-image;
+    // A mesma imagem, ja borrada, para os paineis usarem como vidro.
+    //
+    // O Slint nao desfoca o que esta atras de um elemento -- nao existe filtro
+    // de fundo aqui. Mas quando o que esta atras do painel e o fundo da janela,
+    // o painel pode mostrar o pedaco desta copia que fica exatamente na posicao
+    // dele, e o olho nao distingue disso e do desfoque real. Ver `Vidro` em
+    // components.slint.
+    in-out property <image> background-blurred;
     // 0 = cover, 1 = contain, 2 = center, 3 = stretch
     in-out property <int> background-fit: 0;
+    // Tamanho da janela, escrito pela raiz em app.slint.
+    //
+    // O `Vidro` precisa refazer a conta que o `image-fit: cover` faz para saber
+    // qual pedaco da imagem cai atras dele, e para isso precisa saber o tamanho
+    // da area onde a imagem foi desenhada -- que e a janela.
+    in-out property <length> window-width: 1220px;
+    in-out property <length> window-height: 800px;
     in-out property <float> background-opacity: 1.0;
     in-out property <brush> background-tint: #00000000;
     in-out property <float> background-tint-strength: 0.0;

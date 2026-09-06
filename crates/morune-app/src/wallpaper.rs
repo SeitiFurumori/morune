@@ -20,10 +20,34 @@ use slint::SharedPixelBuffer;
 /// telas 4K e ainda assim corta o caso patologico.
 const MAX_DIMENSION: u32 = 3840;
 
+/// Quanto o fundo e borrado para servir de vidro.
+///
+/// Em pixels da imagem ja reduzida. Vinte e quatro e o que some com a forma sem
+/// virar um borrao de cor unica: o olho continua reconhecendo onde estava o
+/// horizonte e onde estava o sol, que e o que faz o painel parecer transparente
+/// em vez de pintado.
+const RAIO_VIDRO: f32 = 24.0;
+
 /// A imagem de fundo pronta para a interface, ja com o que a UI precisa saber.
 #[derive(Debug, Clone, Default)]
 pub struct Wallpaper {
     pub image: slint::Image,
+    /// A mesma imagem, borrada, para os paineis usarem como vidro.
+    ///
+    /// **Existe porque o Slint nao desfoca o que esta atras de um elemento.**
+    /// Nao ha filtro de fundo, e nao vai haver. Mas ha uma saida que da o mesmo
+    /// resultado no caso que importa: se o que esta atras do painel e o fundo
+    /// da janela, basta o painel mostrar o pedaco de uma copia JA borrada desse
+    /// fundo, recortado exatamente na posicao dele. O olho nao distingue.
+    ///
+    /// **Custo por quadro: zero.** O borrao acontece uma vez, aqui, junto com a
+    /// decodificacao -- pelo mesmo motivo escrito no topo deste arquivo. O que
+    /// sobra para a interface e desenhar um pedaco de bitmap, que e a operacao
+    /// mais barata que existe.
+    ///
+    /// Vazia quando o tema nao tem imagem de fundo. Nesse caso nao ha o que
+    /// mostrar atraves, e o painel cai na cor de superficie do tema.
+    pub blurred: slint::Image,
     /// `0` cover, `1` contain, `2` center, `3` stretch.
     pub fit: i32,
     pub opacity: f32,
@@ -102,22 +126,34 @@ pub fn load(
         return empty;
     };
 
-    let image = match decoded.to_rgba8() {
+    let (image, blurred) = match decoded.to_rgba8() {
         // Sem acesso aos pixels nao da para reduzir nem desfocar, mas a imagem
-        // continua desenhavel: entregar como veio e melhor que descartar.
-        None => decoded,
+        // continua desenhavel: entregar como veio e melhor que descartar. Sem
+        // pixels tambem nao ha copia borrada, e o vidro cai na cor do tema.
+        None => (decoded, slint::Image::default()),
         Some(buffer) => {
             let buffer = downscale(buffer, MAX_DIMENSION);
+
+            // A copia do vidro sai da imagem JA reduzida e ANTES do borrao que
+            // o tema pede. Se o tema ja borra o fundo, borrar de novo por cima
+            // daria um segundo borrao somado -- e o vidro deixaria de mostrar o
+            // que esta atras dele para mostrar so uma mancha.
+            let blurred = slint::Image::from_rgba8(blur(buffer.clone(), RAIO_VIDRO));
+
             let buffer = if tokens.blur > 0.0 {
                 blur(buffer, tokens.blur)
             } else {
                 buffer
             };
-            slint::Image::from_rgba8(buffer)
+            (slint::Image::from_rgba8(buffer), blurred)
         }
     };
 
-    Wallpaper { image, ..empty }
+    Wallpaper {
+        image,
+        blurred,
+        ..empty
+    }
 }
 
 type Rgba = SharedPixelBuffer<slint::Rgba8Pixel>;

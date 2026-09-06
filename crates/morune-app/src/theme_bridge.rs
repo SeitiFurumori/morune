@@ -109,6 +109,7 @@ pub fn apply_icons(icons: &UiIcons<'_>, theme_dir: Option<&std::path::Path>) {
 /// trocar so a densidade da barra lateral nao decodifica JPEG nenhum.
 pub fn apply_background(theme: &UiTheme<'_>, spec: &ThemeSpec, paper: &Wallpaper) {
     theme.set_background_image(paper.image.clone());
+    theme.set_background_blurred(paper.blurred.clone());
     theme.set_background_fit(paper.fit);
     theme.set_background_opacity(paper.opacity);
     theme.set_background_tint(brush(spec.background.tint));
