@@ -24,11 +24,23 @@
 //! A distincao entre pausar e trocar de faixa nao da para tirar do trait
 //! `Sink`, que ve `stop()` nos dois casos. Quem sabe a diferenca e o motor, e e
 //! ele que levanta o pedido de descarte -- ver [`FlushRequest`].
+//!
+//! **A saida fecha quando ninguem esta ouvindo.** Um `rodio::OutputStream`
+//! aberto e uma thread do WASAPI acordando a cada bloco de audio para misturar
+//! silencio -- medido em 06/09/2026, `cpal_wasapi_out` sozinha custava 0,47% de
+//! um nucleo com o Morune parado, mais da metade de todo o gasto em repouso.
+//! Para um aplicativo cujo criterio e ser indistinguivel de um processo parado
+//! enquanto alguem joga, isso e caro e nao compra nada: nao ha som saindo.
+//!
+//! Por isso o dispositivo vira [`Option`]: aberto enquanto toca, fechado
+//! [`GRACA_ATE_FECHAR`] depois que o som para, reaberto sozinho no proximo
+//! audio. Quem fecha e um vigia proprio, porque quando ninguem esta tocando
+//! tambem ninguem chama este modulo -- nao ha em que pegar carona.
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use librespot_playback::audio_backend::{Sink, SinkError, SinkResult};
 use librespot_playback::config::AudioFormat;
@@ -61,16 +73,36 @@ const MAX_QUEUED: usize = 26;
 /// Isto roda na thread da librespot, nunca na da interface.
 const DRAIN_WAIT: Duration = Duration::from_millis(10);
 
-pub(crate) struct MoruneSink {
-    /// Mantem o dispositivo aberto. Trocar a fila nao pode fechar a saida, so
-    /// o que esta dentro dela.
+/// Quanto tempo o dispositivo continua aberto depois que o som para.
+///
+/// Abrir a saida custa dezenas de milissegundos, e pausar e trocar de faixa
+/// acontecem o tempo todo: fechar na hora colocaria essa espera no meio da
+/// escuta. Cinco segundos passam folgados por qualquer pausa entre faixas e
+/// ainda assim fecham a saida muito antes de alguem reparar no aplicativo
+/// parado.
+const GRACA_ATE_FECHAR: Duration = Duration::from_secs(5);
+
+/// De quanto em quanto tempo o vigia confere se ja da para fechar.
+///
+/// Uma vez por segundo contra as centenas de vezes por segundo que a thread do
+/// WASAPI acorda: o vigia custa perto de nada comparado ao que ele desliga.
+const RONDA: Duration = Duration::from_secs(1);
+
+/// Mensagem de um cadeado envenenado. So acontece se outra thread entrar em
+/// panico segurando o estado, e nesse caso o audio ja acabou de qualquer jeito.
+const ENVENENADO: &str = "estado da saida de audio envenenado";
+
+/// O dispositivo aberto e a fila ligada a ele.
+///
+/// Os dois nascem e morrem juntos: a fila do rodio se conecta ao misturador
+/// deste `stream`, entao guardar uma sem a outra daria uma fila que aceita
+/// audio e nao toca em lugar nenhum.
+struct Saida {
     stream: rodio::OutputStream,
     sink: rodio::Sink,
-    volume: Arc<SharedVolume>,
-    flush: FlushRequest,
 }
 
-impl MoruneSink {
+impl Saida {
     /// Troca a fila por uma vazia, descartando o que estava enfileirado.
     ///
     /// **Nao bloqueia**, e essa e a razao de ser assim em vez de `clear()`: o
@@ -78,25 +110,69 @@ impl MoruneSink {
     /// `clear()` espera o misturador confirmar. Isto roda na thread do player da
     /// librespot, que tambem processa os comandos -- segurar aqui atrasaria o
     /// comando seguinte.
-    fn reset_queue(&mut self) {
+    fn reset_queue(&mut self, volume: &SharedVolume) {
         self.sink = rodio::Sink::connect_new(self.stream.mixer());
-        self.sink.set_volume(self.volume.attenuation() as f32);
+        self.sink.set_volume(volume.attenuation() as f32);
     }
+}
 
-    /// Atende um descarte pedido pelo motor, se houver.
-    fn take_flush(&mut self) -> bool {
-        if self.flush.swap(false, Ordering::AcqRel) {
-            self.reset_queue();
-            return true;
+/// Tudo que o vigia e a thread do player compartilham.
+struct Estado {
+    /// `None` quer dizer dispositivo fechado, e nao dispositivo com defeito.
+    saida: Option<Saida>,
+    /// Desde quando nao sai som. `None` enquanto esta tocando.
+    parado_desde: Option<Instant>,
+    /// Nome pedido nas Configuracoes, guardado para reabrir no mesmo lugar.
+    preferido: String,
+    volume: Arc<SharedVolume>,
+}
+
+impl Estado {
+    /// Devolve a saida, abrindo o dispositivo se ele estiver fechado.
+    fn aberta(&mut self) -> Result<&mut Saida, String> {
+        if self.saida.is_none() {
+            let nova = abrir_saida(&self.preferido, &self.volume)?;
+            tracing::debug!("saida de audio reaberta");
+            self.saida = Some(nova);
         }
-        false
+        Ok(self
+            .saida
+            .as_mut()
+            .expect("a saida acabou de ser aberta acima"))
+    }
+}
+
+/// Decide se o dispositivo ja pode fechar.
+///
+/// Separado do vigia para poder ser testado sem placa de som.
+fn ja_pode_fechar(parado_desde: Option<Instant>, aberta: bool, agora: Instant) -> bool {
+    aberta
+        && parado_desde
+            .is_some_and(|t| agora.saturating_duration_since(t) >= GRACA_ATE_FECHAR)
+}
+
+pub(crate) struct MoruneSink {
+    estado: Arc<Mutex<Estado>>,
+    flush: FlushRequest,
+}
+
+impl MoruneSink {
+    /// Atende um descarte pedido pelo motor, se houver.
+    fn take_flush(&self, saida: &mut Saida, volume: &SharedVolume) {
+        if self.flush.swap(false, Ordering::AcqRel) {
+            saida.reset_queue(volume);
+        }
     }
 }
 
 impl Sink for MoruneSink {
     fn start(&mut self) -> SinkResult<()> {
-        self.take_flush();
-        self.sink.play();
+        let mut estado = self.estado.lock().expect(ENVENENADO);
+        estado.parado_desde = None;
+        let volume = estado.volume.clone();
+        let saida = estado.aberta().map_err(SinkError::ConnectionRefused)?;
+        self.take_flush(saida, &volume);
+        saida.sink.play();
         Ok(())
     }
 
@@ -109,36 +185,89 @@ impl Sink for MoruneSink {
     ///
     /// A librespot original drenava a fila aqui, o que fazia pausar levar meio
     /// segundo. `pause()` corta o som dentro de um bloco do misturador.
+    ///
+    /// Aqui tambem comeca a contagem para fechar o dispositivo: silencio que
+    /// dura e silencio que nao precisa de saida aberta.
     fn stop(&mut self) -> SinkResult<()> {
-        self.sink.pause();
+        let mut estado = self.estado.lock().expect(ENVENENADO);
+        if let Some(saida) = estado.saida.as_ref() {
+            saida.sink.pause();
+        }
+        estado.parado_desde = Some(Instant::now());
         Ok(())
     }
 
     fn write(&mut self, packet: AudioPacket, converter: &mut Converter) -> SinkResult<()> {
-        self.take_flush();
-
-        // O volume vive aqui, e nao no `volume_getter` da librespot, porque o
-        // misturador reaplica este valor as fontes ja enfileiradas a cada 5 ms.
-        // Aplicado antes da fila, meio segundo de audio continuaria saindo no
-        // volume anterior.
-        self.sink.set_volume(self.volume.attenuation() as f32);
-
+        // A conversao nao depende do dispositivo e nao precisa do cadeado.
         let samples = packet
             .samples()
             .map_err(|e| SinkError::OnWrite(e.to_string()))?;
         let samples_f32: &[f32] = &converter.f64_to_f32(samples);
-        self.sink.append(rodio::buffer::SamplesBuffer::new(
-            NUM_CHANNELS as cpal::ChannelCount,
-            SAMPLE_RATE,
-            samples_f32,
-        ));
+
+        {
+            let mut estado = self.estado.lock().expect(ENVENENADO);
+            // Chegou audio: a contagem para fechar recomeca do zero.
+            estado.parado_desde = None;
+            let volume = estado.volume.clone();
+            let saida = estado.aberta().map_err(SinkError::ConnectionRefused)?;
+            self.take_flush(saida, &volume);
+
+            // O volume vive aqui, e nao no `volume_getter` da librespot, porque
+            // o misturador reaplica este valor as fontes ja enfileiradas a cada
+            // 5 ms. Aplicado antes da fila, meio segundo de audio continuaria
+            // saindo no volume anterior.
+            saida.sink.set_volume(volume.attenuation() as f32);
+            saida.sink.append(rodio::buffer::SamplesBuffer::new(
+                NUM_CHANNELS as cpal::ChannelCount,
+                SAMPLE_RATE,
+                samples_f32,
+            ));
+        }
 
         // Contrapressao: sem isto a decodificacao correria na frente da saida e
-        // a fila cresceria sem limite.
-        while self.sink.len() > MAX_QUEUED {
+        // a fila cresceria sem limite. O cadeado e solto antes de cada espera --
+        // segurar aqui travaria o vigia e qualquer comando por meio segundo.
+        loop {
+            {
+                let estado = self.estado.lock().expect(ENVENENADO);
+                let cheia = estado
+                    .saida
+                    .as_ref()
+                    .is_some_and(|s| s.sink.len() > MAX_QUEUED);
+                if !cheia {
+                    break;
+                }
+            }
             thread::sleep(DRAIN_WAIT);
         }
         Ok(())
+    }
+}
+
+/// Fecha a saida sozinho depois de [`GRACA_ATE_FECHAR`] em silencio.
+///
+/// Precisa de thread propria: quando nada esta tocando, nada chama este modulo,
+/// entao nao existe evento em que pendurar a verificacao. Ela segura uma
+/// referencia fraca de proposito -- assim o vigia morre junto com a saida, sem
+/// mante-la viva nem precisar de sinal de encerramento.
+fn vigiar(estado: &Arc<Mutex<Estado>>) {
+    let fraco = Arc::downgrade(estado);
+    let resultado = thread::Builder::new()
+        .name("morune-audio-ocioso".to_string())
+        .spawn(move || loop {
+            thread::sleep(RONDA);
+            let Some(estado) = fraco.upgrade() else { return };
+            let Ok(mut estado) = estado.lock() else { return };
+            if ja_pode_fechar(estado.parado_desde, estado.saida.is_some(), Instant::now()) {
+                // O `Drop` do `OutputStream` e que fecha o dispositivo e
+                // encerra a thread do WASAPI.
+                estado.saida = None;
+                estado.parado_desde = None;
+                tracing::debug!("saida de audio fechada por ociosidade");
+            }
+        });
+    if let Err(e) = resultado {
+        tracing::warn!(error = %e, "sem vigia de ociosidade; a saida de audio fica aberta");
     }
 }
 
@@ -160,7 +289,7 @@ pub fn output_devices() -> Vec<String> {
     devices.filter_map(|d| d.name().ok()).collect()
 }
 
-/// Abre a saida de audio.
+/// Abre o dispositivo e conecta uma fila vazia a ele.
 ///
 /// `preferido` vazio significa "o padrao do sistema", que e o que a maioria
 /// quer: o Windows ja tem um dispositivo padrao e trocar la deve trocar aqui.
@@ -171,11 +300,7 @@ pub fn output_devices() -> Vec<String> {
 /// 44,1 kHz quando o dispositivo aceita, senao a taxa padrao dele, senao o que
 /// houver. Sair disso trocaria uma reamostragem que hoje nao acontece por uma
 /// que aconteceria.
-pub(crate) fn open(
-    volume: Arc<SharedVolume>,
-    flush: FlushRequest,
-    preferido: &str,
-) -> Result<MoruneSink, String> {
+fn abrir_saida(preferido: &str, volume: &SharedVolume) -> Result<Saida, String> {
     let host = cpal::default_host();
 
     let escolhido = if preferido.is_empty() {
@@ -198,8 +323,11 @@ pub(crate) fn open(
         .or_else(|| host.default_output_device())
         .ok_or_else(|| "nenhum dispositivo de saida disponivel".to_string())?;
 
+    // Em `debug`, e nao em `info`: agora o dispositivo reabre a cada retomada,
+    // e uma linha por play encheria o log sem contar nada novo. Quem aparece
+    // uma vez, no nivel normal, e a abertura de [`open`].
     if let Ok(name) = device.name() {
-        tracing::info!(dispositivo = %name, "saida de audio");
+        tracing::debug!(dispositivo = %name, "saida de audio aberta");
     }
 
     let default_config = device
@@ -240,16 +368,72 @@ pub(crate) fn open(
     };
 
     // O rodio registra a destruicao do stream no log de saida; aqui isso
-    // apareceria como erro no encerramento normal.
+    // apareceria como erro no encerramento normal -- e agora a destruicao
+    // acontece toda vez que a musica para, nao so ao fechar o aplicativo.
     stream.log_on_drop(false);
 
     let sink = rodio::Sink::connect_new(stream.mixer());
     sink.set_volume(volume.attenuation() as f32);
 
-    Ok(MoruneSink {
-        stream,
-        sink,
+    Ok(Saida { stream, sink })
+}
+
+/// Monta a saida de audio do Morune.
+///
+/// O dispositivo e aberto **aqui**, e nao na primeira faixa, para que "esse
+/// dispositivo nao abre" apareca como falha de dispositivo na hora de ligar o
+/// motor. Depois disso ele passa a ir e vir sozinho: o vigia fecha na
+/// ociosidade e o proximo audio reabre.
+pub(crate) fn open(
+    volume: Arc<SharedVolume>,
+    flush: FlushRequest,
+    preferido: &str,
+) -> Result<MoruneSink, String> {
+    let saida = abrir_saida(preferido, &volume)?;
+    tracing::info!(
+        preferido = if preferido.is_empty() { "padrao do sistema" } else { preferido },
+        "saida de audio pronta"
+    );
+
+    let estado = Arc::new(Mutex::new(Estado {
+        saida: Some(saida),
+        // Nada tocou ainda: a contagem ja comeca, e o dispositivo aberto so
+        // para conferencia fecha sozinho em segundos se ninguem pedir musica.
+        parado_desde: Some(Instant::now()),
+        preferido: preferido.to_string(),
         volume,
-        flush,
-    })
+    }));
+    vigiar(&estado);
+
+    Ok(MoruneSink { estado, flush })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_saida_fechada_nao_fecha_de_novo() {
+        let parado = Instant::now() - GRACA_ATE_FECHAR * 2;
+        assert!(!ja_pode_fechar(Some(parado), false, Instant::now()));
+    }
+
+    #[test]
+    fn tocando_a_saida_nunca_fecha() {
+        assert!(!ja_pode_fechar(None, true, Instant::now()));
+    }
+
+    #[test]
+    fn a_graca_e_respeitada_antes_de_fechar() {
+        let agora = Instant::now();
+        let parado = agora - GRACA_ATE_FECHAR + Duration::from_millis(500);
+        assert!(!ja_pode_fechar(Some(parado), true, agora));
+    }
+
+    #[test]
+    fn passada_a_graca_em_silencio_a_saida_fecha() {
+        let agora = Instant::now();
+        let parado = agora - GRACA_ATE_FECHAR;
+        assert!(ja_pode_fechar(Some(parado), true, agora));
+    }
 }
