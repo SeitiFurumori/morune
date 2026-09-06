@@ -1,4 +1,4 @@
-import { Theme, Layout, Brand } from "theme.slint";
+﻿import { Theme, Layout, Brand } from "theme.slint";
 
 // Elementos reutilizaveis. Nenhum deles carrega valor visual proprio: tudo sai
 // de `Theme`, para que um pacote de tema consiga mudar a aparencia inteira sem
@@ -267,7 +267,7 @@ export component Glass {
 // Diz que a lista continua alem da borda.
 //
 // Uma lista rolavel que termina em corte reto no meio de um texto nao le como
-// "há mais abaixo": le como defeito de desenho. O degrade resolve isso sem
+// "hÃ¡ mais abaixo": le como defeito de desenho. O degrade resolve isso sem
 // ocupar altura -- ele e desenhado por cima do conteudo, na propria faixa que
 // seria cortada.
 //
@@ -523,12 +523,17 @@ export component Vidro inherits Rectangle {
     private property <length> sobra-x: (Theme.background-blurred.width * 1px * root.escala - Theme.window-width) / 2;
     private property <length> sobra-y: (Theme.background-blurred.height * 1px * root.escala - Theme.window-height) / 2;
 
-    if Theme.background-blurred.width > 0 && root.forca > 0: Image {
+    // A condicao nao olha a forca, so a existencia da imagem: quem controla o
+    // quanto e a opacidade, e ela precisa poder ir de zero ate o valor cheio
+    // sem o elemento nascer e morrer no meio -- senao o realce de cursor
+    // apareceria de estalo em vez de acender.
+    if Theme.background-blurred.width > 0: Image {
         width: 100%;
         height: 100%;
         image-fit: fill;
         source: Theme.background-blurred;
         opacity: root.forca;
+        animate opacity { duration: Theme.motion-fast; easing: ease; }
 
         // Da posicao na janela para posicao na imagem: soma o que sobrou fora
         // da janela e divide pela ampliacao.
@@ -577,6 +582,7 @@ export component Material inherits Rectangle {
         image-fit: fill;
         source: @image-url("materiais/gel.png");
         opacity: root.forca;
+        animate opacity { duration: Theme.motion-fast; easing: ease; }
     }
 
     if Theme.gloss >= 0.20 && Theme.gloss < 0.62: Image {
@@ -585,6 +591,7 @@ export component Material inherits Rectangle {
         image-fit: fill;
         source: @image-url("materiais/vidro.png");
         opacity: root.forca;
+        animate opacity { duration: Theme.motion-fast; easing: ease; }
     }
 }
 
@@ -606,6 +613,65 @@ export component MaterialRedondo inherits Rectangle {
         image-fit: fill;
         source: @image-url("materiais/reflexo.png");
         opacity: root.forca * (Theme.gloss >= 0.62 ? 1.0 : 0.55);
+    }
+}
+
+// **O realce de uma linha sob o cursor.**
+//
+// Trocou um veu de cor por uma peca que acende, e o motivo e que a versao
+// anterior era invisivel POR CONSTRUCAO, nao por estar fraca.
+//
+// A linha fica sobre o fundo da janela. Realca-la com vidro significava mostrar
+// nela uma copia borrada... do mesmo fundo que ja estava ali. Vidro so aparece
+// quando o que esta atras dele e diferente do que esta ao lado -- funciona no
+// cartao, que tem capa colorida em volta, e nao funciona numa linha solta.
+// Aumentar o valor nao resolveria: o problema nao e quantidade.
+//
+// O que resolve e dar CORPO. E o que o Aero e o menu do Wii faziam quando o
+// cursor passava: o item virava um objeto iluminado, com as quatro coisas
+// abaixo juntas. Nenhuma delas sozinha basta.
+//
+//  1. superficie de verdade, e nao um veu de 15% -- a peca ganha massa;
+//  2. a folha de brilho por cima, que da a curvatura;
+//  3. um fio de luz na borda, que da contorno;
+//  4. uma sombra curta, que levanta a peca do plano.
+//
+// `com-vidro` fica desligado dentro da barra lateral e do rodape: aquelas duas
+// ja sao a peca de vidro da regiao, e vidro sobre vidro esta na lista de
+// anti-padroes das duas plataformas.
+export component Realce inherits Rectangle {
+    in property <length> radius: 0px;
+    /// Quanto do realce esta aceso. Anima sozinho.
+    in property <float> aceso: 0.0;
+    /// Deixa o fundo aparecer atraves. Desligue dentro de outra peca de vidro.
+    in property <bool> com-vidro: true;
+
+    width: 100%;
+    height: 100%;
+    border-radius: root.radius;
+
+    background: Theme.surface-raised;
+    border-width: root.aceso > 0 ? Theme.border-width : 0px;
+    border-color: Theme.border-highlight;
+    opacity: root.aceso;
+    animate opacity { duration: Theme.motion-fast; easing: ease; }
+
+    // Sombra curta, e nao a do cartao: uma linha de lista sobe um fio, nao
+    // flutua. Sombra grande numa lista de cinquenta linhas viraria sujeira.
+    drop-shadow-color: root.aceso > 0
+        ? (Theme.background.to-hsv().value > 0.5 ? #00000014 : #00000040)
+        : #00000000;
+    drop-shadow-blur: 6px;
+    drop-shadow-offset-y: 1px;
+
+    if root.com-vidro: Vidro {
+        radius: root.radius;
+        forca: root.aceso * 0.55;
+    }
+
+    Material {
+        radius: root.radius;
+        forca: root.aceso;
     }
 }
 
