@@ -209,25 +209,6 @@ fn main() -> anyhow::Result<()> {
     #[cfg(windows)]
     ensure_rounded_corners(window.window());
     #[cfg(windows)]
-    excluir_da_captura(window.window());
-    // O HWND as vezes so existe alguns quadros depois de `show()`; uma segunda
-    // tentativa custa nada e evita depender da sorte.
-    #[cfg(windows)]
-    let _retomada_exclusao = {
-        let weak = window.as_weak();
-        let t = slint::Timer::default();
-        t.start(
-            slint::TimerMode::SingleShot,
-            std::time::Duration::from_millis(1500),
-            move || {
-                if let Some(w) = weak.upgrade() {
-                    excluir_da_captura(w.window());
-                }
-            },
-        );
-        t
-    };
-    #[cfg(windows)]
     {
         let s = state.borrow();
         let (opacity, material) = s.window_effects();
@@ -291,56 +272,6 @@ fn main() -> anyhow::Result<()> {
 /// canto padrao. Ler antes de escrever mantem o custo em duas chamadas baratas
 /// quando ja esta certo, que e o caso comum.
 #[cfg(windows)]
-/// Tira a janela de qualquer captura de tela, mantendo-a visivel no monitor.
-///
-/// **Para que isto existe.** A borda de vidro que pega a cor do que esta atras
-/// -- como a pasta do iOS faz -- precisa dos pixels do fundo, e o acrilico do
-/// Windows nunca os entrega: ele compoe embaixo da janela e pronto. O caminho
-/// documentado e capturar o monitor com `Windows.Graphics.Capture`, e para isso
-/// a nossa propria janela precisa sumir da captura -- senao filmariamos a nos
-/// mesmos e o resultado seria realimentacao.
-///
-/// `WDA_EXCLUDEFROMCAPTURE` faz exatamente isso desde o Windows 10 2004, e so
-/// funciona em janela do PROPRIO processo -- por isso nao da para testar de
-/// fora, com script.
-///
-/// **O preco, e ele e visivel:** com esta marca o Morune desaparece de gravacao
-/// de tela e de compartilhamento em chamada. Continua na tela para quem esta na
-/// frente do computador; some para quem assiste do outro lado.
-///
-/// Atras de variavel de ambiente enquanto e experimento.
-#[cfg(windows)]
-fn excluir_da_captura(window: &slint::Window) {
-    if std::env::var("MORUNE_EXCLUIR_DA_CAPTURA").as_deref() != Ok("1") {
-        return;
-    }
-
-    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-    use windows::Win32::Foundation::HWND;
-    use windows::Win32::UI::WindowsAndMessaging::{
-        SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE,
-    };
-
-    let handle = window.window_handle();
-    let Ok(handle) = handle.window_handle() else {
-        tracing::warn!("exclusao de captura: a janela nativa ainda nao existe");
-        return;
-    };
-    let RawWindowHandle::Win32(raw) = handle.as_raw() else {
-        tracing::warn!("exclusao de captura: a janela nao e do Windows");
-        return;
-    };
-    let hwnd = HWND(raw.hwnd.get() as *mut std::ffi::c_void);
-
-    // SAFETY: HWND vivo, da janela deste processo, e a chamada nao guarda
-    // ponteiro nenhum.
-    let resultado = unsafe { SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE) };
-    match resultado {
-        Ok(()) => tracing::info!("janela excluida da captura de tela"),
-        Err(erro) => tracing::warn!(%erro, "nao consegui excluir a janela da captura"),
-    }
-}
-
 fn ensure_rounded_corners(window: &slint::Window) {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
     use windows::Win32::Foundation::HWND;
@@ -350,11 +281,9 @@ fn ensure_rounded_corners(window: &slint::Window) {
 
     let handle = window.window_handle();
     let Ok(handle) = handle.window_handle() else {
-        tracing::warn!("exclusao de captura: a janela nativa ainda nao existe");
         return;
     };
     let RawWindowHandle::Win32(raw) = handle.as_raw() else {
-        tracing::warn!("exclusao de captura: a janela nao e do Windows");
         return;
     };
     let hwnd = HWND(raw.hwnd.get() as *mut std::ffi::c_void);
@@ -491,11 +420,9 @@ fn ensure_window_effects(window: &slint::Window, opacity: f32, backdrop: Backdro
 
     let handle = window.window_handle();
     let Ok(handle) = handle.window_handle() else {
-        tracing::warn!("exclusao de captura: a janela nativa ainda nao existe");
         return;
     };
     let RawWindowHandle::Win32(raw) = handle.as_raw() else {
-        tracing::warn!("exclusao de captura: a janela nao e do Windows");
         return;
     };
     let hwnd = HWND(raw.hwnd.get() as *mut std::ffi::c_void);

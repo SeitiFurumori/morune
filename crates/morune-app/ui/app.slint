@@ -3493,25 +3493,6 @@ component SidebarShell inherits Rectangle {
     Glass { bottom: false; }
 
     @children
-
-    // **A linha que separa a barra lateral do conteudo.**
-    //
-    // Sem tom proprio, a barra e a home passaram a ter exatamente o mesmo escuro
-    // -- medido na fronteira, +0,004 de diferenca. E o que se queria, mas com
-    // isso a divisao entre as duas deixou de existir: viravam uma superficie so.
-    //
-    // Ela vai DEPOIS de `@children` para ficar por cima do conteudo da barra, e
-    // do lado de dentro da borda -- assim nao depende de quem hospeda desenhar
-    // nada, e some junto com a barra quando ela recolhe.
-    //
-    // `border-highlight` e a mesma cor das outras linhas de vidro da interface:
-    // a divisao entre regioes e uma so, desenhada do mesmo jeito em todo lugar.
-    Rectangle {
-        x: parent.width - self.width;
-        width: Theme.border-width;
-        height: 100%;
-        background: Theme.border-highlight;
-    }
 }
 
 export component AppWindow inherits Window {
