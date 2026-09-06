@@ -67,7 +67,7 @@ Ninguem instrumentou o caminho de capas para saber onde esse tempo vai.
 
 | Metrica | Meta | Medido | Situacao |
 |---|---|---|---|
-| CPU em repouso, janela visivel | ~0% | **1,48%** | **regrediu** (era 0,14% em 19/08) |
+| CPU em repouso, janela visivel | ~0% | **0,23%** (06/09) | cumprido (era 1,48% em 30/08) |
 | CPU na bandeja, janela oculta | ~0% | **0,00%** (19/08) | nao remedido em 30/08 |
 | GPU em repouso, janela visivel | sem redesenho | **0,00%** | cumprido |
 | Interferencia com jogo em tela cheia | imperceptivel | — | ferramenta pronta, falta a sessao |
@@ -76,7 +76,7 @@ Ninguem instrumentou o caminho de capas para saber onde esse tempo vai.
 | CPU em reproducao, janela visivel | < 2% | — | nao medido em regime |
 | Startup ate o laco de eventos | < 1 s | **62 ms** | folgado, mas 3x o de 19/08 |
 | Ciclo completo do processo | < 1 s | **1.015 ms** | **estourou** (era 509 ms) |
-| RAM em repouso | teto, nao vitrine | **135,6 MB** | **cresceu 72%** desde 19/08 |
+| RAM em repouso | teto, nao vitrine | **132,1 MB** (06/09) | **cresceu 68%** desde 19/08, sem causa isolada |
 | RAM em reproducao com capas | crescimento limitado | — | cache em disco limitado; RAM nao medida |
 | Tamanho do instalador | < 40 MB | **5,31 MB** (19/08) | nao reempacotado |
 | Tamanho do executavel | — | **15,48 MiB** | +1,70 MiB desde 19/08 |
@@ -239,12 +239,50 @@ Comparar com o ultimo estado antes de escrever devolveu o numero a 0,00%. Vale
 registrar o metodo: a regressao so apareceu porque a medicao foi refeita depois
 da mudanca, nao porque alguem desconfiou.
 
+## Medicao de 06/09/2026
+
+Mesma maquina. Binario de release do dia, **com login restaurado** e nada
+tocando -- ou seja, o cenario mais caro em repouso, e nao o mais barato: ha
+sessao aberta com o Spotify.
+
+```
+cpu em repouso : 0,23% de um nucleo   (60 s, janela visivel, sessao ativa)
+gpu em repouso : 0,00% em todos os motores
+working set    : media 132,1 MB | pico 132,1 MB
+memoria privada: media 287,5 MB
+```
+
+Duas coisas foram achadas, e so uma delas era do aplicativo.
+
+**A saida de audio ficava aberta a toa.** Contando por thread, com o Morune
+parado, `cpal_wasapi_out` custava sozinha **0,47% de um nucleo** -- mais da
+metade dos 0,78% que o processo inteiro gastava. Um `rodio::OutputStream`
+aberto acorda a cada bloco de audio para misturar silencio, e o dispositivo
+ficava aberto do inicio ao fim do processo. Agora ele fecha cinco segundos
+depois que o som para e reabre no proximo audio -- ver `crates/morune-spotify/src/sink.rs`.
+Depois disso o processo inteiro caiu para 0,18%, medido thread a thread.
+
+**A ferramenta de medicao exagerava a CPU em quase tres vezes.**
+`tools/measure.ps1` dividia o tempo de CPU pelo *numero de amostras*, como se
+cada volta do laco levasse um segundo. Desde 04/09 cada volta tambem le o
+contador de GPU, que leva perto de outro segundo -- entao o denominador ficou
+menor que o tempo real e toda leitura de CPU saiu inflada. Corrigido para usar
+o relogio. **Isto nao explica a medicao de 30/08**, que e anterior a leitura de
+GPU e foi feita com a versao sem o defeito.
+
+**O que continua sem resposta:** os 1,48% de 30/08 nao foram reproduzidos, e
+aquela rodada foi feita **sem login** -- ou seja, sem nem existir saida de
+audio aberta. Entao a causa daquele numero nao e a que foi corrigida aqui. Como
+a medicao de hoje esta abaixo do alvo mesmo no cenario mais caro, o caso fica
+registrado em vez de perseguido. A RAM, essa sim, continua 68% acima de 19/08
+sem causa isolada.
+
 ## Riscos conhecidos
 
-**CPU em repouso regrediu 10x e ninguem sabe por que.** Ver a medicao de
-30/08/2026. E o risco mais serio da pagina hoje: 1,48% de um nucleo com o
-aplicativo parado contradiz o criterio inteiro do produto, que e ser
-indistinguivel de um processo parado enquanto alguem joga.
+**RAM em repouso cresceu 68% e ninguem sabe por que.** 132,1 MB hoje contra
+78,8 MB em 19/08. Nao ha teto de RAM no produto por decisao registrada, mas
+crescer dois tercos sem explicacao e sinal de que alguma coisa passou a ser
+guardada sem dono.
 
 **Interferencia com jogo nunca foi medida.** Continua sem dado, mas a falta
 agora e so de sessao: o `-Watch` de `tools/measure.ps1` mede CPU e GPU por motor

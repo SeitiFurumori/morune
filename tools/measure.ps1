@@ -82,6 +82,7 @@ function Measure-Process($proc, [int]$Segundos, [string]$Rotulo) {
         $proc.Refresh()
         if ($proc.HasExited) { break }
         $samples += [PSCustomObject]@{
+            Quando       = Get-Date
             WorkingSetMB = $proc.WorkingSet64 / 1MB
             PrivateMB    = $proc.PrivateMemorySize64 / 1MB
             CpuSeconds   = $proc.TotalProcessorTime.TotalSeconds
@@ -103,7 +104,11 @@ function Measure-Process($proc, [int]$Segundos, [string]$Rotulo) {
     $ws = $samples | Measure-Object WorkingSetMB -Average -Maximum
     $pv = $samples | Measure-Object PrivateMB -Average -Maximum
     $cpuDelta = $samples[-1].CpuSeconds - $samples[0].CpuSeconds
-    $span = $samples.Count - 1
+    # Tempo real decorrido, e nao o numero de amostras: cada volta do laco dorme
+    # um segundo e AINDA le o contador de GPU, que sozinho leva perto de outro.
+    # Contando amostra como se fosse segundo, a mesma CPU aparecia quase tres
+    # vezes maior -- foi o que fez o gasto em repouso parecer 1,48%.
+    $span = ($samples[-1].Quando - $samples[0].Quando).TotalSeconds
 
     Write-Host ("working set    : media {0,7:N1} MB | pico {1,7:N1} MB" -f $ws.Average, $ws.Maximum)
     Write-Host ("memoria privada: media {0,7:N1} MB | pico {1,7:N1} MB" -f $pv.Average, $pv.Maximum)
