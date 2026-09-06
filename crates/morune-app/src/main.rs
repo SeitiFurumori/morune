@@ -549,6 +549,41 @@ fn wire_window_chrome(window: &ui::AppWindow) {
     });
 }
 
+/// Quantas voltas de meio segundo com a janela escondida antes de devolver a
+/// memoria fisica. Quatro dao dois segundos: tempo de sobra para a janela
+/// terminar de sumir e o renderizador soltar o ultimo quadro.
+#[cfg(windows)]
+const VOLTAS_ATE_DEVOLVER: u32 = 4;
+
+/// Devolve ao Windows a memoria fisica do processo.
+///
+/// **Por que.** Na bandeja o Morune segurava 167 MB de RAM fisica -- medido em
+/// 06/09/2026 --, quase toda textura e contexto do driver de video que ninguem
+/// vai olhar com a janela escondida. E exatamente a hora em que alguem esta
+/// jogando, e RAM fisica e o que falta num jogo.
+///
+/// `EmptyWorkingSet` nao apaga nada e nao descarrega o aplicativo: marca as
+/// paginas como candidatas a sair da RAM. O que for preciso de novo volta
+/// sozinho quando a janela reaparecer. Medido no aplicativo real: 150,8 MB caem
+/// para 1,2 MB, e a janela inteira redesenhada volta a 25,6 MB -- ou seja, a
+/// maior parte do que estava na RAM nao estava sendo usada.
+///
+/// So na transicao para a bandeja: repetir com a janela visivel tiraria da RAM
+/// justamente as paginas que o proximo quadro pede de volta.
+#[cfg(windows)]
+fn devolver_memoria() {
+    use windows::Win32::System::ProcessStatus::EmptyWorkingSet;
+    use windows::Win32::System::Threading::GetCurrentProcess;
+
+    // SAFETY: o pseudo-handle do proprio processo e sempre valido, nao precisa
+    // ser fechado, e a chamada nao guarda ponteiro nenhum.
+    let resultado = unsafe { EmptyWorkingSet(GetCurrentProcess()) };
+    match resultado {
+        Ok(()) => tracing::debug!("memoria fisica devolvida ao Windows"),
+        Err(erro) => tracing::debug!(%erro, "nao consegui devolver a memoria fisica"),
+    }
+}
+
 /// Observa tamanho/maximizacao com baixa frequencia. Isso tambem cobre resize
 /// pelo teclado, snap layouts e restauracao do Windows, nao apenas arraste.
 fn wire_window_state(
@@ -558,6 +593,9 @@ fn wire_window_state(
     let weak = window.as_weak();
     let state = state.clone();
     let timer = slint::Timer::default();
+    // Voltas seguidas com a janela escondida. Serve para devolver a memoria uma
+    // vez so por ida a bandeja -- ver `devolver_memoria`.
+    let mut voltas_escondida: u32 = 0;
     timer.start(
         slint::TimerMode::Repeated,
         std::time::Duration::from_millis(500),
@@ -569,8 +607,14 @@ fn wire_window_state(
             // enquanto alguem joga e exatamente o custo invisivel que o
             // criterio de desempenho do projeto existe para barrar.
             if !window.window().is_visible() {
+                voltas_escondida = voltas_escondida.saturating_add(1);
+                #[cfg(windows)]
+                if voltas_escondida == VOLTAS_ATE_DEVOLVER {
+                    devolver_memoria();
+                }
                 return;
             }
+            voltas_escondida = 0;
             // Antes do desvio do mini-player: o canto arredondado vale para as
             // duas formas da janela. No caso comum sao duas chamadas baratas
             // que confirmam que ja esta certo.

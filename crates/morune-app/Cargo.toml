@@ -111,6 +111,9 @@ windows = { version = "0.61.3", features = [
     # Ver `clipboard.rs`.
     "Win32_System_DataExchange",
     "Win32_System_Memory",
+    # `EmptyWorkingSet`, para devolver a RAM fisica ao ir para a bandeja.
+    # Ver `devolver_memoria` em `main.rs`.
+    "Win32_System_ProcessStatus",
     "Win32_System_Ole",
     # Painel de reproducao do Windows (SMTC): capa, titulo e botoes na
     # sobreposicao de volume e na tela de bloqueio. Ver `smtc.rs`.

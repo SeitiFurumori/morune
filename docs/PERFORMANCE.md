@@ -76,7 +76,8 @@ Ninguem instrumentou o caminho de capas para saber onde esse tempo vai.
 | CPU em reproducao, janela visivel | < 2% | — | nao medido em regime |
 | Startup ate o laco de eventos | < 1 s | **62 ms** | folgado, mas 3x o de 19/08 |
 | Ciclo completo do processo | < 1 s | **1.015 ms** | **estourou** (era 509 ms) |
-| RAM em repouso | teto, nao vitrine | **132,1 MB** (06/09) | **cresceu 68%** desde 19/08, sem causa isolada |
+| RAM em repouso, janela visivel | teto, nao vitrine | **132,1 MB** (06/09) | explicado: quase tudo e driver de video |
+| RAM na bandeja, janela oculta | o menor possivel | **~2 MB** (06/09) | era 167 MB antes de devolver a memoria |
 | RAM em reproducao com capas | crescimento limitado | — | cache em disco limitado; RAM nao medida |
 | Tamanho do instalador | < 40 MB | **5,31 MB** (19/08) | nao reempacotado |
 | Tamanho do executavel | — | **15,48 MiB** | +1,70 MiB desde 19/08 |
@@ -279,10 +280,13 @@ sem causa isolada.
 
 ## Riscos conhecidos
 
-**RAM em repouso cresceu 68% e ninguem sabe por que.** 132,1 MB hoje contra
-78,8 MB em 19/08. Nao ha teto de RAM no produto por decisao registrada, mas
-crescer dois tercos sem explicacao e sinal de que alguma coisa passou a ser
-guardada sem dono.
+**Reabrir pelo atalho com o Morune na bandeja traz uma janela vazia.** Achado
+em 06/09/2026 e ainda **nao corrigido**. A segunda instancia chama
+`ShowWindow(SW_RESTORE)` direto no `HWND` (`instance.rs`), pelas costas do
+Slint: o Windows mostra a janela, o Slint continua achando que ela esta
+escondida e nada e desenhado. Aparece um retangulo cinza no tamanho antigo.
+Reproduzido tambem em binario sem a devolucao de memoria, entao e anterior a
+ela. O caminho pelo icone da bandeja nao foi testado.
 
 **Interferencia com jogo nunca foi medida.** Continua sem dado, mas a falta
 agora e so de sessao: o `-Watch` de `tools/measure.ps1` mede CPU e GPU por motor
@@ -291,6 +295,20 @@ prova o que interessa: se o Morune acorda a GPU em segundo plano, quanto custa o
 primeiro quadro depois de horas na bandeja, e se algo dele aparece no tempo de
 quadro de um jogo em tela cheia. So faz sentido medir com reproducao real
 tocando em uma sessao real.
+
+**De onde vem a RAM, medido em 06/09/2026.** Com o renderizador por software
+(`SLINT_BACKEND=winit-software`), o mesmo aplicativo com sessao ativa fica em
+**65,4 MB** de working set e 35,7 MB de memoria privada. Com o renderizador de
+GPU, que e o padrao, sobe para 153,7 MB e 299 MB. A diferenca -- perto de 90 MB
+residentes e 260 MB privados -- e contexto e textura do driver de video, e nao
+alocacao do Morune. Navegar por treze playlists seguidas manteve o working set
+oscilando entre 148 e 175 MB, sem crescimento acumulado: nao ha vazamento.
+
+Na bandeja, essa memoria toda ficava presa. Agora o aplicativo chama
+`EmptyWorkingSet` dois segundos depois de esconder a janela e o residente cai
+para cerca de 2 MB, voltando sozinho conforme a janela e redesenhada -- 25,6 MB
+para a tela inteira de novo. E o cenario que o produto mais precisa acertar:
+Morune na bandeja enquanto alguem joga.
 
 **RAM durante navegacao com muitas capas nao foi medida.** O cache em disco ja
 tem teto explicito de 48 MB e descarte dos arquivos mais antigos. Falta medir
