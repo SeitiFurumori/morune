@@ -34,16 +34,25 @@ fn main() {
 /// publicados ainda nao tem. O efeito colateral desejado e que a verificacao
 /// nunca oferece um lancamento publicado a quem esta num build local -- seria
 /// um downgrade silencioso por cima do trabalho em andamento.
+/// O rotulo que a pessoa ve, em qualquer lugar que o mostre.
+///
+/// Um so, para que as Configuracoes, o log e as propriedades do arquivo no
+/// Windows nunca digam coisas diferentes.
+fn versao_visivel() -> String {
+    std::env::var("MORUNE_RELEASE_TAG")
+        .ok()
+        .filter(|tag| !tag.trim().is_empty())
+        .unwrap_or_else(|| format!("v{}-dev.{}", env!("CARGO_PKG_VERSION"), commit_hash()))
+}
+
 fn embed_release_tag() {
     println!("cargo:rerun-if-env-changed=MORUNE_RELEASE_TAG");
 
-    let publicado = std::env::var("MORUNE_RELEASE_TAG")
+    let local = std::env::var("MORUNE_RELEASE_TAG")
         .ok()
-        .filter(|tag| !tag.trim().is_empty());
-
-    let local = publicado.is_none();
-    let tag = publicado
-        .unwrap_or_else(|| format!("v{}-dev.{}", env!("CARGO_PKG_VERSION"), commit_hash()));
+        .filter(|tag| !tag.trim().is_empty())
+        .is_none();
+    let tag = versao_visivel();
 
     println!("cargo:rustc-env=MORUNE_RELEASE={tag}");
     // De onde a tag veio. O teste do rotulo precisa saber: exigir
@@ -235,15 +244,35 @@ fn embed_exe_resources() {
 /// Sem acento de proposito: o `.rc` e gravado como bytes e o compilador de
 /// recursos interpreta o arquivo na codepage do sistema, nao em UTF-8.
 fn version_info() -> String {
-    let version = env!("CARGO_PKG_VERSION");
-    // `FILEVERSION` quer quatro numeros; a versao do crate tem tres.
-    let quad = version
+    // **O texto mostrado e a tag, nao o `CARGO_PKG_VERSION`.**
+    //
+    // O `version` do crate esta parado em `0.1.0` desde o inicio do projeto e
+    // nao acompanha nada -- e o mesmo motivo que fez a primeira linha do log
+    // deixar de usa-lo (ver `embed_release_tag`). Quem procurava "morune" no
+    // Windows e olhava as propriedades do arquivo via `0.1.0` para qualquer
+    // build, de qualquer dia. Nao respondia a unica pergunta que se faz ali:
+    // "qual versao eu tenho instalada?".
+    //
+    // Agora o texto e o mesmo rotulo que aparece nas Configuracoes -- num build
+    // local, `v0.1.0-dev.<commit>`; num publicado, a tag.
+    let texto = versao_visivel();
+
+    // `FILEVERSION` continua vindo do crate, e tem de continuar.
+    //
+    // Sao dois campos com publicos diferentes: este e um quarteto de NUMEROS
+    // que o Windows compara entre si -- instaladores e politicas de atualizacao
+    // usam ele para decidir o que e mais novo. Hash de commit nao cabe ali, e
+    // inventar um numero a partir dele daria comparacao errada. O campo de texto
+    // logo abaixo e o que a pessoa le.
+    let numerica = env!("CARGO_PKG_VERSION");
+    let quad = numerica
         .split('.')
         .map(|part| part.split('-').next().unwrap_or("0"))
         .chain(std::iter::once("0"))
         .take(4)
         .collect::<Vec<_>>()
         .join(",");
+    let version = texto;
 
     // VS_FF_DEBUG marca o binario de depuracao, para que ninguem confunda um
     // build local com o que foi distribuido.
