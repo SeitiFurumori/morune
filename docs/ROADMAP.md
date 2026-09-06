@@ -113,9 +113,30 @@ Risco conhecido: librespot 0.8 exige `vergen` fixado em 9.0.x no `Cargo.lock`
    some. Fora dele, o teto e um quadro do video por quadro da interface, com
    descarte quando a janela esta oculta ou na bandeja.
 
-   Estimativa: 3 a 5 dias. O grosso nao e decodificar -- e o caminho do quadro
-   ate o Slint sem copia extra por quadro, e o comportamento nas bordas
-   (video que falta, formato que o Windows nao abre, laco sem engasgo).
+   **Por bloco, nao so no fundo.** Decidido em 06/09/2026. Barra de musica,
+   barra lateral, home e cartoes aceitam video, cada um o seu -- liberdade e o
+   argumento do produto, e limitar aqui seria limitar justamente onde ele vale.
+
+   O custo e por **video distinto**, nao por bloco: dois slots apontando para o
+   mesmo arquivo compartilham um decodificador so. Dai os dois usos, e os dois
+   ficam disponiveis:
+
+   - **um video para o aplicativo inteiro**, com cada bloco mostrando o pedaco
+     que esta atras dele. O recorte ja existe: e o mesmo calculo do `Vidro`,
+     que hoje corta a imagem de fundo por `absolute-position`. Custo de um
+     video so, e o resultado fica coerente entre as regioes;
+   - **um video por bloco**, quando a pessoa quiser cada regiao com vida
+     propria. Tres arquivos diferentes custam tres vezes.
+
+   Sem teto de quantidade. O painel de diagnosticos do proprio ciclo 3 avisa
+   quando passa de dois ou tres videos distintos -- quem exagera enxerga o
+   preco em vez de esbarrar numa trava.
+
+   Estimativa: 3 a 5 dias para o fundo unico; mais 2 a 3 para video por slot,
+   com o compartilhamento por arquivo. O grosso nao e decodificar -- e o
+   caminho do quadro ate o Slint sem copia extra por quadro, e o comportamento
+   nas bordas (video que falta, formato que o Windows nao abre, laco sem
+   engasgo).
 
 ## Ciclo 4 — Produto
 
