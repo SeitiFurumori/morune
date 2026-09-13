@@ -5,20 +5,20 @@
 
 [color]
 background         = "#dceffa"
-surface            = "#f4fcff99"
-surface_raised     = "#f7fcff"
-sidebar_background = "#f5fcff99"
-player_background  = "#f5fcff99"
+surface            = "#9cc6ee6b"
+surface_raised     = "#eef8ff"
+sidebar_background = "#8fbdea80"
+player_background  = "#8fbdea80"
 # Tinta petrol; o texto secundario precisa sobreviver a agua e a grama.
 text           = "#08232e"
 text_muted     = "#0c2530"
-text_on_accent = "#04222c"
-accent         = "#42c8ef"
-accent_hover   = "#72daf7"
-border           = "#0a3a4a9e"
-border_highlight = "#ffffffe6"
-hover            = "#2fc0ee20"
-selected         = "#17a8c838"
+text_on_accent = "#f2f9ff"
+accent         = "#0f4a75"
+accent_hover   = "#1a6ca1"
+border           = "#0a2a4aa6"
+border_highlight = "#ffffffb8"
+hover            = "#bee6fdb8"
+selected         = "#98d1efd6"
 focus_ring       = "#0c3b48"
 success          = "#267b48"
 warning          = "#876209"
@@ -43,9 +43,9 @@ line_height    = 1.45
 letter_spacing = 0.0
 
 [shape]
-radius_sm      = 9.0
-radius_md      = 16.0
-radius_lg      = 24.0
+radius_sm      = 4.0
+radius_md      = 6.0
+radius_lg      = 8.0
 radius_artwork = 12.0
 radius_avatar  = 999.0
 spacing_xs = 4.0

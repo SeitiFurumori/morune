@@ -278,6 +278,30 @@ a medicao de hoje esta abaixo do alvo mesmo no cenario mais caro, o caso fica
 registrado em vez de perseguido. A RAM, essa sim, continua 68% acima de 19/08
 sem causa isolada.
 
+## Medicao de 13/09/2026 -- Aquario
+
+**O Aquario reservava 5,3 GB de memoria privada.** Working set de 558 MB e
+5.283 MB privados no release instalado, contra 153 MB e 299 MB do Bruma. Com o
+renderizador por software o mesmo tema fica em 100 MB privados: o excesso e do
+driver de video. O mapa de regioes mostrou ~160 blocos de 31,9 MB -- exatamente
+o tamanho da foto do tema em RGBA (3840 x 2161 x 4). Cada `Vidro` da interface
+desenha a copia borrada com `source-clip`, e o driver guarda uma copia da
+textura por elemento; com um `Vidro` dentro de cada `Realce` (toda linha de
+lista, item de navegacao e playlist), eram 160 copias.
+
+Duas mudancas: a copia borrada passa a ter no maximo 1920 px de largura -- com
+24 px de borrao, metade da resolucao e indistinguivel -- e o `Realce` do
+material Aero deixa de carregar um `Vidro` (a capsula do Windows 7 ja cobre o
+fundo). Resultado, na compilacao de depuracao: **5.300 MB -> 746 MB privados,
+working set 254 MB**. O Aquario ainda custa uns 300 MB a mais que o Bruma, que e
+o preco de duas texturas grandes de verdade.
+
+**A aurora custa GPU enquanto a janela esta visivel.** A animacao das listras
+do vidro Windows 7 redesenha a janela inteira a cada passo. A 20 passos por
+segundo, 16% de GPU 3D; a 10, metade. Ela para com a janela na bandeja
+(`aurora-viva`), com animacao reduzida e com o portao de tela cheia -- entao
+nunca roda atras de um jogo. Numero do release em regime: ver abaixo.
+
 ## Riscos conhecidos
 
 **Reabrir pelo atalho com o Morune na bandeja traz uma janela vazia.** Achado

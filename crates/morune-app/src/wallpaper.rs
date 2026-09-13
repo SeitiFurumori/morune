@@ -27,6 +27,8 @@ const MAX_DIMENSION: u32 = 3840;
 /// horizonte e onde estava o sol, que e o que faz o painel parecer transparente
 /// em vez de pintado.
 const RAIO_VIDRO: f32 = 24.0;
+/// Teto da copia borrada. Metade do teto da imagem nitida: e um borrao.
+const MAX_DIMENSION_BORRADA: u32 = 1920;
 
 /// A imagem de fundo pronta para a interface, ja com o que a UI precisa saber.
 #[derive(Debug, Clone, Default)]
@@ -138,7 +140,15 @@ pub fn load(
             // o tema pede. Se o tema ja borra o fundo, borrar de novo por cima
             // daria um segundo borrao somado -- e o vidro deixaria de mostrar o
             // que esta atras dele para mostrar so uma mancha.
-            let blurred = slint::Image::from_rgba8(blur(buffer.clone(), RAIO_VIDRO));
+            // A copia borrada nao precisa de 4K: com 24 px de borrao, metade
+            // da resolucao e indistinguivel -- e ela e a textura que mais
+            // aparece na interface (todo painel e todo realce de vidro a
+            // desenham). Em 3840 px o driver de video reservava 5 GB de
+            // memoria privada para o Aquario; ver PERFORMANCE.md, 13/09/2026.
+            let blurred = slint::Image::from_rgba8(blur(
+                downscale(buffer.clone(), MAX_DIMENSION_BORRADA),
+                RAIO_VIDRO,
+            ));
 
             let buffer = if tokens.blur > 0.0 {
                 blur(buffer, tokens.blur)

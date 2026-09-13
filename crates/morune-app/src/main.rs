@@ -597,11 +597,20 @@ fn wire_window_state(
             // criterio de desempenho do projeto existe para barrar.
             if !window.window().is_visible() {
                 voltas_escondida = voltas_escondida.saturating_add(1);
+                if voltas_escondida == 1 {
+                    // A aurora do vidro Aero para junto com a janela: escondida
+                    // nao ha o que animar, e o relogio dela acordaria vinte
+                    // vezes por segundo a toa.
+                    window.global::<ui::Theme>().set_aurora_viva(false);
+                }
                 #[cfg(windows)]
                 if voltas_escondida == VOLTAS_ATE_DEVOLVER {
                     devolver_memoria();
                 }
                 return;
+            }
+            if voltas_escondida > 0 {
+                window.global::<ui::Theme>().set_aurora_viva(true);
             }
             voltas_escondida = 0;
             // Antes do desvio do mini-player: o canto arredondado vale para as

@@ -121,7 +121,17 @@ pub fn apply_background(theme: &UiTheme<'_>, spec: &ThemeSpec, paper: &Wallpaper
             &glass_spec,
         ))
     });
-    apply_reading_surfaces(theme, spec, &paper.image);
+    // O Aero mostra o fundo JA BORRADO atras dos paineis, entao o pior pixel
+    // que o texto enfrenta e o do borrao -- muito mais claro que o da foto
+    // nitida. Medir contra a nitida empurrava o vidro azul para opaco.
+    let cena = if spec.effects.material == morune_theme::tokens::MaterialKind::Aero
+        && paper.blurred.size().width > 0
+    {
+        &paper.blurred
+    } else {
+        &paper.image
+    };
+    apply_reading_surfaces(theme, spec, cena);
     theme.set_background_image(paper.image.clone());
     theme.set_background_blurred(paper.blurred.clone());
     theme.set_background_fit(paper.fit);

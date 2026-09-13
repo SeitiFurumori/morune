@@ -105,6 +105,28 @@ impl Drop for OwnedIcon {
     }
 }
 
+/// Como os icones da barra de miniaturas sao desenhados.
+///
+/// `orbe` e o material Aero: o glifo escuro sobre uma esfera de vidro clara
+/// em cima e azul embaixo, como os botoes do Windows 7. Sem orbe, o glifo
+/// sozinho na cor pedida -- o desenho de todos os outros temas.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IconStyle {
+    /// Cor do glifo.
+    pub tint: [u8; 3],
+    /// Esfera atras do glifo, ou nada.
+    pub orbe: Option<Orbe>,
+}
+
+/// As cores da esfera Aero, tiradas do tema.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Orbe {
+    /// Metade de baixo da esfera (a de cima e quase branca).
+    pub base: [u8; 3],
+    /// Contorno de 1 px.
+    pub borda: [u8; 3],
+}
+
 struct PlayerIcons {
     previous: OwnedIcon,
     play: OwnedIcon,
@@ -113,12 +135,12 @@ struct PlayerIcons {
 }
 
 impl PlayerIcons {
-    fn new(tint: [u8; 3]) -> Result<Self, TaskbarError> {
+    fn new(style: IconStyle) -> Result<Self, TaskbarError> {
         Ok(Self {
-            previous: create_glyph_icon(Glyph::Previous, tint)?,
-            play: create_glyph_icon(Glyph::Play, tint)?,
-            pause: create_glyph_icon(Glyph::Pause, tint)?,
-            next: create_glyph_icon(Glyph::Next, tint)?,
+            previous: create_glyph_icon(Glyph::Previous, style)?,
+            play: create_glyph_icon(Glyph::Play, style)?,
+            pause: create_glyph_icon(Glyph::Pause, style)?,
+            next: create_glyph_icon(Glyph::Next, style)?,
         })
     }
 }
@@ -131,7 +153,7 @@ pub struct TaskbarControls {
     hwnd: HWND,
     icons: PlayerIcons,
     /// Cor com que os icones foram desenhados, para saber quando redesenhar.
-    tint: Cell<[u8; 3]>,
+    tint: Cell<IconStyle>,
     receiver: Receiver<NativeEvent>,
     subclass_state: *mut SubclassState,
     registered: Cell<bool>,
@@ -139,7 +161,7 @@ pub struct TaskbarControls {
 }
 
 impl TaskbarControls {
-    pub fn new(window: &slint::Window, tint: [u8; 3]) -> Result<Self, TaskbarError> {
+    pub fn new(window: &slint::Window, tint: IconStyle) -> Result<Self, TaskbarError> {
         let handle = window.window_handle();
         let raw = handle
             .window_handle()
@@ -224,7 +246,7 @@ impl TaskbarControls {
     ///
     /// Falhar em criar os icones novos **mantem os antigos**: um botao com a
     /// cor do tema anterior e melhor que um botao invisivel.
-    pub fn set_tint(&mut self, tint: [u8; 3]) {
+    pub fn set_tint(&mut self, tint: IconStyle) {
         if self.tint.get() == tint {
             return;
         }
@@ -393,8 +415,8 @@ enum Glyph {
     Next,
 }
 
-fn create_glyph_icon(glyph: Glyph, tint: [u8; 3]) -> Result<OwnedIcon, TaskbarError> {
-    let resource = glyph_icon_resource(glyph, tint);
+fn create_glyph_icon(glyph: Glyph, style: IconStyle) -> Result<OwnedIcon, TaskbarError> {
+    let resource = glyph_icon_resource(glyph, style);
     // SAFETY: o buffer contem um BITMAPINFOHEADER, pixels BGRA 32-bit e mascara
     // AND, exatamente no formato RT_ICON. A API copia os dados antes de voltar.
     let icon = unsafe {
@@ -450,12 +472,12 @@ impl Shape {
 ///
 /// Todas ocupam a mesma caixa vertical e a mesma largura total, para que os
 /// tres botoes tenham peso visual igual quando ficam lado a lado.
-fn glyph_shapes(glyph: Glyph) -> Vec<Shape> {
+fn glyph_shapes(glyph: Glyph, margem: f32) -> Vec<Shape> {
     let lado = ICON_SIZE as f32;
-    let esq = GLYPH_MARGIN;
-    let dir = lado - GLYPH_MARGIN;
-    let topo = GLYPH_MARGIN;
-    let base = lado - GLYPH_MARGIN;
+    let esq = margem;
+    let dir = lado - margem;
+    let topo = margem;
+    let base = lado - margem;
     let meio = lado / 2.0;
     // Espessura da barra vertical de "anterior" e "proxima".
     let barra = 3.5;
@@ -488,8 +510,8 @@ fn glyph_shapes(glyph: Glyph) -> Vec<Shape> {
 /// Amostragem em grade: a fracao de sub-amostras dentro de alguma forma vira o
 /// alfa. E o que troca a escada de pixels da versao anterior por uma borda
 /// lisa, que e o que o usuario ve como "feio" ou "limpo".
-fn glyph_coverage(glyph: Glyph) -> [u8; ICON_SIZE * ICON_SIZE] {
-    let shapes = glyph_shapes(glyph);
+fn glyph_coverage(glyph: Glyph, margem: f32) -> [u8; ICON_SIZE * ICON_SIZE] {
+    let shapes = glyph_shapes(glyph, margem);
     let mut alpha = [0u8; ICON_SIZE * ICON_SIZE];
     let passo = 1.0 / SUPERSAMPLE as f32;
 
@@ -517,8 +539,11 @@ fn glyph_coverage(glyph: Glyph) -> [u8; ICON_SIZE * ICON_SIZE] {
 ///
 /// `tint` e RGB do tema. Antes era uma constante violeta: o icone era o unico
 /// pedaco do produto que nao obedecia ao tema escolhido.
-fn glyph_icon_resource(glyph: Glyph, tint: [u8; 3]) -> [u8; ICON_RESOURCE_BYTES] {
-    let alpha = glyph_coverage(glyph);
+fn glyph_icon_resource(glyph: Glyph, style: IconStyle) -> [u8; ICON_RESOURCE_BYTES] {
+    let tint = style.tint;
+    // Dentro da esfera o glifo encolhe: a esfera e a peca, o glifo e o rotulo.
+    let alpha = glyph_coverage(glyph, if style.orbe.is_some() { ORB_GLYPH_MARGIN } else { GLYPH_MARGIN });
+    let orbe = style.orbe.map(orb_pixels);
 
     let mut resource = [0u8; ICON_RESOURCE_BYTES];
     // BITMAPINFOHEADER. A altura e dobrada porque um RT_ICON guarda o bitmap
@@ -540,16 +565,19 @@ fn glyph_icon_resource(glyph: Glyph, tint: [u8; 3]) -> [u8; ICON_RESOURCE_BYTES]
     for y in 0..ICON_SIZE {
         for x in 0..ICON_SIZE {
             let cobertura = alpha[y * ICON_SIZE + x];
-            if cobertura == 0 {
+            // Primeiro a esfera, se houver; o glifo entra por cima dela.
+            let fundo = orbe.as_ref().map(|o| o[y * ICON_SIZE + x]).unwrap_or([0, 0, 0, 0]);
+            let (pixel, a) = over(tint, cobertura, fundo);
+            if a == 0 {
                 continue;
             }
             let dib_y = ICON_SIZE - 1 - y;
             let color = color_start + (dib_y * ICON_SIZE + x) * 4;
             // BGRA, com o alfa da cobertura: o pixel de borda entra parcial.
-            resource[color] = tint[2];
-            resource[color + 1] = tint[1];
-            resource[color + 2] = tint[0];
-            resource[color + 3] = cobertura;
+            resource[color] = pixel[2];
+            resource[color + 1] = pixel[1];
+            resource[color + 2] = pixel[0];
+            resource[color + 3] = a;
             // Qualquer cobertura torna o pixel visivel na mascara; a
             // transparencia parcial quem resolve e o alfa acima.
             resource[mask_start + dib_y * 4 + x / 8] &= !(0x80 >> (x % 8));
@@ -557,6 +585,68 @@ fn glyph_icon_resource(glyph: Glyph, tint: [u8; 3]) -> [u8; ICON_RESOURCE_BYTES]
     }
 
     resource
+}
+
+/// Margem do glifo quando ha esfera atras: o glifo ocupa metade da esfera.
+const ORB_GLYPH_MARGIN: f32 = 9.5;
+
+/// `tinta` com cobertura `a` por cima de `fundo` (RGBA, alfa reto).
+fn over(tinta: [u8; 3], a: u8, fundo: [u8; 4]) -> ([u8; 3], u8) {
+    let sa = a as f32 / 255.0;
+    let da = fundo[3] as f32 / 255.0;
+    let oa = sa + da * (1.0 - sa);
+    if oa <= 0.0 {
+        return ([0, 0, 0], 0);
+    }
+    let mut out = [0u8; 3];
+    for c in 0..3 {
+        let v = (tinta[c] as f32 * sa + fundo[c] as f32 * da * (1.0 - sa)) / oa;
+        out[c] = v.round().clamp(0.0, 255.0) as u8;
+    }
+    (out, (oa * 255.0).round() as u8)
+}
+
+/// A esfera Aero, pixel a pixel: clara em cima, `base` embaixo, com a troca
+/// seca no meio como a capsula do Windows 7, e um contorno de 1 px. A borda
+/// externa e suavizada pela distancia ao centro.
+fn orb_pixels(orbe: Orbe) -> Vec<[u8; 4]> {
+    let lado = ICON_SIZE as f32;
+    let centro = lado / 2.0;
+    let raio = centro - 1.0;
+    let mut out = vec![[0u8; 4]; ICON_SIZE * ICON_SIZE];
+    for y in 0..ICON_SIZE {
+        for x in 0..ICON_SIZE {
+            let dx = x as f32 + 0.5 - centro;
+            let dy = y as f32 + 0.5 - centro;
+            let d = (dx * dx + dy * dy).sqrt();
+            // Cobertura da borda externa: 1 px de transicao.
+            let cobertura = (raio + 0.5 - d).clamp(0.0, 1.0);
+            if cobertura <= 0.0 {
+                continue;
+            }
+            let t = (y as f32 + 0.5) / lado;
+            let cor = if t < 0.48 {
+                // Metade de cima: quase branco indo a azul bem claro.
+                mistura([243, 251, 255], [223, 241, 251], t / 0.48)
+            } else {
+                mistura([169, 214, 240], orbe.base, (t - 0.48) / 0.52)
+            };
+            // Contorno: o ultimo pixel do raio.
+            let contorno = (d - (raio - 1.0)).clamp(0.0, 1.0);
+            let cor = mistura(cor, orbe.borda, contorno);
+            out[y * ICON_SIZE + x] = [cor[0], cor[1], cor[2], (cobertura * 255.0).round() as u8];
+        }
+    }
+    out
+}
+
+fn mistura(a: [u8; 3], b: [u8; 3], t: f32) -> [u8; 3] {
+    let t = t.clamp(0.0, 1.0);
+    let mut out = [0u8; 3];
+    for c in 0..3 {
+        out[c] = (a[c] as f32 + (b[c] as f32 - a[c] as f32) * t).round() as u8;
+    }
+    out
 }
 
 fn write_u16(target: &mut [u8], offset: usize, value: u16) {
@@ -590,13 +680,36 @@ mod tests {
     use super::*;
 
     /// Cor qualquer, so para o recurso ficar completo nos testes.
-    const TINTA: [u8; 3] = [0x6d, 0xd4, 0x9e];
+    const TINTA: IconStyle = IconStyle { tint: [0x6d, 0xd4, 0x9e], orbe: None };
+
+    /// Com esfera, o icone e redondo e preenchido: o centro e o canto contam
+    /// historias diferentes.
+    #[test]
+    fn a_esfera_aero_preenche_o_circulo_e_deixa_os_cantos_vazios() {
+        let estilo = IconStyle {
+            tint: [0x0f, 0x4a, 0x75],
+            orbe: Some(Orbe { base: [0x98, 0xd1, 0xef], borda: [0x0f, 0x4a, 0x75] }),
+        };
+        let resource = glyph_icon_resource(Glyph::Next, estilo);
+        let color_start = ICON_RESOURCE_HEADER_BYTES;
+        let alfa = |x: usize, y: usize| resource[color_start + ((ICON_SIZE - 1 - y) * ICON_SIZE + x) * 4 + 3];
+        assert_eq!(alfa(0, 0), 0, "canto fora da esfera");
+        assert_eq!(alfa(16, 4), 255, "topo da esfera, sem glifo, e opaco");
+        assert_eq!(alfa(16, 27), 255, "base da esfera e opaca");
+        // Metade de cima quase branca, metade de baixo azul.
+        let pixel = |x: usize, y: usize| {
+            let i = color_start + ((ICON_SIZE - 1 - y) * ICON_SIZE + x) * 4;
+            [resource[i + 2], resource[i + 1], resource[i]]
+        };
+        assert!(pixel(16, 4)[0] > 220, "topo claro: {:?}", pixel(16, 4));
+        assert!(pixel(16, 26)[0] < 200, "base azul: {:?}", pixel(16, 26));
+    }
 
     /// Extremos ocupados pelo desenho, em pixels: (esquerda, direita).
     ///
     /// Um pixel conta quando tem alguma cobertura; a borda suavizada entra.
     fn extremos(glyph: Glyph) -> (usize, usize) {
-        let alpha = glyph_coverage(glyph);
+        let alpha = glyph_coverage(glyph, GLYPH_MARGIN);
         let mut esq = ICON_SIZE;
         let mut dir = 0;
         for y in 0..ICON_SIZE {
@@ -666,7 +779,7 @@ mod tests {
     /// Sem suavizacao todo pixel seria 0 ou 255, e a borda vira escada.
     #[test]
     fn as_bordas_sao_suavizadas() {
-        let alpha = glyph_coverage(Glyph::Play);
+        let alpha = glyph_coverage(Glyph::Play, GLYPH_MARGIN);
         let parciais = alpha.iter().filter(|&&a| a > 0 && a < 255).count();
         assert!(parciais > 10, "borda sem meio-tom: {parciais} pixels");
     }
@@ -675,13 +788,13 @@ mod tests {
     /// e um meio-tom ali seria borrao, nao curva.
     #[test]
     fn o_pause_nao_precisa_de_meio_tom_nas_verticais() {
-        let alpha = glyph_coverage(Glyph::Pause);
+        let alpha = glyph_coverage(Glyph::Pause, GLYPH_MARGIN);
         assert!(alpha.contains(&255));
     }
 
     #[test]
     fn a_cor_pedida_e_a_que_vai_para_o_icone() {
-        let resource = glyph_icon_resource(Glyph::Play, [0x11, 0x22, 0x33]);
+        let resource = glyph_icon_resource(Glyph::Play, IconStyle { tint: [0x11, 0x22, 0x33], orbe: None });
         let pixels = &resource[ICON_RESOURCE_HEADER_BYTES..][..ICON_COLOR_BYTES];
         // BGRA: o azul vem primeiro.
         let cheio = pixels

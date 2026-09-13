@@ -129,6 +129,17 @@ export global Theme {
     // --- efeitos ---
     // 0 conserva temas anteriores, 1 gel Aero, 2 lente Liquid.
     in-out property <int> material-kind: 0;
+    // A aurora do vidro Aero: as listras diagonais que andam.
+    //
+    // `aurora-fase` vai de 0 a 1 e da a volta; quem a move e um temporizador
+    // na raiz de cada janela, um so por janela, para todos os paineis andarem
+    // juntos. `aurora-viva` e desligada pelo Rust com a janela escondida: na
+    // bandeja nao ha o que animar, e um temporizador acordando vinte vezes por
+    // segundo atras de um jogo e exatamente o gasto invisivel que o projeto
+    // existe para nao ter. O portao de tela cheia e a animacao reduzida entram
+    // por `motion-normal`, que chega zerado nos dois casos.
+    in-out property <bool> aurora-viva: true;
+    in-out property <float> aurora-fase: 0.0;
     in-out property <float> shadow-strength: 0.5;
     in-out property <float> gloss: 0.0;
     in-out property <bool> artwork-tint: true;

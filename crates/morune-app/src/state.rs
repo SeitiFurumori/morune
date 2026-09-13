@@ -1766,9 +1766,21 @@ impl AppState {
     /// Morune. Uma cor de texto seguiria o contraste errado -- clara num
     /// Windows claro some. O acento e a unica cor do tema pensada para se
     /// destacar sozinha.
-    pub fn taskbar_tint(&self) -> [u8; 3] {
+    ///
+    /// No material Aero o glifo ganha a esfera de vidro do Windows 7 atras, na
+    /// cor de selecao do tema, com o proprio acento (escuro) como glifo e borda.
+    pub fn taskbar_tint(&self) -> crate::taskbar::IconStyle {
         let c = self.spec().colors.accent;
-        [c.r, c.g, c.b]
+        let s = self.spec().colors.selected;
+        let orbe = (self.spec().effects.material == morune_theme::tokens::MaterialKind::Aero)
+            .then_some(crate::taskbar::Orbe {
+                base: [s.r, s.g, s.b],
+                borda: [c.r, c.g, c.b],
+            });
+        crate::taskbar::IconStyle {
+            tint: [c.r, c.g, c.b],
+            orbe,
+        }
     }
 
     fn spec(&self) -> &ThemeSpec {

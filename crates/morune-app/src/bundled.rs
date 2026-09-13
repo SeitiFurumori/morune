@@ -591,40 +591,33 @@ mod tests {
         let dir = temp_dir("aquario-pixels");
         install_missing(&dir);
         let spec = morune_theme::load(&dir, "aquario").spec;
-        // Usa a mesma reducao da tela, inclusive para fotografias grandes.
-        let image =
-            crate::wallpaper::load(Some(&dir.join("aquario")), &spec.background, None).image;
-        let pixels = image.to_rgba8().expect("PNG deve disponibilizar pixels");
+        // A mesma preparacao da tela: nitida reduzida e a copia borrada.
+        let paper = crate::wallpaper::load(Some(&dir.join("aquario")), &spec.background, None);
+        // **No Aero todo painel fica sobre a copia borrada**, e e contra ela
+        // que a tinta legivel e calculada (ver `apply_background`). O pior
+        // pixel que o texto enfrenta e o do borrao, nao o da foto nitida --
+        // a foto nitida so aparece nas frestas entre os paineis, sem texto.
+        let cena = paper.blurred;
+        let pixels = cena.to_rgba8().expect("a copia borrada tem pixels");
         assert!(!pixels.as_slice().is_empty());
-        let surface = crate::optics::readable_tint(&image, spec.colors.surface, &spec);
-        let sidebar = crate::optics::readable_tint(&image, spec.colors.sidebar_background, &spec);
+        let surface = crate::optics::readable_tint(&cena, spec.colors.surface, &spec);
+        let sidebar = crate::optics::readable_tint(&cena, spec.colors.sidebar_background, &spec);
+        let player = crate::optics::readable_tint(&cena, spec.colors.player_background, &spec);
         let mut pior = Color::rgb(255, 255, 255);
         let mut luminancia_minima = f32::MAX;
         for pixel in pixels.as_slice() {
-            let cena = Color::rgba(pixel.r, pixel.g, pixel.b, pixel.a)
+            let fundo = Color::rgba(pixel.r, pixel.g, pixel.b, pixel.a)
                 .scale_alpha(spec.background.opacity)
                 .over(spec.colors.background);
-            let fundo = spec
-                .background
-                .tint
-                .scale_alpha(spec.background.tint_strength)
-                .over(cena);
-            for estado in [Color::TRANSPARENT, spec.colors.hover, spec.colors.selected] {
-                // Inclui o suporte de leitura e a copia suave da cena nas barras.
-                let conteudo = surface.over(fundo);
-                let barra = Color::rgba(pixel.r, pixel.g, pixel.b, pixel.a)
-                    .scale_alpha(0.7 * 0.12)
-                    .over(sidebar.over(fundo));
-                let base = if conteudo.relative_luminance() < barra.relative_luminance() {
-                    conteudo
-                } else {
-                    barra
-                };
-                let composto = estado.over(base);
-                let luminancia = composto.relative_luminance();
-                if luminancia < luminancia_minima {
-                    luminancia_minima = luminancia;
-                    pior = composto;
+            for painel in [surface, sidebar, player] {
+                let base = painel.over(fundo);
+                for estado in [Color::TRANSPARENT, spec.colors.hover, spec.colors.selected] {
+                    let composto = estado.over(base);
+                    let luminancia = composto.relative_luminance();
+                    if luminancia < luminancia_minima {
+                        luminancia_minima = luminancia;
+                        pior = composto;
+                    }
                 }
             }
         }
@@ -632,7 +625,7 @@ mod tests {
         // portanto o pixel de menor luminancia e o pior caso para ambas.
         assert!(spec.colors.text.relative_luminance() < luminancia_minima);
         assert!(spec.colors.text_muted.relative_luminance() < luminancia_minima);
-        assert_texto_legivel(&spec, pior, "pior pixel da cena com realce");
+        assert_texto_legivel(&spec, pior, "pior pixel da cena borrada com realce");
         println!(
             "Aquario: menor contraste secundario na cena = {:.2}:1",
             spec.colors.text_muted.contrast_ratio(pior)

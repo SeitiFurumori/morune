@@ -259,6 +259,84 @@ export component Rim inherits Rectangle {
 // Nos cartoes que perderam o vidro o contorno passou a ser `border` do proprio
 // Rectangle. Sem isso, num tema cuja `surface` e branco a 12% -- o Bruma --, o
 // painel ficava sem nenhuma aresta e desaparecia no fundo.
+// A aurora do Windows 7: listras finas a 54 graus que andam devagar.
+//
+// E o detalhe que mais identifica aquele vidro. A folha (`materiais/aurora.png`,
+// ver tools/material-aurora.py) ja vem inclinada e emenda sem costura nas duas
+// direcoes, entao o painel e coberto por uma grade de ladrilhos -- imagens
+// pequenas, sem giro -- e a grade inteira desliza em `x` pela
+// `Theme.aurora-fase`, voltando ao inicio a cada largura de ladrilho.
+//
+// **Sem giro de proposito.** Girar uma imagem grande dentro de um recorte
+// fazia o renderizador abrir uma camada do tamanho da imagem girada por
+// painel: medido em 6 GB de memoria e 11% de GPU. Ladrilhos retos sao
+// quadrilateros com textura, o caso mais barato que existe.
+//
+// Fica por cima do borrao e da cor e por baixo do conteudo, como no original.
+// So existe no material Aero: nos outros nao desenha nada.
+export component Aurora inherits Rectangle {
+    in property <length> radius: 0px;
+    /// Quanto a aurora aparece. Painel grande aguenta mais que peca pequena.
+    in property <float> forca: 1.0;
+
+    width: 100%;
+    height: 100%;
+    border-radius: root.radius;
+    clip: true;
+
+    // Medidas do ladrilho, as mesmas da folha.
+    private property <length> ladrilho-w: 791px;
+    private property <length> ladrilho-h: 1089px;
+    // Uma coluna a mais para o deslocamento nao descobrir a borda esquerda.
+    private property <int> colunas: floor(root.width / root.ladrilho-w) + 2;
+    private property <int> linhas: floor(root.height / root.ladrilho-h) + 1;
+
+    if Theme.material-kind == 1: Rectangle {
+        width: 100%;
+        height: 100%;
+        opacity: root.forca * Theme.gloss;
+        for c in root.colunas: Rectangle {
+            for l in root.linhas: Image {
+                source: @image-url("materiais/aurora.png");
+                image-fit: fill;
+                width: root.ladrilho-w;
+                height: root.ladrilho-h;
+                x: (c - 1) * root.ladrilho-w + root.ladrilho-w * Theme.aurora-fase;
+                y: l * root.ladrilho-h;
+            }
+        }
+    }
+}
+
+// A moldura do vidro do Windows 7: escura por fora, branca por dentro.
+//
+// Sao duas linhas de 1 px, uma dentro da outra, e e a combinacao que le como
+// "borda de vidro": a escura separa o painel do que esta atras, a branca e a
+// luz batendo na quina. Uma so das duas parece painel pintado.
+export component MolduraAero {
+    in property <length> radius: 0px;
+
+    width: 100%;
+    height: 100%;
+
+    if Theme.material-kind == 1: Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: root.radius;
+        border-width: Theme.border-width;
+        border-color: Theme.border;
+    }
+    if Theme.material-kind == 1: Rectangle {
+        x: Theme.border-width;
+        y: Theme.border-width;
+        width: parent.width - Theme.border-width * 2;
+        height: parent.height - Theme.border-width * 2;
+        border-radius: max(0px, root.radius - Theme.border-width);
+        border-width: Theme.border-width;
+        border-color: Theme.border-highlight;
+    }
+}
+
 export component Glass {
     in property <length> radius: 0px;
     in property <bool> bottom: true;
@@ -271,7 +349,7 @@ export component Glass {
     // contorno. Trocar a ordem poe o brilho por baixo do fosco e apaga os dois.
     Frost { radius: root.radius; }
     Gloss { radius: root.radius; }
-    if Theme.material-kind != 2: Rim { radius: root.radius; }
+    if Theme.material-kind == 0: Rim { radius: root.radius; }
     if Theme.material-kind == 2: Rectangle {
         width: 100%; height: 100%;
         border-radius: root.radius;
@@ -279,7 +357,10 @@ export component Glass {
             transparent 84%, #ffffff0a 100%);
         opacity: Theme.gloss;
     }
-    GlassEdge {
+    // Aero: a aurora e a moldura dupla; os outros materiais, a aresta simples.
+    if Theme.material-kind == 1: Aurora { radius: root.radius; }
+    if Theme.material-kind == 1: MolduraAero { radius: root.radius; }
+    if Theme.material-kind != 1: GlassEdge {
         radius: root.radius;
         bottom: root.bottom;
     }
@@ -399,6 +480,89 @@ export component PressableArea inherits FocusScope {
     }
 }
 
+// Reflexo de superficie por familia. Legacy preserva as folhas antigas;
+// Aero usa gel vetorial e Liquid usa luz discreta. Gloss controla intensidade.
+export component Material inherits Rectangle {
+    in property <length> radius: 0px;
+    /// Quanto da folha entra. Peca pequena aguenta menos que painel grande.
+    in property <float> forca: 1.0;
+
+    width: 100%;
+    height: 100%;
+    border-radius: root.radius;
+    clip: true;
+
+    if Theme.material-kind == 1: Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: root.radius;
+        // Duas metades, com a troca seca em 45%: e a capsula do botao do
+        // Windows 7 (7.css: `#f2f2f2 45%, #ebebeb 45%, #cfcfcf`). A metade de
+        // cima e clara, a de baixo escurece um fio ate a base.
+        background: @linear-gradient(180deg, #ffffffa6 0%, #ffffff80 45%,
+            #ffffff1f 45.5%, #ffffff0a 80%, #00000014 100%);
+        border-width: Theme.border-width;
+        border-color: Theme.border-highlight;
+        opacity: root.forca * Theme.gloss;
+    }
+
+    if Theme.material-kind == 2: Rectangle {
+        width: 100%; height: 100%;
+        border-radius: root.radius;
+        border-width: Theme.border-width;
+        border-color: Theme.border-highlight;
+        background: @linear-gradient(165deg, #ffffff44 0%, #ffffff06 22%,
+            transparent 65%, #ffffff1a 100%);
+        opacity: root.forca * Theme.gloss;
+    }
+
+    if Theme.material-kind == 0 && Theme.gloss >= 0.62: Image {
+        width: 100%;
+        height: 100%;
+        image-fit: fill;
+        source: @image-url("materiais/gel.png");
+        opacity: root.forca;
+        animate opacity { duration: Theme.motion-fast; easing: ease; }
+    }
+
+    if Theme.material-kind == 0 && Theme.gloss >= 0.20 && Theme.gloss < 0.62: Image {
+        width: 100%;
+        height: 100%;
+        image-fit: fill;
+        source: @image-url("materiais/vidro.png");
+        opacity: root.forca;
+        animate opacity { duration: Theme.motion-fast; easing: ease; }
+    }
+}
+
+// A varredura especular das pecas redondas.
+//
+// Rampa nao serve num circulo: numa esfera a luz e um ovalo deslocado para o
+// alto e para a esquerda, com a orla devolvendo luz em volta. E a diferenca
+// entre "botao brilhante" e "botao esferico", e o botao de tocar e a unica peca
+// grande e redonda da interface -- e onde o olho pousa.
+export component MaterialRedondo inherits Rectangle {
+    in property <float> forca: 1.0;
+
+    width: 100%;
+    height: 100%;
+
+    if Theme.material-kind == 2: Rectangle {
+        width: 100%; height: 100%;
+        border-radius: self.width / 2;
+        background: @linear-gradient(155deg, #ffffff88 0%, #ffffff10 42%,
+            transparent 60%, #ffffff33 100%);
+        opacity: root.forca * Theme.gloss;
+    }
+    if Theme.material-kind != 2 && Theme.gloss >= 0.20: Image {
+        width: 100%;
+        height: 100%;
+        image-fit: fill;
+        source: @image-url("materiais/reflexo.png");
+        opacity: root.forca * (Theme.gloss >= 0.62 ? 1.0 : 0.55);
+    }
+}
+
 export component IconButton inherits Rectangle {
     in property <string> label;
     in property <IconRef> glyph;
@@ -464,6 +628,17 @@ export component IconButton inherits Rectangle {
             ? (Theme.material-kind == 1 ? Theme.text : Theme.text-on-accent) : root.tint;
         size: root.icon-size;
         filled: root.filled;
+    }
+
+    // No Aero o botao sob o cursor vira a capsula do Windows 7, com a borda
+    // azul e as duas metades. Fora do cursor nao ha nada, como no original.
+    if Theme.material-kind == 1 && root.enabled && (touch.has-hover || (root.active && !root.quiet)): Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: root.border-radius;
+        border-width: Theme.border-width;
+        border-color: Theme.accent.darker(0.35);
+        Material { radius: root.border-radius; }
     }
 
     touch := PressableArea {
@@ -539,6 +714,10 @@ export component Vidro inherits Rectangle {
     in property <length> radius: 0px;
     /// Quanto do fundo borrado aparece. O resto e a superficie do tema.
     in property <float> forca: 1.0;
+    /// A cor do vidro, pintada POR CIMA do borrao. So o Aero usa: no Windows 7
+    /// o vidro e azul porque a cor vem depois do desfoque, e nao por baixo
+    /// dele -- por baixo, o borrao a cobriria.
+    in property <brush> tinta: transparent;
 
     width: 100%;
     height: 100%;
@@ -582,7 +761,7 @@ export component Vidro inherits Rectangle {
         height: 100%;
         image-fit: fill;
         source: Theme.background-blurred;
-        opacity: root.forca * (Theme.material-kind == 1 ? 0.12 : 1.0);
+        opacity: root.forca;
         animate opacity { duration: Theme.motion-fast; easing: ease; }
 
         // Da posicao na janela para posicao na imagem: soma o que sobrou fora
@@ -592,85 +771,14 @@ export component Vidro inherits Rectangle {
         source-clip-width: root.width / root.escala / 1px;
         source-clip-height: root.height / root.escala / 1px;
     }
-}
-
-// Reflexo de superficie por familia. Legacy preserva as folhas antigas;
-// Aero usa gel vetorial e Liquid usa luz discreta. Gloss controla intensidade.
-export component Material inherits Rectangle {
-    in property <length> radius: 0px;
-    /// Quanto da folha entra. Peca pequena aguenta menos que painel grande.
-    in property <float> forca: 1.0;
-
-    width: 100%;
-    height: 100%;
-    border-radius: root.radius;
-    clip: true;
 
     if Theme.material-kind == 1: Rectangle {
         width: 100%;
         height: 100%;
         border-radius: root.radius;
-        background: @linear-gradient(180deg, #ffffffb0 0%, #ffffff55 44%,
-            #ffffff08 49%, #07475c18 76%, #ffffff66 100%);
-        border-width: Theme.border-width;
-        border-color: Theme.border-highlight;
-        opacity: root.forca * Theme.gloss;
-    }
-
-    if Theme.material-kind == 2: Rectangle {
-        width: 100%; height: 100%;
-        border-radius: root.radius;
-        border-width: Theme.border-width;
-        border-color: Theme.border-highlight;
-        background: @linear-gradient(165deg, #ffffff44 0%, #ffffff06 22%,
-            transparent 65%, #ffffff1a 100%);
-        opacity: root.forca * Theme.gloss;
-    }
-
-    if Theme.material-kind == 0 && Theme.gloss >= 0.62: Image {
-        width: 100%;
-        height: 100%;
-        image-fit: fill;
-        source: @image-url("materiais/gel.png");
+        background: root.tinta;
         opacity: root.forca;
         animate opacity { duration: Theme.motion-fast; easing: ease; }
-    }
-
-    if Theme.material-kind == 0 && Theme.gloss >= 0.20 && Theme.gloss < 0.62: Image {
-        width: 100%;
-        height: 100%;
-        image-fit: fill;
-        source: @image-url("materiais/vidro.png");
-        opacity: root.forca;
-        animate opacity { duration: Theme.motion-fast; easing: ease; }
-    }
-}
-
-// A varredura especular das pecas redondas.
-//
-// Rampa nao serve num circulo: numa esfera a luz e um ovalo deslocado para o
-// alto e para a esquerda, com a orla devolvendo luz em volta. E a diferenca
-// entre "botao brilhante" e "botao esferico", e o botao de tocar e a unica peca
-// grande e redonda da interface -- e onde o olho pousa.
-export component MaterialRedondo inherits Rectangle {
-    in property <float> forca: 1.0;
-
-    width: 100%;
-    height: 100%;
-
-    if Theme.material-kind == 2: Rectangle {
-        width: 100%; height: 100%;
-        border-radius: self.width / 2;
-        background: @linear-gradient(155deg, #ffffff88 0%, #ffffff10 42%,
-            transparent 60%, #ffffff33 100%);
-        opacity: root.forca * Theme.gloss;
-    }
-    if Theme.material-kind != 2 && Theme.gloss >= 0.20: Image {
-        width: 100%;
-        height: 100%;
-        image-fit: fill;
-        source: @image-url("materiais/reflexo.png");
-        opacity: root.forca * (Theme.gloss >= 0.62 ? 1.0 : 0.55);
     }
 }
 
@@ -693,10 +801,12 @@ export component Realce inherits Rectangle {
     // e usar isso num realce de passagem dava o contraste mais forte da tela
     // para a coisa mais passageira dela. `surface` e a superficie normal de uma
     // peca, que e o que a linha sob o cursor vira.
-    background: Theme.material-kind == 2 ? Theme.selected : Theme.surface;
+    background: Theme.material-kind == 2 ? Theme.selected : (Theme.material-kind == 1 ? Theme.hover : Theme.surface);
     border-width: root.aceso > 0 && Theme.material-kind != 2 ? Theme.border-width : 0px;
-    border-color: Theme.border-highlight;
-    opacity: root.aceso;
+    border-color: Theme.material-kind == 1 ? Theme.accent.with-alpha(0.6) : Theme.border-highlight;
+    // No Aero o realce e a capsula inteira do Windows 7, nao um veu: quem
+    // chama pede 0,30 para todos os materiais, e aqui isso vira a capsula cheia.
+    opacity: Theme.material-kind == 1 ? min(1.0, root.aceso * 3.0) : root.aceso;
     animate opacity { duration: Theme.motion-fast; easing: ease; }
 
     // Sombra curta, e nao a do cartao: uma linha de lista sobe um fio, nao
@@ -707,7 +817,10 @@ export component Realce inherits Rectangle {
     drop-shadow-blur: 6px;
     drop-shadow-offset-y: 1px;
 
-    if root.com-vidro && Theme.material-kind != 2: Vidro {
+    // So no material antigo. No Aero o realce e a capsula, que ja cobre o
+    // fundo -- e cada `Vidro` e mais uma copia da textura do fundo no driver
+    // de video: com um por linha de lista, eram 160 copias e 5 GB reservados.
+    if root.com-vidro && Theme.material-kind == 0: Vidro {
         radius: root.radius;
         forca: root.aceso * 0.55;
     }
@@ -987,17 +1100,42 @@ export component Slider inherits Rectangle {
         height: root.thickness;
         width: 100%;
         border-radius: root.thickness / 2;
-        background: Theme.border;
+        // Aero: calha afundada -- branco translucido com a borda escura e uma
+        // sombra curta no topo, como a barra de progresso do Windows 7.
+        background: Theme.material-kind == 1 ? #ffffff59 : Theme.border;
+        border-width: Theme.material-kind == 1 ? Theme.border-width : 0px;
+        border-color: Theme.border;
+
+        if Theme.material-kind == 1: Rectangle {
+            x: Theme.border-width;
+            y: Theme.border-width;
+            width: parent.width - Theme.border-width * 2;
+            height: max(1px, root.thickness / 4);
+            background: #00000026;
+        }
 
         fill := Rectangle {
             x: 0;
             width: parent.width * root.shown;
             height: 100%;
             border-radius: root.thickness / 2;
+            // Aero: o preenchimento e a cor clara de selecao, como a barra de
+            // progresso do Windows 7; o `accent` escuro fica para texto e borda.
             background: Theme.material-kind == 1
-                ? Theme.text.with-alpha(touch.has-hover || touch.pressed ? 0.72 : 0.5)
+                ? Theme.selected.with-alpha(1.0)
                 : (touch.has-hover || touch.pressed ? Theme.accent-hover : Theme.accent);
             animate background { duration: Theme.motion-fast; easing: ease; }
+
+            // O preenchimento tambem e uma capsula: metade de cima clara.
+            if Theme.material-kind == 1: Rectangle {
+                width: 100%;
+                height: 100%;
+                border-radius: parent.border-radius;
+                background: @linear-gradient(180deg, #ffffffb3 0%, #ffffff80 50%,
+                    #ffffff1a 50.5%, #00000014 100%);
+                border-width: Theme.border-width;
+                border-color: Theme.border-highlight;
+            }
         }
     }
 
@@ -1005,10 +1143,14 @@ export component Slider inherits Rectangle {
         width: Theme.control-slider-knob;
         height: self.width;
         border-radius: self.width / 2;
-        background: Theme.text;
+        // Aero: pastilha branca de vidro com borda escura, nao um ponto de texto.
+        background: Theme.material-kind == 1 ? #f3faff : Theme.text;
+        border-width: Theme.material-kind == 1 ? Theme.border-width : 0px;
+        border-color: Theme.border;
         x: track.width * root.shown - self.width / 2;
         y: (parent.height - self.height) / 2;
         visible: root.enabled && (touch.has-hover || touch.pressed);
+        if Theme.material-kind == 1: Material { radius: parent.border-radius; }
     }
 
     touch := TouchArea {
