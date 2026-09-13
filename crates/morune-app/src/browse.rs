@@ -230,6 +230,10 @@ pub struct Browse {
     library: Arc<dyn Library>,
     handle: tokio::runtime::Handle,
     pending: Option<Receiver<Outcome>>,
+    /// A pagina seguinte de um detalhe nao disputa o resultado da navegacao.
+    /// Rolar uma playlist enquanto uma busca ou outro detalhe abre nao pode
+    /// fazer nenhum dos dois pedidos desaparecer.
+    detail_pending: Option<Receiver<Outcome>>,
     autoplay_pending: Option<Receiver<AutoplayOutcome>>,
     library_tx: UnboundedSender<LibraryOutcome>,
     library_rx: UnboundedReceiver<LibraryOutcome>,
@@ -266,6 +270,7 @@ impl Browse {
             library,
             handle,
             pending: None,
+            detail_pending: None,
             autoplay_pending: None,
             library_tx,
             library_rx,
@@ -327,6 +332,7 @@ impl Browse {
     /// Esquece o pedido em andamento. Usado ao sair da conta.
     pub fn cancel(&mut self) {
         self.pending = None;
+        self.detail_pending = None;
         self.autoplay_pending = None;
     }
 
@@ -519,12 +525,13 @@ impl Browse {
     /// duplicadas. O gesto de rolagem pode disparar varias vezes na mesma
     /// borda; somente a primeira deve chegar ao Spotify.
     pub fn load_more(&mut self, source: Target, offset: u32) -> bool {
-        if self.pending.is_some() {
+        if self.detail_pending.is_some() {
             return false;
         }
         let catalog = self.catalog.clone();
         let library = self.library.clone();
-        self.spawn(move |tx| async move {
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.handle.spawn(async move {
             let result = match &source {
                 Target::Playlist(id) => catalog.playlist_tracks(id, offset, DETAIL_PAGE).await,
                 Target::Liked => library.saved_tracks(offset, DETAIL_PAGE).await,
@@ -544,23 +551,21 @@ impl Browse {
             };
             let _ = tx.send(outcome);
         });
+        self.detail_pending = Some(rx);
         true
     }
 
     /// Recolhe o resultado do pedido em andamento, se ja houver.
     pub fn poll(&mut self) -> Option<Outcome> {
-        let rx = self.pending.as_ref()?;
-        match rx.try_recv() {
-            Ok(outcome) => {
-                self.pending = None;
-                Some(outcome)
-            }
-            Err(TryRecvError::Empty) => None,
-            Err(TryRecvError::Disconnected) => {
-                self.pending = None;
-                Some(Outcome::Failed("a consulta foi interrompida".into()))
-            }
-        }
+        poll_outcome(&mut self.pending, "a consulta foi interrompida")
+    }
+
+    /// Recolhe apenas a pagina seguinte da tela de detalhe.
+    pub fn poll_detail_more(&mut self) -> Option<Outcome> {
+        poll_outcome(
+            &mut self.detail_pending,
+            "a continuacao da lista foi interrompida",
+        )
     }
 
     fn spawn<F, Fut>(&mut self, task: F)
@@ -570,7 +575,26 @@ impl Browse {
     {
         let (tx, rx) = std::sync::mpsc::channel();
         self.handle.spawn(task(tx));
+        // Uma navegacao nova substitui a pagina anterior, inclusive a
+        // continuacao dela. O receiver descartado faz o resultado antigo sumir
+        // sem cancelar a tarefa no runtime.
+        self.detail_pending = None;
         self.pending = Some(rx);
+    }
+}
+
+fn poll_outcome(pending: &mut Option<Receiver<Outcome>>, interrupted: &str) -> Option<Outcome> {
+    let rx = pending.as_ref()?;
+    match rx.try_recv() {
+        Ok(outcome) => {
+            *pending = None;
+            Some(outcome)
+        }
+        Err(TryRecvError::Empty) => None,
+        Err(TryRecvError::Disconnected) => {
+            *pending = None;
+            Some(Outcome::Failed(interrupted.into()))
+        }
     }
 }
 
@@ -804,6 +828,25 @@ fn describe(error: &CoreError) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pagination_result_does_not_replace_the_main_navigation_result() {
+        let (main_tx, main_rx) = std::sync::mpsc::channel();
+        let (more_tx, more_rx) = std::sync::mpsc::channel();
+        main_tx.send(Outcome::Failed("navegacao".into())).unwrap();
+        more_tx.send(Outcome::Failed("paginacao".into())).unwrap();
+        let mut main = Some(main_rx);
+        let mut more = Some(more_rx);
+
+        assert!(matches!(
+            poll_outcome(&mut main, "interrompida"),
+            Some(Outcome::Failed(message)) if message == "navegacao"
+        ));
+        assert!(matches!(
+            poll_outcome(&mut more, "interrompida"),
+            Some(Outcome::Failed(message)) if message == "paginacao"
+        ));
+    }
 
     /// A forma textual e o unico contrato entre a interface e o Rust: a lista
     /// manda o que o `tag` produziu, e o clique volta com a mesma string. Se as

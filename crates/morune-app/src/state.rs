@@ -97,6 +97,21 @@ enum PendingDetailPlay {
     Track(TrackId),
 }
 
+/// Um detalhe que ficou atras de outro detalhe aberto a partir de um cartao.
+///
+/// A tela de detalhe tambem pode mostrar outros albuns, playlists e artistas.
+/// Guardar o estado de leitura impede que o botao Voltar troque para uma tela
+/// de detalhe vazia e preserva o filtro e a ordenacao que a pessoa ja tinha
+/// escolhido.
+#[derive(Debug)]
+struct DetailHistory {
+    detail: crate::browse::Detail,
+    from: Page,
+    filter: String,
+    sort: SortBy,
+    desc: bool,
+}
+
 /// O que o botao "Tentar novamente" repete, e a qual mensagem ele pertence.
 ///
 /// **Por que carrega a mensagem:** isto era um `bool` solto. Uma falha ligava a
@@ -261,6 +276,8 @@ pub struct AppState {
     pending_liked_play: Option<TrackId>,
     /// De onde a tela de detalhe foi aberta, para o botao de voltar.
     detail_from: Page,
+    /// Detalhes abertos antes do atual, para voltar por colecoes aninhadas.
+    detail_history: Vec<DetailHistory>,
     /// Foto da conta: a URL pedida e o arquivo, quando ja chegou.
     ///
     /// Passa pelo mesmo cache de capas, e nao por um caminho proprio: e uma
@@ -288,7 +305,12 @@ pub struct AppState {
     /// chegar: sem isso, ir e voltar numa tela lenta dispara uma requisicao por
     /// visita.
     home_requested: bool,
+    /// `true` quando a Home recebeu uma resposta, inclusive uma resposta sem
+    /// prateleiras. Separa "carregando" de "conta sem conteudo".
+    home_loaded: bool,
     library_requested: bool,
+    /// `true` quando a Biblioteca recebeu uma resposta, inclusive vazia.
+    library_loaded: bool,
     /// Verificacao e download de versao nova. Toca a rede sozinho no maximo uma
     /// vez por dia (ver `Updater::auto_check`); o download continua sendo
     /// sempre por clique. Existe desde a abertura porque guardar o resultado da
@@ -414,6 +436,7 @@ impl AppState {
             detail_silent: false,
             pending_liked_play: None,
             detail_from: Page::Home,
+            detail_history: Vec::new(),
             liked_card: Card {
                 tag: crate::browse::Target::Liked.tag(),
                 title: crate::browse::LIKED_TITLE.into(),
@@ -427,7 +450,9 @@ impl AppState {
             track_covers: HashMap::new(),
             autoplay_seed: None,
             home_requested: false,
+            home_loaded: false,
             library_requested: false,
+            library_loaded: false,
             updater: crate::update::Updater::new(updates_dir),
             binary: crate::update::BinaryWatch::new(),
         };
@@ -573,23 +598,28 @@ impl AppState {
             self.status = change.message;
             if let Some(engine) = change.engine {
                 self.player_events = Some(engine.subscribe());
-                // O volume escolhido antes do login vale para a sessao nova:
-                // o usuario nao deveria ter que ajustar de novo.
-                let _ = engine.send(PlayerCommand::SetVolume(self.volume));
                 self.engine = engine;
+                self.restore_recreated_engine();
             }
             if self.session.state().is_logged_in() {
                 // A tela aberta na hora do login precisa se preencher sozinha:
                 // o usuario acabou de entrar e nao vai clicar em "Inicio" de
                 // novo so para ver o que ja deveria estar la.
                 self.home_requested = false;
+                self.home_loaded = false;
                 self.library_requested = false;
+                self.library_loaded = false;
                 self.request_page_data();
             }
             changed = true;
         }
 
         if let Some(outcome) = self.session.browse_mut().and_then(|b| b.poll()) {
+            self.apply_browse(outcome);
+            changed = true;
+        }
+
+        if let Some(outcome) = self.session.browse_mut().and_then(|b| b.poll_detail_more()) {
             self.apply_browse(outcome);
             changed = true;
         }
@@ -691,8 +721,14 @@ impl AppState {
         // oferta de repetir so renasce logo abaixo, se esta resposta for uma
         // falha. Sem o `take`, uma falha antiga continuaria oferecendo repetir
         // um pedido que ja deu certo depois.
-        let pendente = self.pending_retry.take();
-        self.retry = None;
+        let detail_more = matches!(
+            &outcome,
+            Outcome::DetailMore { .. } | Outcome::DetailMoreFailed { .. }
+        );
+        let pendente = (!detail_more).then(|| self.pending_retry.take()).flatten();
+        if !detail_more {
+            self.retry = None;
+        }
         match outcome {
             Outcome::Search {
                 query,
@@ -718,6 +754,7 @@ impl AppState {
             // uma linha de status aqui apagaria o "Conectado como ..." que o
             // usuario acabou de receber.
             Outcome::Home(home) => {
+                self.home_loaded = true;
                 let Home {
                     made_for_you,
                     stations,
@@ -747,6 +784,7 @@ impl AppState {
                 self.resolve_covers();
             }
             Outcome::Library(cards) => {
+                self.library_loaded = true;
                 self.library = cards;
                 self.resolve_covers();
             }
@@ -761,6 +799,22 @@ impl AppState {
                     self.status =
                         format!("Nenhuma faixa de {} pode ser tocada aqui.", detail.title);
                     return;
+                }
+
+                if self.page == Page::Detail {
+                    if let Some(previous) = self.detail.take() {
+                        self.detail_history.push(DetailHistory {
+                            detail: previous,
+                            from: self.detail_from,
+                            filter: std::mem::take(&mut self.detail_filter),
+                            sort: self.detail_sort,
+                            desc: self.detail_desc,
+                        });
+                    }
+                } else {
+                    // Uma nova entrada por Inicio, Busca ou Biblioteca inicia
+                    // uma navegacao de detalhe independente da anterior.
+                    self.detail_history.clear();
                 }
 
                 // Abrir e um comeco de leitura, nao de reproducao: filtro e
@@ -796,7 +850,6 @@ impl AppState {
                 total,
                 has_more,
             } => {
-                self.detail_loading = false;
                 let queue_can_follow = self.detail_filter.is_empty()
                     && self.detail_sort == SortBy::Original
                     && self.detail.as_ref().is_some_and(|detail| {
@@ -816,6 +869,10 @@ impl AppState {
 
                 if accepted && queue_can_follow {
                     self.queue.append_context(tracks);
+                }
+
+                if accepted {
+                    self.detail_loading = false;
                 }
 
                 if accepted && self.detail_complete_requested && has_more {
@@ -855,8 +912,17 @@ impl AppState {
             Outcome::Failed(message) => {
                 // A tela que falhou pode ser pedida de novo: sem soltar as
                 // marcas, voltar a ela mostraria a lista vazia para sempre.
+                let home_failed = matches!(pendente.as_ref(), Some(RetryTarget::Page(Page::Home)));
                 self.home_requested = false;
+                if home_failed {
+                    self.home_loaded = false;
+                }
+                let library_failed =
+                    matches!(pendente.as_ref(), Some(RetryTarget::Page(Page::Library)));
                 self.library_requested = false;
+                if library_failed {
+                    self.library_loaded = false;
+                }
                 self.searching = false;
                 // O pedido silencioso morre com a falha. Deixa-lo de pe faria a
                 // proxima lista que o usuario abrisse ser tocada sozinha.
@@ -1086,11 +1152,21 @@ impl AppState {
 
     /// Fecha a tela de detalhe e volta de onde ela foi aberta.
     pub fn close_detail(&mut self) {
-        self.page = self.detail_from;
-        self.detail = None;
         self.detail_loading = false;
         self.detail_complete_requested = false;
         self.detail_pending_play = None;
+
+        if let Some(previous) = self.detail_history.pop() {
+            self.detail = Some(previous.detail);
+            self.detail_from = previous.from;
+            self.detail_filter = previous.filter;
+            self.detail_sort = previous.sort;
+            self.detail_desc = previous.desc;
+            self.page = Page::Detail;
+        } else {
+            self.page = self.detail_from;
+            self.detail = None;
+        }
     }
 
     /// Toca a lista aberta a partir da primeira faixa visivel.
@@ -2349,9 +2425,8 @@ impl AppState {
     /// player gastando placa de video atras; e quem desligou aqui decidiu por
     /// conta propria. Basta uma para zerar.
     fn recalcular_movimento(&mut self) {
-        self.overrides.reduce_motion = self.config.appearance.reduce_motion
-            || !system_animation_enabled()
-            || self.tela_cheia;
+        self.overrides.reduce_motion =
+            self.config.appearance.reduce_motion || !system_animation_enabled() || self.tela_cheia;
     }
 
     pub fn set_close_to_tray(&mut self, on: bool) {
@@ -2583,6 +2658,7 @@ impl AppState {
             self.detail_loading = false;
             self.detail_complete_requested = false;
             self.detail_pending_play = None;
+            self.detail_history.clear();
         }
         self.request_page_data();
     }
@@ -3069,6 +3145,21 @@ impl AppState {
         let _ = self.engine.send(PlayerCommand::Preload(next));
     }
 
+    /// O motor novo nao herda faixa nem preferencias do que perdeu a sessao.
+    /// A fila e a intencao de tocar pertencem ao `AppState`, portanto sao elas
+    /// que reconstroem o retrato do motor depois do login ou da reconexao.
+    fn restore_recreated_engine(&mut self) {
+        for command in recreated_engine_commands(
+            self.queue.current().cloned(),
+            self.playing,
+            self.volume,
+            self.config.playback.shuffle,
+            self.config.playback.repeat,
+        ) {
+            self.send(command);
+        }
+    }
+
     fn send(&mut self, command: PlayerCommand) {
         if let Err(e) = self.engine.send(command) {
             self.status = e.to_string();
@@ -3115,7 +3206,9 @@ impl AppState {
         self.detail_silent = false;
         self.pending_liked_play = None;
         self.home_requested = false;
+        self.home_loaded = false;
         self.library_requested = false;
+        self.library_loaded = false;
 
         // As ofertas de recuperacao morrem com a sessao.
         //
@@ -3183,6 +3276,8 @@ impl AppState {
         window.set_window_opacity(self.window_opacity_slider());
         window.set_search_query(self.search_query.as_str().into());
         window.set_searching(self.searching);
+        window.set_home_loaded(self.home_loaded);
+        window.set_library_loaded(self.library_loaded);
 
         window.set_auth_url(SharedString::from(self.auth_url()));
 
@@ -3394,6 +3489,28 @@ fn audio_settings(config: &morune_storage::config::PlaybackConfig) -> AudioSetti
         cache_mb: config.audio_cache_mb,
         output_device: config.output_device.clone(),
     }
+}
+
+/// Comandos que devolvem ao motor recem-criado o estado que pertence a tela.
+fn recreated_engine_commands(
+    current: Option<Track>,
+    playing: bool,
+    volume: f32,
+    shuffle: bool,
+    repeat: RepeatMode,
+) -> Vec<PlayerCommand> {
+    let mut commands = vec![
+        PlayerCommand::SetVolume(volume),
+        PlayerCommand::SetShuffle(shuffle),
+        PlayerCommand::SetRepeat(repeat),
+    ];
+    if let Some(track) = current {
+        commands.push(PlayerCommand::Load {
+            track,
+            start_paused: !playing,
+        });
+    }
+    commands
 }
 
 /// A oferta de repetir ainda pertence a mensagem que esta na tela?
@@ -4042,6 +4159,103 @@ mod tests {
     }
 
     use super::*;
+
+    fn playback_track(id: &str) -> Track {
+        Track {
+            id: TrackId::spotify(id),
+            name: id.into(),
+            artists: vec![],
+            album: None,
+            duration: Duration::from_secs(180),
+            track_number: None,
+            disc_number: None,
+            explicit: false,
+            playable: true,
+        }
+    }
+
+    fn detail(id: &str) -> crate::browse::Detail {
+        crate::browse::Detail {
+            origin: QueueOrigin::Custom(id.into()),
+            title: id.into(),
+            subtitle: String::new(),
+            kind: "Playlist".into(),
+            cover: String::new(),
+            cover_path: None,
+            tracks: vec![playback_track(id)],
+            cards: Vec::new(),
+            total_tracks: Some(1),
+            source: None,
+            has_more: false,
+        }
+    }
+
+    #[test]
+    fn nested_detail_history_preserves_the_parent_reading_state() {
+        let parent = detail("playlist-pai");
+        let mut history = vec![DetailHistory {
+            detail: parent,
+            from: Page::Library,
+            filter: "ao vivo".into(),
+            sort: SortBy::Artist,
+            desc: true,
+        }];
+
+        let restored = history
+            .pop()
+            .expect("o detalhe pai deve ficar no historico");
+
+        assert_eq!(restored.detail.title, "playlist-pai");
+        assert_eq!(restored.from, Page::Library);
+        assert_eq!(restored.filter, "ao vivo");
+        assert_eq!(restored.sort, SortBy::Artist);
+        assert!(restored.desc);
+        assert!(history.is_empty());
+    }
+
+    #[test]
+    fn recreated_engine_recovers_preferences_and_resumes_the_current_track() {
+        let track = playback_track("4cOdK2wGLETKBW3PvgPWqT");
+        assert_eq!(
+            recreated_engine_commands(Some(track.clone()), true, 0.4, true, RepeatMode::One),
+            vec![
+                PlayerCommand::SetVolume(0.4),
+                PlayerCommand::SetShuffle(true),
+                PlayerCommand::SetRepeat(RepeatMode::One),
+                PlayerCommand::Load {
+                    track,
+                    start_paused: false,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn recreated_engine_keeps_a_non_playing_track_ready_at_its_start() {
+        let track = playback_track("4cOdK2wGLETKBW3PvgPWqT");
+        let commands =
+            recreated_engine_commands(Some(track.clone()), false, 1.0, false, RepeatMode::Off);
+
+        assert_eq!(
+            commands.last(),
+            Some(&PlayerCommand::Load {
+                track,
+                start_paused: true,
+            })
+        );
+    }
+
+    #[test]
+    fn recreated_engine_without_a_track_only_recovers_preferences() {
+        assert_eq!(
+            recreated_engine_commands(None, false, 0.7, true, RepeatMode::All),
+            vec![
+                PlayerCommand::SetVolume(0.7),
+                PlayerCommand::SetShuffle(true),
+                PlayerCommand::SetRepeat(RepeatMode::All),
+            ]
+        );
+    }
 
     #[test]
     fn time_formatting_matches_what_a_player_shows() {

@@ -31,6 +31,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 use morune_core::catalog::Artwork;
 use tokio::sync::mpsc::UnboundedSender;
@@ -54,6 +55,14 @@ const ALVO_APOS_LIMPEZA: u64 = TETO_BYTES * 4 / 5;
 /// caso comum, entao vem primeiro.
 const EXTENSOES: [&str; 2] = ["jpg", "png"];
 
+/// Esperas antes de refazer um download que falhou de forma transitoria.
+///
+/// A capa nao e critica para a navegacao, entao a primeira falha nao deve
+/// congestionar a rede nem decidir permanentemente o resultado. Duas novas
+/// tentativas cobrem quedas curtas sem transformar uma URL indisponivel em
+/// trafego continuo.
+const ESPERAS_DE_NOVA_TENTATIVA: [Duration; 2] = [Duration::from_secs(1), Duration::from_secs(3)];
+
 /// Capa pronta para a interface desenhar.
 #[derive(Debug, Clone)]
 pub struct Ready {
@@ -73,10 +82,9 @@ pub struct ArtworkCache {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Estado {
-    /// Ja foi pedida uma vez nesta sessao. Cobre tanto o download em andamento
-    /// quanto o que falhou: nos dois casos a resposta e a mesma -- nao pedir de
-    /// novo. Insistir numa URL que nao respondeu gastaria rede em toda rolagem
-    /// da tela.
+    /// Download em andamento, incluindo suas tentativas limitadas para uma
+    /// falha transitoria. Enquanto isso, a mesma URL nao abre uma segunda
+    /// tarefa nem duplica trafego.
     Pedida,
     Pronta(PathBuf),
 }
@@ -138,7 +146,8 @@ impl ArtworkCache {
         let base = hash(&url);
 
         runtime.spawn(async move {
-            match source.fetch(&url).await {
+            for tentativa in 0..=ESPERAS_DE_NOVA_TENTATIVA.len() {
+                match source.fetch(&url).await {
                 Ok(bytes) => {
                     let Some(extensao) = formato(&bytes) else {
                         tracing::debug!(url, "capa em formato que o Morune nao desenha");
@@ -156,8 +165,21 @@ impl ArtworkCache {
                         limpar_se_passou_do_teto(&dir);
                         let _ = tx.send(Ready { url, path });
                     }
+                    return;
                 }
-                Err(e) => tracing::debug!(url, error = %e, "capa nao baixou"),
+                Err(error) if error.is_retryable() => {
+                    let Some(espera) = espera_de_nova_tentativa(tentativa) else {
+                        tracing::debug!(url, error = %error, "capa nao baixou apos novas tentativas");
+                        return;
+                    };
+                    tracing::debug!(url, error = %error, tentativa = tentativa + 1, "capa nao baixou; tentara de novo");
+                    tokio::time::sleep(espera).await;
+                }
+                Err(error) => {
+                    tracing::debug!(url, error = %error, "capa nao baixou");
+                    return;
+                }
+                }
             }
         });
 
@@ -173,6 +195,11 @@ impl ArtworkCache {
     fn caminho(&self, url: &str, extensao: &str) -> PathBuf {
         self.dir.join(format!("{:016x}.{extensao}", hash(url)))
     }
+}
+
+/// Espera depois de uma falha, ou `None` quando o limite ja foi atingido.
+fn espera_de_nova_tentativa(tentativa: usize) -> Option<Duration> {
+    ESPERAS_DE_NOVA_TENTATIVA.get(tentativa).copied()
 }
 
 /// Extensao correspondente ao formato da imagem, pela assinatura.
@@ -257,6 +284,11 @@ fn limpar_se_passou_do_teto(dir: &Path) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::future::Future;
+    use std::pin::Pin;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use morune_core::{CoreError, CoreResult};
 
     /// Pasta temporaria propria.
     ///
@@ -389,5 +421,62 @@ mod tests {
         limpar_se_passou_do_teto(dir.path());
 
         assert!(dir.path().join("a.jpg").is_file());
+    }
+
+    #[test]
+    fn falhas_transitorias_tem_retentativas_limitadas_e_crescentes() {
+        assert_eq!(espera_de_nova_tentativa(0), Some(Duration::from_secs(1)));
+        assert_eq!(espera_de_nova_tentativa(1), Some(Duration::from_secs(3)));
+        assert_eq!(espera_de_nova_tentativa(2), None);
+    }
+
+    struct FalhaUmaVez {
+        tentativas: AtomicUsize,
+    }
+
+    impl Artwork for FalhaUmaVez {
+        fn fetch<'a>(
+            &'a self,
+            _url: &'a str,
+        ) -> Pin<Box<dyn Future<Output = CoreResult<Vec<u8>>> + Send + 'a>> {
+            Box::pin(async move {
+                if self.tentativas.fetch_add(1, Ordering::SeqCst) == 0 {
+                    Err(CoreError::Network("queda breve".into()))
+                } else {
+                    Ok(vec![0xff, 0xd8, 0xff])
+                }
+            })
+        }
+    }
+
+    #[test]
+    fn uma_falha_transitoria_baixa_a_capa_na_segunda_tentativa() {
+        let (_dir, mut cache) = cache("repetir");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .expect("runtime de teste");
+        let flaky = Arc::new(FalhaUmaVez {
+            tentativas: AtomicUsize::new(0),
+        });
+        let source: Arc<dyn Artwork> = flaky.clone();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+
+        assert!(cache.request(
+            "https://i.scdn.co/image/repetir",
+            &source,
+            runtime.handle(),
+            tx,
+        ));
+
+        let ready = runtime.block_on(async {
+            tokio::time::timeout(Duration::from_secs(2), rx.recv())
+                .await
+                .expect("a segunda tentativa deve terminar")
+                .expect("a tarefa deve enviar a capa pronta")
+        });
+
+        assert_eq!(flaky.tentativas.load(Ordering::SeqCst), 2);
+        assert!(ready.path.is_file());
     }
 }

@@ -17,6 +17,7 @@
 //!   vezes por segundo seria trabalho recorrente para exibir um numero que anda
 //!   sozinho.
 
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -136,6 +137,54 @@ struct Shared {
     /// faixa, parar e mover a posicao (a fila virou lixo). O sink ve `stop()`
     /// nos quatro casos, entao a diferenca chega por aqui.
     flush: crate::sink::FlushRequest,
+}
+
+/// Liga os comandos `Load` aos eventos assincronos da librespot.
+///
+/// Um evento carrega o `play_request_id` da librespot, enquanto a interface
+/// conhece apenas a ordem dos `Load`s. Manter essa ponte no motor permite
+/// descartar, inclusive ao repetir a mesma faixa, um evento produzido pela
+/// requisicao anterior depois que uma mais nova ja foi escolhida.
+#[derive(Debug, Default)]
+struct PlaybackRequest {
+    next_generation: u64,
+    desired_generation: Option<u64>,
+    pending_generations: VecDeque<u64>,
+    active_request_id: Option<u64>,
+}
+
+impl PlaybackRequest {
+    fn begin_load(&mut self) {
+        self.next_generation = self.next_generation.wrapping_add(1);
+        self.desired_generation = Some(self.next_generation);
+        self.pending_generations.push_back(self.next_generation);
+        // Ate a librespot anunciar o identificador novo, nenhum evento antigo
+        // pode falar pela faixa que acabou de ser escolhida.
+        self.active_request_id = None;
+    }
+
+    /// Devolve se esta e a requisicao que a interface ainda espera.
+    fn observe_request_id(&mut self, request_id: u64) -> bool {
+        let Some(generation) = self.pending_generations.pop_front() else {
+            tracing::debug!(request_id, "identificador de reproducao sem Load pendente");
+            return false;
+        };
+        if self.desired_generation == Some(generation) {
+            self.active_request_id = Some(request_id);
+            true
+        } else {
+            tracing::debug!(
+                request_id,
+                generation,
+                "identificador de reproducao obsoleto"
+            );
+            false
+        }
+    }
+
+    fn accepts(&self, request_id: u64) -> bool {
+        self.active_request_id == Some(request_id)
+    }
 }
 
 impl Shared {
@@ -310,18 +359,25 @@ async fn run(
     shared: Arc<Shared>,
 ) {
     let mut librespot_events = player.get_player_event_channel();
+    let mut stopped_track = None;
+    let mut playback_request = PlaybackRequest::default();
 
     loop {
         tokio::select! {
             command = commands.recv() => {
                 let Some(command) = command else { break };
-                if !apply(&player, command, &events, &shared) {
+                let command = reload_after_stop(
+                    command,
+                    &mut stopped_track,
+                    &shared.snapshot.lock().unwrap(),
+                );
+                if !apply(&player, command, &events, &shared, &mut playback_request) {
                     break;
                 }
             }
             event = librespot_events.recv() => {
                 let Some(event) = event else { break };
-                translate(event, &events, &shared);
+                translate(event, &events, &shared, &mut playback_request);
             }
         }
     }
@@ -330,18 +386,55 @@ async fn run(
     tracing::debug!("motor de reproducao encerrado");
 }
 
+/// A librespot descarrega a faixa ao parar: `play()` sozinho nao a retoma.
+/// Guardamos a intencao pelo comando, sem esperar o evento `Stopped`, que
+/// pode chegar depois de um novo pedido de reproducao.
+fn reload_after_stop(
+    command: PlayerCommand,
+    stopped_track: &mut Option<Arc<Track>>,
+    snapshot: &PlayerSnapshot,
+) -> PlayerCommand {
+    match command {
+        PlayerCommand::Stop => {
+            *stopped_track = snapshot.track.clone();
+            PlayerCommand::Stop
+        }
+        command @ (PlayerCommand::Play | PlayerCommand::TogglePlay) => match stopped_track.take() {
+            Some(track) => PlayerCommand::Load {
+                track: (*track).clone(),
+                start_paused: false,
+            },
+            None => command,
+        },
+        command @ PlayerCommand::Load { .. } => {
+            // Uma troca explicita de faixa substitui a que foi parada.
+            *stopped_track = None;
+            command
+        }
+        command => command,
+    }
+}
+
 /// Executa um comando. Devolve `false` quando o motor deve encerrar.
 fn apply(
     player: &Arc<Player>,
     command: PlayerCommand,
     events: &broadcast::Sender<PlayerEvent>,
     shared: &Arc<Shared>,
+    playback_request: &mut PlaybackRequest,
 ) -> bool {
     match command {
         PlayerCommand::Load {
             track,
             start_paused,
-        } => load(player, &track, start_paused, events, shared),
+        } => load(
+            player,
+            &track,
+            start_paused,
+            events,
+            shared,
+            playback_request,
+        ),
         // Adiantar nao mexe no retrato nem pede descarte: a faixa que esta
         // tocando continua sendo a que toca. A librespot ignora o pedido se ja
         // tiver essa faixa pronta ou em carregamento, entao repetir e barato.
@@ -398,6 +491,7 @@ fn load(
     start_paused: bool,
     events: &broadcast::Sender<PlayerEvent>,
     shared: &Arc<Shared>,
+    playback_request: &mut PlaybackRequest,
 ) {
     let uri = match to_spotify_uri(&track.id) {
         Ok(uri) => uri,
@@ -406,6 +500,8 @@ fn load(
             return;
         }
     };
+
+    playback_request.begin_load();
 
     // A duracao vem do modelo, e nao de uma consulta de metadados: quem pediu
     // para tocar ja tinha a faixa em maos, e uma requisicao a mais aqui atrasa
@@ -430,9 +526,24 @@ fn load(
 }
 
 /// Traduz um evento da librespot para o vocabulario do core.
-fn translate(event: LibrespotEvent, events: &broadcast::Sender<PlayerEvent>, shared: &Arc<Shared>) {
+fn translate(
+    event: LibrespotEvent,
+    events: &broadcast::Sender<PlayerEvent>,
+    shared: &Arc<Shared>,
+    playback_request: &mut PlaybackRequest,
+) {
     match event {
-        LibrespotEvent::Playing { position_ms, .. } => {
+        LibrespotEvent::PlayRequestIdChanged { play_request_id } => {
+            playback_request.observe_request_id(play_request_id);
+        }
+        LibrespotEvent::Playing {
+            play_request_id,
+            position_ms,
+            ..
+        } => {
+            if !playback_request.accepts(play_request_id) {
+                return;
+            }
             let position = Duration::from_millis(position_ms as u64);
             shared.clock.lock().unwrap().set(position, true);
             shared.update(|s| {
@@ -442,7 +553,14 @@ fn translate(event: LibrespotEvent, events: &broadcast::Sender<PlayerEvent>, sha
             let _ = events.send(PlayerEvent::Buffering(false));
             let _ = events.send(PlayerEvent::StateChanged(PlaybackState::Playing));
         }
-        LibrespotEvent::Paused { position_ms, .. } => {
+        LibrespotEvent::Paused {
+            play_request_id,
+            position_ms,
+            ..
+        } => {
+            if !playback_request.accepts(play_request_id) {
+                return;
+            }
             let position = Duration::from_millis(position_ms as u64);
             shared.clock.lock().unwrap().set(position, false);
             shared.update(|s| {
@@ -451,7 +569,14 @@ fn translate(event: LibrespotEvent, events: &broadcast::Sender<PlayerEvent>, sha
             });
             let _ = events.send(PlayerEvent::StateChanged(PlaybackState::Paused));
         }
-        LibrespotEvent::Loading { position_ms, .. } => {
+        LibrespotEvent::Loading {
+            play_request_id,
+            position_ms,
+            ..
+        } => {
+            if !playback_request.accepts(play_request_id) {
+                return;
+            }
             shared
                 .clock
                 .lock()
@@ -464,7 +589,12 @@ fn translate(event: LibrespotEvent, events: &broadcast::Sender<PlayerEvent>, sha
             let _ = events.send(PlayerEvent::Buffering(true));
             let _ = events.send(PlayerEvent::StateChanged(PlaybackState::Loading));
         }
-        LibrespotEvent::Stopped { .. } => {
+        LibrespotEvent::Stopped {
+            play_request_id, ..
+        } => {
+            if !playback_request.accepts(play_request_id) {
+                return;
+            }
             shared.clock.lock().unwrap().pause();
             shared.update(|s| {
                 s.state = PlaybackState::Stopped;
@@ -472,7 +602,12 @@ fn translate(event: LibrespotEvent, events: &broadcast::Sender<PlayerEvent>, sha
             });
             let _ = events.send(PlayerEvent::StateChanged(PlaybackState::Stopped));
         }
-        LibrespotEvent::EndOfTrack { .. } => {
+        LibrespotEvent::EndOfTrack {
+            play_request_id, ..
+        } => {
+            if !playback_request.accepts(play_request_id) {
+                return;
+            }
             // Quem decide a proxima faixa e a fila. O motor so avisa que esta
             // acabou -- e `Queue::next(false)` sabe que o avanco foi automatico,
             // que e o que faz "repetir uma" funcionar.
@@ -488,7 +623,14 @@ fn translate(event: LibrespotEvent, events: &broadcast::Sender<PlayerEvent>, sha
                 let _ = events.send(PlayerEvent::EndOfTrack(id));
             }
         }
-        LibrespotEvent::Unavailable { track_id, .. } => {
+        LibrespotEvent::Unavailable {
+            play_request_id,
+            track_id,
+            ..
+        } => {
+            if !playback_request.accepts(play_request_id) {
+                return;
+            }
             let _ = events.send(PlayerEvent::Error(format!(
                 "faixa indisponivel na sua regiao: {}",
                 track_id.to_uri().unwrap_or_else(|_| "desconhecida".into())
@@ -496,8 +638,19 @@ fn translate(event: LibrespotEvent, events: &broadcast::Sender<PlayerEvent>, sha
             shared.update(|s| s.state = PlaybackState::Stopped);
             let _ = events.send(PlayerEvent::StateChanged(PlaybackState::Stopped));
         }
-        LibrespotEvent::PositionCorrection { position_ms, .. }
-        | LibrespotEvent::Seeked { position_ms, .. } => {
+        LibrespotEvent::PositionCorrection {
+            play_request_id,
+            position_ms,
+            ..
+        }
+        | LibrespotEvent::Seeked {
+            play_request_id,
+            position_ms,
+            ..
+        } => {
+            if !playback_request.accepts(play_request_id) {
+                return;
+            }
             let position = Duration::from_millis(position_ms as u64);
             let running = shared.snapshot.lock().unwrap().state == PlaybackState::Playing;
             shared.clock.lock().unwrap().set(position, running);
@@ -514,6 +667,177 @@ fn translate(event: LibrespotEvent, events: &broadcast::Sender<PlayerEvent>, sha
 mod tests {
     use super::*;
     use morune_core::queue::RepeatMode;
+
+    fn playback_track(id: &str) -> Track {
+        Track {
+            id: TrackId::spotify(id),
+            name: id.into(),
+            artists: vec![],
+            album: None,
+            duration: Duration::from_secs(180),
+            track_number: None,
+            disc_number: None,
+            explicit: false,
+            playable: true,
+        }
+    }
+
+    #[test]
+    fn a_new_load_invalidates_events_from_the_previous_request() {
+        let mut request = PlaybackRequest::default();
+        request.begin_load();
+        assert!(request.observe_request_id(10));
+        assert!(request.accepts(10));
+
+        request.begin_load();
+        assert!(!request.accepts(10));
+        assert!(request.observe_request_id(11));
+        assert!(request.accepts(11));
+    }
+
+    #[test]
+    fn pending_loads_keep_the_request_ids_in_their_original_order() {
+        let mut request = PlaybackRequest::default();
+        request.begin_load();
+        request.begin_load();
+
+        assert!(!request.observe_request_id(10));
+        assert!(!request.accepts(10));
+        assert!(request.observe_request_id(11));
+        assert!(request.accepts(11));
+        assert!(!request.observe_request_id(12));
+    }
+
+    #[test]
+    fn play_after_stop_reloads_even_before_the_stopped_event() {
+        for state in [
+            PlaybackState::Playing,
+            PlaybackState::Loading,
+            PlaybackState::Stopped,
+        ] {
+            for resume in [PlayerCommand::Play, PlayerCommand::TogglePlay] {
+                let track = playback_track("4cOdK2wGLETKBW3PvgPWqT");
+                let snapshot = PlayerSnapshot {
+                    state,
+                    track: Some(Arc::new(track.clone())),
+                    position: Duration::from_secs(42),
+                    ..PlayerSnapshot::default()
+                };
+                let mut stopped_track = None;
+                assert_eq!(
+                    reload_after_stop(PlayerCommand::Stop, &mut stopped_track, &snapshot),
+                    PlayerCommand::Stop
+                );
+                assert_eq!(
+                    reload_after_stop(resume, &mut stopped_track, &snapshot),
+                    PlayerCommand::Load {
+                        track,
+                        start_paused: false
+                    }
+                );
+                assert!(stopped_track.is_none());
+                assert_eq!(
+                    reload_after_stop(PlayerCommand::Play, &mut stopped_track, &snapshot),
+                    PlayerCommand::Play
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn pause_and_play_without_stop_do_not_reload() {
+        let snapshot = PlayerSnapshot {
+            state: PlaybackState::Paused,
+            track: Some(Arc::new(playback_track("4cOdK2wGLETKBW3PvgPWqT"))),
+            position: Duration::from_secs(42),
+            ..PlayerSnapshot::default()
+        };
+        let mut stopped_track = None;
+        for command in [
+            PlayerCommand::Pause,
+            PlayerCommand::Play,
+            PlayerCommand::TogglePlay,
+        ] {
+            assert_eq!(
+                reload_after_stop(command.clone(), &mut stopped_track, &snapshot),
+                command
+            );
+        }
+    }
+
+    #[test]
+    fn preload_and_settings_preserve_the_stopped_track() {
+        let track = playback_track("4cOdK2wGLETKBW3PvgPWqT");
+        let snapshot = PlayerSnapshot {
+            track: Some(Arc::new(track.clone())),
+            ..PlayerSnapshot::default()
+        };
+        let mut stopped_track = None;
+        reload_after_stop(PlayerCommand::Stop, &mut stopped_track, &snapshot);
+        for command in [
+            PlayerCommand::Preload(playback_track("0000000000000000000000")),
+            PlayerCommand::Pause,
+            PlayerCommand::Stop,
+            PlayerCommand::SetVolume(0.5),
+            PlayerCommand::SetShuffle(true),
+            PlayerCommand::SetRepeat(RepeatMode::One),
+        ] {
+            assert_eq!(
+                reload_after_stop(command.clone(), &mut stopped_track, &snapshot),
+                command
+            );
+            assert_eq!(stopped_track.as_deref(), Some(&track));
+        }
+        assert_eq!(
+            reload_after_stop(PlayerCommand::Play, &mut stopped_track, &snapshot),
+            PlayerCommand::Load {
+                track,
+                start_paused: false
+            }
+        );
+    }
+
+    #[test]
+    fn loading_another_track_cancels_the_stopped_track_restart() {
+        for start_paused in [false, true] {
+            let snapshot = PlayerSnapshot {
+                track: Some(Arc::new(playback_track("4cOdK2wGLETKBW3PvgPWqT"))),
+                ..PlayerSnapshot::default()
+            };
+            let mut stopped_track = None;
+            reload_after_stop(PlayerCommand::Stop, &mut stopped_track, &snapshot);
+            let command = PlayerCommand::Load {
+                track: playback_track("0000000000000000000000"),
+                start_paused,
+            };
+            assert_eq!(
+                reload_after_stop(command.clone(), &mut stopped_track, &snapshot),
+                command
+            );
+            assert!(stopped_track.is_none());
+            assert_eq!(
+                reload_after_stop(PlayerCommand::Play, &mut stopped_track, &snapshot),
+                PlayerCommand::Play
+            );
+        }
+    }
+
+    #[test]
+    fn stop_without_a_track_does_not_invent_a_load() {
+        let snapshot = PlayerSnapshot::default();
+        let mut stopped_track = None;
+        for command in [
+            PlayerCommand::Stop,
+            PlayerCommand::Play,
+            PlayerCommand::TogglePlay,
+        ] {
+            assert_eq!(
+                reload_after_stop(command.clone(), &mut stopped_track, &snapshot),
+                command
+            );
+        }
+        assert!(stopped_track.is_none());
+    }
 
     #[test]
     fn volume_curve_is_monotonic_and_bounded() {

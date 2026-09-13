@@ -146,9 +146,7 @@ impl Estado {
 ///
 /// Separado do vigia para poder ser testado sem placa de som.
 fn ja_pode_fechar(parado_desde: Option<Instant>, aberta: bool, agora: Instant) -> bool {
-    aberta
-        && parado_desde
-            .is_some_and(|t| agora.saturating_duration_since(t) >= GRACA_ATE_FECHAR)
+    aberta && parado_desde.is_some_and(|t| agora.saturating_duration_since(t) >= GRACA_ATE_FECHAR)
 }
 
 pub(crate) struct MoruneSink {
@@ -256,8 +254,12 @@ fn vigiar(estado: &Arc<Mutex<Estado>>) {
         .name("morune-audio-ocioso".to_string())
         .spawn(move || loop {
             thread::sleep(RONDA);
-            let Some(estado) = fraco.upgrade() else { return };
-            let Ok(mut estado) = estado.lock() else { return };
+            let Some(estado) = fraco.upgrade() else {
+                return;
+            };
+            let Ok(mut estado) = estado.lock() else {
+                return;
+            };
             if ja_pode_fechar(estado.parado_desde, estado.saida.is_some(), Instant::now()) {
                 // O `Drop` do `OutputStream` e que fecha o dispositivo e
                 // encerra a thread do WASAPI.
@@ -391,7 +393,11 @@ pub(crate) fn open(
 ) -> Result<MoruneSink, String> {
     let saida = abrir_saida(preferido, &volume)?;
     tracing::info!(
-        preferido = if preferido.is_empty() { "padrao do sistema" } else { preferido },
+        preferido = if preferido.is_empty() {
+            "padrao do sistema"
+        } else {
+            preferido
+        },
         "saida de audio pronta"
     );
 
