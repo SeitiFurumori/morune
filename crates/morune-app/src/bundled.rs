@@ -64,6 +64,12 @@ const THEMES: &[BundledTheme] = &[
                 name: "theme.toml",
                 contents: BundledContents::Text(include_str!("../themes/bruma/theme.toml")),
             },
+            BundledFile {
+                name: "assets/atmosfera.svg",
+                contents: BundledContents::Text(include_str!(
+                    "../themes/bruma/assets/atmosfera.svg"
+                )),
+            },
         ],
     },
     BundledTheme {
@@ -110,6 +116,12 @@ const THEMES: &[BundledTheme] = &[
             BundledFile {
                 name: "fundo.png",
                 contents: BundledContents::Bytes(include_bytes!("../themes/aquario/fundo.png")),
+            },
+            BundledFile {
+                name: "assets/cidade-aero.jpg",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/aquario/assets/cidade-aero.jpg"
+                )),
             },
         ],
     },
@@ -158,6 +170,14 @@ pub fn install_missing(themes_dir: &Path) -> Vec<&'static str> {
 
         let mut ok = true;
         for file in theme.files {
+            // Os assets de musicpack vivem em subpastas do tema.
+            if let Some(parent) = dir.join(file.name).parent() {
+                if let Err(e) = std::fs::create_dir_all(parent) {
+                    tracing::warn!(theme = theme.id, file = file.name, error = %e, "falha ao criar pasta do asset");
+                    ok = false;
+                    continue;
+                }
+            }
             let escrita = match file.contents {
                 BundledContents::Text(t) => std::fs::write(dir.join(file.name), t),
                 BundledContents::Bytes(b) => std::fs::write(dir.join(file.name), b),
@@ -253,7 +273,16 @@ mod tests {
         let manifesto = paper.join("manifest.toml");
         let original = std::fs::read_to_string(&manifesto).unwrap();
         // Finge uma instalacao antiga.
-        std::fs::write(&manifesto, original.replace("1.1.0", "1.0.0")).unwrap();
+        let version_line = original
+            .lines()
+            .find(|line| line.trim_start().starts_with("version"))
+            .expect("tema embutido sempre tem versao");
+        let outdated = original.replacen(version_line, "version = \"0.0.0\"", 1);
+        assert_ne!(
+            outdated, original,
+            "a versao simulada precisa ser mais antiga"
+        );
+        std::fs::write(&manifesto, outdated).unwrap();
         std::fs::write(paper.join("theme.toml"), "editado a mao").unwrap();
 
         let atualizados = install_missing(&dir);
@@ -261,10 +290,9 @@ mod tests {
             atualizados.contains(&"paper"),
             "paper devia ter sido atualizado"
         );
-        assert!(
-            std::fs::read_to_string(&manifesto)
-                .unwrap()
-                .contains("1.1.0"),
+        assert_eq!(
+            std::fs::read_to_string(&manifesto).unwrap(),
+            original,
             "o manifesto instalado devia ser o novo"
         );
         assert_eq!(
@@ -409,6 +437,212 @@ mod tests {
             "tema de fabrica reprovando contraste:\n{}",
             culpados.join("\n")
         );
+    }
+
+    /// A translucidez e das superficies. Alfa global tambem apaga glifos e
+    /// capas via WS_EX_LAYERED, mesmo quando seus tokens sao opacos.
+    #[test]
+    fn temas_de_vidro_preservam_opacidade_do_conteudo() {
+        let dir = temp_dir("vidro-opacidade");
+        install_missing(&dir);
+        for id in ["bruma", "aquario"] {
+            let spec = morune_theme::load(&dir, id).spec;
+            assert_eq!(spec.effects.window_opacity, 1.0, "{id}");
+            for tinta in [
+                spec.colors.text,
+                spec.colors.text_muted,
+                spec.colors.text_on_accent,
+            ] {
+                assert_eq!(tinta.a, 255, "{id}: tinta translucida");
+            }
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn assert_texto_legivel(
+        spec: &morune_theme::ThemeSpec,
+        fundo: morune_theme::Color,
+        contexto: &str,
+    ) {
+        for (nome, tinta) in [
+            ("text", spec.colors.text),
+            ("text_muted", spec.colors.text_muted),
+        ] {
+            let contraste = tinta.over(fundo).contrast_ratio(fundo);
+            assert!(
+                contraste >= 4.5,
+                "{}: {nome} em {contexto}: {contraste:.2}:1, fundo {fundo:?}",
+                spec.manifest.id
+            );
+        }
+    }
+
+    /// Complementa o validador geral de 3:1 sem restringir temas personalizados.
+    /// Cobre as camadas de cor, nao reflexos bitmap nem o compositor do Windows.
+    #[test]
+    fn texto_dos_temas_de_vidro_resiste_a_superficies_e_estados() {
+        use morune_theme::Color;
+        let dir = temp_dir("vidro-camadas");
+        install_missing(&dir);
+        for id in ["bruma", "aquario"] {
+            let spec = morune_theme::load(&dir, id).spec;
+            let c = &spec.colors;
+            for desktop in [Color::rgb(0, 0, 0), Color::rgb(255, 255, 255)] {
+                let base = c.background.over(desktop);
+                for (nome, superficie) in [
+                    ("conteudo", Color::TRANSPARENT),
+                    ("painel", c.surface),
+                    ("menu", c.surface_raised),
+                    ("sidebar", c.sidebar_background),
+                    ("player", c.player_background),
+                ] {
+                    let fundo = superficie.over(base);
+                    for estado in [Color::TRANSPARENT, c.hover, c.selected] {
+                        assert_texto_legivel(&spec, estado.over(fundo), nome);
+                        if nome == "player" && spec.effects.artwork_tint {
+                            for capa in [Color::rgb(0, 0, 0), Color::rgb(255, 255, 255)] {
+                                let tingido = capa
+                                    .scale_alpha(spec.effects.artwork_tint_strength)
+                                    .over(fundo);
+                                assert_texto_legivel(&spec, estado.over(tingido), "player tingido");
+                            }
+                        }
+                    }
+                }
+                for acento in [c.accent, c.accent_hover] {
+                    let fundo = acento.over(base);
+                    assert!(
+                        c.text_on_accent.over(fundo).contrast_ratio(fundo) >= 4.5,
+                        "{id}: acento"
+                    );
+                }
+            }
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Decodificacao de arquivo apenas: nao cria janela nem captura a tela.
+    /// Verifica todos os pixels da cena, com opacidade, veu e realces da UI.
+    #[test]
+    fn aquario_preserva_texto_sobre_a_imagem_de_fundo() {
+        use morune_theme::Color;
+        let dir = temp_dir("aquario-pixels");
+        install_missing(&dir);
+        let spec = morune_theme::load(&dir, "aquario").spec;
+        // Usa a mesma reducao da tela, inclusive para fotografias grandes.
+        let image =
+            crate::wallpaper::load(Some(&dir.join("aquario")), &spec.background, None).image;
+        let pixels = image.to_rgba8().expect("PNG deve disponibilizar pixels");
+        assert!(!pixels.as_slice().is_empty());
+        let surface = crate::optics::readable_tint(&image, spec.colors.surface, &spec);
+        let sidebar = crate::optics::readable_tint(&image, spec.colors.sidebar_background, &spec);
+        let mut pior = Color::rgb(255, 255, 255);
+        let mut luminancia_minima = f32::MAX;
+        for pixel in pixels.as_slice() {
+            let cena = Color::rgba(pixel.r, pixel.g, pixel.b, pixel.a)
+                .scale_alpha(spec.background.opacity)
+                .over(spec.colors.background);
+            let fundo = spec
+                .background
+                .tint
+                .scale_alpha(spec.background.tint_strength)
+                .over(cena);
+            for estado in [Color::TRANSPARENT, spec.colors.hover, spec.colors.selected] {
+                // Inclui o suporte de leitura e a copia suave da cena nas barras.
+                let conteudo = surface.over(fundo);
+                let barra = Color::rgba(pixel.r, pixel.g, pixel.b, pixel.a)
+                    .scale_alpha(0.7 * 0.12)
+                    .over(sidebar.over(fundo));
+                let base = if conteudo.relative_luminance() < barra.relative_luminance() {
+                    conteudo
+                } else {
+                    barra
+                };
+                let composto = estado.over(base);
+                let luminancia = composto.relative_luminance();
+                if luminancia < luminancia_minima {
+                    luminancia_minima = luminancia;
+                    pior = composto;
+                }
+            }
+        }
+        // As duas tintas sao opacas e mais escuras que qualquer pixel da cena;
+        // portanto o pixel de menor luminancia e o pior caso para ambas.
+        assert!(spec.colors.text.relative_luminance() < luminancia_minima);
+        assert!(spec.colors.text_muted.relative_luminance() < luminancia_minima);
+        assert_texto_legivel(&spec, pior, "pior pixel da cena com realce");
+        println!(
+            "Aquario: menor contraste secundario na cena = {:.2}:1",
+            spec.colors.text_muted.contrast_ratio(pior)
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn bruma_preserva_leitura_sobre_cena_branca_e_reflexo() {
+        use morune_theme::Color;
+        let dir = temp_dir("bruma-cena-clara");
+        install_missing(&dir);
+        let spec = morune_theme::load(&dir, "bruma").spec;
+        assert!(
+            spec.effects.acrylic,
+            "Bruma deve pedir o fundo nativo do desktop"
+        );
+        assert!(
+            spec.background.image.is_empty(),
+            "wallpaper nao pode encobrir o desktop"
+        );
+        let branco = Color::rgb(255, 255, 255);
+        let mut white_pixels = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(1, 1);
+        white_pixels.make_mut_slice()[0] = slint::Rgba8Pixel::new(255, 255, 255, 255);
+        let white_image = slint::Image::from_rgba8(white_pixels);
+        let mut dark_pixels = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(1, 1);
+        dark_pixels.make_mut_slice()[0] = slint::Rgba8Pixel::new(20, 27, 34, 255);
+        let dark_image = slint::Image::from_rgba8(dark_pixels);
+        let mut rim_pixels = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(32, 32);
+        for (i, pixel) in rim_pixels.make_mut_slice().iter_mut().enumerate() {
+            let (x, y) = (i % 32, i / 32);
+            *pixel = if x < 4 || y < 4 || x >= 28 || y >= 28 {
+                slint::Rgba8Pixel::new(255, 255, 255, 255)
+            } else {
+                slint::Rgba8Pixel::new(20, 27, 34, 255)
+            };
+        }
+        let rim_image = slint::Image::from_rgba8(rim_pixels);
+        for tint in [
+            spec.colors.sidebar_background,
+            spec.colors.player_background,
+        ] {
+            let adjusted = crate::optics::readable_glass_tint(&white_image, tint, &spec);
+            let clear = crate::optics::readable_glass_tint(&dark_image, tint, &spec);
+            assert_eq!(
+                crate::optics::readable_glass_tint(&rim_image, tint, &spec).a,
+                clear.a,
+                "o brilho decorativo da orla nao pode escurecer o centro"
+            );
+            assert_eq!(
+                clear.a, tint.a,
+                "cena escura preserva a transparencia pedida"
+            );
+            assert!(
+                adjusted.a > clear.a,
+                "protecao so aumenta quando a cena exige"
+            );
+            let painel = adjusted.over(branco);
+            // Limites superiores do tint da capa e do reflexo de Glass.
+            let painel = branco
+                .scale_alpha(spec.effects.artwork_tint_strength)
+                .over(painel);
+            let painel = branco.scale_alpha(0.1 * spec.effects.gloss).over(painel);
+            for estado in [Color::TRANSPARENT, spec.colors.hover, spec.colors.selected] {
+                assert_texto_legivel(
+                    &spec,
+                    estado.over(painel),
+                    "cena branca + tint + reflexo + estado",
+                );
+            }
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

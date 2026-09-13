@@ -52,7 +52,10 @@ param(
     [string]$Size = "1919x1030",
     [string]$Exe = "$env:LOCALAPPDATA\Programs\Morune\morune.exe",
     [string]$OutDir = "$PSScriptRoot\..\bench-out\revisao",
-    [int]$WarmupSeconds = 7
+    [int]$WarmupSeconds = 7,
+    [switch]$OverviewOnly,
+    [switch]$DesktopComposition,
+    [switch]$BackdropProbe
 )
 
 $ErrorActionPreference = "Stop"
@@ -63,6 +66,8 @@ using System;
 using System.Runtime.InteropServices;
 public struct RECT { public int Left, Top, Right, Bottom; }
 public class RV {
+    [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+    [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, uint flags);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int a, out RECT r, int s);
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint f);
@@ -78,6 +83,7 @@ public class RV {
 "@
 
 $LARGURA, $ALTURA = $Size.Split("x") | ForEach-Object { [int]$_ }
+[RV]::SetThreadDpiAwarenessContext([IntPtr](-4)) | Out-Null
 
 # As cenas.
 #
@@ -120,6 +126,14 @@ function Set-Frente {
     $ok = [RV]::SetForegroundWindow($Hwnd)
     [RV]::AttachThreadInput($meu, $dele, $false) | Out-Null
     Start-Sleep -Milliseconds 400
+    if (-not (Test-MesmoHwnd ([RV]::GetForegroundWindow()) $Hwnd)) {
+        [RV]::SetWindowPos($Hwnd, [IntPtr](-1), 0, 0, 0, 0, 0x0043) | Out-Null
+        $focusRect = Get-Retangulo $Hwnd
+        Invoke-Clique ($focusRect.Left + 280) ($focusRect.Top + 18)
+        [RV]::SetWindowPos($Hwnd, [IntPtr](-2), 0, 0, 0, 0, 0x0043) | Out-Null
+        Start-Sleep -Milliseconds 400
+        $ok = Test-MesmoHwnd ([RV]::GetForegroundWindow()) $Hwnd
+    }
     return $ok
 }
 
@@ -140,6 +154,35 @@ function Invoke-Clique {
 # errada parecendo ter dado certo.
 function Save-Captura {
     param([IntPtr]$Hwnd, [string]$Caminho)
+
+    # Prefere o quadro da janela; nao depende do foco nem captura outros apps.
+    # PrintWindow inclui a moldura: usar limites DWM cortava o quadro em DPI alto.
+    $r = New-Object RECT
+    [RV]::GetWindowRect($Hwnd, [ref]$r) | Out-Null
+    $w = $r.Right - $r.Left
+    $h = $r.Bottom - $r.Top
+    if ($w -le 0 -or $h -le 0) { return $false }
+    $captura = New-Object System.Drawing.Bitmap $w, $h
+    $pintura = [System.Drawing.Graphics]::FromImage($captura)
+    $dc = $pintura.GetHdc()
+    $ok = (-not $DesktopComposition) -and [RV]::PrintWindow($Hwnd, $dc, 2)
+    $pintura.ReleaseHdc($dc)
+    $pintura.Dispose()
+    $tons = @{}
+    if ($ok) {
+        for ($x = 0; $x -lt $w; $x += 24) {
+            for ($y = 0; $y -lt $h; $y += 24) {
+                $pixel = $captura.GetPixel($x, $y)
+                $tons["$([int]($pixel.R / 8)),$([int]($pixel.G / 8)),$([int]($pixel.B / 8))"] = $true
+            }
+        }
+    }
+    if ($ok -and $tons.Count -ge 12) {
+        $captura.Save($Caminho, [System.Drawing.Imaging.ImageFormat]::Png)
+        $captura.Dispose()
+        return $true
+    }
+    $captura.Dispose()
 
     if (-not (Test-MesmoHwnd ([RV]::GetForegroundWindow()) $Hwnd)) {
         Set-Frente $Hwnd | Out-Null
@@ -176,8 +219,22 @@ if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Force $OutDir | Ou
 $configPath = Join-Path $env:APPDATA "morune\Morune\config\config.toml"
 if (-not (Test-Path $configPath)) { Write-Error "Config nao encontrado: $configPath" }
 $backup = Get-Content $configPath -Raw
+$probeWindow = $null
 
 try {
+    if ($BackdropProbe) {
+        $DesktopComposition = $true
+        $probeScript = Join-Path $PSScriptRoot 'probe-backdrop.ps1'
+        $probeWindow = Start-Process (Get-Process -Id $PID).Path -WindowStyle Hidden -PassThru -ArgumentList @(
+            '-NoProfile', '-File', "`"$probeScript`"", '-Width', $LARGURA, '-Height', $ALTURA
+        )
+        for ($probeWait = 0; $probeWait -lt 100; $probeWait++) {
+            $probeWindow.Refresh()
+            if ($probeWindow.MainWindowHandle -ne 0) { break }
+            if ($probeWindow.HasExited) { throw 'A janela de teste nao abriu.' }
+            Start-Sleep -Milliseconds 100
+        }
+    }
     foreach ($tema in $Themes) {
         Write-Host "== $tema ==" -ForegroundColor Cyan
 
@@ -214,6 +271,9 @@ try {
         if ($proc.MainWindowHandle -eq 0) { Write-Error "a janela principal nao apareceu" }
         $hwnd = $proc.MainWindowHandle
 
+        # Restaura antes de redimensionar: uma janela maximizada mantinha o
+        # viewport antigo e PrintWindow mostrava apenas parte do quadro.
+        [RV]::ShowWindow($hwnd, 9) | Out-Null
         Set-Frente $hwnd | Out-Null
         # SWP_NOMOVE nao: a janela vai para 0,0 para as coordenadas de cliente
         # baterem com as da tela sem conta nenhuma.
@@ -222,7 +282,10 @@ try {
 
         $r = Get-Retangulo $hwnd
 
-        foreach ($cena in $CENAS) {
+        $cenasDaRodada = if ($OverviewOnly) {
+            @(@{ nome = "visao"; click = $null; hover = $null; espera = 1500 })
+        } else { $CENAS }
+        foreach ($cena in $cenasDaRodada) {
             if ($null -ne $cena.click) {
                 Invoke-Clique ($r.Left + $cena.click[0]) ($r.Top + $cena.click[1])
             }
@@ -235,6 +298,13 @@ try {
             if (Save-Captura $hwnd $arq) {
                 Write-Host ("  {0}" -f (Split-Path -Leaf $arq)) -ForegroundColor Green
             }
+            if ($BackdropProbe) {
+                Start-Sleep -Seconds 30
+                $alternado = Join-Path $OutDir "$tema-$($cena.nome)-fundo-alternado.png"
+                if (Save-Captura $hwnd $alternado) {
+                    Write-Host (Split-Path -Leaf $alternado)
+                }
+            }
         }
 
         try { $proc.Kill() } catch { }
@@ -242,6 +312,7 @@ try {
     }
 }
 finally {
+    if ($null -ne $probeWindow -and -not $probeWindow.HasExited) { $probeWindow.Kill() }
     Set-Content $configPath $backup -Encoding utf8
     Write-Host "configuracao restaurada" -ForegroundColor DarkGray
 }

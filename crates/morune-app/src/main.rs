@@ -1,4 +1,4 @@
-﻿//! Ponto de entrada do Morune.
+//! Ponto de entrada do Morune.
 //!
 //! A ordem de inicializacao aqui e deliberada e faz parte do orcamento de
 //! startup: nada que dependa de rede acontece antes da janela aparecer.
@@ -9,9 +9,9 @@
 //! 4. janela
 //! 5. so entao autenticacao, biblioteca, cache
 
-// Sem console preto atras da janela no Windows. Em depuracao o console e util,
-// entao a supressao vale so para builds de release.
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// Sem console preto atras da janela no Windows, inclusive quando o executavel
+// e iniciado diretamente pelo Explorer para uma sessao de uso diario.
+#![cfg_attr(windows, windows_subsystem = "windows")]
 // A unica fronteira `unsafe` do aplicativo fica isolada em `taskbar.rs`: a API
 // nativa exige COM, HWND e um callback Win32. Dentro dela, cada operacao ainda
 // precisa declarar explicitamente o seu bloco inseguro.
@@ -24,6 +24,7 @@ mod bundled;
 mod clipboard;
 #[cfg(windows)]
 mod instance;
+mod optics;
 mod session;
 #[cfg(windows)]
 mod smtc;
@@ -212,7 +213,11 @@ fn main() -> anyhow::Result<()> {
     {
         let s = state.borrow();
         let (opacity, material) = s.window_effects();
-        ensure_window_effects(window.window(), opacity, backdrop_da_janela(material, s.tela_cheia_ativa()));
+        window.set_native_backdrop_active(ensure_window_effects(
+            window.window(),
+            opacity,
+            backdrop_da_janela(material, s.tela_cheia_ativa()),
+        ));
     }
     #[cfg(windows)]
     let _taskbar_poll = wire_taskbar(&window, &state);
@@ -376,39 +381,22 @@ fn backdrop_da_janela(pedido_do_tema: bool, tela_cheia: bool) -> Backdrop {
     }
 }
 
-/// Qual material de fundo o Windows deve pintar atras da janela.
-///
-/// **Por que dois, e nao um interruptor.** A documentacao de materiais do
-/// Windows e explicita: "Acrylic is used **only** for transient, light-dismiss
-/// surfaces such as flyouts and context menus", e Mica e o material "of
-/// long-lived windows such as apps and settings". Sao superficies diferentes com
-/// materiais diferentes, e o Morune tem as duas.
-///
-/// Isto tambem conserta o pior caso conhecido do projeto: acrilico amostra o que
-/// esta atras da janela e, sobre um jogo em tela cheia, colapsa em cinza
-/// chapado. Mica amostra o papel de parede **uma vez so** -- a propria Microsoft
-/// diz que ele "is specifically designed for app performance" --, e acrilico e
-/// descrito como "GPU-intensive, which can increase device power consumption and
-/// shorten battery life". Para um aplicativo que existe para nao atrapalhar quem
-/// esta jogando, a escolha se faz sozinha.
+/// Material de fundo que o Windows deve pintar atras da janela.
 #[cfg(windows)]
 #[derive(Clone, Copy, PartialEq)]
 enum Backdrop {
     /// Sem material: o tema pinta o fundo inteiro.
     None,
-    /// Janela de vida longa. O material do aplicativo.
-    Mica,
-    /// Superficie transitoria: o menu da bandeja.
+    /// Superficie translucida do aplicativo enquanto ele esta visivel.
     Acrylic,
 }
 
 #[cfg(windows)]
-fn ensure_window_effects(window: &slint::Window, opacity: f32, backdrop: Backdrop) {
+fn ensure_window_effects(window: &slint::Window, opacity: f32, backdrop: Backdrop) -> bool {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
     use windows::Win32::Foundation::{COLORREF, HWND};
     use windows::Win32::Graphics::Dwm::{
-        DwmSetWindowAttribute, DWMSBT_MAINWINDOW, DWMSBT_NONE, DWMSBT_TRANSIENTWINDOW,
-        DWMWA_SYSTEMBACKDROP_TYPE,
+        DwmSetWindowAttribute, DWMSBT_NONE, DWMSBT_TRANSIENTWINDOW, DWMWA_SYSTEMBACKDROP_TYPE,
     };
     use windows::Win32::Graphics::Gdi::{
         RedrawWindow, RDW_ALLCHILDREN, RDW_ERASE, RDW_FRAME, RDW_INVALIDATE,
@@ -420,15 +408,14 @@ fn ensure_window_effects(window: &slint::Window, opacity: f32, backdrop: Backdro
 
     let handle = window.window_handle();
     let Ok(handle) = handle.window_handle() else {
-        return;
+        return false;
     };
     let RawWindowHandle::Win32(raw) = handle.as_raw() else {
-        return;
+        return false;
     };
     let hwnd = HWND(raw.hwnd.get() as *mut std::ffi::c_void);
 
     let backdrop = match backdrop {
-        Backdrop::Mica => DWMSBT_MAINWINDOW,
         Backdrop::Acrylic => DWMSBT_TRANSIENTWINDOW,
         Backdrop::None => DWMSBT_NONE,
     };
@@ -442,6 +429,7 @@ fn ensure_window_effects(window: &slint::Window, opacity: f32, backdrop: Backdro
             std::mem::size_of_val(&backdrop) as u32,
         )
     };
+    let native_backdrop = backdrop == DWMSBT_TRANSIENTWINDOW && written.is_ok();
     if let Err(error) = written {
         // Windows 10 nao conhece este atributo. Nao ha o que o usuario possa
         // fazer, entao fica so no log.
@@ -476,7 +464,7 @@ fn ensure_window_effects(window: &slint::Window, opacity: f32, backdrop: Backdro
                 );
                 tracing::info!("transparencia da janela desligada");
             }
-            return;
+            return native_backdrop;
         }
 
         if !em_camada {
@@ -486,6 +474,7 @@ fn ensure_window_effects(window: &slint::Window, opacity: f32, backdrop: Backdro
             tracing::debug!(%error, "opacidade da janela nao aplicada");
         }
     }
+    native_backdrop
 }
 
 /// Liga o observador de temas, se a pessoa pediu recarga ao salvar.
@@ -624,11 +613,11 @@ fn wire_window_state(
             {
                 let s = state.borrow();
                 let (opacity, material) = s.window_effects();
-                ensure_window_effects(
+                window.set_native_backdrop_active(ensure_window_effects(
                     window.window(),
                     opacity,
                     backdrop_da_janela(material, s.tela_cheia_ativa()),
-                );
+                ));
             }
             if window.get_mini_player() {
                 return;
@@ -828,11 +817,11 @@ fn wire_fullscreen_gate(
             {
                 let s = state.borrow();
                 let (opacidade, material) = s.window_effects();
-                ensure_window_effects(
+                window.set_native_backdrop_active(ensure_window_effects(
                     window.window(),
                     opacidade,
                     backdrop_da_janela(material, s.tela_cheia_ativa()),
-                );
+                ));
             }
             // `info` e nao `debug`: acontece duas vezes por partida de jogo, e
             // e a primeira coisa que alguem vai querer no registro quando
@@ -1631,7 +1620,11 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
         #[cfg(windows)]
         {
             let (opacidade, material) = s.window_effects();
-            ensure_window_effects(w.window(), opacidade, backdrop_da_janela(material, s.tela_cheia_ativa()));
+            w.set_native_backdrop_active(ensure_window_effects(
+                w.window(),
+                opacidade,
+                backdrop_da_janela(material, s.tela_cheia_ativa()),
+            ));
         }
         s.push_to_ui(&w);
     });
@@ -1642,5 +1635,3 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
         s.push_to_ui(&w);
     });
 }
-
-

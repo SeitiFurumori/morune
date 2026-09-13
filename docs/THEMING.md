@@ -256,6 +256,12 @@ chega como zero, e nenhuma tela precisa checar a preferencia.
 
 ### `[effects]`
 
+`material` seleciona a familia optica: `"aero"` para gel e `"liquid"` para
+lente. O padrao `"legacy"` conserva o comportamento de pacotes anteriores.
+`gloss` controla intensidade; nao deve selecionar uma familia diferente nos
+temas novos. A fidelidade e os limites de renderizacao estao documentados em
+`docs/design/PESQUISA-AQUARIO-BRUMA-2026-09-10.md`.
+
 ```toml
 window_opacity = 1.0        # 0.2 .. 1.0
 acrylic = false             # fundo translucido estilo Windows, quando disponivel

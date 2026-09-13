@@ -1,8 +1,8 @@
 schema_version = 1
 id = "aquario"
 name = "Aquario"
-version = "2.4.0"
+version = "3.3.1"
 author = "Morune"
-description = "Frutiger Aero claro: mar e grama ao sol no fundo, superficie quase branca, ciano no controle."
+description = "Frutiger Aero claro: mar e grama ao sol, controles em vidro claro e marcas discretas em petrol."
 license = "MIT"
 appearance = "light"

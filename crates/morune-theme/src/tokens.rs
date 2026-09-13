@@ -263,10 +263,22 @@ impl MotionTokens {
     }
 }
 
+/// Familia optica independente da intensidade do brilho.
+/// Legacy conserva os pacotes que escolhiam a folha pelo valor de `gloss`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MaterialKind {
+    #[default]
+    Legacy,
+    Aero,
+    Liquid,
+}
+
 /// Efeitos visuais que afetam custo de renderizacao.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct EffectTokens {
+    pub material: MaterialKind,
     /// Opacidade da janela em `[0.2, 1.0]`.
     pub window_opacity: f32,
     /// Fundo translucido no estilo Mica/Acrylic do Windows, quando disponivel.
@@ -295,6 +307,7 @@ pub struct EffectTokens {
 impl Default for EffectTokens {
     fn default() -> Self {
         Self {
+            material: MaterialKind::Legacy,
             window_opacity: 1.0,
             acrylic: false,
             shadow_strength: 0.5,
@@ -303,6 +316,40 @@ impl Default for EffectTokens {
             artwork_tint: true,
             artwork_tint_strength: 0.35,
         }
+    }
+}
+
+#[cfg(test)]
+mod material_tests {
+    use super::{EffectTokens, MaterialKind};
+
+    #[test]
+    fn old_packs_keep_legacy_material_selection() {
+        let effects: EffectTokens = toml::from_str("gloss = 0.8").unwrap();
+        assert_eq!(effects.material, MaterialKind::Legacy);
+        assert_eq!(effects.gloss, 0.8);
+    }
+
+    #[test]
+    fn material_does_not_change_with_gloss() {
+        for gloss in [0.0, 0.19, 0.55, 0.8, 1.0] {
+            for (name, expected) in [
+                ("aero", MaterialKind::Aero),
+                ("liquid", MaterialKind::Liquid),
+            ] {
+                let effects: EffectTokens =
+                    toml::from_str(&format!("material = \"{name}\"\ngloss = {gloss}")).unwrap();
+                assert_eq!(effects.material, expected);
+                let round_trip: EffectTokens =
+                    toml::from_str(&toml::to_string(&effects).unwrap()).unwrap();
+                assert_eq!(round_trip, effects);
+            }
+        }
+    }
+
+    #[test]
+    fn unknown_material_is_reported_instead_of_silently_replaced() {
+        assert!(toml::from_str::<EffectTokens>("material = \"unknown\"").is_err());
     }
 }
 

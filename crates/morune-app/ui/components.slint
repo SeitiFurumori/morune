@@ -271,7 +271,14 @@ export component Glass {
     // contorno. Trocar a ordem poe o brilho por baixo do fosco e apaga os dois.
     Frost { radius: root.radius; }
     Gloss { radius: root.radius; }
-    Rim { radius: root.radius; }
+    if Theme.material-kind != 2: Rim { radius: root.radius; }
+    if Theme.material-kind == 2: Rectangle {
+        width: 100%; height: 100%;
+        border-radius: root.radius;
+        background: @linear-gradient(155deg, #ffffff18 0%, transparent 18%,
+            transparent 84%, #ffffff0a 100%);
+        opacity: Theme.gloss;
+    }
     GlassEdge {
         radius: root.radius;
         bottom: root.bottom;
@@ -320,7 +327,7 @@ export component ScrollFade {
         width: 100%;
         height: Theme.space-lg;
         y: parent.height - self.height;
-        visible: root.active && Theme.background-image.width == 0;
+        visible: root.active && Theme.background-image.width == 0 && Theme.material-kind != 2;
         background: @linear-gradient(180deg, transparent 0%, root.base 100%);
     }
 }
@@ -438,9 +445,11 @@ export component IconButton inherits Rectangle {
     // `quiet` continua fora disto: numa biblioteca de curtidas, cem coracoes
     // ligados virariam cem pastilhas.
     background: root.active && !root.quiet
-        ? Theme.accent
+        ? (Theme.material-kind == 1 ? #ffffff55 : Theme.accent)
         : (touch.has-hover && root.enabled ? Theme.hover : transparent);
-    opacity: root.enabled ? 1.0 : 0.4;
+    border-width: Theme.material-kind == 1 && root.active && !root.quiet ? 1px : 0px;
+    border-color: Theme.text.with-alpha(0.32);
+    opacity: !root.enabled ? 0.4 : (Theme.material-kind > 0 && touch.pressed ? 0.82 : 1.0);
 
     animate background { duration: Theme.motion-fast; easing: ease; }
 
@@ -451,7 +460,8 @@ export component IconButton inherits Rectangle {
         // manchas na cor de destaque: quem esta ativo pinta de accent, e curtir
         // e a regra e nao a excecao numa lista de curtidas. Quem quer o accent
         // continua tendo -- basta nao pedir `quiet`.
-        tint: root.active && !root.quiet ? Theme.text-on-accent : root.tint;
+        tint: root.active && !root.quiet
+            ? (Theme.material-kind == 1 ? Theme.text : Theme.text-on-accent) : root.tint;
         size: root.icon-size;
         filled: root.filled;
     }
@@ -494,28 +504,37 @@ export component IconButton inherits Rectangle {
     }
 }
 
-// **Vidro fosco de verdade, sem filtro de fundo.**
-//
-// O Slint nao desfoca o que esta atras de um elemento, e nao vai desfocar: nao
-// existe `backdrop-filter` aqui. Mas o desfoque so precisa existir onde o olho
-// vai olhar, e no Morune o que esta atras de um painel e quase sempre o fundo da
-// janela -- nao outra parte da interface.
-//
-// Entao: o Rust guarda uma copia JA borrada do fundo, feita uma vez quando o
-// tema carrega. Este componente descobre onde ele mesmo esta dentro da janela e
-// mostra o pedaco daquela copia que cai exatamente atras dele. O resultado e o
-// mesmo que um desfoque de fundo daria, e o custo por quadro e o de desenhar um
-// pedaco de bitmap.
-//
-// **A conta.** O fundo e desenhado com `image-fit: cover`, que escolhe a maior
-// das duas escalas e centraliza o que sobra. Para achar o pedaco certo e preciso
-// refazer essa conta ao contrario: quanto a imagem foi ampliada, quanto sobrou
-// de cada lado, e entao converter a posicao deste elemento na janela para
-// posicao dentro da imagem.
-//
-// **O que ele nao faz.** Vidro sobre uma lista rolando nao funciona -- ali o que
-// esta atras nao e o fundo. Para isso seria preciso ler de volta o que o Slint
-// ja desenhou, que e outro trabalho e outro custo.
+// Materiais sobre a cena do tema. A fonte e o wallpaper, nunca a UI composta.
+// Lente da cena conhecida. O piso colorido protege texto mesmo sobre foto clara.
+// Apenas o chrome usa este componente; nao le conteudo nem pixels da tela.
+export component SceneGlass inherits Rectangle {
+    in property <length> radius: Theme.radius-lg;
+    in property <brush> tint: Theme.sidebar-background;
+    width: 100%; height: 100%;
+    border-radius: root.radius;
+    clip: true;
+    background: Theme.background-image.width > 0 ? Theme.background : transparent;
+    lens := Image {
+        width: 100%; height: 100%;
+        image-fit: fill;
+        source: Theme.refract-background(Theme.background-image, {
+            x: root.absolute-position.x / 1px, y: root.absolute-position.y / 1px,
+            width: root.width / 1px, height: root.height / 1px,
+            radius: root.radius / 1px,
+            window-width: Theme.window-width / 1px,
+            window-height: Theme.window-height / 1px, fit: Theme.background-fit
+        });
+        opacity: Theme.background-opacity;
+    }
+    Rectangle {
+        width: 100%; height: 100%;
+        border-radius: root.radius;
+        background: Theme.background-image.width > 0
+            ? Theme.glass-tint(lens.source, root.tint) : transparent;
+    }
+    Glass { radius: root.radius; }
+}
+
 export component Vidro inherits Rectangle {
     in property <length> radius: 0px;
     /// Quanto do fundo borrado aparece. O resto e a superficie do tema.
@@ -546,7 +565,7 @@ export component Vidro inherits Rectangle {
     //
     // A cor do tema por baixo resolve: onde a copia nao tem conteudo, o que se
     // ve e o fundo do tema, que e o que estaria ali de qualquer modo.
-    if Theme.background-blurred.width > 0: Rectangle {
+    if Theme.material-kind == 0 && Theme.background-blurred.width > 0: Rectangle {
         width: 100%;
         height: 100%;
         background: Theme.background;
@@ -558,12 +577,12 @@ export component Vidro inherits Rectangle {
     // quanto e a opacidade, e ela precisa poder ir de zero ate o valor cheio
     // sem o elemento nascer e morrer no meio -- senao o realce de cursor
     // apareceria de estalo em vez de acender.
-    if Theme.background-blurred.width > 0: Image {
+    if Theme.material-kind != 2 && Theme.background-blurred.width > 0: Image {
         width: 100%;
         height: 100%;
         image-fit: fill;
         source: Theme.background-blurred;
-        opacity: root.forca;
+        opacity: root.forca * (Theme.material-kind == 1 ? 0.12 : 1.0);
         animate opacity { duration: Theme.motion-fast; easing: ease; }
 
         // Da posicao na janela para posicao na imagem: soma o que sobrou fora
@@ -575,28 +594,8 @@ export component Vidro inherits Rectangle {
     }
 }
 
-// **Material desenhado, e nao efeito de motor.**
-//
-// O diagnostico que levou a isto estava errado pela metade. E verdade que o
-// Slint nao tem `backdrop-filter`, filtro nem reflexo -- mas **Aero, Wii e XMB
-// tambem nao tinham**. Aquelas interfaces eram BITMAP: a rampa de brilho, o
-// reflexo e o realce eram imagens que alguem desenhou e o sistema esticou por
-// cima do controle. O efeito nunca veio do motor grafico; veio do artista.
-//
-// `tools/material-gel.py` desenha essas folhas. Elas sao neutras -- branco e
-// preto com alfa --, entao a mesma folha veste qualquer tema: quem da a cor e a
-// superficie por baixo.
-//
-// **Bitmap para o brilho, vetor para a orla.** A folha vai de bordo a bordo, sem
-// canto arredondado e sem orla; quem recorta e o `clip` daqui, com o raio que o
-// tema mandar. Desenhar a orla na folha obrigaria a um raio fixo -- 28px contra
-// os 18 do Aquario e 22 do Bruma --, e o canto sairia errado em quase todo tema.
-//
-// **A escolha da folha sai do `gloss`, e isso e provisorio.** `gloss` ja existe
-// no contrato e todo tema declara, entao da para ver o resultado hoje sem mexer
-// no contrato de tema. O certo e um token proprio -- `material = "gel" | "vidro"
-// | "nenhum"` --, porque brilho e material sao coisas diferentes e um dia um
-// tema vai querer gel discreto ou vidro forte.
+// Reflexo de superficie por familia. Legacy preserva as folhas antigas;
+// Aero usa gel vetorial e Liquid usa luz discreta. Gloss controla intensidade.
 export component Material inherits Rectangle {
     in property <length> radius: 0px;
     /// Quanto da folha entra. Peca pequena aguenta menos que painel grande.
@@ -607,7 +606,28 @@ export component Material inherits Rectangle {
     border-radius: root.radius;
     clip: true;
 
-    if Theme.gloss >= 0.62: Image {
+    if Theme.material-kind == 1: Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: root.radius;
+        background: @linear-gradient(180deg, #ffffffb0 0%, #ffffff55 44%,
+            #ffffff08 49%, #07475c18 76%, #ffffff66 100%);
+        border-width: Theme.border-width;
+        border-color: Theme.border-highlight;
+        opacity: root.forca * Theme.gloss;
+    }
+
+    if Theme.material-kind == 2: Rectangle {
+        width: 100%; height: 100%;
+        border-radius: root.radius;
+        border-width: Theme.border-width;
+        border-color: Theme.border-highlight;
+        background: @linear-gradient(165deg, #ffffff44 0%, #ffffff06 22%,
+            transparent 65%, #ffffff1a 100%);
+        opacity: root.forca * Theme.gloss;
+    }
+
+    if Theme.material-kind == 0 && Theme.gloss >= 0.62: Image {
         width: 100%;
         height: 100%;
         image-fit: fill;
@@ -616,7 +636,7 @@ export component Material inherits Rectangle {
         animate opacity { duration: Theme.motion-fast; easing: ease; }
     }
 
-    if Theme.gloss >= 0.20 && Theme.gloss < 0.62: Image {
+    if Theme.material-kind == 0 && Theme.gloss >= 0.20 && Theme.gloss < 0.62: Image {
         width: 100%;
         height: 100%;
         image-fit: fill;
@@ -638,7 +658,14 @@ export component MaterialRedondo inherits Rectangle {
     width: 100%;
     height: 100%;
 
-    if Theme.gloss >= 0.20: Image {
+    if Theme.material-kind == 2: Rectangle {
+        width: 100%; height: 100%;
+        border-radius: self.width / 2;
+        background: @linear-gradient(155deg, #ffffff88 0%, #ffffff10 42%,
+            transparent 60%, #ffffff33 100%);
+        opacity: root.forca * Theme.gloss;
+    }
+    if Theme.material-kind != 2 && Theme.gloss >= 0.20: Image {
         width: 100%;
         height: 100%;
         image-fit: fill;
@@ -647,42 +674,8 @@ export component MaterialRedondo inherits Rectangle {
     }
 }
 
-// **O realce de uma linha sob o cursor.**
-//
-// Trocou um veu de cor por uma peca que acende, e o motivo e que a versao
-// anterior era invisivel POR CONSTRUCAO, nao por estar fraca.
-//
-// A linha fica sobre o fundo da janela. Realca-la com vidro significava mostrar
-// nela uma copia borrada... do mesmo fundo que ja estava ali. Vidro so aparece
-// quando o que esta atras dele e diferente do que esta ao lado -- funciona no
-// cartao, que tem capa colorida em volta, e nao funciona numa linha solta.
-// Aumentar o valor nao resolveria: o problema nao e quantidade.
-//
-// O que resolve e dar CORPO. E o que o Aero e o menu do Wii faziam quando o
-// cursor passava: o item virava um objeto iluminado, com as quatro coisas
-// abaixo juntas. Nenhuma delas sozinha basta.
-//
-//  1. superficie de verdade, e nao um veu de 15% -- a peca ganha massa;
-//  2. a folha de brilho por cima, que da a curvatura;
-//  3. um fio de luz na borda, que da contorno;
-//  4. uma sombra curta, que levanta a peca do plano.
-//
-// **Sobre aninhar vidro dentro de vidro: pode, e o oficial faz.**
-//
-// Houve aqui uma restricao baseada em citacao pela metade. A lista de
-// anti-padroes da Apple diz *"multiple separate glass effects **without
-// container**"* -- a segunda metade e a que importa. Aninhar e esperado; a
-// propria API tem uma peca so para agrupar vidros, e a Central de Controle do
-// iOS e um painel de vidro cheio de botoes de vidro, cada um com orla e brilho
-// proprios.
-//
-// O que e proibido e **borrar o que ja esta borrado**: camadas refazendo o
-// desfoque umas das outras ate o resultado virar papa. Aqui isso nao acontece
-// por construcao -- toda peca le a MESMA copia borrada do fundo, na posicao
-// dela, e nenhuma le o resultado da outra.
-//
-// `com-vidro: false` continua existindo, mas para o caso em que nao ha fundo
-// para mostrar, e nao como regra de estilo.
+// Realce de item: Liquid usa cor e preserva o plano do conteudo.
+// Legacy e Aero mantem o corpo e a iluminacao do item.
 export component Realce inherits Rectangle {
     in property <length> radius: 0px;
     /// Quanto do realce esta aceso. Anima sozinho.
@@ -700,26 +693,26 @@ export component Realce inherits Rectangle {
     // e usar isso num realce de passagem dava o contraste mais forte da tela
     // para a coisa mais passageira dela. `surface` e a superficie normal de uma
     // peca, que e o que a linha sob o cursor vira.
-    background: Theme.surface;
-    border-width: root.aceso > 0 ? Theme.border-width : 0px;
+    background: Theme.material-kind == 2 ? Theme.selected : Theme.surface;
+    border-width: root.aceso > 0 && Theme.material-kind != 2 ? Theme.border-width : 0px;
     border-color: Theme.border-highlight;
     opacity: root.aceso;
     animate opacity { duration: Theme.motion-fast; easing: ease; }
 
     // Sombra curta, e nao a do cartao: uma linha de lista sobe um fio, nao
     // flutua. Sombra grande numa lista de cinquenta linhas viraria sujeira.
-    drop-shadow-color: root.aceso > 0
+    drop-shadow-color: root.aceso > 0 && Theme.material-kind != 2
         ? (Theme.background.to-hsv().value > 0.5 ? #00000014 : #00000040)
         : #00000000;
     drop-shadow-blur: 6px;
     drop-shadow-offset-y: 1px;
 
-    if root.com-vidro: Vidro {
+    if root.com-vidro && Theme.material-kind != 2: Vidro {
         radius: root.radius;
         forca: root.aceso * 0.55;
     }
 
-    Material {
+    if Theme.material-kind != 2: Material {
         radius: root.radius;
         forca: root.aceso;
     }
@@ -734,7 +727,7 @@ export component PrimaryButton inherits Rectangle {
     min-width: text.preferred-width + Theme.space-lg * 2;
     border-radius: Theme.radius-md;
     background: touch.has-hover ? Theme.accent-hover : Theme.accent;
-    opacity: root.enabled ? 1.0 : 0.45;
+    opacity: !root.enabled ? 0.45 : (Theme.material-kind > 0 && touch.pressed ? 0.82 : 1.0);
 
     animate background { duration: Theme.motion-fast; easing: ease; }
 
@@ -1001,7 +994,9 @@ export component Slider inherits Rectangle {
             width: parent.width * root.shown;
             height: 100%;
             border-radius: root.thickness / 2;
-            background: touch.has-hover || touch.pressed ? Theme.accent-hover : Theme.accent;
+            background: Theme.material-kind == 1
+                ? Theme.text.with-alpha(touch.has-hover || touch.pressed ? 0.72 : 0.5)
+                : (touch.has-hover || touch.pressed ? Theme.accent-hover : Theme.accent);
             animate background { duration: Theme.motion-fast; easing: ease; }
         }
     }
@@ -1293,11 +1288,14 @@ export component MenuRow inherits Rectangle {
 
     height: 34px;
     border-radius: Theme.radius-sm;
-    background: touch.has-hover ? Theme.hover : transparent;
+    // O foco de teclado participa do mesmo estado de leitura do hover. O anel
+    // continua marcando o alvo exato; este fundo impede que o foco se perca
+    // entre as opcoes do menu.
+    background: touch.has-hover || touch.has-focus ? Theme.hover : transparent;
 
     animate background { duration: Theme.motion-fast; easing: ease; }
 
-    if touch.has-hover: Glass { radius: Theme.radius-sm; }
+    if touch.has-hover || touch.has-focus: Glass { radius: Theme.radius-sm; }
 
     HorizontalLayout {
         padding-left: Theme.space-sm;

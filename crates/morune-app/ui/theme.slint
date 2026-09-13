@@ -8,7 +8,15 @@
 // Nada nesta interface pode usar cor, tamanho ou duracao literal: se um valor
 // nao esta aqui, ele nao e customizavel, e isso e um bug.
 
+// Geometria logica de uma lente sobre o wallpaper; nao captura conteudo da UI.
+export struct LensRegion {
+    x: float, y: float, width: float, height: float, radius: float,
+    window-width: float, window-height: float, fit: int,
+}
+
 export global Theme {
+    pure callback refract-background(image, LensRegion) -> image;
+    pure callback glass-tint(image, brush) -> brush;
     // --- cores ---
     in-out property <brush> background: #0b0d12;
     in-out property <brush> surface: #12151d;
@@ -119,6 +127,8 @@ export global Theme {
     in-out property <duration> motion-slow: 320ms;
 
     // --- efeitos ---
+    // 0 conserva temas anteriores, 1 gel Aero, 2 lente Liquid.
+    in-out property <int> material-kind: 0;
     in-out property <float> shadow-strength: 0.5;
     in-out property <float> gloss: 0.0;
     in-out property <bool> artwork-tint: true;

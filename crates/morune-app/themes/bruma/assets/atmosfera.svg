@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <defs>
+    <linearGradient id="base" x2=".85" y2="1">
+      <stop stop-color="#10171e"/><stop offset=".55" stop-color="#293842"/><stop offset="1" stop-color="#10171d"/>
+    </linearGradient>
+    <radialGradient id="luz" cx=".79" cy=".12" r=".82">
+      <stop stop-color="#b6c9cd" stop-opacity=".72"/><stop offset=".43" stop-color="#7b939d" stop-opacity=".16"/><stop offset="1" stop-color="#172129" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="dobra" x1="0" y1="0" x2=".3" y2="1">
+      <stop stop-color="#dbe5e3" stop-opacity=".55"/><stop offset=".16" stop-color="#889fa8" stop-opacity=".18"/><stop offset=".7" stop-color="#0c141b" stop-opacity=".48"/><stop offset="1" stop-color="#18232c" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="borda" x2="1" y2=".8">
+      <stop stop-color="#e1e9e7" stop-opacity="0"/><stop offset=".5" stop-color="#d7e3e5" stop-opacity=".54"/><stop offset="1" stop-color="#d7e3e5" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#base)" d="M0 0h1600v1000H0z"/>
+  <path fill="url(#luz)" d="M0 0h1600v1000H0z"/>
+  <path fill="url(#dobra)" d="M-140 780C220 80 610 1060 1170 340S1700 60 1740 490V1100H-140z"/>
+  <path fill="none" stroke="url(#borda)" stroke-width="2" d="M-140 780C220 80 610 1060 1170 340S1700 60 1740 490"/>
+</svg>
