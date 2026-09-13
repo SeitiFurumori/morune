@@ -143,6 +143,28 @@ const THEMES: &[BundledTheme] = &[
 ///
 /// Devolve os ids instalados ou atualizados. Erros sao registrados e ignorados:
 /// nao poder gravar um tema de exemplo nao e motivo para o aplicativo nao abrir.
+/// Escolhe onde guardar a copia antiga de um tema que vai ser atualizado.
+///
+/// O nome comum e `<id>.bak`. Se ele ja existe e nao da para apagar -- no
+/// Windows basta um arquivo de dentro estar aberto por outro programa, e o
+/// `remove_dir_all` volta sem erro visivel enquanto a pasta continua la --, a
+/// copia vai para `<id>.bak-<hora>`. Foi assim que a atualizacao do Aquario
+/// ficou presa em 13/09/2026: o `.bak` de 05/09 nao saia, o `rename` falhava
+/// com "pasta nao vazia" e o tema instalado nunca recebia a versao nova.
+/// Desistir de atualizar por causa da copia antiga seria inverter a prioridade.
+fn pasta_de_copia(themes_dir: &Path, id: &str) -> std::path::PathBuf {
+    let padrao = themes_dir.join(format!("{id}.bak"));
+    let _ = std::fs::remove_dir_all(&padrao);
+    if !padrao.exists() {
+        return padrao;
+    }
+    let carimbo = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    themes_dir.join(format!("{id}.bak-{carimbo}"))
+}
+
 pub fn install_missing(themes_dir: &Path) -> Vec<&'static str> {
     let mut installed = Vec::new();
 
@@ -152,8 +174,7 @@ pub fn install_missing(themes_dir: &Path) -> Vec<&'static str> {
             if !bundled_is_newer(theme, &dir) {
                 continue;
             }
-            let backup = themes_dir.join(format!("{}.bak", theme.id));
-            let _ = std::fs::remove_dir_all(&backup);
+            let backup = pasta_de_copia(themes_dir, theme.id);
             if let Err(e) = std::fs::rename(&dir, &backup) {
                 tracing::warn!(theme = theme.id, error = %e, "nao consegui guardar a copia antiga; tema mantido como esta");
                 continue;
@@ -260,6 +281,47 @@ mod tests {
         let _ = std::fs::remove_dir_all(&p);
         std::fs::create_dir_all(&p).unwrap();
         p
+    }
+
+    /// Um `.bak` livre e reaproveitado, sem inventar nome novo.
+    #[test]
+    fn a_copia_antiga_vai_para_bak_quando_ele_esta_livre() {
+        let dir = temp_dir("bak-livre");
+        std::fs::create_dir_all(dir.join("paper.bak")).unwrap();
+        std::fs::write(dir.join("paper.bak").join("velho"), "x").unwrap();
+
+        assert_eq!(pasta_de_copia(&dir, "paper"), dir.join("paper.bak"));
+        assert!(!dir.join("paper.bak").exists(), "o .bak antigo devia ter sido apagado");
+    }
+
+    /// O caso do Aquario em 13/09/2026: um arquivo aberto dentro do `.bak`
+    /// impedia de apaga-lo, o `rename` falhava e a atualizacao nunca chegava.
+    #[cfg(windows)]
+    #[test]
+    fn com_o_bak_preso_a_copia_vai_para_outra_pasta() {
+        let dir = temp_dir("bak-preso");
+        let bak = dir.join("paper.bak");
+        std::fs::create_dir_all(&bak).unwrap();
+        // Um arquivo aberto sem permitir exclusao segura a pasta inteira. E o
+        // que faz um programa comum (visualizador, indexador) com o arquivo
+        // que esta lendo; o `File::create` do Rust permite exclusao e nao
+        // reproduziria o caso.
+        use std::os::windows::fs::OpenOptionsExt;
+        let _preso = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .share_mode(0)
+            .open(bak.join("aberto"))
+            .unwrap();
+
+        let escolhida = pasta_de_copia(&dir, "paper");
+        assert_ne!(escolhida, bak, "nao pode insistir numa pasta que nao sai");
+        assert!(
+            escolhida.file_name().unwrap().to_string_lossy().starts_with("paper.bak-"),
+            "{}",
+            escolhida.display()
+        );
     }
 
     /// O defeito que a atualizacao conserta: uma correcao nos temas de fabrica
