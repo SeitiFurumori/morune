@@ -110,6 +110,9 @@ fn readable_tint_inside(
         spec.colors.background
     };
     let white = Color::rgb(255, 255, 255);
+    // O piso de contraste do texto sobre a peca: 4,5:1, o AA da WCAG para
+    // texto corrido, medido no pior pixel da cena que fica atras.
+    let alvo = 4.5;
     for alpha in tint.a..=255 {
         let candidate = Color::rgba(tint.r, tint.g, tint.b, alpha);
         let panel = candidate.over(scene);
@@ -127,7 +130,7 @@ fn readable_tint_inside(
                 let background = state.over(panel);
                 [spec.colors.text, spec.colors.text_muted]
                     .iter()
-                    .all(|ink| ink.over(background).contrast_ratio(background) >= 4.5)
+                    .all(|ink| ink.over(background).contrast_ratio(background) >= alvo)
             });
         if readable {
             return candidate;

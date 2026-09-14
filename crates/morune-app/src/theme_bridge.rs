@@ -121,18 +121,16 @@ pub fn apply_background(theme: &UiTheme<'_>, spec: &ThemeSpec, paper: &Wallpaper
             &glass_spec,
         ))
     });
-    // As barras do Aero ficam sobre o fundo JA BORRADO, entao o pior pixel que
-    // o texto delas enfrenta e o do borrao -- muito mais claro que o da foto
-    // nitida. Medir contra a nitida empurrava o vidro azul para opaco. O
-    // conteudo continua sobre a foto nitida, e `surface` e medida contra ela.
-    let barras = if spec.effects.material == morune_theme::tokens::MaterialKind::Aero
-        && paper.blurred.size().width > 0
-    {
-        &paper.blurred
-    } else {
-        &paper.image
-    };
-    apply_reading_surfaces(theme, spec, &paper.image, barras);
+    // As tintas ja vem resolvidas com a imagem (`Wallpaper::tintas`); aqui e
+    // so escrever. Sem cache, o calculo -- tres varreduras da imagem -- rodava
+    // a cada clique que reaplicava o tema.
+    match paper.tintas {
+        Some(t) => aplicar_tintas(theme, spec, t),
+        None => {
+            let t = tintas_legiveis(spec, paper);
+            aplicar_tintas(theme, spec, t);
+        }
+    }
     theme.set_background_image(paper.image.clone());
     theme.set_background_blurred(paper.blurred.clone());
     theme.set_background_fit(paper.fit);
@@ -150,17 +148,48 @@ pub fn apply(theme: &UiTheme<'_>, layout: &UiLayout<'_>, spec: &ThemeSpec, over:
     apply_motion(theme, spec, over);
     apply_effects(theme, spec);
     apply_layout(layout, spec, over);
-    // Recalculo com o que a interface ja tem: `apply_colors` acabou de
-    // sobrescrever as tintas legiveis com as cruas do tema.
-    let barras = theme.get_background_blurred();
-    let barras = if spec.effects.material == morune_theme::tokens::MaterialKind::Aero
-        && barras.size().width > 0
+    // `apply_colors` acabou de sobrescrever as tintas legiveis com as cruas do
+    // tema. Quem tem imagem de fundo recebe as resolvidas logo em seguida, em
+    // `apply_background`, a partir do cache; quem nao tem (o menu da bandeja)
+    // resolve aqui contra a cor de fundo, que e barato -- nao ha pixel a ler.
+    if theme.get_background_image().size().width == 0 {
+        let vazia = slint::Image::default();
+        apply_reading_surfaces(theme, spec, &vazia, &vazia);
+    }
+}
+
+/// Resolve as tintas dos paineis contra a cena desta imagem.
+///
+/// No Aero toda peca de vidro -- barras e molduras de grupo -- fica sobre o
+/// fundo JA BORRADO, entao o pior pixel que o texto enfrenta e o do borrao,
+/// muito mais claro que o da foto nitida. Medir contra a nitida empurrava o
+/// vidro azul para opaco.
+pub fn tintas_legiveis(spec: &ThemeSpec, paper: &Wallpaper) -> crate::wallpaper::TintasLegiveis {
+    let cena = if spec.effects.material == morune_theme::tokens::MaterialKind::Aero
+        && paper.blurred.size().width > 0
     {
-        barras
+        &paper.blurred
     } else {
-        theme.get_background_image()
+        &paper.image
     };
-    apply_reading_surfaces(theme, spec, &theme.get_background_image(), &barras);
+    let c = &spec.colors;
+    crate::wallpaper::TintasLegiveis {
+        surface: crate::optics::readable_tint(cena, c.surface, spec),
+        sidebar: crate::optics::readable_tint(cena, c.sidebar_background, spec),
+        player: crate::optics::readable_tint(cena, c.player_background, spec),
+    }
+}
+
+fn aplicar_tintas(theme: &UiTheme<'_>, spec: &ThemeSpec, t: crate::wallpaper::TintasLegiveis) {
+    use morune_theme::tokens::MaterialKind;
+    if spec.effects.material == MaterialKind::Legacy {
+        return;
+    }
+    theme.set_surface(brush(t.surface));
+    if spec.effects.material == MaterialKind::Aero {
+        theme.set_sidebar_background(brush(t.sidebar));
+        theme.set_player_background(brush(t.player));
+    }
 }
 
 fn apply_reading_surfaces(
@@ -413,7 +442,7 @@ fn apply_effects(t: &UiTheme<'_>, s: &ThemeSpec) {
     t.set_artwork_tint_strength(e.artwork_tint_strength);
 }
 
-fn apply_layout(l: &UiLayout<'_>, s: &ThemeSpec, over: UserOverrides) {
+pub fn apply_layout(l: &UiLayout<'_>, s: &ThemeSpec, over: UserOverrides) {
     let lay = &s.layout;
     let density = lay.content.density.factor();
 

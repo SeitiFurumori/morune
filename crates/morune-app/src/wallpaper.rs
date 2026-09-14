@@ -20,13 +20,11 @@ use slint::SharedPixelBuffer;
 /// telas 4K e ainda assim corta o caso patologico.
 const MAX_DIMENSION: u32 = 3840;
 
-/// Quanto o fundo e borrado para servir de vidro.
-///
-/// Em pixels da imagem ja reduzida. Vinte e quatro e o que some com a forma sem
-/// virar um borrao de cor unica: o olho continua reconhecendo onde estava o
-/// horizonte e onde estava o sol, que e o que faz o painel parecer transparente
-/// em vez de pintado.
-const RAIO_VIDRO: f32 = 24.0;
+/// O desfoque padrao do vidro e zero -- "nao tem por que ter desfoque se nao
+/// tem letras atras" (14/09/2026) -- e vive em `AppearanceConfig::glass_blur`;
+/// a pessoa ajusta nas Configuracoes. Era 24 e depois 4: virava mancha.
+/// Teto do ajuste nas Configuracoes. Acima disso e mancha de cor.
+pub const RAIO_VIDRO_MAX: f32 = 24.0;
 /// Teto da copia borrada. Metade do teto da imagem nitida: e um borrao.
 const MAX_DIMENSION_BORRADA: u32 = 1920;
 
@@ -50,6 +48,17 @@ pub struct Wallpaper {
     /// Vazia quando o tema nao tem imagem de fundo. Nesse caso nao ha o que
     /// mostrar atraves, e o painel cai na cor de superficie do tema.
     pub blurred: slint::Image,
+    /// A copia reduzida e nitida de onde `blurred` sai, guardada para o
+    /// ajuste de desfoque nas Configuracoes nao decodificar o JPEG de novo:
+    /// so o borrao e refeito. Sem isto cada toque no slider custava a
+    /// decodificacao inteira, e a tela travava.
+    pub base_vidro: Option<Rgba>,
+    /// As tintas dos paineis ja subidas ate o texto passar no contraste, para
+    /// a cena desta imagem. Calculadas uma vez por imagem (e por desfoque do
+    /// vidro), nunca por clique: calcular era varrer a imagem inteira tres
+    /// vezes, e isso rodava a cada toque na interface -- era o atraso de
+    /// meio segundo entre clicar e a barra lateral recolher.
+    pub tintas: Option<TintasLegiveis>,
     /// `0` cover, `1` contain, `2` center, `3` stretch.
     pub fit: i32,
     pub opacity: f32,
@@ -101,6 +110,7 @@ pub fn load(
     theme_dir: Option<&Path>,
     tokens: &BackgroundTokens,
     user_image: Option<&Path>,
+    raio_vidro: f32,
 ) -> Wallpaper {
     let empty = Wallpaper {
         fit: fit_code(tokens.fit),
@@ -128,11 +138,11 @@ pub fn load(
         return empty;
     };
 
-    let (image, blurred) = match decoded.to_rgba8() {
+    let (image, blurred, base_vidro) = match decoded.to_rgba8() {
         // Sem acesso aos pixels nao da para reduzir nem desfocar, mas a imagem
         // continua desenhavel: entregar como veio e melhor que descartar. Sem
         // pixels tambem nao ha copia borrada, e o vidro cai na cor do tema.
-        None => (decoded, slint::Image::default()),
+        None => (decoded, slint::Image::default(), None),
         Some(buffer) => {
             let buffer = downscale(buffer, MAX_DIMENSION);
 
@@ -145,28 +155,57 @@ pub fn load(
             // aparece na interface (todo painel e todo realce de vidro a
             // desenham). Em 3840 px o driver de video reservava 5 GB de
             // memoria privada para o Aquario; ver PERFORMANCE.md, 13/09/2026.
-            let blurred = slint::Image::from_rgba8(blur(
-                downscale(buffer.clone(), MAX_DIMENSION_BORRADA),
-                RAIO_VIDRO,
-            ));
+            let base_vidro = downscale(buffer.clone(), MAX_DIMENSION_BORRADA);
+            let blurred = vidro_de(&base_vidro, raio_vidro);
 
             let buffer = if tokens.blur > 0.0 {
                 blur(buffer, tokens.blur)
             } else {
                 buffer
             };
-            (slint::Image::from_rgba8(buffer), blurred)
+            (slint::Image::from_rgba8(buffer), blurred, Some(base_vidro))
         }
     };
 
     Wallpaper {
         image,
         blurred,
+        base_vidro,
         ..empty
     }
 }
 
-type Rgba = SharedPixelBuffer<slint::Rgba8Pixel>;
+pub type Rgba = SharedPixelBuffer<slint::Rgba8Pixel>;
+
+/// Cores de painel resolvidas contra a cena: ver [`Wallpaper::tintas`].
+#[derive(Debug, Clone, Copy)]
+pub struct TintasLegiveis {
+    pub surface: morune_theme::Color,
+    pub sidebar: morune_theme::Color,
+    pub player: morune_theme::Color,
+}
+
+/// A copia do vidro a partir da base reduzida.
+///
+/// Zero e "sem borrao": a base entra como esta, sem passar pelo filtro --
+/// e o padrao do Aquario desde 14/09/2026, porque nao ha letra alguma
+/// escrita sobre a foto nitida, so sobre os paineis.
+fn vidro_de(base: &Rgba, raio: f32) -> slint::Image {
+    let raio = raio.clamp(0.0, RAIO_VIDRO_MAX);
+    if raio < 0.5 {
+        return slint::Image::from_rgba8(base.clone());
+    }
+    slint::Image::from_rgba8(blur(base.clone(), raio))
+}
+
+impl Wallpaper {
+    /// Refaz so a copia do vidro com outro desfoque, sem decodificar nada.
+    pub fn com_desfoque_do_vidro(&mut self, raio: f32) {
+        if let Some(base) = &self.base_vidro {
+            self.blurred = vidro_de(base, raio);
+        }
+    }
+}
 
 /// Reduz por fator inteiro ate caber em `max`, com media de area.
 ///
@@ -430,7 +469,7 @@ mod tests {
             image: "assets/backgrounds/f.png".into(),
             ..Default::default()
         };
-        let paper = load(Some(&dir), &tokens, None);
+        let paper = load(Some(&dir), &tokens, None, 0.0);
         assert!(
             paper.image.size().width > 0,
             "imagem do tema nao chegou na interface"

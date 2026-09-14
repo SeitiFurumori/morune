@@ -84,6 +84,12 @@ pub struct AppearanceConfig {
     /// Intensidade do veu de legibilidade sobre a imagem, em `[0.0, 1.0]`.
     pub background_tint_strength: f32,
     pub background_blur: f32,
+    /// Desfoque do vidro dos paineis, em pixels da copia reduzida do fundo.
+    ///
+    /// So o material Aero usa. E preferencia de pessoa, nao de tema: o quanto
+    /// se quer ver atraves do vidro e gosto. O padrao e zero, escolhido
+    /// olhando: "nao tem por que ter desfoque se nao tem letras atras".
+    pub glass_blur: f32,
 
     /// Sobrepoe a opacidade da janela pedida pelo tema, em `[0.2, 1.0]`.
     ///
@@ -107,6 +113,7 @@ impl Default for AppearanceConfig {
             // olhar: a 55% o texto secundario sobre foto clara ficava ilegivel.
             background_tint_strength: 0.70,
             background_blur: 0.0,
+            glass_blur: 0.0,
             window_opacity_override: 0.0,
         }
     }

@@ -305,6 +305,31 @@ andando: **2,63% de CPU, 1,69% de GPU 3D**, working set 225 MB, 474 MB
 privados (13/09/2026, 30 s). E o preco da animacao; parada, o Aquario volta
 ao repouso dos outros temas.
 
+## Medicao de 14/09/2026 -- o clique que demorava
+
+Relato: "quando clico em mudar alguma configuracao ou recolher a barra, demora
+bastante e nao ha animacao, corta direto pro resultado". Suspeita inicial era
+o desenho; medido com `SLINT_DEBUG_PERFORMANCE=refresh_full_speed,overlay`
+no release, o Aquario Aero desenha a **235 quadros por segundo**, com ou sem
+imagem de fundo. O desenho nunca foi o problema.
+
+O problema era o que rodava **no clique**: `on_toggle_sidebar` reaplicava o
+tema inteiro (`apply_theme_to`), e isso incluia resolver as tres tintas
+legiveis varrendo a imagem de fundo pixel a pixel -- duas vezes, porque
+`apply` e `apply_background` faziam cada um a sua. Centenas de milissegundos
+na thread da interface; quando terminava, a animacao ja tinha passado.
+
+Correcao: as tintas sao resolvidas uma vez por imagem (e por desfoque do
+vidro) e guardadas em `Wallpaper::tintas`; reaplicar o tema so escreve. O
+recolher da barra reaplica apenas o layout. Os controles de imagem nas
+Configuracoes aplicam ao soltar, nao a cada pixel de arraste, e o desfoque do
+vidro refaz so o borrao, sem decodificar o JPEG de novo.
+
+Achado no caminho, ainda aberto: com o material **legacy**, a interface cria
+~495 camadas por quadro (um `Vidro` por realce de linha) e roda a 1-2 quadros
+por segundo na compilacao de depuracao. Nenhum tema de fabrica usa legacy com
+imagem, mas um tema de terceiros pode.
+
 ## Riscos conhecidos
 
 **Reabrir pelo atalho com o Morune na bandeja traz uma janela vazia.** Achado

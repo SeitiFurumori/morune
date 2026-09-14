@@ -1295,7 +1295,9 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
 
     on!(on_toggle_sidebar, |w, s| {
         s.toggle_sidebar();
-        s.apply_theme_to(&w);
+        // So o layout muda. Reaplicar o tema inteiro aqui -- fonte, imagem de
+        // fundo, tintas -- era o atraso entre o clique e a barra recolher.
+        s.apply_layout_to(&w);
     });
 
     on!(on_select_theme, |w, s, id: slint::SharedString| {
@@ -1612,6 +1614,12 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
 
     on!(on_set_background_blur, |w, s, v: f32| {
         s.set_background_blur(v);
+        s.apply_theme_to(&w);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_set_glass_blur, |w, s, v: f32| {
+        s.set_glass_blur(v);
         s.apply_theme_to(&w);
         s.push_to_ui(&w);
     });

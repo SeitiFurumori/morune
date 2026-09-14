@@ -128,16 +128,16 @@ export global Icons {
 component SectionTitle inherits Rectangle {
     in property <string> text;
     in property <length> font-size: Theme.size-lg;
-    height: label.preferred-height + (Theme.material-kind > 0 ? Theme.space-xs * 2 : 0px);
+    height: label.preferred-height + (Theme.material-kind == 2 ? Theme.space-xs * 2 : 0px);
     Rectangle {
         x: 0; y: 0;
         width: min(parent.width, label.preferred-width + Theme.space-sm * 2);
         height: 100%;
         border-radius: Theme.radius-sm;
-        background: Theme.material-kind > 0 ? Theme.surface : transparent;
+        background: Theme.material-kind == 2 ? Theme.surface : transparent;
     }
     label := Text {
-        x: Theme.material-kind > 0 ? Theme.space-sm : 0px;
+        x: Theme.material-kind == 2 ? Theme.space-sm : 0px;
         width: parent.width - self.x * 2;
         height: 100%;
         text: root.text;
@@ -500,7 +500,7 @@ component TrackListRow inherits Rectangle {
     border-radius: Theme.radius-sm;
     // A cor de `hover` do tema fica por baixo, fraca: e ela que sustenta o
     // realce num tema sem imagem de fundo e sem brilho, onde a folha nao entra.
-    background: Theme.material-kind > 0 ? Theme.surface : (touch.has-hover ? Theme.hover : transparent);
+    background: Theme.material-kind == 2 ? Theme.surface : (touch.has-hover ? Theme.hover : transparent);
     animate background { duration: Theme.motion-fast; easing: ease; }
 
     // A linha acende como objeto. Ver a nota em `Realce`: veu de cor sobre o
@@ -780,7 +780,7 @@ component Card inherits Rectangle {
     // Quem chega por Tab recebe o mesmo contexto visual de quem aponta com o
     // mouse. O anel de foco continua sendo a marca precisa do alvo; este
     // realce impede que ele pareca solto numa lista longa.
-    background: Theme.material-kind > 0 ? Theme.surface
+    background: Theme.material-kind == 2 ? Theme.surface
         : (touch.has-hover || touch.has-focus ? Theme.hover : transparent);
     if Theme.material-kind > 0 && (touch.has-hover || touch.has-focus): Rectangle {
         width: 100%; height: 100%;
@@ -1663,14 +1663,35 @@ component PlayerBar inherits Rectangle {
 // empurraria tudo que vem depois para fora da tela. O gesto nao briga com o do
 // Inicio porque os eixos sao diferentes -- a pagina rola na vertical, a
 // prateleira na horizontal.
-component ScrollableCardShelf inherits VerticalLayout {
+// Um grupo do conteudo -- titulo e o que vem embaixo -- dentro de uma moldura.
+//
+// **So no Aero.** La cada grupo e uma peca de vidro solta sobre a foto, com a
+// mesma moldura dupla e a mesma aurora das barras: e a foto aparece entre os
+// grupos, em vez de sumir atras de um painel unico. Foi o pedido: "uma moldura
+// para cada grupo, nao cobrindo completamente o fundo". Nos outros materiais
+// e um `VerticalLayout` comum, sem pintar nada.
+//
+// O recorte e um so, aqui: `Vidro` e `Aurora` nao recortam por conta propria.
+component Prateleira inherits Rectangle {
+    in property <length> spacing: Theme.space-sm;
+    vertical-stretch: 0;
+    border-radius: Theme.material-kind == 1 ? Theme.radius-lg : 0px;
+    clip: Theme.material-kind == 1;
+
+    if Theme.material-kind == 1: Vidro { radius: parent.border-radius; tinta: Theme.surface; }
+    if Theme.material-kind == 1: Glass { radius: parent.border-radius; }
+
+    VerticalLayout {
+        padding: Theme.material-kind == 1 ? Theme.space-md : 0px;
+        spacing: root.spacing;
+        @children
+    }
+}
+
+component ScrollableCardShelf inherits Prateleira {
     in property <string> title;
     in property <[CardItem]> items;
     callback activated(string);
-
-    vertical-stretch: 0;
-
-    spacing: Theme.space-sm;
 
     SectionTitle { text: root.title; }
 
@@ -1699,7 +1720,7 @@ component ScrollableCardShelf inherits VerticalLayout {
 // Rola por dentro, com altura fixa. A alternativa -- listar tudo e deixar o
 // Inicio crescer -- empurraria as prateleiras de cards para muito abaixo da
 // dobra so para mostrar musicas curtidas.
-component TrackShelf inherits VerticalLayout {
+component TrackShelf inherits Prateleira {
     in property <string> title;
     in property <[TrackRow]> tracks;
     callback activated(string);
@@ -1715,8 +1736,6 @@ component TrackShelf inherits VerticalLayout {
     // oitava faixa aparece serrada no meio do texto.
     in property <length> visible-height: Layout.row-height * 8 + Theme.space-xs * 7;
 
-    spacing: Theme.space-sm;
-    vertical-stretch: 0;
 
     SectionTitle { text: root.title; }
 
@@ -1987,8 +2006,7 @@ component SearchPage inherits VerticalLayout {
                 enqueue(id) => { root.enqueue(id); }
             }
 
-            if root.items.length > 0: VerticalLayout {
-                spacing: Theme.space-sm;
+            if root.items.length > 0: Prateleira {
                 SectionTitle { text: "Álbuns, artistas e playlists"; }
                 CardCollection {
                     items: root.items;
@@ -2063,8 +2081,7 @@ component LibraryPage inherits Rectangle {
             action => { root.explore(); }
         }
 
-        if root.items.length > 0: VerticalLayout {
-            spacing: Theme.space-sm;
+        if root.items.length > 0: Prateleira {
             SectionTitle { text: "Da sua conta"; }
             CardCollection {
                 items: root.items;
@@ -2802,6 +2819,8 @@ component SettingSlider inherits Rectangle {
     in property <string> hint;
     in property <string> value-text;
     in property <float> value;
+    /// Aplica so ao soltar o controle. Para ajustes que refazem a imagem.
+    in property <bool> pesado: false;
     callback changed(float);
 
     height: 44px;
@@ -2844,7 +2863,10 @@ component SettingSlider inherits Rectangle {
             width: 140px;
             value: root.value;
             y: (parent.height - self.height) / 2;
-            changed(v) => { root.changed(v); }
+            // `pesado`: so ao soltar. Um ajuste que refaz a imagem de fundo
+            // custa centenas de milissegundos; aplicado a cada pixel de
+            // arraste, travava a tela.
+            changed(v) => { if !root.pesado { root.changed(v); } }
             committed(v) => { root.changed(v); }
         }
     }
@@ -2874,6 +2896,7 @@ component SettingsPage inherits VerticalLayout {
     in property <float> background-opacity;
     in property <float> background-tint;
     in property <float> background-blur;
+    in property <float> glass-blur;
     in property <float> font-scale;
     in property <float> window-opacity;
     in property <bool> reduce-motion;
@@ -2890,6 +2913,7 @@ component SettingsPage inherits VerticalLayout {
     callback set-background-opacity(float);
     callback set-background-tint(float);
     callback set-background-blur(float);
+    callback set-glass-blur(float);
     callback set-font-scale(float);
     callback set-window-opacity(float);
     callback set-reduce-motion(bool);
@@ -2936,16 +2960,23 @@ component SettingsPage inherits VerticalLayout {
             x: 0; y: 0;
             width: parent.width;
             height: pagina.preferred-height;
-            border-radius: Theme.radius-md;
-            background: Theme.material-kind > 0 ? Theme.surface : transparent;
+            border-radius: Theme.material-kind == 1 ? Theme.radius-lg : Theme.radius-md;
+            background: Theme.material-kind == 2 ? Theme.surface : transparent;
+            clip: Theme.material-kind == 1;
+
+            // No Aero as Configuracoes sao um grupo so, e ganham a mesma
+            // moldura de vidro dos grupos do Inicio. Sem ela a pagina era
+            // texto solto sobre a foto: "nao da para ver nada".
+            if Theme.material-kind == 1: Vidro { radius: parent.border-radius; tinta: Theme.surface; }
+            if Theme.material-kind == 1: Glass { radius: parent.border-radius; }
         }
 
         pagina := VerticalLayout {
             spacing: Theme.space-md;
             alignment: start;
-            padding-left: Theme.material-kind > 0 ? Theme.space-sm : 0px;
-            padding-right: Theme.material-kind > 0 ? Theme.space-sm : 0px;
-            padding-top: Theme.material-kind > 0 ? Theme.space-sm : 0px;
+            padding-left: Theme.material-kind > 0 ? Theme.space-md : 0px;
+            padding-right: Theme.material-kind > 0 ? Theme.space-md : 0px;
+            padding-top: Theme.material-kind > 0 ? Theme.space-md : 0px;
             padding-bottom: Theme.space-lg;
 
             PageTitle { text: "Configurações"; }
@@ -3401,6 +3432,7 @@ component SettingsPage inherits VerticalLayout {
 
             if root.has-background: SettingSlider {
                 label: "Opacidade da imagem";
+                pesado: true;
                 hint: "Quanto da imagem aparece sobre a cor de fundo do tema.";
                 value: root.background-opacity;
                 value-text: round(root.background-opacity * 100) + "%";
@@ -3409,6 +3441,7 @@ component SettingsPage inherits VerticalLayout {
 
             if root.has-background: SettingSlider {
                 label: "Escurecer o fundo";
+                pesado: true;
                 hint: "Véu sobre a imagem. Sem ele, uma foto clara apaga o texto.";
                 value: root.background-tint;
                 value-text: round(root.background-tint * 100) + "%";
@@ -3417,10 +3450,21 @@ component SettingsPage inherits VerticalLayout {
 
             if root.has-background: SettingSlider {
                 label: "Desfoque";
+                pesado: true;
                 hint: "Aplicado uma vez ao carregar; não custa nada enquanto você joga.";
                 value: root.background-blur;
                 value-text: round(root.background-blur * 64) + "px";
                 changed(v) => { root.set-background-blur(v); }
+            }
+
+            // So faz sentido onde ha vidro sobre o fundo: o material Aero.
+            if Theme.material-kind == 1: SettingSlider {
+                label: "Desfoque do vidro";
+                pesado: true;
+                hint: "Quanto os painéis borram o que está atrás. Zero mostra o fundo nítido.";
+                value: root.glass-blur;
+                value-text: round(root.glass-blur * 24) + "px";
+                changed(v) => { root.set-glass-blur(v); }
             }
 
             SettingSlider {
@@ -3768,6 +3812,7 @@ export component AppWindow inherits Window {
     in property <float> background-opacity;
     in property <float> background-tint;
     in property <float> background-blur;
+    in property <float> glass-blur;
     in property <float> font-scale;
     in property <float> window-opacity;
     in property <bool> reduce-motion;
@@ -3779,6 +3824,7 @@ export component AppWindow inherits Window {
     callback set-background-opacity(float);
     callback set-background-tint(float);
     callback set-background-blur(float);
+    callback set-glass-blur(float);
     callback set-font-scale(float);
     callback set-window-opacity(float);
     callback set-reduce-motion(bool);
@@ -4074,6 +4120,7 @@ export component AppWindow inherits Window {
                         background-opacity: root.background-opacity;
                         background-tint: root.background-tint;
                         background-blur: root.background-blur;
+                        glass-blur: root.glass-blur;
                         font-scale: root.font-scale;
                         window-opacity: root.window-opacity;
                         reduce-motion: root.reduce-motion;
@@ -4092,6 +4139,7 @@ export component AppWindow inherits Window {
                         set-background-opacity(v) => { root.set-background-opacity(v); }
                         set-background-tint(v) => { root.set-background-tint(v); }
                         set-background-blur(v) => { root.set-background-blur(v); }
+                        set-glass-blur(v) => { root.set-glass-blur(v); }
                         set-font-scale(v) => { root.set-font-scale(v); }
                         set-window-opacity(v) => { root.set-window-opacity(v); }
                         set-reduce-motion(v) => { root.set-reduce-motion(v); }

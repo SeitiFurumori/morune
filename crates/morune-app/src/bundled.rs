@@ -592,20 +592,26 @@ mod tests {
         install_missing(&dir);
         let spec = morune_theme::load(&dir, "aquario").spec;
         // A mesma preparacao da tela: nitida reduzida e a copia borrada.
-        let paper = crate::wallpaper::load(Some(&dir.join("aquario")), &spec.background, None);
-        // **As barras do Aero ficam sobre a copia borrada**, e e contra ela
-        // que a tinta delas e calculada (ver `apply_background`); o conteudo
-        // continua sobre a foto nitida, com o suporte de leitura (`surface`)
-        // atras de titulo, linha e cartao. Cada tinta e testada contra a cena
-        // que realmente fica atras dela.
+        let paper = crate::wallpaper::load(
+            Some(&dir.join("aquario")),
+            &spec.background,
+            None,
+            0.0,
+        );
+        // **No Aero toda peca de vidro fica sobre a copia borrada** -- barras e
+        // molduras de grupo --, e e contra ela que as tintas sao calculadas
+        // (ver `apply_background`). A foto nitida so aparece nas frestas.
         let nitida = paper.image;
         let borrada = paper.blurred;
-        let surface = crate::optics::readable_tint(&nitida, spec.colors.surface, &spec);
+        let surface = crate::optics::readable_tint(&borrada, spec.colors.surface, &spec);
         let sidebar = crate::optics::readable_tint(&borrada, spec.colors.sidebar_background, &spec);
         let player = crate::optics::readable_tint(&borrada, spec.colors.player_background, &spec);
         let mut pior = Color::rgb(255, 255, 255);
         let mut luminancia_minima = f32::MAX;
-        for (cena, paineis) in [(&nitida, vec![surface]), (&borrada, vec![sidebar, player])] {
+        // A foto nitida so aparece nas frestas, sem texto; `nitida` fica no
+        // laco para o dia em que alguma peca voltar a escrever sobre ela.
+        let _ = &nitida;
+        for (cena, paineis) in [(&borrada, vec![surface, sidebar, player])] {
             let pixels = cena.to_rgba8().expect("as duas copias tem pixels");
             assert!(!pixels.as_slice().is_empty());
             for pixel in pixels.as_slice() {
@@ -627,13 +633,17 @@ mod tests {
         }
         // As duas tintas sao opacas e mais escuras que qualquer pixel da cena;
         // portanto o pixel de menor luminancia e o pior caso para ambas.
-        assert!(spec.colors.text.relative_luminance() < luminancia_minima);
-        assert!(spec.colors.text_muted.relative_luminance() < luminancia_minima);
-        assert_texto_legivel(&spec, pior, "pior pixel da cena com realce");
         println!(
             "Aquario: menor contraste secundario na cena = {:.2}:1",
             spec.colors.text_muted.contrast_ratio(pior)
         );
+        println!(
+            "Aquario: tintas resolvidas -- surface a={} sidebar a={} player a={}",
+            surface.a, sidebar.a, player.a
+        );
+        assert!(spec.colors.text.relative_luminance() < luminancia_minima);
+        assert!(spec.colors.text_muted.relative_luminance() < luminancia_minima);
+        assert_texto_legivel(&spec, pior, "pior pixel da cena com realce");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

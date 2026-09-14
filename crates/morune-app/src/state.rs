@@ -1803,6 +1803,12 @@ impl AppState {
         theme_bridge::apply_icons(&window.global::<ui::Icons>(), self.theme.source.as_deref());
     }
 
+    /// So a composicao da tela (barra lateral, player, grade), sem tocar em
+    /// cor, fonte nem imagem. Para o que muda geometria e nada mais.
+    pub fn apply_layout_to(&self, window: &ui::AppWindow) {
+        theme_bridge::apply_layout(&window.global::<ui::Layout>(), self.spec(), self.overrides);
+    }
+
     /// Reprepara a imagem de fundo a partir do tema e da escolha do usuario.
     ///
     /// Chamada so quando um dos dois muda. A escolha do usuario vence a do
@@ -1826,7 +1832,13 @@ impl AppState {
         let user_image = (!user.background_image.is_empty())
             .then(|| std::path::PathBuf::from(&user.background_image));
         self.wallpaper =
-            crate::wallpaper::load(self.theme.source.as_deref(), &tokens, user_image.as_deref());
+            crate::wallpaper::load(
+                self.theme.source.as_deref(),
+                &tokens,
+                user_image.as_deref(),
+                user.glass_blur,
+            );
+        self.wallpaper.tintas = Some(theme_bridge::tintas_legiveis(self.spec(), &self.wallpaper));
         // Em `debug` e nao `info`: e diagnostico de tema, so interessa a quem
         // esta descobrindo por que o fundo dele nao apareceu.
         tracing::debug!(
@@ -2383,6 +2395,18 @@ impl AppState {
     pub fn set_background_blur(&mut self, value: f32) {
         self.config.appearance.background_blur = value.clamp(0.0, 1.0) * 64.0;
         self.refresh_wallpaper();
+        self.save_config();
+    }
+
+    /// Desfoque do vidro, recebido normalizado em `[0, 1]` e guardado em pixels.
+    ///
+    /// So o borrao e refeito, a partir da copia que ja esta na memoria:
+    /// decodificar o JPEG de novo a cada toque no slider travava a tela.
+    pub fn set_glass_blur(&mut self, value: f32) {
+        let raio = value.clamp(0.0, 1.0) * crate::wallpaper::RAIO_VIDRO_MAX;
+        self.config.appearance.glass_blur = raio;
+        self.wallpaper.com_desfoque_do_vidro(raio);
+        self.wallpaper.tintas = Some(theme_bridge::tintas_legiveis(self.spec(), &self.wallpaper));
         self.save_config();
     }
 
@@ -3282,6 +3306,7 @@ impl AppState {
         window.set_background_opacity(appearance.background_opacity);
         window.set_background_tint(appearance.background_tint_strength);
         window.set_background_blur(appearance.background_blur / 64.0);
+        window.set_glass_blur(appearance.glass_blur / crate::wallpaper::RAIO_VIDRO_MAX);
         window.set_font_scale(self.font_scale_slider());
         window.set_reduce_motion(appearance.reduce_motion);
         window.set_hot_reload(self.config.developer.hot_reload);
