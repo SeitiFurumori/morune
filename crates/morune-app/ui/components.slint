@@ -282,7 +282,9 @@ export component Aurora inherits Rectangle {
     width: 100%;
     height: 100%;
     border-radius: root.radius;
-    clip: true;
+    // **Sem `clip` proprio nem opacidade de grupo.** Cada um dos dois abre
+    // uma camada inteira no renderizador a cada quadro; quem recorta e o
+    // painel que hospeda, uma vez so. A opacidade vai em cada ladrilho.
 
     // Medidas do ladrilho, as mesmas da folha.
     private property <length> ladrilho-w: 791px;
@@ -294,7 +296,6 @@ export component Aurora inherits Rectangle {
     if Theme.material-kind == 1: Rectangle {
         width: 100%;
         height: 100%;
-        opacity: root.forca * Theme.gloss;
         for c in root.colunas: Rectangle {
             for l in root.linhas: Image {
                 source: @image-url("materiais/aurora.png");
@@ -303,6 +304,7 @@ export component Aurora inherits Rectangle {
                 height: root.ladrilho-h;
                 x: (c - 1) * root.ladrilho-w + root.ladrilho-w * Theme.aurora-fase;
                 y: l * root.ladrilho-h;
+                opacity: root.forca * Theme.gloss;
             }
         }
     }
@@ -722,7 +724,8 @@ export component Vidro inherits Rectangle {
     width: 100%;
     height: 100%;
     border-radius: root.radius;
-    clip: true;
+    // No Aero quem recorta e o painel: um `clip` a menos por quadro.
+    clip: Theme.material-kind != 1;
 
     // Escala do `cover`: a maior das duas, para a imagem cobrir a janela
     // inteira sem deixar borda.

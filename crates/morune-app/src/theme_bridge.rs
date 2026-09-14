@@ -121,17 +121,18 @@ pub fn apply_background(theme: &UiTheme<'_>, spec: &ThemeSpec, paper: &Wallpaper
             &glass_spec,
         ))
     });
-    // O Aero mostra o fundo JA BORRADO atras dos paineis, entao o pior pixel
-    // que o texto enfrenta e o do borrao -- muito mais claro que o da foto
-    // nitida. Medir contra a nitida empurrava o vidro azul para opaco.
-    let cena = if spec.effects.material == morune_theme::tokens::MaterialKind::Aero
+    // As barras do Aero ficam sobre o fundo JA BORRADO, entao o pior pixel que
+    // o texto delas enfrenta e o do borrao -- muito mais claro que o da foto
+    // nitida. Medir contra a nitida empurrava o vidro azul para opaco. O
+    // conteudo continua sobre a foto nitida, e `surface` e medida contra ela.
+    let barras = if spec.effects.material == morune_theme::tokens::MaterialKind::Aero
         && paper.blurred.size().width > 0
     {
         &paper.blurred
     } else {
         &paper.image
     };
-    apply_reading_surfaces(theme, spec, cena);
+    apply_reading_surfaces(theme, spec, &paper.image, barras);
     theme.set_background_image(paper.image.clone());
     theme.set_background_blurred(paper.blurred.clone());
     theme.set_background_fit(paper.fit);
@@ -149,27 +150,42 @@ pub fn apply(theme: &UiTheme<'_>, layout: &UiLayout<'_>, spec: &ThemeSpec, over:
     apply_motion(theme, spec, over);
     apply_effects(theme, spec);
     apply_layout(layout, spec, over);
-    apply_reading_surfaces(theme, spec, &theme.get_background_image());
+    // Recalculo com o que a interface ja tem: `apply_colors` acabou de
+    // sobrescrever as tintas legiveis com as cruas do tema.
+    let barras = theme.get_background_blurred();
+    let barras = if spec.effects.material == morune_theme::tokens::MaterialKind::Aero
+        && barras.size().width > 0
+    {
+        barras
+    } else {
+        theme.get_background_image()
+    };
+    apply_reading_surfaces(theme, spec, &theme.get_background_image(), &barras);
 }
 
-fn apply_reading_surfaces(theme: &UiTheme<'_>, spec: &ThemeSpec, image: &slint::Image) {
+fn apply_reading_surfaces(
+    theme: &UiTheme<'_>,
+    spec: &ThemeSpec,
+    conteudo: &slint::Image,
+    barras: &slint::Image,
+) {
     use morune_theme::tokens::MaterialKind;
     if spec.effects.material == MaterialKind::Legacy {
         return;
     }
     theme.set_surface(brush(crate::optics::readable_tint(
-        image,
+        conteudo,
         spec.colors.surface,
         spec,
     )));
     if spec.effects.material == MaterialKind::Aero {
         theme.set_sidebar_background(brush(crate::optics::readable_tint(
-            image,
+            barras,
             spec.colors.sidebar_background,
             spec,
         )));
         theme.set_player_background(brush(crate::optics::readable_tint(
-            image,
+            barras,
             spec.colors.player_background,
             spec,
         )));

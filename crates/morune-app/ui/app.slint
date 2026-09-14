@@ -128,16 +128,16 @@ export global Icons {
 component SectionTitle inherits Rectangle {
     in property <string> text;
     in property <length> font-size: Theme.size-lg;
-    height: label.preferred-height + (Theme.material-kind == 2 ? Theme.space-xs * 2 : 0px);
+    height: label.preferred-height + (Theme.material-kind > 0 ? Theme.space-xs * 2 : 0px);
     Rectangle {
         x: 0; y: 0;
         width: min(parent.width, label.preferred-width + Theme.space-sm * 2);
         height: 100%;
         border-radius: Theme.radius-sm;
-        background: Theme.material-kind == 2 ? Theme.surface : transparent;
+        background: Theme.material-kind > 0 ? Theme.surface : transparent;
     }
     label := Text {
-        x: Theme.material-kind == 2 ? Theme.space-sm : 0px;
+        x: Theme.material-kind > 0 ? Theme.space-sm : 0px;
         width: parent.width - self.x * 2;
         height: 100%;
         text: root.text;
@@ -289,6 +289,9 @@ component AppTitleBar inherits Rectangle {
     // No Aero a cor do vidro vai por cima do borrao, dentro do `Vidro`; pintar
     // aqui embaixo tambem somaria a mesma cor duas vezes.
     background: Theme.material-kind == 1 ? transparent : Theme.sidebar-background;
+    // Um recorte so, aqui no painel: cada `clip` e uma camada inteira do
+    // renderizador por quadro, e tres por painel travavam a interface.
+    clip: Theme.material-kind == 1;
 
     // Mesma peca de vidro da barra lateral e do rodape: as tres formam a
     // moldura da janela, e moldura e onde material de fundo pertence.
@@ -495,11 +498,9 @@ component TrackListRow inherits Rectangle {
 
     height: Layout.row-height;
     border-radius: Theme.radius-sm;
-    // No Aero a linha nao tem suporte proprio: o painel de conteudo ja e vidro
-    // legivel, e uma faixa por linha virava zebra sobre ele.
     // A cor de `hover` do tema fica por baixo, fraca: e ela que sustenta o
     // realce num tema sem imagem de fundo e sem brilho, onde a folha nao entra.
-    background: Theme.material-kind == 2 ? Theme.surface : (touch.has-hover ? Theme.hover : transparent);
+    background: Theme.material-kind > 0 ? Theme.surface : (touch.has-hover ? Theme.hover : transparent);
     animate background { duration: Theme.motion-fast; easing: ease; }
 
     // A linha acende como objeto. Ver a nota em `Realce`: veu de cor sobre o
@@ -779,7 +780,7 @@ component Card inherits Rectangle {
     // Quem chega por Tab recebe o mesmo contexto visual de quem aponta com o
     // mouse. O anel de foco continua sendo a marca precisa do alvo; este
     // realce impede que ele pareca solto numa lista longa.
-    background: Theme.material-kind == 2 ? Theme.surface
+    background: Theme.material-kind > 0 ? Theme.surface
         : (touch.has-hover || touch.has-focus ? Theme.hover : transparent);
     if Theme.material-kind > 0 && (touch.has-hover || touch.has-focus): Rectangle {
         width: 100%; height: 100%;
@@ -1315,6 +1316,7 @@ component PlayerBar inherits Rectangle {
     height: Layout.player-height;
     background: Theme.material-kind == 0 ? Theme.player-background : transparent;
     border-radius: Theme.material-kind == 1 ? Theme.radius-lg : 0px;
+    clip: Theme.material-kind == 1;
 
     if Theme.material-kind == 2: SceneGlass {
         x: Theme.space-sm; y: Theme.space-xs;
@@ -2935,7 +2937,7 @@ component SettingsPage inherits VerticalLayout {
             width: parent.width;
             height: pagina.preferred-height;
             border-radius: Theme.radius-md;
-            background: Theme.material-kind == 2 ? Theme.surface : transparent;
+            background: Theme.material-kind > 0 ? Theme.surface : transparent;
         }
 
         pagina := VerticalLayout {
@@ -3568,6 +3570,7 @@ component SidebarShell inherits Rectangle {
         : Layout.sidebar-width;
     background: Theme.material-kind == 1 ? transparent : Theme.sidebar-background;
     border-radius: Theme.material-kind > 0 ? Theme.radius-lg : 0px;
+    clip: Theme.material-kind == 1;
     // A lente acompanha geometria; o colapso nao deve gerar uma imagem por frame.
     animate width { duration: Theme.material-kind == 2 ? 0ms : Theme.motion-normal; easing: ease-in-out; }
 
@@ -3980,17 +3983,6 @@ export component AppWindow inherits Window {
                 // destacar contra. Quem clareia e o que se pode tocar -- linha
                 // sob o cursor, cartao, item escolhido do menu. O resto cobre.
                 background: transparent;
-                clip: Theme.material-kind == 1;
-
-                // **No Aero o conteudo tambem e um painel de vidro.** E o pedido:
-                // a foto limpa aparece nas frestas entre os paineis, e todo
-                // painel -- este incluido -- borra o que esta atras. Sem isto a
-                // home era a unica regiao com a foto nitida por tras do texto.
-                if Theme.material-kind == 1: Vidro {
-                    radius: parent.border-radius;
-                    tinta: Theme.surface;
-                }
-                if Theme.material-kind == 1: Glass { radius: parent.border-radius; }
 
                 VerticalLayout {
                     // **Sem recuo embaixo, e o de baixo era o unico errado.**

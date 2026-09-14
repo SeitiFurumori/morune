@@ -5,10 +5,10 @@
 
 [color]
 background         = "#dceffa"
-surface            = "#9cc6ee6b"
+surface            = "#a9cfef73"
 surface_raised     = "#eef8ff"
-sidebar_background = "#8fbdea80"
-player_background  = "#8fbdea80"
+sidebar_background = "#a3c9ee5c"
+player_background  = "#a3c9ee5c"
 # Tinta petrol; o texto secundario precisa sobreviver a agua e a grama.
 text           = "#08232e"
 text_muted     = "#0c2530"
