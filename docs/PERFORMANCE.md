@@ -300,7 +300,10 @@ o preco de duas texturas grandes de verdade.
 do vidro Windows 7 redesenha a janela inteira a cada passo. A 20 passos por
 segundo, 16% de GPU 3D; a 10, metade. Ela para com a janela na bandeja
 (`aurora-viva`), com animacao reduzida e com o portao de tela cheia -- entao
-nunca roda atras de um jogo. Numero do release em regime: ver abaixo.
+nunca roda atras de um jogo. No release, com a janela visivel e a aurora
+andando: **2,63% de CPU, 1,69% de GPU 3D**, working set 225 MB, 474 MB
+privados (13/09/2026, 30 s). E o preco da animacao; parada, o Aquario volta
+ao repouso dos outros temas.
 
 ## Riscos conhecidos
 
