@@ -542,7 +542,14 @@ fn glyph_coverage(glyph: Glyph, margem: f32) -> [u8; ICON_SIZE * ICON_SIZE] {
 fn glyph_icon_resource(glyph: Glyph, style: IconStyle) -> [u8; ICON_RESOURCE_BYTES] {
     let tint = style.tint;
     // Dentro da esfera o glifo encolhe: a esfera e a peca, o glifo e o rotulo.
-    let alpha = glyph_coverage(glyph, if style.orbe.is_some() { ORB_GLYPH_MARGIN } else { GLYPH_MARGIN });
+    let alpha = glyph_coverage(
+        glyph,
+        if style.orbe.is_some() {
+            ORB_GLYPH_MARGIN
+        } else {
+            GLYPH_MARGIN
+        },
+    );
     let orbe = style.orbe.map(orb_pixels);
 
     let mut resource = [0u8; ICON_RESOURCE_BYTES];
@@ -566,7 +573,10 @@ fn glyph_icon_resource(glyph: Glyph, style: IconStyle) -> [u8; ICON_RESOURCE_BYT
         for x in 0..ICON_SIZE {
             let cobertura = alpha[y * ICON_SIZE + x];
             // Primeiro a esfera, se houver; o glifo entra por cima dela.
-            let fundo = orbe.as_ref().map(|o| o[y * ICON_SIZE + x]).unwrap_or([0, 0, 0, 0]);
+            let fundo = orbe
+                .as_ref()
+                .map(|o| o[y * ICON_SIZE + x])
+                .unwrap_or([0, 0, 0, 0]);
             let (pixel, a) = over(tint, cobertura, fundo);
             if a == 0 {
                 continue;
@@ -680,7 +690,10 @@ mod tests {
     use super::*;
 
     /// Cor qualquer, so para o recurso ficar completo nos testes.
-    const TINTA: IconStyle = IconStyle { tint: [0x6d, 0xd4, 0x9e], orbe: None };
+    const TINTA: IconStyle = IconStyle {
+        tint: [0x6d, 0xd4, 0x9e],
+        orbe: None,
+    };
 
     /// Com esfera, o icone e redondo e preenchido: o centro e o canto contam
     /// historias diferentes.
@@ -688,11 +701,16 @@ mod tests {
     fn a_esfera_aero_preenche_o_circulo_e_deixa_os_cantos_vazios() {
         let estilo = IconStyle {
             tint: [0x0f, 0x4a, 0x75],
-            orbe: Some(Orbe { base: [0x98, 0xd1, 0xef], borda: [0x0f, 0x4a, 0x75] }),
+            orbe: Some(Orbe {
+                base: [0x98, 0xd1, 0xef],
+                borda: [0x0f, 0x4a, 0x75],
+            }),
         };
         let resource = glyph_icon_resource(Glyph::Next, estilo);
         let color_start = ICON_RESOURCE_HEADER_BYTES;
-        let alfa = |x: usize, y: usize| resource[color_start + ((ICON_SIZE - 1 - y) * ICON_SIZE + x) * 4 + 3];
+        let alfa = |x: usize, y: usize| {
+            resource[color_start + ((ICON_SIZE - 1 - y) * ICON_SIZE + x) * 4 + 3]
+        };
         assert_eq!(alfa(0, 0), 0, "canto fora da esfera");
         assert_eq!(alfa(16, 4), 255, "topo da esfera, sem glifo, e opaco");
         assert_eq!(alfa(16, 27), 255, "base da esfera e opaca");
@@ -794,7 +812,13 @@ mod tests {
 
     #[test]
     fn a_cor_pedida_e_a_que_vai_para_o_icone() {
-        let resource = glyph_icon_resource(Glyph::Play, IconStyle { tint: [0x11, 0x22, 0x33], orbe: None });
+        let resource = glyph_icon_resource(
+            Glyph::Play,
+            IconStyle {
+                tint: [0x11, 0x22, 0x33],
+                orbe: None,
+            },
+        );
         let pixels = &resource[ICON_RESOURCE_HEADER_BYTES..][..ICON_COLOR_BYTES];
         // BGRA: o azul vem primeiro.
         let cheio = pixels

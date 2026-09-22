@@ -1439,6 +1439,21 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
         s.push_to_ui(&w);
     });
 
+    on!(on_close_queue, |w, s| {
+        s.close_queue();
+        s.push_to_ui(&w);
+    });
+
+    on!(on_toggle_mute, |w, s| {
+        s.toggle_mute();
+        s.push_playback(&w);
+    });
+
+    on!(on_nudge_volume, |w, s, delta: f32| {
+        s.nudge_volume(delta);
+        s.push_playback(&w);
+    });
+
     on!(on_detail_play, |w, s| {
         s.play_detail();
         s.push_to_ui(&w);

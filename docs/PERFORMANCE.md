@@ -330,6 +330,32 @@ Achado no caminho, ainda aberto: com o material **legacy**, a interface cria
 por segundo na compilacao de depuracao. Nenhum tema de fabrica usa legacy com
 imagem, mas um tema de terceiros pode.
 
+## Mudanca de 21/09/2026 -- troca de pagina e rolagem (ainda sem medida)
+
+Meta da sessao: trocar de pagina e rolar sem travar, sem cache pesado. Tres
+causas achadas lendo o codigo, corrigidas, **ainda nao medidas em regime** (a
+medicao exige sessao com login, que a caixa de areia do build nao tem):
+
+1. **`push_to_ui` trocava todas as listas por modelos novos a cada clique.**
+   Navegar, pausar, favoritar e ate o volume reconstruiam ~16 `VecModel` --
+   curtidas inteiras da Home, biblioteca, busca, fila 200+200 -- e para o Slint
+   modelo novo e lista nova: toda linha e todo cartao visivel eram destruidos e
+   instanciados de novo, e a rolagem voltava ao topo. Agora cada lista e um
+   modelo so, vivo, e o espelhamento compara e reescreve **so as linhas que
+   mudaram** (`state.rs`, `Lista::sincronizar`). Capa que chega atualiza uma
+   linha, nao a tela.
+2. **As curtidas da Home eram um `for` dentro de `Flickable`:** milhares de
+   linhas instanciadas para mostrar oito, e memoria viva mesmo fora da Home.
+   Viraram `TrackList` (`ListView`), que so instancia o que esta na janela.
+3. **Troca de pagina destruia e recriava a arvore** (`if root.page == N`).
+   Inicio, Busca, Biblioteca e Fila agora ficam vivas e escondidas por
+   `visible`: sem reconstrucao, e a rolagem de cada uma sobrevive. Detalhe e
+   Ajustes continuam em `if`. Custo esperado: alguns MB a mais de itens vivos;
+   nenhum custo por quadro, porque elemento invisivel nao desenha nem reavalia.
+
+O que falta: medir com `tools/measure.ps1` numa sessao real, e conferir que a
+memoria em repouso nao passou do teto explicado em 06/09.
+
 ## Riscos conhecidos
 
 **Reabrir pelo atalho com o Morune na bandeja traz uma janela vazia.** Achado

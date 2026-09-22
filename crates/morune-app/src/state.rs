@@ -174,6 +174,10 @@ pub struct AppState {
     /// configuracao: e estado do momento, nao preferencia.
     tela_cheia: bool,
     page: Page,
+    /// De onde a Fila foi aberta, para `Esc` devolver o usuario ao lugar certo.
+    page_before_queue: Page,
+    /// Volume de antes de silenciar, para o mudo ser reversivel.
+    volume_before_mute: f32,
     status: String,
     /// A mensagem que o relogio de expiracao esta contando, e desde quando.
     ///
@@ -296,6 +300,8 @@ pub struct AppState {
     /// quando a capa muda -- recalcular ali dentro reabriria a imagem dez vezes
     /// por segundo.
     now_tint: (Option<std::path::PathBuf>, Option<slint::Color>),
+    /// As listas que a interface exibe, vivas entre um espelhamento e outro.
+    listas: Listas,
     /// Capas pequenas das linhas, indexadas pela URL que o modelo da faixa traz.
     track_covers: HashMap<String, std::path::PathBuf>,
     /// Semente do pedido de autoplay em voo; impede uma resposta antiga de
@@ -391,6 +397,8 @@ impl AppState {
             overrides,
             tela_cheia: false,
             page: Page::Home,
+            page_before_queue: Page::Home,
+            volume_before_mute: 0.0,
             status: String::new(),
             status_seen: (String::new(), Instant::now()),
             undo: None,
@@ -447,6 +455,7 @@ impl AppState {
             account_avatar: (String::new(), None),
             now_cover: (String::new(), None),
             now_tint: (None, None),
+            listas: Listas::default(),
             track_covers: HashMap::new(),
             autoplay_seed: None,
             home_requested: false,
@@ -1831,13 +1840,12 @@ impl AppState {
         };
         let user_image = (!user.background_image.is_empty())
             .then(|| std::path::PathBuf::from(&user.background_image));
-        self.wallpaper =
-            crate::wallpaper::load(
-                self.theme.source.as_deref(),
-                &tokens,
-                user_image.as_deref(),
-                user.glass_blur,
-            );
+        self.wallpaper = crate::wallpaper::load(
+            self.theme.source.as_deref(),
+            &tokens,
+            user_image.as_deref(),
+            user.glass_blur,
+        );
         self.wallpaper.tintas = Some(theme_bridge::tintas_legiveis(self.spec(), &self.wallpaper));
         // Em `debug` e nao `info`: e diagnostico de tema, so interessa a quem
         // esta descobrindo por que o fundo dele nao apareceu.
@@ -2685,7 +2693,17 @@ impl AppState {
     // ---- navegacao ----
 
     pub fn navigate(&mut self, page: i32) {
-        self.page = Page::from_i32(page);
+        let destino = Page::from_i32(page);
+        if destino == Page::Queue && self.page != Page::Queue {
+            // O Detalhe e fechado ao sair dele (abaixo), entao voltar para la
+            // daria uma pagina vazia; a Home e o retorno seguro nesse caso.
+            self.page_before_queue = if self.page == Page::Detail {
+                Page::Home
+            } else {
+                self.page
+            };
+        }
+        self.page = destino;
         if self.page == Page::Settings {
             // Um fone conectado depois de abrir o aplicativo so aparece aqui.
             self.output_devices = morune_spotify::output_devices();
@@ -2697,6 +2715,35 @@ impl AppState {
             self.detail_history.clear();
         }
         self.request_page_data();
+    }
+
+    /// Fecha a Fila e volta para a pagina de onde ela foi aberta.
+    pub fn close_queue(&mut self) {
+        if self.page == Page::Queue {
+            self.navigate(self.page_before_queue as i32);
+        }
+    }
+
+    /// Silencia, ou devolve o volume de antes de silenciar.
+    pub fn toggle_mute(&mut self) {
+        if self.volume > 0.0 {
+            self.volume_before_mute = self.volume;
+            self.set_volume(0.0);
+        } else {
+            // Silenciado desde o inicio (config salva com zero): metade e um
+            // volume que da para ouvir sem assustar.
+            let volta = if self.volume_before_mute > 0.0 {
+                self.volume_before_mute
+            } else {
+                0.5
+            };
+            self.set_volume(volta);
+        }
+    }
+
+    /// Passo de volume (roda do mouse, Ctrl+setas).
+    pub fn nudge_volume(&mut self, delta: f32) {
+        self.set_volume(self.volume + delta);
     }
 
     /// Abre uma pagina especifica na inicializacao.
@@ -3292,12 +3339,22 @@ impl AppState {
         window.set_autoplay(self.config.playback.autoplay);
         window.set_bitrate(self.bitrate_code());
         window.set_normalize(self.normalize());
-        window.set_output_devices(slint::ModelRc::new(slint::VecModel::from(
-            self.output_devices()
-                .iter()
-                .map(|nome| SharedString::from(nome.as_str()))
-                .collect::<Vec<_>>(),
-        )));
+        // **So as listas da pagina visivel sao refeitas.** Montar as linhas de
+        // todas as paginas -- curtidas inteiras, fila, busca, biblioteca -- a
+        // cada capa que chega era trabalho na thread da interface para telas
+        // que ninguem estava vendo, e aparecia como engasgo na rolagem de quem
+        // estava na Home. Quem entra numa pagina passa por `navigate`, que
+        // chama isto de novo com a pagina ja trocada: nada chega atrasado.
+        let pagina = self.page;
+        window.set_output_devices(self.listas.output_devices.sincronizar_se(
+            pagina == Page::Settings,
+            || {
+                self.output_devices()
+                    .iter()
+                    .map(|nome| SharedString::from(nome.as_str()))
+                    .collect()
+            },
+        ));
         window.set_output_device(SharedString::from(self.output_device()));
         let appearance = &self.config.appearance;
         window.set_has_background(!appearance.background_image.is_empty());
@@ -3327,10 +3384,10 @@ impl AppState {
         self.push_playback(window);
 
         let current = self.queue.current();
-        window.set_sidebar_playlists(sidebar_items(
+        window.set_sidebar_playlists(self.listas.sidebar_playlists.sincronizar(sidebar_items(
             &self.sidebar_playlists(),
             &self.config.navigation.pinned_playlists,
-        ));
+        )));
 
         if let Some(detail) = &self.detail {
             window.set_detail_title(detail.title.as_str().into());
@@ -3342,11 +3399,16 @@ impl AppState {
             window.set_detail_cover_hue(hue);
             window
                 .set_detail_cover_pending(!detail.cover.is_empty() && detail.cover_path.is_none());
-            window.set_detail_tracks(track_rows(
-                self.detail_tracks(),
-                current,
-                &self.track_covers,
-                &self.liked_ids,
+            window.set_detail_tracks(self.listas.detail_tracks.sincronizar_se(
+                pagina == Page::Detail,
+                || {
+                    track_rows(
+                        self.detail_tracks(),
+                        current,
+                        &self.track_covers,
+                        &self.liked_ids,
+                    )
+                },
             ));
             window.set_detail_sort(self.detail_sort as i32);
             window.set_detail_descending(self.detail_desc);
@@ -3354,40 +3416,78 @@ impl AppState {
             window.set_detail_has_more(detail.has_more);
             window.set_detail_loading(self.detail_loading);
             window.set_detail_loaded_count(detail.tracks.len() as i32);
-            window.set_detail_items(card_items(&detail.cards));
+            window.set_detail_items(
+                self.listas
+                    .detail_items
+                    .sincronizar_se(pagina == Page::Detail, || card_items(&detail.cards)),
+            );
         }
-        window.set_queue_manual_tracks(track_rows(
-            self.queue.user_queue().take(200).collect(),
-            current,
-            &self.track_covers,
-            &self.liked_ids,
-        ));
-        window.set_queue_context_tracks(track_rows(
-            self.queue.upcoming_context(200),
-            current,
-            &self.track_covers,
-            &self.liked_ids,
-        ));
-        window.set_themes(self.theme_items());
-        window.set_diagnostics(self.diagnostics());
-        window.set_home_made_for_you(card_items(&self.home_made_for_you));
-        window.set_home_liked(track_rows(
-            self.liked.tracks.iter().collect(),
-            current,
-            &self.track_covers,
-            &self.liked_ids,
-        ));
-        window.set_home_playlists(card_items(&self.home_playlists));
-        window.set_home_stations(card_items(&self.home_stations));
-        window.set_home_retrospectives(card_items(&self.home_retrospectives));
-        window.set_library_items(card_items(&self.library));
-        window.set_search_items(card_items(&self.search_cards));
-        window.set_search_tracks(track_rows(
-            self.search.tracks.iter().collect(),
-            current,
-            &self.track_covers,
-            &self.liked_ids,
-        ));
+        let l = &self.listas;
+        let na_fila = pagina == Page::Queue;
+        window.set_queue_manual_tracks(l.queue_manual_tracks.sincronizar_se(na_fila, || {
+            track_rows(
+                self.queue.user_queue().take(200).collect(),
+                current,
+                &self.track_covers,
+                &self.liked_ids,
+            )
+        }));
+        window.set_queue_context_tracks(l.queue_context_tracks.sincronizar_se(na_fila, || {
+            track_rows(
+                self.queue.upcoming_context(200),
+                current,
+                &self.track_covers,
+                &self.liked_ids,
+            )
+        }));
+        let nos_ajustes = pagina == Page::Settings;
+        window.set_themes(l.themes.sincronizar_se(nos_ajustes, || self.theme_items()));
+        window.set_diagnostics(
+            l.diagnostics
+                .sincronizar_se(nos_ajustes, || self.diagnostics()),
+        );
+        let na_home = pagina == Page::Home;
+        window.set_home_made_for_you(
+            l.home_made_for_you
+                .sincronizar_se(na_home, || card_items(&self.home_made_for_you)),
+        );
+        window.set_home_liked(l.home_liked.sincronizar_se(na_home, || {
+            track_rows(
+                self.liked.tracks.iter().collect(),
+                current,
+                &self.track_covers,
+                &self.liked_ids,
+            )
+        }));
+        window.set_home_playlists(
+            l.home_playlists
+                .sincronizar_se(na_home, || card_items(&self.home_playlists)),
+        );
+        window.set_home_stations(
+            l.home_stations
+                .sincronizar_se(na_home, || card_items(&self.home_stations)),
+        );
+        window.set_home_retrospectives(
+            l.home_retrospectives
+                .sincronizar_se(na_home, || card_items(&self.home_retrospectives)),
+        );
+        window.set_library_items(
+            l.library_items
+                .sincronizar_se(pagina == Page::Library, || card_items(&self.library)),
+        );
+        let na_busca = pagina == Page::Search;
+        window.set_search_items(
+            l.search_items
+                .sincronizar_se(na_busca, || card_items(&self.search_cards)),
+        );
+        window.set_search_tracks(l.search_tracks.sincronizar_se(na_busca, || {
+            track_rows(
+                self.search.tracks.iter().collect(),
+                current,
+                &self.track_covers,
+                &self.liked_ids,
+            )
+        }));
     }
 
     /// Espelha so a barra de reproducao.
@@ -3463,14 +3563,13 @@ impl AppState {
         window.set_now_favorite(current.is_some_and(|track| self.liked_ids.contains(&track.id)));
     }
 
-    fn theme_items(&self) -> ModelRc<ui::ThemeItem> {
+    fn theme_items(&self) -> Vec<ui::ThemeItem> {
         fn slint_color(c: morune_theme::Color) -> slint::Color {
             slint::Color::from_argb_u8(c.a, c.r, c.g, c.b)
         }
 
         let active = self.theme_id();
-        let items: Vec<ui::ThemeItem> = self
-            .themes
+        self.themes
             .iter()
             .map(|entry| ui::ThemeItem {
                 id: entry.manifest.id.as_str().into(),
@@ -3485,11 +3584,10 @@ impl AppState {
                 preview_accent: slint_color(entry.preview.accent),
                 preview_text: slint_color(entry.preview.text),
             })
-            .collect();
-        ModelRc::new(VecModel::from(items))
+            .collect()
     }
 
-    fn diagnostics(&self) -> ModelRc<ui::Diagnostic> {
+    fn diagnostics(&self) -> Vec<ui::Diagnostic> {
         let mut items: Vec<ui::Diagnostic> = self
             .theme
             .errors
@@ -3505,7 +3603,7 @@ impl AppState {
             field: w.field.as_str().into(),
             message: w.message.as_str().into(),
         }));
-        ModelRc::new(VecModel::from(items))
+        items
     }
 }
 
@@ -3604,8 +3702,8 @@ fn track_rows(
     current: Option<&Track>,
     covers: &HashMap<String, std::path::PathBuf>,
     liked_ids: &HashSet<TrackId>,
-) -> ModelRc<ui::TrackRow> {
-    let rows: Vec<ui::TrackRow> = tracks
+) -> Vec<ui::TrackRow> {
+    tracks
         .into_iter()
         .map(|t| {
             let url = track_cover_url(t);
@@ -3639,8 +3737,7 @@ fn track_rows(
                 favorite: liked_ids.contains(&t.id),
             }
         })
-        .collect();
-    ModelRc::new(VecModel::from(rows))
+        .collect()
 }
 
 fn track_cover_url(track: &Track) -> Option<String> {
@@ -3698,15 +3795,14 @@ fn nome_do_album(track: &Track) -> &str {
 ///
 /// A marca nao cabe em `card_item` porque o mesmo cartao aparece nas
 /// prateleiras do Inicio, onde estar fixada nao significa nada.
-fn sidebar_items(cards: &[&Card], pinned: &[String]) -> ModelRc<ui::CardItem> {
-    let items: Vec<ui::CardItem> = cards
+fn sidebar_items(cards: &[&Card], pinned: &[String]) -> Vec<ui::CardItem> {
+    cards
         .iter()
         .map(|c| ui::CardItem {
             pinned: pinned.iter().any(|tag| tag == &c.tag),
             ..card_item(c)
         })
-        .collect();
-    ModelRc::new(VecModel::from(items))
+        .collect()
 }
 
 fn card_item(c: &Card) -> ui::CardItem {
@@ -3726,9 +3822,109 @@ fn card_item(c: &Card) -> ui::CardItem {
     }
 }
 
-fn card_items(cards: &[Card]) -> ModelRc<ui::CardItem> {
-    let items: Vec<ui::CardItem> = cards.iter().map(card_item).collect();
-    ModelRc::new(VecModel::from(items))
+fn card_items(cards: &[Card]) -> Vec<ui::CardItem> {
+    cards.iter().map(card_item).collect()
+}
+
+/// Uma lista da interface que sobrevive entre espelhamentos.
+///
+/// **Por que existe.** `push_to_ui` roda a cada clique -- navegar, pausar,
+/// favoritar, mexer no volume -- e ate aqui trocava o `ModelRc` de todas as
+/// listas por um novo. Para o Slint, modelo novo e lista nova: cada linha de
+/// faixa e cada cartao visivel era destruido e instanciado outra vez, com
+/// todas as suas ligacoes, mesmo quando nada neles tinha mudado. Numa Home com
+/// as curtidas inteiras e quatro prateleiras, e numa fila de 400 linhas, era
+/// isso que aparecia como "o clique corta direto para o resultado" -- e era
+/// isso que rolava a lista de volta ao topo.
+///
+/// Aqui o modelo e um so, criado uma vez. A cada espelhamento a lista nova e
+/// **comparada** com a que esta na tela e so as linhas diferentes sao
+/// reescritas (`set_row_data`), que para o Slint e uma mudanca de propriedade
+/// no item que ja existe, nao um item novo. Linha que nao mudou nao custa nada;
+/// comprimento igual e conteudo igual nao acorda a interface.
+///
+/// Devolver a lista sempre como o **mesmo** `ModelRc` e de proposito: o
+/// `set_*` do Slint compara com o valor atual e nao suja a propriedade quando e
+/// igual, entao a chamada repetida em `push_to_ui` e gratuita.
+struct Lista<T: Clone + PartialEq + 'static> {
+    modelo: std::rc::Rc<VecModel<T>>,
+}
+
+impl<T: Clone + PartialEq + 'static> Default for Lista<T> {
+    fn default() -> Self {
+        Self {
+            modelo: std::rc::Rc::new(VecModel::default()),
+        }
+    }
+}
+
+impl<T: Clone + PartialEq + 'static> Lista<T> {
+    /// O modelo como esta, sem mexer -- para a pagina que nao esta na tela.
+    ///
+    /// Devolver o mesmo `ModelRc` mantem o `set_*` gratuito; a lista e refeita
+    /// quando a pagina voltar a ser a visivel.
+    fn como_esta(&self) -> ModelRc<T> {
+        ModelRc::from(self.modelo.clone())
+    }
+
+    /// Sincroniza so quando `visivel`; caso contrario devolve o modelo como esta.
+    fn sincronizar_se(&self, visivel: bool, montar: impl FnOnce() -> Vec<T>) -> ModelRc<T> {
+        if visivel {
+            self.sincronizar(montar())
+        } else {
+            self.como_esta()
+        }
+    }
+
+    /// Deixa o modelo igual a `novo`, mexendo no minimo de linhas.
+    fn sincronizar(&self, novo: Vec<T>) -> ModelRc<T> {
+        use slint::Model;
+        let atual = self.modelo.row_count();
+        // Lista que encolheu muito (busca limpa, playlist trocada) e mais barata
+        // de trocar inteira do que de remover linha a linha, cada remocao
+        // notificando o repetidor.
+        if novo.len() * 2 < atual {
+            self.modelo.set_vec(novo);
+            return ModelRc::from(self.modelo.clone());
+        }
+        let comum = atual.min(novo.len());
+        let mut novo = novo.into_iter();
+        for (i, item) in novo.by_ref().take(comum).enumerate() {
+            if self.modelo.row_data(i).as_ref() != Some(&item) {
+                self.modelo.set_row_data(i, item);
+            }
+        }
+        // O que sobrou em `novo` e o que a lista ganhou (paginacao, capa nova
+        // chegando no fim); o excedente do modelo e o que ela perdeu.
+        for item in novo {
+            self.modelo.push(item);
+        }
+        for i in (comum..atual).rev() {
+            self.modelo.remove(i);
+        }
+        ModelRc::from(self.modelo.clone())
+    }
+}
+
+/// Todas as listas que `push_to_ui` espelha. Ver [`Lista`].
+#[derive(Default)]
+struct Listas {
+    output_devices: Lista<SharedString>,
+    sidebar_playlists: Lista<ui::CardItem>,
+    detail_tracks: Lista<ui::TrackRow>,
+    detail_items: Lista<ui::CardItem>,
+    queue_manual_tracks: Lista<ui::TrackRow>,
+    queue_context_tracks: Lista<ui::TrackRow>,
+    themes: Lista<ui::ThemeItem>,
+    diagnostics: Lista<ui::Diagnostic>,
+    home_made_for_you: Lista<ui::CardItem>,
+    home_liked: Lista<ui::TrackRow>,
+    home_playlists: Lista<ui::CardItem>,
+    home_stations: Lista<ui::CardItem>,
+    home_retrospectives: Lista<ui::CardItem>,
+    library_items: Lista<ui::CardItem>,
+    search_items: Lista<ui::CardItem>,
+    search_tracks: Lista<ui::TrackRow>,
 }
 
 /// Teto do cache de capas em memoria.
@@ -4196,6 +4392,27 @@ mod tests {
     }
 
     use super::*;
+
+    /// A lista na tela recebe so o que mudou: mesmo modelo, linha a linha.
+    #[test]
+    fn sincronizar_reescreve_so_as_linhas_diferentes_e_mantem_o_modelo() {
+        use slint::Model;
+        let lista: Lista<SharedString> = Lista::default();
+        let m1 = lista.sincronizar(vec!["a".into(), "b".into(), "c".into()]);
+        let m2 = lista.sincronizar(vec!["a".into(), "B".into(), "c".into(), "d".into()]);
+        assert!(m1 == m2, "o ModelRc devolvido e sempre o mesmo");
+        assert_eq!(m2.row_count(), 4);
+        assert_eq!(m2.row_data(1).unwrap(), SharedString::from("B"));
+        assert_eq!(m2.row_data(3).unwrap(), SharedString::from("d"));
+
+        // Encolher pouco remove do fim; encolher muito troca de uma vez.
+        let m3 = lista.sincronizar(vec!["a".into(), "B".into(), "c".into()]);
+        assert_eq!(m3.row_count(), 3);
+        let m4 = lista.sincronizar(vec!["z".into()]);
+        assert_eq!(m4.row_count(), 1);
+        assert_eq!(m4.row_data(0).unwrap(), SharedString::from("z"));
+        assert!(m1 == m4);
+    }
 
     fn playback_track(id: &str) -> Track {
         Track {

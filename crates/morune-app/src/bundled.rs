@@ -291,7 +291,10 @@ mod tests {
         std::fs::write(dir.join("paper.bak").join("velho"), "x").unwrap();
 
         assert_eq!(pasta_de_copia(&dir, "paper"), dir.join("paper.bak"));
-        assert!(!dir.join("paper.bak").exists(), "o .bak antigo devia ter sido apagado");
+        assert!(
+            !dir.join("paper.bak").exists(),
+            "o .bak antigo devia ter sido apagado"
+        );
     }
 
     /// O caso do Aquario em 13/09/2026: um arquivo aberto dentro do `.bak`
@@ -318,7 +321,11 @@ mod tests {
         let escolhida = pasta_de_copia(&dir, "paper");
         assert_ne!(escolhida, bak, "nao pode insistir numa pasta que nao sai");
         assert!(
-            escolhida.file_name().unwrap().to_string_lossy().starts_with("paper.bak-"),
+            escolhida
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("paper.bak-"),
             "{}",
             escolhida.display()
         );
@@ -592,12 +599,7 @@ mod tests {
         install_missing(&dir);
         let spec = morune_theme::load(&dir, "aquario").spec;
         // A mesma preparacao da tela: nitida reduzida e a copia borrada.
-        let paper = crate::wallpaper::load(
-            Some(&dir.join("aquario")),
-            &spec.background,
-            None,
-            0.0,
-        );
+        let paper = crate::wallpaper::load(Some(&dir.join("aquario")), &spec.background, None, 0.0);
         // **No Aero toda peca de vidro fica sobre a copia borrada** -- barras e
         // molduras de grupo --, e e contra ela que as tintas sao calculadas
         // (ver `apply_background`). A foto nitida so aparece nas frestas.

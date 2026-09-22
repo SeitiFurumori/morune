@@ -88,16 +88,34 @@ fn resolve_in_theme(theme_dir: &Path, relative: &str) -> Option<PathBuf> {
     if relative.is_empty() {
         return None;
     }
-    let candidate = theme_dir.join(relative);
-    let (Ok(root), Ok(full)) = (theme_dir.canonicalize(), candidate.canonicalize()) else {
-        tracing::debug!(path = %candidate.display(), "fundo do tema nao existe");
-        return None;
-    };
-    if !full.starts_with(&root) {
-        tracing::warn!(path = %full.display(), "fundo do tema aponta para fora do tema, ignorado");
+    // A regra e sobre o CAMINHO ESCRITO no tema, nao sobre onde o disco o
+    // resolve: relativo e sem `..`. Comparar caminhos canonicos falhava dentro
+    // da caixa de areia de aplicativos empacotados (o app Claude, por exemplo),
+    // onde o Windows redireciona AppData e a pasta do tema e o arquivo dentro
+    // dela canonizam para raizes diferentes -- e o fundo era recusado.
+    let relativo = Path::new(relative);
+    let escapa = relativo.is_absolute()
+        || relativo.components().any(|c| {
+            matches!(
+                c,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_)
+            )
+        });
+    if escapa {
+        tracing::warn!(
+            path = relative,
+            "fundo do tema aponta para fora do tema, ignorado"
+        );
         return None;
     }
-    Some(full)
+    let candidate = theme_dir.join(relativo);
+    if !candidate.is_file() {
+        tracing::debug!(path = %candidate.display(), "fundo do tema nao existe");
+        return None;
+    }
+    Some(candidate)
 }
 
 /// Carrega o fundo de um tema, ou de um arquivo escolhido pelo usuario.
@@ -483,5 +501,7 @@ mod tests {
         let dir = std::env::temp_dir();
         assert!(resolve_in_theme(&dir, "../../../windows/win.ini").is_none());
         assert!(resolve_in_theme(&dir, "").is_none());
+        assert!(resolve_in_theme(&dir, r"C:\Windows\win.ini").is_none());
+        assert!(resolve_in_theme(&dir, "assets/../../fora.png").is_none());
     }
 }

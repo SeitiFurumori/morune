@@ -656,7 +656,17 @@ export component IconButton inherits Rectangle {
 
     // Rotulos visuais preservam a limpeza dos controles por icone, mas tiram
     // do usuario a obrigacao de adivinhar botoes menos universais.
-    if touch.has-hover && root.label != "": Rectangle {
+    //
+    // Com meio segundo de espera: sem ele, varrer a barra do player com o
+    // cursor abria seis rotulos seguidos. Quem para em cima de um botao ve o
+    // nome; quem so passa nao ve nada piscar.
+    private property <bool> tooltip-devida: false;
+    espera-tooltip := Timer {
+        interval: 500ms;
+        running: touch.has-hover && root.label != "" && !root.tooltip-devida;
+        triggered => { root.tooltip-devida = true; }
+    }
+    if touch.has-hover && root.tooltip-devida && root.label != "": Rectangle {
         z: 20;
         x: (root.width - self.width) / 2;
         y: -self.height - Theme.space-xs;
@@ -968,6 +978,9 @@ export component SearchField inherits Rectangle {
     in property <string> placeholder: "Buscar";
     callback edited(string);
     callback accepted(string);
+    // Poe o cursor no campo. Quem chama e o atalho Ctrl+K: abrir a Busca sem
+    // o cursor no campo era meio atalho -- o que se digitava ia para o nada.
+    public function focar() { input.focus(); }
 
     height: 36px;
     border-radius: Theme.radius-md;
@@ -1026,6 +1039,8 @@ export component Slider inherits Rectangle {
     in property <length> thickness: Theme.progress-thickness;
     callback changed(float);
     callback committed(float);
+    // Roda do mouse sobre a trilha: um passo por tique, sinal no `delta`.
+    callback stepped(float);
 
     height: max(root.thickness, 16px);
     // A area de toque e maior que o traco desenhado: uma barra de 4px seria
@@ -1175,6 +1190,13 @@ export component Slider inherits Rectangle {
                     root.changed(root.drag-value);
                 }
             }
+        }
+        scroll-event(event) => {
+            if (event.delta-y != 0) {
+                root.stepped(event.delta-y > 0 ? 0.05 : -0.05);
+                return EventResult.accept;
+            }
+            EventResult.reject
         }
         pointer-event(event) => {
             if (event.kind == PointerEventKind.down) {
@@ -1331,7 +1353,11 @@ export component Artwork inherits Rectangle {
             // Acompanha a caixa: a mesma ficha serve a linha de 40px da lista e
             // ao cartao de 160px, e uma inicial de tamanho fixo sumiria numa e
             // estouraria na outra.
-            font-size: parent.height * 0.42;
+            //
+            // 0,30 e nao 0,42: a 0,42 uma fileira de oito playlists sem capa
+            // virava um alfabeto de letras gigantes, e a letra passava a ser a
+            // capa. Ela e etiqueta; quem identifica e a cor.
+            font-size: max(12px, parent.height * 0.30);
             font-family: Theme.font-family;
             font-weight: Theme.weight-bold;
             color: root.claro ? hsv(root.hue, 0.55, 0.32) : hsv(root.hue, 0.22, 0.97);
