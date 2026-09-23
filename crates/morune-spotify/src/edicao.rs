@@ -31,7 +31,7 @@ use crate::error::from_librespot;
 pub(crate) const HASH_PLAYLIST_ITEMS: &str =
     "47b2a1234b17748d332dd0431534f22450e9ecbb3d5ddcdacbd83368636a0990";
 
-fn so_spotify<'a>(provider: Provider, id: &'a str) -> CoreResult<&'a str> {
+fn so_spotify(provider: Provider, id: &str) -> CoreResult<&str> {
     if provider == Provider::Spotify {
         Ok(id)
     } else {
