@@ -456,6 +456,10 @@ impl Library for SpotifyCatalog {
         Box::pin(self.all_playlists(limit))
     }
 
+    fn home_feed<'a>(&'a self) -> BoxFuture<'a, CoreResult<Vec<morune_core::model::FeedSection>>> {
+        Box::pin(self.pathfinder.home())
+    }
+
     /// Tocadas recentemente -- **sem caminho conhecido**.
     ///
     /// Vinha de `/v1/me/player/recently-played`. `play-history/v1` e

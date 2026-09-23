@@ -27,7 +27,7 @@
 //! busca quebrada nao derruba Inicio, Biblioteca nem reproducao.
 
 use bytes::Bytes;
-use http::header::{HeaderName, ACCEPT, AUTHORIZATION, CONTENT_TYPE};
+use http::header::{HeaderName, ACCEPT, ACCEPT_LANGUAGE, AUTHORIZATION, CONTENT_TYPE};
 use http::{Method, Request};
 use morune_core::catalog::{SearchKind, SearchResults};
 use morune_core::model::{Provider, TrackId};
@@ -126,6 +126,23 @@ impl Pathfinder {
             .await
     }
 
+    /// As secoes do Inicio como o Spotify as monta. Ver `crate::inicio`.
+    pub(crate) async fn home(&self) -> CoreResult<Vec<morune_core::model::FeedSection>> {
+        let resposta: serde_json::Value = self
+            .query(
+                "home",
+                crate::inicio::HASH_HOME,
+                &crate::inicio::variaveis(),
+            )
+            .await?;
+        if persisted_query_missing(&resposta) {
+            return Err(CoreError::Decode(
+                "o Spotify mudou a operacao do Inicio; atualize o Morune".into(),
+            ));
+        }
+        Ok(crate::inicio::secoes(&resposta))
+    }
+
     /// Poe faixas no fim de uma playlist. Ver `crate::edicao`.
     pub(crate) async fn add_to_playlist(
         &self,
@@ -202,6 +219,16 @@ impl Pathfinder {
         self.request(ENDPOINT, operacao, hash, variaveis).await
     }
 
+    /// Consulta sem tipo, para as sondas. Ver `SpotifyBackend::sonda_pathfinder`.
+    pub(crate) async fn bruto(
+        &self,
+        operacao: &str,
+        hash: &str,
+        variaveis: &serde_json::Value,
+    ) -> CoreResult<serde_json::Value> {
+        self.query(operacao, hash, variaveis).await
+    }
+
     async fn request<T: serde::de::DeserializeOwned>(
         &self,
         endpoint: &str,
@@ -242,6 +269,10 @@ impl Pathfinder {
             .header(CLIENT_TOKEN, client_token)
             .header(CONTENT_TYPE, "application/json")
             .header(ACCEPT, "application/json")
+            // Titulos de secao ("Made For", "Jump back in") e rotulos vem
+            // traduzidos pelo servidor; sem isto chegam em ingles numa tela em
+            // portugues.
+            .header(ACCEPT_LANGUAGE, "pt-BR")
             .body(Bytes::from(corpo))
             .map_err(|e| CoreError::InvalidState(format!("requisicao invalida: {e}")))?;
 

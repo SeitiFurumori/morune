@@ -39,6 +39,7 @@ mod edicao;
 mod engine;
 mod error;
 mod graphql;
+mod inicio;
 mod internal;
 mod pathfinder;
 mod runtime;

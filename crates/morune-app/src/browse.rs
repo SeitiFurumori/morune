@@ -129,8 +129,19 @@ pub struct Card {
 /// Cada uma e independente: a que falhar chega vazia e as outras aparecem do
 /// mesmo jeito. Uma tela inicial que some inteira porque o historico nao
 /// respondeu seria pior do que uma tela inicial menor.
+/// Uma secao do Inicio montada pelo Spotify, ja como cartoes.
+#[derive(Debug, Clone)]
+pub struct FeedShelf {
+    pub title: String,
+    pub cards: Vec<Card>,
+}
+
 #[derive(Debug, Default)]
 pub struct Home {
+    /// O Inicio como o Spotify o monta, secao por secao. Quando chega, ocupa o
+    /// lugar das prateleiras separadas por tipo; elas ficam como reserva para
+    /// quando a consulta falhar.
+    pub feed: Vec<FeedShelf>,
     /// Geradas para esta conta: Daily Mix, Discover Weekly, Blend.
     pub made_for_you: Vec<Card>,
     /// Fluxo continuo em torno de uma semente: os Mix de tema e de artista.
@@ -543,6 +554,21 @@ impl Browse {
             let mut home = Home::default();
             let mut failure = None;
 
+            match library.home_feed().await {
+                Ok(secoes) => {
+                    home.feed = secoes
+                        .iter()
+                        .map(|s| FeedShelf {
+                            title: s.title.to_string(),
+                            cards: s.items.iter().map(feed_card).collect(),
+                        })
+                        .collect();
+                }
+                // Sem o Inicio do Spotify ainda ha as prateleiras do rootlist:
+                // fica no log, nao na barra de status.
+                Err(e) => tracing::warn!(error = %e, "inicio do Spotify nao carregou"),
+            }
+
             match library.made_for_you(ROOTLIST_LIMIT).await {
                 Ok(page) => {
                     for playlist in &page.items {
@@ -579,7 +605,8 @@ impl Browse {
                 Err(e) => failure = note(failure, &e, "estado das curtidas"),
             }
 
-            let vazio = home.made_for_you.is_empty()
+            let vazio = home.feed.is_empty()
+                && home.made_for_you.is_empty()
                 && home.stations.is_empty()
                 && home.retrospectives.is_empty()
                 && home.liked.is_empty()
@@ -862,6 +889,15 @@ fn album_card(a: &morune_core::model::Album) -> Card {
             .join(", "),
         cover: cover(&a.images),
         cover_path: None,
+    }
+}
+
+fn feed_card(item: &morune_core::model::FeedItem) -> Card {
+    use morune_core::model::FeedItem;
+    match item {
+        FeedItem::Playlist(p) => playlist_card(p),
+        FeedItem::Album(a) => album_card(a),
+        FeedItem::Artist(a) => artist_card(a),
     }
 }
 

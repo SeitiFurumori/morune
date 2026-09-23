@@ -177,6 +177,22 @@ impl SpotifyBackend {
     pub fn block_on<F: std::future::Future>(&self, future: F) -> F::Output {
         self.runtime.block_on(future)
     }
+
+    /// Resposta crua de uma consulta persistida do pathfinder.
+    ///
+    /// So para as sondas em `examples/`: e como se descobre o formato de uma
+    /// operacao nova antes de escrever o parser dela.
+    #[doc(hidden)]
+    pub fn sonda_pathfinder(
+        &self,
+        operacao: &str,
+        hash: &str,
+        variaveis: &serde_json::Value,
+    ) -> CoreResult<serde_json::Value> {
+        let pathfinder = crate::pathfinder::Pathfinder::new(self.session.clone());
+        self.runtime
+            .block_on(pathfinder.bruto(operacao, hash, variaveis))
+    }
 }
 
 #[cfg(test)]

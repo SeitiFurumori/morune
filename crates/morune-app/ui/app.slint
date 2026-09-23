@@ -40,6 +40,12 @@ export struct CardItem {
     pinned: bool,
 }
 
+// Uma secao do Inicio como o Spotify a montou: titulo pronto e cartoes.
+export struct FeedShelf {
+    title: string,
+    items: [CardItem],
+}
+
 export struct ThemeItem {
     id: string,
     name: string,
@@ -2295,6 +2301,9 @@ component TrackShelf inherits Prateleira {
 // nao role. Sem ele, a grade de cartoes terminava cortada na base nos quatro
 // temas sem nada dizendo que havia mais.
 component HomePage inherits Rectangle {
+    // O Inicio do Spotify, secao por secao. Quando existe, substitui as quatro
+    // prateleiras abaixo, que ficam como reserva.
+    in property <[FeedShelf]> feed;
     in property <[CardItem]> made-for-you;
     in property <[CardItem]> stations;
     in property <[CardItem]> retrospectives;
@@ -2315,7 +2324,8 @@ component HomePage inherits Rectangle {
 
     // Verdadeiro enquanto nenhuma secao tem conteudo: antes do login, e nos
     // segundos entre entrar e as listas chegarem.
-    property <bool> empty: root.made-for-you.length == 0 && root.stations.length == 0
+    property <bool> empty: root.feed.length == 0
+        && root.made-for-you.length == 0 && root.stations.length == 0
         && root.retrospectives.length == 0 && root.liked.length == 0
         && root.playlists.length == 0;
 
@@ -2395,27 +2405,34 @@ component HomePage inherits Rectangle {
             enqueue(id) => { root.enqueue(id); }
         }
 
+        // Na ordem que o Spotify escolheu para esta conta.
+        for secao in root.feed: ScrollableCardShelf {
+            title: secao.title;
+            items: secao.items;
+            activated(id) => { root.activated(id); }
+        }
+
         // Antes das prateleiras recomendadas: o que o usuario montou vem antes
         // do que o Spotify sugeriu.
-        if root.playlists.length > 0: ScrollableCardShelf {
+        if root.feed.length == 0 && root.playlists.length > 0: ScrollableCardShelf {
             title: "Suas playlists";
             items: root.playlists;
             activated(id) => { root.activated(id); }
         }
 
-        if root.made-for-you.length > 0: ScrollableCardShelf {
+        if root.feed.length == 0 && root.made-for-you.length > 0: ScrollableCardShelf {
             title: "Feito para você";
             items: root.made-for-you;
             activated(id) => { root.activated(id); }
         }
 
-        if root.stations.length > 0: ScrollableCardShelf {
+        if root.feed.length == 0 && root.stations.length > 0: ScrollableCardShelf {
             title: "Estações recomendadas";
             items: root.stations;
             activated(id) => { root.activated(id); }
         }
 
-        if root.retrospectives.length > 0: ScrollableCardShelf {
+        if root.feed.length == 0 && root.retrospectives.length > 0: ScrollableCardShelf {
             title: "Seus mais ouvidos";
             items: root.retrospectives;
             activated(id) => { root.activated(id); }
@@ -2647,6 +2664,11 @@ component SearchPage inherits VerticalLayout {
 
 component LibraryPage inherits Rectangle {
     in property <[CardItem]> items;
+    // Playlists da conta, as mesmas da barra lateral. O Spotify mostra as
+    // tres coisas juntas na biblioteca; sem elas, quem nao salva album via uma
+    // biblioteca so de artistas.
+    in property <[CardItem]> playlists;
+    property <bool> tem-algo: root.items.length > 0 || root.playlists.length > 0;
     in property <bool> logged-in;
     in property <bool> loaded;
     in property <int> grid-columns: 5;
@@ -2685,9 +2707,9 @@ component LibraryPage inherits Rectangle {
         // recebe a altura da pagina INTEIRA e o viewport passa a ser maior que
         // a area visivel: a tela vazia rolava. E o proprio estado vazio ja diz
         // onde voce esta -- "Sua biblioteca comeca aqui".
-        if root.items.length > 0: PageTitle { text: "Biblioteca"; }
+        if root.tem-algo: PageTitle { text: "Biblioteca"; }
 
-        if root.items.length == 0 && !root.logged-in: EmptyState {
+        if !root.tem-algo && !root.logged-in: EmptyState {
             altura-util: rolagem.height;
             title: "Sua biblioteca começa aqui";
             hint: "Entre no Spotify para ver sua biblioteca e suas Músicas curtidas.";
@@ -2695,13 +2717,13 @@ component LibraryPage inherits Rectangle {
             action => { root.login(); }
         }
 
-        if root.items.length == 0 && root.logged-in && !root.loaded: EmptyState {
+        if !root.tem-algo && root.logged-in && !root.loaded: EmptyState {
             altura-util: rolagem.height;
             title: "Carregando sua biblioteca";
             hint: "Suas músicas salvas aparecem aqui em instantes.";
         }
 
-        if root.items.length == 0 && root.logged-in && root.loaded: EmptyState {
+        if !root.tem-algo && root.logged-in && root.loaded: EmptyState {
             altura-util: rolagem.height;
             title: "Sua biblioteca está vazia";
             hint: "Use o coração para salvar no Spotify. Suas Músicas curtidas ficam na barra lateral.";
@@ -2709,8 +2731,17 @@ component LibraryPage inherits Rectangle {
             action => { root.explore(); }
         }
 
+        if root.playlists.length > 0: Prateleira {
+            SectionTitle { text: "Playlists"; }
+            CardCollection {
+                items: root.playlists;
+                columns: root.grid-columns;
+                activated(id) => { root.activated(id); }
+            }
+        }
+
         if root.items.length > 0: Prateleira {
-            SectionTitle { text: "Da sua conta"; }
+            SectionTitle { text: "Álbuns e artistas"; }
             CardCollection {
                 items: root.items;
                 columns: root.grid-columns;
@@ -4470,6 +4501,7 @@ export component AppWindow inherits Window {
     in property <string> auth-url;
     in property <image> account-avatar;
 
+    in property <[FeedShelf]> home-feed;
     in property <[CardItem]> home-made-for-you;
     in property <[CardItem]> home-stations;
     in property <[CardItem]> home-retrospectives;
@@ -4870,6 +4902,7 @@ export component AppWindow inherits Window {
                         opacity: self.visible ? 1.0 : 0.0;
                         animate opacity, y { duration: Theme.motion-fast; easing: ease-out; }
                         width: paginas.largura; height: paginas.altura;
+                        feed: root.home-feed;
                         made-for-you: root.home-made-for-you;
                         stations: root.home-stations;
                         retrospectives: root.home-retrospectives;
@@ -4919,6 +4952,7 @@ export component AppWindow inherits Window {
                         animate opacity, y { duration: Theme.motion-fast; easing: ease-out; }
                         width: paginas.largura; height: paginas.altura;
                         items: root.library-items;
+                        playlists: root.home-playlists;
                         logged-in: root.logged-in;
                         loaded: root.library-loaded;
                         grid-columns: root.grid-columns;

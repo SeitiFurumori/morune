@@ -224,6 +224,26 @@ pub struct Playlist {
     pub tracks: Vec<Track>,
 }
 
+/// Um item de uma secao do Inicio montada pelo provedor.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FeedItem {
+    Playlist(Playlist),
+    Album(Album),
+    Artist(Artist),
+}
+
+/// Uma secao do Inicio como o provedor a montou: "Feito para voce",
+/// "Tocados recentemente", "Para fas de ...".
+///
+/// O titulo vem pronto e traduzido do servidor. Quem desenha nao classifica
+/// nada: mostra na ordem em que chegou, que e a ordem que o proprio provedor
+/// escolheu para esta conta.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FeedSection {
+    pub title: Arc<str>,
+    pub items: Vec<FeedItem>,
+}
+
 fn default_true() -> bool {
     true
 }

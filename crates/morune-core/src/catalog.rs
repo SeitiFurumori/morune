@@ -4,7 +4,9 @@ use std::pin::Pin;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{CoreError, CoreResult};
-use crate::model::{Album, AlbumId, Artist, ArtistId, Playlist, PlaylistId, Track, TrackId};
+use crate::model::{
+    Album, AlbumId, Artist, ArtistId, FeedSection, Playlist, PlaylistId, Track, TrackId,
+};
 
 /// Future retornada pelos metodos de catalogo.
 ///
@@ -286,6 +288,15 @@ pub trait Library: Send + Sync + 'static {
     /// e obrigado a ter isso, e um que nao tem responde vazio pelo padrao.
     fn made_for_you<'a>(&'a self, _limit: u32) -> BoxFuture<'a, CoreResult<Page<Playlist>>> {
         Box::pin(async { Err(CoreError::Unsupported("playlists feitas para o usuario")) })
+    }
+
+    /// O Inicio como o provedor o monta para esta conta, secao por secao.
+    ///
+    /// E o que faz o Inicio do Morune ter a mesma variedade do cliente
+    /// oficial: sem isto, so dava para separar por tipo as playlists que a
+    /// conta segue.
+    fn home_feed<'a>(&'a self) -> BoxFuture<'a, CoreResult<Vec<FeedSection>>> {
+        Box::pin(async { Err(CoreError::Unsupported("inicio montado pelo provedor")) })
     }
 
     /// Historico recente, da mais nova para a mais antiga.

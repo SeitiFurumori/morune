@@ -19,7 +19,7 @@ use morune_theme::{loader, ThemeSpec};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use tokio::sync::broadcast;
 
-use crate::browse::{AutoplayOutcome, Card, Home, LibraryOutcome, Outcome, Target};
+use crate::browse::{AutoplayOutcome, Card, FeedShelf, Home, LibraryOutcome, Outcome, Target};
 use crate::session::Session;
 use crate::theme_bridge::{self, UserOverrides};
 use crate::ui;
@@ -232,6 +232,9 @@ pub struct AppState {
     search_query: String,
     searching: bool,
     liked: TrackList,
+    /// O Inicio montado pelo Spotify. Vazio quando a consulta falhou -- e
+    /// entao valem as prateleiras abaixo, separadas por tipo.
+    home_feed: Vec<FeedShelf>,
     home_made_for_you: Vec<Card>,
     home_stations: Vec<Card>,
     home_retrospectives: Vec<Card>,
@@ -434,6 +437,7 @@ impl AppState {
             search_query: String::new(),
             searching: false,
             liked: TrackList::default(),
+            home_feed: Vec::new(),
             home_made_for_you: Vec::new(),
             home_stations: Vec::new(),
             home_retrospectives: Vec::new(),
@@ -816,6 +820,7 @@ impl AppState {
             Outcome::Home(home) => {
                 self.home_loaded = true;
                 let Home {
+                    feed,
                     made_for_you,
                     stations,
                     retrospectives,
@@ -824,6 +829,7 @@ impl AppState {
                     playlists,
                 } = *home;
                 self.liked_ids = liked_ids.into_iter().collect();
+                self.home_feed = feed;
                 self.home_made_for_you = made_for_you;
 
                 self.liked = TrackList {
@@ -848,6 +854,16 @@ impl AppState {
                 self.saved_items.extend(cards.iter().map(|c| c.tag.clone()));
                 self.library = cards;
                 self.resolve_covers();
+                // As playlists da Biblioteca e da barra lateral saem do pedido
+                // do Inicio. Quem abriu direto na Biblioteca ainda nao o fez; so
+                // agora, com a Biblioteca entregue, porque um pedido novo
+                // descartaria o que estava em andamento.
+                if !self.home_requested {
+                    if let Some(browse) = self.session.browse_mut() {
+                        browse.load_home();
+                        self.home_requested = true;
+                    }
+                }
             }
             Outcome::Detail(detail) => {
                 // Recolhidos aqui, e nao mais abaixo, para que a lista vazia
@@ -1422,6 +1438,7 @@ impl AppState {
             .chain(&self.home_stations)
             .chain(&self.home_retrospectives)
             .chain(&self.library)
+            .chain(self.home_feed.iter().flat_map(|s| &s.cards))
             .find(|card| card.tag == tag && !card.cover.is_empty())
             .map(|card| (card.cover.clone(), card.cover_path.clone()));
 
@@ -1459,6 +1476,9 @@ impl AppState {
 
         // Emprestar cada lista separadamente evita mover os cartoes so para
         // preencher um campo.
+        for secao in &mut self.home_feed {
+            browse.resolve_covers(&mut secao.cards);
+        }
         browse.resolve_covers(&mut self.home_made_for_you);
         browse.resolve_covers(&mut self.home_stations);
         browse.resolve_covers(&mut self.home_retrospectives);
@@ -1565,6 +1585,14 @@ impl AppState {
                 self.account_avatar.1 = Some(ready.path.clone());
             }
 
+            for card in self
+                .home_feed
+                .iter_mut()
+                .flat_map(|s| s.cards.iter_mut())
+                .filter(|c| c.cover == ready.url)
+            {
+                card.cover_path = Some(ready.path.clone());
+            }
             for lista in [
                 &mut self.home_made_for_you,
                 &mut self.home_stations,
@@ -3370,6 +3398,7 @@ impl AppState {
         self.liked = TrackList::default();
         self.liked_ids.clear();
         self.liked_pending.clear();
+        self.home_feed.clear();
         self.home_made_for_you.clear();
         self.home_stations.clear();
         self.home_retrospectives.clear();
@@ -3587,10 +3616,30 @@ impl AppState {
                     .collect()
             },
         ));
+        // A Biblioteca tambem mostra as playlists da conta.
+        let na_biblioteca = pagina == Page::Library;
         window.set_home_playlists(
             l.home_playlists
-                .sincronizar_se(na_home, || card_items(&self.home_playlists)),
+                .sincronizar_se(na_home || na_biblioteca, || {
+                    card_items(&self.home_playlists)
+                }),
         );
+        window.set_home_feed(l.home_feed.sincronizar_se(na_home, || {
+            // Cada secao guarda o proprio modelo de cartoes entre
+            // espelhamentos: um `ModelRc` novo a cada clique faria o Slint
+            // refazer todas as prateleiras. Ver [`Lista`].
+            let mut itens = l.home_feed_itens.borrow_mut();
+            let total = self.home_feed.len().max(itens.len());
+            itens.resize_with(total, Lista::default);
+            self.home_feed
+                .iter()
+                .zip(itens.iter())
+                .map(|(secao, lista)| ui::FeedShelf {
+                    title: secao.title.as_str().into(),
+                    items: lista.sincronizar(card_items(&secao.cards)),
+                })
+                .collect()
+        }));
         window.set_home_stations(
             l.home_stations
                 .sincronizar_se(na_home, || card_items(&self.home_stations)),
@@ -4285,6 +4334,8 @@ struct Listas {
     themes: Lista<ui::ThemeItem>,
     diagnostics: Lista<ui::Diagnostic>,
     home_made_for_you: Lista<ui::CardItem>,
+    home_feed: Lista<ui::FeedShelf>,
+    home_feed_itens: std::cell::RefCell<Vec<Lista<ui::CardItem>>>,
     home_liked: Lista<ui::TrackRow>,
     home_recent: Lista<ui::TrackRow>,
     recent_searches: Lista<SharedString>,
