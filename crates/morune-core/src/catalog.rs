@@ -220,6 +220,12 @@ pub trait Library: Send + Sync + 'static {
         Box::pin(async { Err(CoreError::Unsupported("alterar musicas curtidas")) })
     }
 
+    /// Salva ou tira da biblioteca um item pelo URI do provedor: album salvo,
+    /// artista seguido, playlist seguida.
+    fn set_saved<'a>(&'a self, _uri: &'a str, _saved: bool) -> BoxFuture<'a, CoreResult<()>> {
+        Box::pin(async { Err(CoreError::Unsupported("alterar a biblioteca")) })
+    }
+
     fn followed_artists<'a>(
         &'a self,
         offset: u32,

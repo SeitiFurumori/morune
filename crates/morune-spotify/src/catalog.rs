@@ -359,6 +359,10 @@ impl Library for SpotifyCatalog {
         Box::pin(async move { self.pathfinder.set_track_saved(id, saved).await })
     }
 
+    fn set_saved<'a>(&'a self, uri: &'a str, saved: bool) -> BoxFuture<'a, CoreResult<()>> {
+        Box::pin(async move { self.pathfinder.set_uri_saved(uri, saved).await })
+    }
+
     /// Artistas seguidos, pela colecao do protocolo interno.
     ///
     /// O `/v1/me/following` era paginado por cursor e obrigava a caminhar ate o

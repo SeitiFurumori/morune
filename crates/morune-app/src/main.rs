@@ -1532,6 +1532,11 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
         });
     }
 
+    on!(on_toggle_detail_save, |w, s| {
+        s.toggle_detail_saved();
+        s.push_to_ui(&w);
+    });
+
     on!(on_set_sleep, |w, s, minutos: i32| {
         s.set_sleep_timer(minutos);
         s.push_to_ui(&w);

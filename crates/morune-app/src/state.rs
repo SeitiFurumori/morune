@@ -304,6 +304,9 @@ pub struct AppState {
     history: morune_storage::History,
     /// Timer para dormir: pausa num horario, ou quando a faixa atual acabar.
     sleep: Option<SleepTimer>,
+    /// Albuns salvos e artistas seguidos, pelo `Target::tag()`. Semeado pela
+    /// Biblioteca e mexido na hora do clique (a resposta so desfaz se falhar).
+    saved_items: HashSet<String>,
     /// As listas que a interface exibe, vivas entre um espelhamento e outro.
     listas: Listas,
     /// Capas pequenas das linhas, indexadas pela URL que o modelo da faixa traz.
@@ -462,6 +465,7 @@ impl AppState {
             now_tint: (None, None),
             history,
             sleep: None,
+            saved_items: HashSet::new(),
             listas: Listas::default(),
             track_covers: HashMap::new(),
             autoplay_seed: None,
@@ -657,6 +661,19 @@ impl AppState {
             changed = true;
         }
 
+        while let Some(outcome) = self.session.browse_mut().and_then(|b| b.poll_item_saved()) {
+            if let Err(erro) = outcome.result {
+                // Desfaz o que a tela ja mostrava.
+                if outcome.saved {
+                    self.saved_items.remove(&outcome.tag);
+                } else {
+                    self.saved_items.insert(outcome.tag);
+                }
+                self.status = format!("O Spotify não aceitou: {erro}");
+            }
+            changed = true;
+        }
+
         while let Some(event) = self.next_player_event() {
             changed |= self.apply_player_event(event);
         }
@@ -810,6 +827,7 @@ impl AppState {
             }
             Outcome::Library(cards) => {
                 self.library_loaded = true;
+                self.saved_items.extend(cards.iter().map(|c| c.tag.clone()));
                 self.library = cards;
                 self.resolve_covers();
             }
@@ -3454,6 +3472,7 @@ impl AppState {
             window.set_detail_title(detail.title.as_str().into());
             window.set_detail_subtitle(detail.subtitle.as_str().into());
             window.set_detail_kind(detail.kind.as_str().into());
+            window.set_detail_save_label(self.detail_save_label().into());
             window.set_detail_cover(cover_image(detail.cover_path.as_deref()));
             let (initial, hue) = cover_badge(&detail.title);
             window.set_detail_cover_initial(initial);
@@ -3615,6 +3634,68 @@ impl AppState {
                 self.status = "Timer: música pausada.".into();
             }
         }
+    }
+
+    /// Album ou artista aberto no Detalhe: `(tag, uri, tipo)`.
+    fn detail_item(&self) -> Option<(String, String, &'static str)> {
+        let detail = self.detail.as_ref()?;
+        let (tipo, canonico) = match &detail.origin {
+            morune_core::QueueOrigin::Album(c) => ("album", c),
+            morune_core::QueueOrigin::Artist(c) => ("artist", c),
+            _ => return None,
+        };
+        let id = canonico.strip_prefix("spotify:")?;
+        Some((
+            format!("{tipo}/{canonico}"),
+            format!("spotify:{tipo}:{id}"),
+            tipo,
+        ))
+    }
+
+    /// Rotulo do botao ao lado de "Tocar". Vazio: sem botao.
+    fn detail_save_label(&self) -> &'static str {
+        match self.detail_item() {
+            Some((tag, _, "album")) => {
+                if self.saved_items.contains(&tag) {
+                    "Salvo"
+                } else {
+                    "Salvar"
+                }
+            }
+            Some((tag, _, _)) => {
+                if self.saved_items.contains(&tag) {
+                    "Seguindo"
+                } else {
+                    "Seguir"
+                }
+            }
+            None => "",
+        }
+    }
+
+    /// Salva/tira o album, segue/deixa de seguir o artista do Detalhe.
+    pub fn toggle_detail_saved(&mut self) {
+        let Some((tag, uri, tipo)) = self.detail_item() else {
+            return;
+        };
+        let salvar = !self.saved_items.contains(&tag);
+        let Some(browse) = self.session.browse_mut() else {
+            self.status = "Entre na sua conta do Spotify para salvar.".into();
+            return;
+        };
+        browse.set_item_saved(tag.clone(), uri, salvar);
+        if salvar {
+            self.saved_items.insert(tag);
+        } else {
+            self.saved_items.remove(&tag);
+        }
+        self.status = match (tipo, salvar) {
+            ("album", true) => "Álbum salvo na sua biblioteca.",
+            ("album", false) => "Álbum tirado da sua biblioteca.",
+            (_, true) => "Seguindo o artista.",
+            (_, false) => "Você deixou de seguir o artista.",
+        }
+        .into();
     }
 
     /// Guarda no historico a faixa que esta tocando, uma vez por faixa.

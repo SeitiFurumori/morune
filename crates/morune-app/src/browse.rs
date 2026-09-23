@@ -224,6 +224,13 @@ pub struct LibraryOutcome {
     pub result: Result<(), String>,
 }
 
+/// Resultado de salvar album ou seguir artista. `tag` e o `Target::tag()`.
+pub struct ItemSavedOutcome {
+    pub tag: String,
+    pub saved: bool,
+    pub result: Result<(), String>,
+}
+
 /// Catalogo e biblioteca ligados a interface.
 pub struct Browse {
     catalog: Arc<dyn Catalog>,
@@ -237,6 +244,8 @@ pub struct Browse {
     autoplay_pending: Option<Receiver<AutoplayOutcome>>,
     library_tx: UnboundedSender<LibraryOutcome>,
     library_rx: UnboundedReceiver<LibraryOutcome>,
+    item_tx: UnboundedSender<ItemSavedOutcome>,
+    item_rx: UnboundedReceiver<ItemSavedOutcome>,
     artwork: Arc<dyn Artwork>,
     covers: ArtworkCache,
     /// Canal proprio das capas, separado de `pending`: um cartao continua
@@ -265,6 +274,7 @@ impl Browse {
     ) -> Self {
         let (art_tx, art_rx) = tokio::sync::mpsc::unbounded_channel();
         let (library_tx, library_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (item_tx, item_rx) = tokio::sync::mpsc::unbounded_channel();
         Self {
             catalog,
             library,
@@ -274,6 +284,8 @@ impl Browse {
             autoplay_pending: None,
             library_tx,
             library_rx,
+            item_tx,
+            item_rx,
             artwork,
             covers: ArtworkCache::new(covers_dir),
             art_tx,
@@ -388,6 +400,24 @@ impl Browse {
 
     pub fn poll_library(&mut self) -> Option<LibraryOutcome> {
         self.library_rx.try_recv().ok()
+    }
+
+    /// Salva album / segue artista em segundo plano; a resposta volta por
+    /// [`Browse::poll_item_saved`].
+    pub fn set_item_saved(&self, tag: String, uri: String, saved: bool) {
+        let library = self.library.clone();
+        let tx = self.item_tx.clone();
+        self.handle.spawn(async move {
+            let result = library
+                .set_saved(&uri, saved)
+                .await
+                .map_err(|error| describe(&error));
+            let _ = tx.send(ItemSavedOutcome { tag, saved, result });
+        });
+    }
+
+    pub fn poll_item_saved(&mut self) -> Option<ItemSavedOutcome> {
+        self.item_rx.try_recv().ok()
     }
 
     pub fn search(&mut self, query: &str) {

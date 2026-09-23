@@ -2541,6 +2541,9 @@ component DetailPage inherits VerticalLayout {
     in property <bool> loading;
     in property <int> loaded-count;
 
+    // "Salvar"/"Seguir" ao lado de Tocar; vazio = sem botao (playlist, curtidas).
+    in property <string> save-label;
+    callback toggle-save();
     callback back();
     callback play();
     callback filter(string);
@@ -2697,10 +2700,19 @@ component DetailPage inherits VerticalLayout {
                     HorizontalLayout {
                         alignment: start;
                         padding-top: Theme.space-sm;
+                        spacing: Theme.space-sm;
 
-                        PrimaryButton {
+                        tocar := PrimaryButton {
                             label: "Tocar";
                             clicked => { root.play(); }
+                        }
+
+                        // Mesma altura do Tocar: dois botoes lado a lado com
+                        // alturas diferentes parecem de duas familias.
+                        if root.save-label != "": GhostButton {
+                            label: root.save-label;
+                            height: tocar.height;
+                            clicked => { root.toggle-save(); }
                         }
                     }
                 }
@@ -4283,6 +4295,8 @@ export component AppWindow inherits Window {
     in property <string> detail-title;
     in property <string> detail-subtitle;
     in property <string> detail-kind;
+    in property <string> detail-save-label;
+    callback toggle-detail-save();
     in property <image> detail-cover;
     in property <string> detail-cover-initial;
     in property <float> detail-cover-hue;
@@ -4792,6 +4806,8 @@ export component AppWindow inherits Window {
                         title: root.detail-title;
                         subtitle: root.detail-subtitle;
                         kind: root.detail-kind;
+                        save-label: root.detail-save-label;
+                        toggle-save => { root.toggle-detail-save(); }
                         cover: root.detail-cover;
                         cover-initial: root.detail-cover-initial;
                         cover-hue: root.detail-cover-hue;

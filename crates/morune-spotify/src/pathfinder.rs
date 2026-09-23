@@ -122,13 +122,21 @@ impl Pathfinder {
             ));
         }
 
+        self.set_uri_saved(&format!("spotify:track:{}", id.id), saved)
+            .await
+    }
+
+    /// `addToLibrary`/`removeFromLibrary` servem a qualquer URI: faixa curtida,
+    /// album salvo, artista seguido, playlist seguida. E a mesma operacao que o
+    /// coracao ja usava, entao os tres herdam o mesmo hash medido.
+    pub(crate) async fn set_uri_saved(&self, uri: &str, saved: bool) -> CoreResult<()> {
         let operation = if saved {
             "addToLibrary"
         } else {
             "removeFromLibrary"
         };
         let variables = serde_json::json!({
-            "libraryItemUris": [format!("spotify:track:{}", id.id)],
+            "libraryItemUris": [uri],
         });
 
         for hash in [HASH_LIBRARY, HASH_LIBRARY_PREVIOUS] {
