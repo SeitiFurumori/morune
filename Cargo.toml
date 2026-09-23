@@ -37,12 +37,18 @@ futures-util = "0.3"
 directories = "6"
 
 # Perfil de desenvolvimento: compilacao rapida, sem sacrificar o runtime das deps.
+# Informacao de depuracao minima: so linha de codigo nos crates do Morune, e
+# nenhuma nas dependencias. Com `debug = 1` em tudo, o executavel de teste
+# chegava a 950 MB e a pasta `target\debug` a 110 GB (22/09/2026): montar o
+# binario pesava na memoria e no disco da mesma maquina em que se joga. Um
+# backtrace ainda aponta arquivo e linha do nosso codigo, que e o que se usa.
 [profile.dev]
 opt-level = 0
-debug = 1
+debug = "line-tables-only"
 
 [profile.dev.package."*"]
 opt-level = 2
+debug = false
 
 # Perfil das verificacoes de CI. O perfil `dev` compila as dependencias com
 # `opt-level = 2` de proposito -- e o que mantem o aplicativo utilizavel

@@ -619,6 +619,13 @@ impl AppState {
                 self.library_requested = false;
                 self.library_loaded = false;
                 self.request_page_data();
+                // Captura de tela do Detalhe sem automatizar clique: a lista
+                // so abre com sessao, entao o pedido espera o login. So no
+                // build de captura.
+                #[cfg(feature = "snapshot")]
+                if let Ok(tag) = std::env::var("MORUNE_START_DETAIL") {
+                    self.open_detail_target(&tag);
+                }
             }
             changed = true;
         }

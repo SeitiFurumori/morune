@@ -2286,10 +2286,15 @@ component SortChip inherits Rectangle {
 
     height: 28px;
     width: rotulo.preferred-width + Theme.space-md * 2;
-    border-radius: Theme.radius-sm;
+    // Pilula, como os outros controles pequenos. O ativo usa `selected` com a
+    // aresta clara: `surface-raised` era quase o mesmo cinza do modulo no
+    // Bruma, e o criterio escolhido nao se distinguia dos outros quatro.
+    border-radius: self.height / 2;
     background: root.active
-        ? Theme.surface-raised
+        ? Theme.selected
         : (toque.has-hover ? Theme.hover : transparent);
+    border-width: root.active ? Theme.border-width : 0px;
+    border-color: Theme.border-highlight;
     animate background { duration: Theme.motion-fast; easing: ease; }
 
     rotulo := Text {
@@ -2300,6 +2305,7 @@ component SortChip inherits Rectangle {
             : root.label;
         color: root.active ? Theme.text : Theme.text-muted;
         font-size: Theme.size-sm;
+        font-weight: root.active ? Theme.weight-medium : Theme.weight-normal;
         font-family: Theme.font-family;
         x: Theme.space-md;
         y: (parent.height - self.height) / 2;
@@ -2375,156 +2381,129 @@ component DetailPage inherits VerticalLayout {
     // ate os chips de ordenacao. Nao era ritmo apertado, era ritmo nenhum.
     spacing: Theme.space-md;
 
-    HorizontalLayout {
-        spacing: Theme.space-md;
+    // **Dois modulos, e nao cinco faixas soltas.** Voltar, capa, filtro, a
+    // contagem e a ordenacao eram cinco bandas empilhadas sobre o fundo, cada
+    // uma com o seu vao -- e no Bruma, sobre um papel de parede claro, o
+    // titulo e os chips perdiam contraste por nao terem chao. Agora: o
+    // cabecalho num modulo, e tudo o que mexe na lista dentro do modulo da
+    // lista. Nos temas sem material os modulos nao pintam nada.
+    private property <bool> modulo: Theme.material-kind == 2;
+
+    Rectangle {
         vertical-stretch: 0;
-
-        GhostButton {
-            label: "\u{2190} Voltar";
-            clicked => { root.back(); }
-        }
-
-        Rectangle { horizontal-stretch: 1; }
-    }
-
-    // Cabecalho: capa grande, tipo, nome e o que ha dentro.
-    //
-    // **`show-hero` e `hero-height` passam a valer aqui.** Os dois estavam
-    // declarados no tema com zero usos em qualquer linha de interface, e era
-    // parte da razao de trocar de tema quase nao mudar nada. Agora o portao
-    // escolhe entre um cabecalho de vitrine -- capa no tamanho do token, nome em
-    // `size-display` -- e um compacto, para quem quer mais lista na tela.
-    //
-    // A capa tambem parou de ser cortada em 128px: o tema pedia 160 e o
-    // `min(...)` embutido no codigo mandava mais que o tema.
-    HorizontalLayout {
-        spacing: Theme.space-lg;
-        vertical-stretch: 0;
-        // O hero acompanha a capa. O token continua sendo o teto de altura,
-        // sem deixar uma faixa vazia entre o botao Voltar e o album/artista.
-        min-height: Layout.show-hero
-            ? min(Layout.hero-height, Layout.detail-cover-size + Theme.space-md)
-            : 0px;
-
-        opacity: root.entrou ? 1.0 : 0.0;
-        animate opacity {
-            duration: Theme.motion-slow;
-            // Rapida no comeco e assentando no fim: e como a tela chega, e nao
-            // como ela e empurrada.
-            easing: ease-out;
-        }
-
-        Artwork {
-            source: root.cover;
-            initial: root.cover-initial;
-            hue: root.cover-hue;
-            pending: root.cover-pending;
-            width: Layout.show-hero ? Layout.detail-cover-size : 96px;
-            height: self.width;
-            // Pela base, e nao pelo centro. O bloco de texto ao lado e
-            // `alignment: end`, entao centralizar a capa deixava a capa
-            // terminando 40px acima do botao Tocar -- duas coisas do mesmo
-            // cabecalho apoiadas em linhas diferentes.
-            //
-            // Os 8px somados na entrada sao a fisicalidade que faltava: nada no
-            // mundo real aparece por transparencia, aparece chegando de algum
-            // lugar. Poucos de proposito -- o bastante para o olho ler
-            // "chegou", pouco para nao virar animacao de apresentacao. Vai no
-            // `y` dos filhos porque num `HorizontalLayout` quem e gerenciado e
-            // o `x`; o `y` do proprio cabecalho seria engolido pelo layout de
-            // cima.
-            y: parent.height - self.height + (root.entrou ? 0px : 8px);
-            animate y { duration: Theme.motion-slow; easing: ease-out; }
-        }
+        border-radius: root.modulo ? Theme.radius-lg : 0px;
+        clip: root.modulo;
+        background: root.modulo ? Theme.surface : transparent;
+        if root.modulo: Glass { radius: parent.border-radius; }
 
         VerticalLayout {
-            alignment: end;
-            spacing: Theme.space-xs;
-            horizontal-stretch: 1;
-            y: root.entrou ? 0px : 8px;
-            animate y { duration: Theme.motion-slow; easing: ease-out; }
-
-            Text {
-                text: root.kind;
-                color: Theme.text-muted;
-                font-size: Theme.size-xs;
-                font-family: Theme.font-family;
-                overflow: elide;
-            }
-
-            Text {
-                text: root.title;
-                color: Theme.text;
-                font-size: Layout.show-hero ? Theme.size-display : Theme.size-xl;
-                font-weight: Theme.weight-bold;
-                // O unico lugar da interface com `display-family`: e o titulo
-                // grande, que e onde uma serifa acrescenta e onde ela nao
-                // atrapalha a leitura de rotulo pequeno. Tema de uma familia so
-                // recebe a mesma de sempre.
-                font-family: Theme.display-family;
-                overflow: elide;
-            }
-
-            Text {
-                text: root.subtitle;
-                color: Theme.text-muted;
-                font-size: Theme.size-sm;
-                font-family: Theme.font-family;
-                overflow: elide;
-            }
+            padding: root.modulo ? Theme.space-md : 0px;
+            spacing: Theme.space-md;
 
             HorizontalLayout {
                 alignment: start;
-                padding-top: Theme.space-sm;
-
-                PrimaryButton {
-                    label: "Tocar";
-                    clicked => { root.play(); }
+                GhostButton {
+                    label: "\u{2190} Voltar";
+                    clicked => { root.back(); }
                 }
             }
-        }
-    }
 
-    SearchField {
-        placeholder: "Filtrar nesta lista";
-        edited(q) => { root.filter(q); }
-    }
+            // Cabecalho: capa grande, tipo, nome e o que ha dentro.
+            //
+            // **`show-hero` e `hero-height` passam a valer aqui.** Os dois estavam
+            // declarados no tema com zero usos em qualquer linha de interface, e era
+            // parte da razao de trocar de tema quase nao mudar nada. Agora o portao
+            // escolhe entre um cabecalho de vitrine -- capa no tamanho do token, nome em
+            // `size-display` -- e um compacto, para quem quer mais lista na tela.
+            //
+            // A capa tambem parou de ser cortada em 128px: o tema pedia 160 e o
+            // `min(...)` embutido no codigo mandava mais que o tema.
+            HorizontalLayout {
+                spacing: Theme.space-lg;
+                vertical-stretch: 0;
+                // O hero acompanha a capa. O token continua sendo o teto de altura,
+                // sem deixar uma faixa vazia entre o botao Voltar e o album/artista.
+                min-height: Layout.show-hero
+                    ? min(Layout.hero-height, Layout.detail-cover-size)
+                    : 0px;
 
-    if root.has-more || root.loading: Rectangle {
-        vertical-stretch: 0;
-        height: Theme.space-xl + Theme.space-md;
+                opacity: root.entrou ? 1.0 : 0.0;
+                animate opacity {
+                    duration: Theme.motion-slow;
+                    // Rapida no comeco e assentando no fim: e como a tela chega, e nao
+                    // como ela e empurrada.
+                    easing: ease-out;
+                }
 
-        HorizontalLayout {
-            spacing: Theme.space-md;
+                Artwork {
+                    source: root.cover;
+                    initial: root.cover-initial;
+                    hue: root.cover-hue;
+                    pending: root.cover-pending;
+                    width: Layout.show-hero ? Layout.detail-cover-size : 96px;
+                    height: self.width;
+                    // Pela base, e nao pelo centro. O bloco de texto ao lado e
+                    // `alignment: end`, entao centralizar a capa deixava a capa
+                    // terminando 40px acima do botao Tocar -- duas coisas do mesmo
+                    // cabecalho apoiadas em linhas diferentes.
+                    //
+                    // Os 8px somados na entrada sao a fisicalidade que faltava: nada no
+                    // mundo real aparece por transparencia, aparece chegando de algum
+                    // lugar. Poucos de proposito -- o bastante para o olho ler
+                    // "chegou", pouco para nao virar animacao de apresentacao. Vai no
+                    // `y` dos filhos porque num `HorizontalLayout` quem e gerenciado e
+                    // o `x`; o `y` do proprio cabecalho seria engolido pelo layout de
+                    // cima.
+                    y: parent.height - self.height + (root.entrou ? 0px : 8px);
+                    animate y { duration: Theme.motion-slow; easing: ease-out; }
+                }
 
-            Text {
-                // O singular tambem passa por aqui: uma lista de uma faixa so
-                // dizia "1 faixas carregadas".
-                // "Mostrando", e nao "carregadas": quem le quer saber o que
-                // esta vendo, nao o que o programa terminou de fazer. Carregar
-                // e vocabulario de quem escreveu o codigo.
-                text: root.loading
-                    ? "Carregando..."
-                    : root.loaded-count == 1
-                        ? "Mostrando 1 faixa"
-                        : "Mostrando " + root.loaded-count + " faixas";
-                color: Theme.text-muted;
-                font-size: Theme.size-sm;
-                font-family: Theme.font-family;
-                vertical-alignment: center;
-                horizontal-stretch: 1;
-            }
+                VerticalLayout {
+                    alignment: end;
+                    spacing: Theme.space-xs;
+                    horizontal-stretch: 1;
+                    y: root.entrou ? 0px : 8px;
+                    animate y { duration: Theme.motion-slow; easing: ease-out; }
 
-            if root.has-more && !root.loading: GhostButton {
-                // Verbo do ponto de vista de quem clica: ele quer ver mais,
-                // nao carregar mais.
-                label: "Mostrar mais";
-                // Centralizado a mao: num `HorizontalLayout` o filho de altura
-                // fixa nao estica, e nasce colado no topo. Medi 8,5px acima do
-                // meio do texto ao lado -- duas coisas da mesma linha apoiadas
-                // em alturas diferentes.
-                y: (parent.height - self.height) / 2;
-                clicked => { root.load-more(); }
+                    Text {
+                        text: root.kind;
+                        color: Theme.text-muted;
+                        font-size: Theme.size-xs;
+                        font-family: Theme.font-family;
+                        overflow: elide;
+                    }
+
+                    Text {
+                        text: root.title;
+                        color: Theme.text;
+                        font-size: Layout.show-hero ? Theme.size-display : Theme.size-xl;
+                        font-weight: Theme.weight-bold;
+                        // O unico lugar da interface com `display-family`: e o titulo
+                        // grande, que e onde uma serifa acrescenta e onde ela nao
+                        // atrapalha a leitura de rotulo pequeno. Tema de uma familia so
+                        // recebe a mesma de sempre.
+                        font-family: Theme.display-family;
+                        overflow: elide;
+                    }
+
+                    Text {
+                        text: root.subtitle;
+                        color: Theme.text-muted;
+                        font-size: Theme.size-sm;
+                        font-family: Theme.font-family;
+                        overflow: elide;
+                    }
+
+                    HorizontalLayout {
+                        alignment: start;
+                        padding-top: Theme.space-sm;
+
+                        PrimaryButton {
+                            label: "Tocar";
+                            clicked => { root.play(); }
+                        }
+                    }
+                }
             }
         }
     }
@@ -2535,76 +2514,112 @@ component DetailPage inherits VerticalLayout {
         activated(id) => { root.activated(id); }
     }
 
-    HorizontalLayout {
-        spacing: Theme.space-xs;
-        alignment: start;
-        vertical-stretch: 0;
-
-        Text {
-            text: "Ordenar por";
-            color: Theme.text-muted;
-            font-size: Theme.size-sm;
-            font-family: Theme.font-family;
-            vertical-alignment: center;
-        }
-
-        SortChip {
-            label: "Ordem da lista";
-            active: root.sort == 0;
-            descending: root.descending;
-            clicked => { root.sort-by(0); }
-        }
-        SortChip {
-            label: "Título";
-            active: root.sort == 1;
-            descending: root.descending;
-            clicked => { root.sort-by(1); }
-        }
-        SortChip {
-            label: "Artista";
-            active: root.sort == 2;
-            descending: root.descending;
-            clicked => { root.sort-by(2); }
-        }
-        SortChip {
-            label: "Álbum";
-            active: root.sort == 3;
-            descending: root.descending;
-            clicked => { root.sort-by(3); }
-        }
-        SortChip {
-            label: "Duração";
-            active: root.sort == 4;
-            descending: root.descending;
-            clicked => { root.sort-by(4); }
-        }
-    }
-
-    // Lista vazia com filtro e outra coisa de lista vazia sem: uma diz que a
-    // busca nao achou, a outra que nao ha nada.
-    if root.tracks.length == 0 && root.filtered: EmptyState {
-        title: "Nada com esse texto";
-        hint: "Nenhuma faixa desta lista combina com o que você digitou.";
-    }
-
-    // A lista num modulo, como na Home: no Bruma as linhas nao tem chao
-    // proprio. Nos outros temas o quadro nao pinta nada e so da o recuo zero.
-    if root.tracks.length > 0: Rectangle {
+    Rectangle {
         vertical-stretch: 1;
-        border-radius: Theme.material-kind == 2 ? Theme.radius-lg : 0px;
-        clip: Theme.material-kind == 2;
-        background: Theme.material-kind == 2 ? Theme.surface : transparent;
-        if Theme.material-kind == 2: Glass { radius: parent.border-radius; }
+        border-radius: root.modulo ? Theme.radius-lg : 0px;
+        clip: root.modulo;
+        background: root.modulo ? Theme.surface : transparent;
+        if root.modulo: Glass { radius: parent.border-radius; }
 
         VerticalLayout {
-            padding: Theme.material-kind == 2 ? Theme.space-md : 0px;
+            padding: root.modulo ? Theme.space-md : 0px;
             spacing: Theme.space-sm;
 
-            if root.kind == "Artista": SectionTitle {
+            // Barra da lista: filtrar e quantas ha, numa linha; ordenar, na
+            // outra. Duas linhas e nao uma porque os chips nao encolhem, e numa
+            // janela estreita uma linha so estouraria para fora do modulo.
+            HorizontalLayout {
+                spacing: Theme.space-md;
+                vertical-stretch: 0;
+
+                SearchField {
+                    placeholder: "Filtrar nesta lista";
+                    preferred-width: 360px;
+                    max-width: 360px;
+                    edited(q) => { root.filter(q); }
+                }
+
+                Rectangle { horizontal-stretch: 1; }
+
+                if root.has-more || root.loading: Text {
+                    // "Mostrando", e nao "carregadas": quem le quer saber o que
+                    // esta vendo, nao o que o programa terminou de fazer.
+                    text: root.loading
+                        ? "Carregando..."
+                        : root.loaded-count == 1
+                            ? "Mostrando 1 faixa"
+                            : "Mostrando " + root.loaded-count + " faixas";
+                    color: Theme.text-muted;
+                    font-size: Theme.size-sm;
+                    font-family: Theme.font-family;
+                    vertical-alignment: center;
+                }
+
+                if root.has-more && !root.loading: GhostButton {
+                    label: "Mostrar mais";
+                    y: (parent.height - self.height) / 2;
+                    clicked => { root.load-more(); }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: Theme.space-xs;
+                alignment: start;
+                vertical-stretch: 0;
+
+                Text {
+                    text: "Ordenar por";
+                    color: Theme.text-muted;
+                    font-size: Theme.size-sm;
+                    font-family: Theme.font-family;
+                    vertical-alignment: center;
+                }
+
+                SortChip {
+                    label: "Ordem da lista";
+                    active: root.sort == 0;
+                    descending: root.descending;
+                    clicked => { root.sort-by(0); }
+                }
+                SortChip {
+                    label: "Título";
+                    active: root.sort == 1;
+                    descending: root.descending;
+                    clicked => { root.sort-by(1); }
+                }
+                SortChip {
+                    label: "Artista";
+                    active: root.sort == 2;
+                    descending: root.descending;
+                    clicked => { root.sort-by(2); }
+                }
+                SortChip {
+                    label: "Álbum";
+                    active: root.sort == 3;
+                    descending: root.descending;
+                    clicked => { root.sort-by(3); }
+                }
+                SortChip {
+                    label: "Duração";
+                    active: root.sort == 4;
+                    descending: root.descending;
+                    clicked => { root.sort-by(4); }
+                }
+            }
+
+            // Lista vazia com filtro e outra coisa de lista vazia sem: uma diz
+            // que a busca nao achou, a outra que nao ha nada.
+            if root.tracks.length == 0 && root.filtered: EmptyState {
+                vertical-stretch: 1;
+                title: "Nada com esse texto";
+                hint: "Nenhuma faixa desta lista combina com o que você digitou.";
+            }
+
+            if root.kind == "Artista" && root.tracks.length > 0: SectionTitle {
                 text: "Faixas populares";
             }
 
-            TrackList {
+            if root.tracks.length > 0: TrackList {
                 vertical-stretch: 1;
                 tracks: root.tracks;
                 has-more: root.has-more;
@@ -2619,8 +2634,6 @@ component DetailPage inherits VerticalLayout {
     }
 }
 
-// Modulo como os outros grupos da Fila: as linhas nao tem chao proprio no
-// Bruma, entao precisam morar dentro de um.
 component ManagedQueueShelf inherits Prateleira {
     in property <[TrackRow]> tracks;
     callback activated(int);
@@ -3944,6 +3957,64 @@ component SidebarShell inherits Rectangle {
     }
 }
 
+// Uma linha do painel de atalhos: a combinacao numa pastilha de largura fixa,
+// a acao ao lado. Coluna de verdade, e nao espacos no meio do texto -- com
+// fonte proporcional os espacos nunca alinhavam.
+component ShortcutRow inherits HorizontalLayout {
+    in property <string> keys;
+    in property <string> action;
+    spacing: Theme.space-md;
+
+    Rectangle {
+        width: 176px;
+        HorizontalLayout {
+            alignment: start;
+            Rectangle {
+                border-radius: Theme.radius-sm;
+                background: Theme.hover;
+                border-width: Theme.border-width;
+                border-color: Theme.border-highlight;
+                HorizontalLayout {
+                    padding-left: Theme.space-sm;
+                    padding-right: Theme.space-sm;
+                    padding-top: 2px;
+                    padding-bottom: 2px;
+                    Text {
+                        text: root.keys;
+                        color: Theme.text;
+                        font-size: Theme.size-sm;
+                        font-family: Theme.font-family;
+                    }
+                }
+            }
+        }
+    }
+
+    Text {
+        text: root.action;
+        color: Theme.text-muted;
+        font-size: Theme.size-md;
+        font-family: Theme.font-family;
+        vertical-alignment: center;
+        horizontal-stretch: 1;
+        overflow: elide;
+    }
+}
+
+// Titulo de grupo do painel de atalhos, com mais ar em cima do que embaixo
+// pelo mesmo motivo do `SettingsGroupTitle`.
+component ShortcutGroup inherits VerticalLayout {
+    in property <string> text;
+    padding-top: Theme.space-sm;
+    Text {
+        text: root.text;
+        color: Theme.text;
+        font-size: Theme.size-sm;
+        font-weight: Theme.weight-bold;
+        font-family: Theme.font-family;
+    }
+}
+
 export component AppWindow inherits Window {
     // O relogio da aurora: uma volta (791 px) a cada 40 s, em passos de 100 ms.
     // Cada passo desenha a janela inteira de novo -- e o que a animacao custa
@@ -4033,7 +4104,7 @@ export component AppWindow inherits Window {
     in property <[string]> output-devices;
     in property <string> output-device;
     in property <bool> start-with-windows: false;
-    private property <bool> shortcuts-visible: false;
+    in-out property <bool> shortcuts-visible: false;
     private property <int> busca-foco-pedido: 0;
     in-out property <bool> mini-player: false;
     // Quantas colunas cabem na area de conteudo.
@@ -4719,8 +4790,10 @@ export component AppWindow inherits Window {
         TouchArea { clicked => { root.shortcuts-visible = false; } }
 
         Rectangle {
-            width: min(480px, parent.width - Theme.space-xl * 2);
-            height: 360px;
+            width: min(520px, parent.width - Theme.space-xl * 2);
+            // Altura do conteudo, e nao 360 fixos: com a secao de atalhos
+            // globais a lista passou do quadro. Teto na janela, para nao vazar.
+            height: min(atalhos-conteudo.preferred-height, parent.height - Theme.space-xl * 2);
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
             border-radius: Theme.radius-lg;
@@ -4730,9 +4803,9 @@ export component AppWindow inherits Window {
 
             Glass { radius: Theme.radius-lg; }
 
-            VerticalLayout {
-                padding: Theme.space-xl;
-                spacing: Theme.space-md;
+            atalhos-conteudo := VerticalLayout {
+                padding: Theme.space-lg;
+                spacing: Theme.space-sm;
 
                 HorizontalLayout {
                     Text {
@@ -4750,16 +4823,22 @@ export component AppWindow inherits Window {
                     }
                 }
 
-                Text { text: "Ctrl + K     Buscar"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
-                Text { text: "Ctrl + ,     Configurações"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
-                Text { text: "Espaço       Reproduzir ou pausar"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
-                Text { text: "Ctrl + →     Próxima faixa"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
-                Text { text: "Ctrl + ←     Faixa anterior"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
-                Text { text: "Alt + ←      Voltar"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
-                Text { text: "Ctrl + ↑ / ↓  Volume"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
-                Text { text: "Ctrl + M     Silenciar"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
-                Text { text: "Ctrl + L     Curtir a faixa"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
-                Text { text: "Ctrl + /     Mostrar estes atalhos"; color: Theme.text-muted; font-size: Theme.size-md; font-family: Theme.font-family; }
+                ShortcutGroup { text: "Na janela"; }
+                ShortcutRow { keys: "Ctrl + K"; action: "Buscar"; }
+                ShortcutRow { keys: "Ctrl + ,"; action: "Configurações"; }
+                ShortcutRow { keys: "Espaço"; action: "Tocar ou pausar"; }
+                ShortcutRow { keys: "Ctrl + → / ←"; action: "Próxima / anterior"; }
+                ShortcutRow { keys: "Ctrl + ↑ / ↓"; action: "Volume"; }
+                ShortcutRow { keys: "Ctrl + M"; action: "Silenciar"; }
+                ShortcutRow { keys: "Ctrl + L"; action: "Curtir a faixa"; }
+                ShortcutRow { keys: "Alt + ←"; action: "Voltar"; }
+
+                // Espelha `ATALHOS` em `hotkeys.rs`.
+                ShortcutGroup { text: "Em qualquer lugar, até dentro do jogo"; }
+                ShortcutRow { keys: "Ctrl + Alt + Espaço"; action: "Tocar ou pausar"; }
+                ShortcutRow { keys: "Ctrl + Alt + → / ←"; action: "Próxima / anterior"; }
+                ShortcutRow { keys: "Ctrl + Alt + ↑ / ↓"; action: "Volume"; }
+                ShortcutRow { keys: "Ctrl + Alt + L"; action: "Curtir a faixa"; }
             }
         }
     }

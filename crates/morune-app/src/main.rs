@@ -23,10 +23,11 @@ mod bundled;
 #[cfg(windows)]
 mod clipboard;
 #[cfg(windows)]
+mod hotkeys;
+#[cfg(windows)]
 mod instance;
 mod optics;
 mod session;
-#[cfg(windows)]
 mod smtc;
 #[cfg(feature = "snapshot")]
 mod snapshot;
@@ -110,6 +111,10 @@ fn main() -> anyhow::Result<()> {
         window
             .window()
             .set_size(slint::LogicalSize::new(width, height));
+    }
+    #[cfg(feature = "snapshot")]
+    if std::env::var_os("MORUNE_SNAPSHOT_SHORTCUTS").is_some() {
+        window.set_shortcuts_visible(true);
     }
     #[cfg(feature = "snapshot")]
     if std::env::var_os("MORUNE_SNAPSHOT_MINI_PLAYER").is_some() {
@@ -332,25 +337,6 @@ fn ensure_rounded_corners(window: &slint::Window) {
     }
 }
 
-/// Aplica opacidade e fundo acrilico da janela, pedidos pelo tema.
-///
-/// Os dois vinham sendo validados e documentados sem nunca chegar a janela:
-/// `theme_bridge` aplicava metade dos `EffectTokens` e o resto era letra morta.
-///
-/// **Acrilico e composicao do sistema, nao do aplicativo.** Quem desenha o
-/// borrado atras da janela e o DWM, uma vez, e nao o Morune a cada quadro --
-/// que e a unica forma aceitavel dado que isto toca enquanto a pessoa joga.
-/// Para o efeito aparecer, a cor de fundo do tema precisa ter alfa: um
-/// `background` opaco cobre o acrilico e o resultado e uma janela normal.
-///
-/// **Opacidade usa janela em camada.** Um aviso honesto: janela em camada
-/// convive mal com renderizador por OpenGL em alguns drivers. Se a janela
-/// ficar preta com `window_opacity < 1`, a causa e essa, e a saida e o
-/// renderizador por software (`SLINT_BACKEND=winit-software`).
-///
-/// Chamada repetidamente pelo mesmo motivo de `ensure_rounded_corners`: o HWND
-/// pode nao existir logo depois de `show()`, e reabrir a janela a recria.
-#[cfg(windows)]
 /// O material que o tema pede, traduzido para a janela do aplicativo.
 ///
 /// **Voltou a ser acrilico, e Mica foi um desvio.** A documentacao do Windows
@@ -391,6 +377,24 @@ enum Backdrop {
     Acrylic,
 }
 
+/// Aplica opacidade e fundo acrilico da janela, pedidos pelo tema.
+///
+/// Os dois vinham sendo validados e documentados sem nunca chegar a janela:
+/// `theme_bridge` aplicava metade dos `EffectTokens` e o resto era letra morta.
+///
+/// **Acrilico e composicao do sistema, nao do aplicativo.** Quem desenha o
+/// borrado atras da janela e o DWM, uma vez, e nao o Morune a cada quadro --
+/// que e a unica forma aceitavel dado que isto toca enquanto a pessoa joga.
+/// Para o efeito aparecer, a cor de fundo do tema precisa ter alfa: um
+/// `background` opaco cobre o acrilico e o resultado e uma janela normal.
+///
+/// **Opacidade usa janela em camada.** Um aviso honesto: janela em camada
+/// convive mal com renderizador por OpenGL em alguns drivers. Se a janela
+/// ficar preta com `window_opacity < 1`, a causa e essa, e a saida e o
+/// renderizador por software (`SLINT_BACKEND=winit-software`).
+///
+/// Chamada repetidamente pelo mesmo motivo de `ensure_rounded_corners`: o HWND
+/// pode nao existir logo depois de `show()`, e reabrir a janela a recria.
 #[cfg(windows)]
 fn ensure_window_effects(window: &slint::Window, opacity: f32, backdrop: Backdrop) -> bool {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -1074,6 +1078,9 @@ fn wire_taskbar(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState>>
     // criterio do projeto e nao aparecer no perfil de quem esta jogando.
     let mut media: Option<smtc::MediaControls> = None;
     let mut media_failed = false;
+    // Atalhos globais leem no mesmo giro: a thread deles dorme em
+    // `GetMessageW`, e quem entrega o comando a interface e este temporizador.
+    let hotkeys = hotkeys::GlobalHotkeys::start();
 
     let timer = slint::Timer::default();
     timer.start(slint::TimerMode::Repeated, tray::POLL_INTERVAL, move || {
@@ -1117,6 +1124,27 @@ fn wire_taskbar(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState>>
                     media_failed = true;
                     tracing::warn!(%error, "painel de midia do Windows indisponivel");
                 }
+            }
+        }
+
+        if let Some(hotkeys) = hotkeys.as_ref() {
+            for command in hotkeys.poll() {
+                let mut s = state.borrow_mut();
+                match command {
+                    hotkeys::HotkeyCommand::TogglePlay => s.toggle_play(),
+                    hotkeys::HotkeyCommand::Next => s.next_track(),
+                    hotkeys::HotkeyCommand::Previous => s.previous_track(),
+                    hotkeys::HotkeyCommand::VolumeUp => s.nudge_volume(0.05),
+                    hotkeys::HotkeyCommand::VolumeDown => s.nudge_volume(-0.05),
+                    hotkeys::HotkeyCommand::ToggleLike => {
+                        let id = window.get_now_id();
+                        if !id.is_empty() {
+                            s.toggle_favorite(id.as_str());
+                        }
+                    }
+                }
+                drop(s);
+                state.borrow().push_to_ui(&window);
             }
         }
 

@@ -43,6 +43,13 @@ librespot-playback = { version = "0.8", default-features = false, features = ["r
 # ser a mesma instancia do crate e o mesmo `cpal` -- que o rodio reexporta,
 # dispensando depender dele aqui.
 rodio = { version = "0.21", default-features = false, features = ["playback"] }
+# So para ligar `audio_thread_priority`: sem ele, o cpal 0.16 tenta subir a
+# prioridade da thread de saida passando o ID da thread onde o Windows espera um
+# HANDLE -- a chamada falha calada e a thread de audio roda em prioridade normal.
+# Com ele, a thread entra no MMCSS (categoria "Audio"), o mecanismo do Windows
+# para audio nao falhar quando a CPU esta ocupada -- por exemplo, com um jogo.
+# Mesma versao do cpal que o rodio usa, entao e o mesmo crate com a feature a mais.
+cpal = { version = "0.16", default-features = false, features = ["audio_thread_priority"] }
 librespot-metadata = "0.8"
 librespot-oauth = "0.8"
 
