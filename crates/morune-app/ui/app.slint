@@ -1602,14 +1602,27 @@ component PlayerBar inherits Rectangle {
                     ? Theme.window-width * 0.36
                     : min(300px, max(228px, Theme.window-width * 0.33));
 
-                if Layout.player-artwork: Artwork {
-                    source: root.cover;
-                    initial: root.cover-initial;
-                    hue: root.cover-hue;
-                    pending: root.cover-pending;
+                // A capa abre o "Tocando agora" (o topo da Fila), como no
+                // Spotify. Caixa propria para a area de toque nao entrar no
+                // layout como um filho a mais.
+                if Layout.player-artwork: Rectangle {
                     width: Layout.player-artwork-size;
                     height: Layout.player-artwork-size;
                     y: (parent.height - self.height) / 2;
+
+                    Artwork {
+                        source: root.cover;
+                        initial: root.cover-initial;
+                        hue: root.cover-hue;
+                        pending: root.cover-pending;
+                        width: 100%;
+                        height: 100%;
+                    }
+                    capa-toque := TouchArea {
+                        enabled: root.has-track && !root.queue-open;
+                        mouse-cursor: self.enabled ? MouseCursor.pointer : MouseCursor.default;
+                        clicked => { root.open-queue(); }
+                    }
                 }
 
                 // O minimo zero e o que torna `overflow: elide` efetivo. Sem
@@ -2902,63 +2915,65 @@ component QueuePage inherits Rectangle {
         // no topo -- enquanto o da Busca, sem titulo, ficava no meio.
         if root.has-track || root.manual-tracks.length > 0 || root.context-tracks.length > 0: PageTitle { text: "Fila"; }
 
+        // **Tocando agora.** A vitrine da faixa atual: capa grande, titulo no
+        // tamanho de destaque. E o que o Spotify chama de "Now Playing" -- aqui
+        // no topo da Fila, que e onde o "a seguir" ja mora, em vez de um painel
+        // a mais disputando largura com a pagina.
         if root.has-track: Prateleira {
-            SectionTitle { text: "Tocando agora"; }
+            HorizontalLayout {
+                spacing: Theme.space-lg;
+                // Recuo do titulo de secao, para a capa alinhar com o
+                // "Da lista atual" logo abaixo.
+                padding-left: Theme.space-sm;
 
-            Rectangle {
-                height: Layout.row-height;
-                border-radius: Theme.radius-sm;
-                background: Theme.selected;
+                Artwork {
+                    source: root.now-cover;
+                    initial: root.now-cover-initial;
+                    hue: root.now-cover-hue;
+                    pending: root.now-cover-pending;
+                    width: Layout.detail-cover-size;
+                    height: self.width;
+                }
 
-                HorizontalLayout {
-                    padding-left: Theme.space-md;
-                    padding-right: Theme.space-md;
-                    // Mesma conta da `TrackListRow`: capa centrada na linha.
-                    padding-top: Theme.space-md / 2;
-                    padding-bottom: Theme.space-md / 2;
-                    spacing: Theme.space-md;
+                VerticalLayout {
+                    alignment: end;
+                    spacing: Theme.space-xs;
+                    horizontal-stretch: 1;
+                    min-width: 0px;
 
-                    Rectangle {
-                        width: 26px;
+                    HorizontalLayout {
+                        spacing: Theme.space-xs;
+                        alignment: start;
                         Icon {
                             glyph: Icons.playing;
                             tint: Theme.live-accent;
-                            size: Theme.control-icon-size;
-                            x: parent.width - self.width;
+                            size: Theme.size-sm;
                             y: (parent.height - self.height) / 2;
                         }
-                    }
-
-                    Artwork {
-                        source: root.now-cover;
-                        initial: root.now-cover-initial;
-                        hue: root.now-cover-hue;
-                        pending: root.now-cover-pending;
-                        width: Layout.row-height - Theme.space-md;
-                        height: self.width;
-                    }
-
-                    VerticalLayout {
-                        alignment: center;
-                        horizontal-stretch: 1;
-                        min-width: 0px;
-                        preferred-width: 0px;
-
                         Text {
-                            text: root.now-title;
-                            color: Theme.text;
-                            font-size: Theme.size-md;
-                            font-family: Theme.font-family;
-                            overflow: elide;
-                        }
-
-                        Text {
-                            text: root.now-artist;
+                            text: "Tocando agora";
                             color: Theme.text-muted;
-                            font-size: Theme.size-sm;
+                            font-size: Theme.size-xs;
                             font-family: Theme.font-family;
-                            overflow: elide;
+                            vertical-alignment: center;
                         }
+                    }
+
+                    Text {
+                        text: root.now-title;
+                        color: Theme.text;
+                        font-size: Theme.size-display;
+                        font-weight: Theme.weight-bold;
+                        font-family: Theme.display-family;
+                        overflow: elide;
+                    }
+
+                    Text {
+                        text: root.now-artist;
+                        color: Theme.text-muted;
+                        font-size: Theme.size-md;
+                        font-family: Theme.font-family;
+                        overflow: elide;
                     }
                 }
             }
