@@ -125,6 +125,10 @@ windows = { version = "0.61.3", features = [
     "Foundation",
     "Storage_Streams",
     "Win32_System_WinRT",
+    # Registro local de queda (minidump). Ver `crash.rs`.
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_Kernel",
+    "Win32_Storage_FileSystem",
 ] }
 
 [build-dependencies]

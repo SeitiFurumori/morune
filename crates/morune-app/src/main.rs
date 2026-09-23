@@ -23,6 +23,7 @@ mod bundled;
 #[cfg(windows)]
 mod clipboard;
 #[cfg(windows)]
+mod crash;
 mod hotkeys;
 #[cfg(windows)]
 mod instance;
@@ -87,6 +88,7 @@ fn main() -> anyhow::Result<()> {
     let _ = paths.ensure();
     init_logging(&paths);
     log_panics();
+    crash::instalar(paths.data_dir());
     // `MORUNE_RELEASE`, e nao `CARGO_PKG_VERSION`: a versao do crate fica parada
     // em 0.1.0 enquanto as tags avancam, entao a primeira linha do log dizia
     // "0.1.0" tanto para um alpha publicado quanto para um build local de hoje
