@@ -40,7 +40,7 @@ jobs:
 
     steps:
       - name: Baixar o codigo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Definir a versao e o destino
         shell: pwsh
