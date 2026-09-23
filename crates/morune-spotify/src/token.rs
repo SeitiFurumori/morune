@@ -233,12 +233,23 @@ impl TokenSource {
         Ok(())
     }
 
-    /// Apaga so o segredo guardado, sem tocar no token em memoria.
+    /// Apaga o segredo guardado **se ele ainda for o que foi recusado**.
     ///
     /// Usado quando o refresh token e recusado: mante-lo faria toda abertura
     /// seguinte tentar o mesmo segredo morto.
-    pub(crate) fn discard_stored(&self) {
-        let _ = self.credentials.delete(REFRESH_KEY);
+    ///
+    /// A comparacao existe por causa de 22/09/2026: cinco copias abriram
+    /// juntas, uma trocou o refresh e guardou o novo, e as outras quatro --
+    /// recusadas porque o Spotify gira o segredo a cada troca -- apagaram o
+    /// cofre em seguida, levando junto o segredo novo e valido. O login do dono
+    /// se perdeu por uma recusa que nao era dele. Devolve `true` se apagou.
+    pub(crate) fn discard_stored(&self, recusado: &str) -> bool {
+        match self.stored_refresh() {
+            Ok(Some(atual)) if atual == recusado => {
+                self.credentials.delete(REFRESH_KEY).is_ok()
+            }
+            _ => false,
+        }
     }
 
     /// Refresh token guardado da ultima sessao, se houver.
@@ -473,6 +484,19 @@ mod tests {
 
         assert!(store.load(REFRESH_KEY).unwrap().is_none());
         assert!(tokens.stored_refresh().unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn a_refused_secret_only_erases_itself() {
+        let (store, tokens) = source();
+        // Outra copia do Morune ja girou o segredo e guardou o novo.
+        tokens.adopt(token("novo", Duration::from_secs(3600))).await;
+
+        assert!(!tokens.discard_stored("antigo"), "apagou o segredo de outra copia");
+        assert_eq!(store.load(REFRESH_KEY).unwrap().as_deref(), Some(&b"novo"[..]));
+
+        assert!(tokens.discard_stored("novo"));
+        assert!(store.load(REFRESH_KEY).unwrap().is_none());
     }
 
     #[test]

@@ -320,10 +320,27 @@ impl Authenticator for SpotifyAuthenticator {
                 Err(e) => {
                     // Refresh token revogado ou expirado nao e erro para quem
                     // esta abrindo o aplicativo: e so nao ter sessao. Apagar o
-                    // segredo morto evita tentar de novo em toda abertura.
-                    tracing::info!(error = %e, "sessao anterior nao pode ser restaurada");
-                    self.tokens.discard_stored();
-                    return Ok(None);
+                    // segredo morto evita tentar de novo em toda abertura --
+                    // mas so se o cofre ainda guarda o segredo que morreu.
+                    if self.tokens.discard_stored(&refresh) {
+                        tracing::info!(error = %e, "sessao anterior nao pode ser restaurada");
+                        return Ok(None);
+                    }
+                    // O cofre mudou enquanto a troca estava no ar: outra copia
+                    // do Morune acabou de renovar a sessao. Uma tentativa com o
+                    // segredo novo, e so uma.
+                    let Some(novo) = self.tokens.stored_refresh()? else {
+                        return Ok(None);
+                    };
+                    tracing::info!(error = %e, "refresh recusado, mas o cofre ja tem outro; tentando com ele");
+                    match self.tokens.exchange(&novo).await {
+                        Ok(token) => token,
+                        Err(e) => {
+                            tracing::info!(error = %e, "sessao anterior nao pode ser restaurada");
+                            self.tokens.discard_stored(&novo);
+                            return Ok(None);
+                        }
+                    }
                 }
             };
 
