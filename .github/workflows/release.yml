@@ -155,6 +155,21 @@ jobs:
             -SkipBuild `
             -LicenseTarget x86_64-pc-windows-gnu
 
+      # O argumento do produto e ser leve. Um instalador ou executavel que
+      # cresce sem ninguem notar e regressao, entao o build reprova acima do
+      # teto. Tetos com folga sobre o medido em 23/09/2026 (instalador 10,5 MB,
+      # executavel ~25 MB): subir o teto e decisao, nao acidente.
+      - name: Conferir o tamanho
+        shell: pwsh
+        run: |
+          $setup = Get-Item dist/Morune-*-setup.exe | Select-Object -First 1
+          $exe = Get-Item target/release/morune.exe
+          $mbSetup = [math]::Round($setup.Length / 1MB, 1)
+          $mbExe = [math]::Round($exe.Length / 1MB, 1)
+          Write-Host "instalador: $mbSetup MB  executavel: $mbExe MB"
+          if ($mbSetup -gt 14) { throw "instalador com $mbSetup MB passou do teto de 14 MB" }
+          if ($mbExe -gt 32) { throw "executavel com $mbExe MB passou do teto de 32 MB" }
+
       - name: Guardar artefatos do build
         uses: actions/upload-artifact@v4
         with:

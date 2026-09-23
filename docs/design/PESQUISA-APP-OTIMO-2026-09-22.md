@@ -196,3 +196,30 @@ histórico do servidor, atividade de amigos.
 - Spotify e jogo: [engasgo no jogo](https://community.spotify.com/t5/Desktop-Windows/Spotify-app-makes-my-game-stutter-freeze-till-I-tab-out/td-p/5470691), [atalhos globais](https://community.spotify.com/t5/Closed-Ideas/Desktop-Global-HotKeys-for-Pause-Play-Skip-etc/idi-p/57061)
 - Windows: [EcoQoS](https://devblogs.microsoft.com/performance-diagnostics/introducing-ecoqos/), [MMCSS](https://learn.microsoft.com/en-us/windows/win32/procthread/multimedia-class-scheduler-service), [resolução do timer](https://randomascii.wordpress.com/2013/07/08/windows-timer-resolution-megawatts-wasted/), [PresentMon](https://github.com/GameTechDev/PresentMon)
 - Slint: [renderizadores](https://docs.slint.dev/latest/docs/slint/guide/backends-and-renderers/backends_and_renderers/), [memória com Skia no Windows](https://github.com/slint-ui/slint/issues/13470)
+
+## Estado em 23/09/2026 (lote feito de uma vez)
+
+**Feito:** Bruma em modulos de vidro; cor da capa no acento; play/pause e
+botoes com resposta no toque; Detalhe em dois modulos; atalhos globais
+(Ctrl+Alt+Espaco ou Z, setas, L); audio no MMCSS; historico local, buscas
+recentes, esconder do radio; timer para dormir; menu de clique direito (copiar
+link, adicionar a playlist); "Tocando agora" na Fila; salvar album e seguir
+artista; criar, renomear e apagar playlist; registro local de queda; teto de
+tamanho no build de release; `tools/medir-jogo.ps1`.
+
+**Precisa de teste com a conta (nada disto foi testado contra o Spotify):**
+criar/renomear/apagar playlist, adicionar a playlist, salvar album, seguir
+artista. Renomear e o menos certo (formato inferido).
+
+**Ficou de fora, com motivo:**
+- Crossfade: o motor toca uma faixa por vez; misturar exige reescrever a saida
+  de audio -- risco de falha de som com jogo aberto.
+- Tirar faixa de playlist: o Spotify pede o `uid` de cada item, que o Morune
+  ainda nao le.
+- Spotify Connect: o controle remoto (Spirc) assume a reproducao e disputa com
+  a fila do Morune; e um projeto a parte.
+- Discord: precisa de um aplicativo criado pelo Felipe no portal do Discord.
+- Aviso de faixa sobre o jogo: o Windows silencia notificacoes em jogo por
+  padrao; so uma janela propria sempre-no-topo resolveria, e so em tela cheia
+  sem borda.
+- Troca de tema com transicao e pre-carregar no hover: baixo retorno agora.
