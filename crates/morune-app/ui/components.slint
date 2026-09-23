@@ -565,6 +565,43 @@ export component MaterialRedondo inherits Rectangle {
     }
 }
 
+/// Dois icones no mesmo lugar, trocando por estado: play/pause, mudo.
+///
+/// O Slint nao interpola `Path.commands`, entao o "morph" e o que o sistema da
+/// Apple faz na troca de simbolo: o que sai encolhe e some, o que entra cresce
+/// e aparece, os dois ao mesmo tempo. Duas `Path` de 24x24 -- nada por quadro
+/// fora dos 120 ms da troca.
+export component IconSwap {
+    in property <IconRef> off;
+    in property <IconRef> on;
+    in property <bool> state;
+    in property <brush> tint: Theme.text;
+    in property <length> size: Theme.control-icon-size;
+    in property <bool> filled: false;
+
+    width: root.size;
+    height: root.size;
+
+    Icon {
+        glyph: root.off;
+        tint: root.tint;
+        size: root.size;
+        filled: root.filled;
+        opacity: root.state ? 0.0 : 1.0;
+        transform-scale: root.state ? 0.5 : 1.0;
+        animate opacity, transform-scale { duration: Theme.motion-fast; easing: ease-out; }
+    }
+    Icon {
+        glyph: root.on;
+        tint: root.tint;
+        size: root.size;
+        filled: root.filled;
+        opacity: root.state ? 1.0 : 0.0;
+        transform-scale: root.state ? 1.0 : 0.5;
+        animate opacity, transform-scale { duration: Theme.motion-fast; easing: ease-out; }
+    }
+}
+
 export component IconButton inherits Rectangle {
     in property <string> label;
     in property <IconRef> glyph;
@@ -630,6 +667,15 @@ export component IconButton inherits Rectangle {
             ? (Theme.material-kind == 1 ? Theme.text : Theme.text-on-accent) : root.tint;
         size: root.icon-size;
         filled: root.filled;
+        // Resposta no toque, antes de a rede voltar: o icone afunda ao apertar
+        // e volta passando um pouco do tamanho -- o "pulo" que faz curtir e
+        // silenciar parecerem fisicos. Escala so do desenho, nao do botao: a
+        // area de clique e o layout ficam parados. Zera com `motion-fast`.
+        transform-scale: touch.pressed && root.enabled ? 0.84 : 1.0;
+        animate transform-scale {
+            duration: Theme.motion-normal;
+            easing: cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
     }
 
     // No Aero o botao sob o cursor vira a capsula do Windows 7, com a borda
@@ -1037,6 +1083,9 @@ export component Slider inherits Rectangle {
     in property <float> value;          // 0.0 .. 1.0
     in property <bool> enabled: true;
     in property <length> thickness: Theme.progress-thickness;
+    // Cor da parte cheia. O progresso da faixa passa `Theme.live-accent`, que
+    // acompanha a capa; volume e ajustes ficam no acento fixo do tema.
+    in property <brush> fill-color: Theme.accent;
     callback changed(float);
     callback committed(float);
     // Roda do mouse sobre a trilha: um passo por tique, sinal no `delta`.
@@ -1141,8 +1190,11 @@ export component Slider inherits Rectangle {
             // progresso do Windows 7; o `accent` escuro fica para texto e borda.
             background: Theme.material-kind == 1
                 ? Theme.selected.with-alpha(1.0)
-                : (touch.has-hover || touch.pressed ? Theme.accent-hover : Theme.accent);
-            animate background { duration: Theme.motion-fast; easing: ease; }
+                : (touch.has-hover || touch.pressed ? root.fill-color.brighter(0.15) : root.fill-color);
+            // `motion-slow` e nao `fast`: a mudanca mais comum aqui e a troca
+            // de faixa trocando a cor da capa, uma vez a cada tres minutos -- e
+            // uma cor que muda de uma vez parece defeito, nao transicao.
+            animate background { duration: Theme.motion-slow; easing: ease-out; }
 
             // O preenchimento tambem e uma capsula: metade de cima clara.
             if Theme.material-kind == 1: Rectangle {
@@ -1324,7 +1376,10 @@ export component Artwork inherits Rectangle {
     in property <float> hue;
     /// `true` enquanto a capa existe e ainda esta a caminho do cache.
     in property <bool> pending;
-    in property <length> radius: Theme.radius-artwork;
+    // O raio do tema e o de capa GRANDE. Numa miniatura de 32 px, 14 px de
+    // raio faziam da capa quase um circulo. Proporcional ate o teto do tema:
+    // 32 px -> ~5, 56 px -> ~8, cartao e detalhe -> o raio do tema.
+    in property <length> radius: min(Theme.radius-artwork, root.width * 0.15);
     // Capa de verdade. Vazia enquanto ela nao chega do cache, e o bloco neutro
     // abaixo ocupa o lugar sem mudar o layout quando ela chegar.
     in property <image> source;

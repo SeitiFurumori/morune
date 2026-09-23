@@ -1,5 +1,5 @@
 ﻿import { Theme, Layout } from "theme.slint";
-import { Realce, Vidro, SceneGlass, Material, MaterialRedondo, Aurora, MolduraAero, GlassEdge, Gloss, Glass, ScrollFade, Icon, IconRef, IconButton, PrimaryButton, GhostButton, SearchField, Slider, Artwork, PressableArea, Toggle, Logo, MenuRow, AccountAvatar } from "components.slint";
+import { Realce, Vidro, SceneGlass, Material, MaterialRedondo, Aurora, MolduraAero, GlassEdge, Gloss, Glass, ScrollFade, Icon, IconSwap, IconRef, IconButton, PrimaryButton, GhostButton, SearchField, Slider, Artwork, PressableArea, Toggle, Logo, MenuRow, AccountAvatar } from "components.slint";
 import { ListView } from "std-widgets.slint";
 
 // O Slint exige que um componente esteja declarado antes de ser usado, entao
@@ -129,19 +129,35 @@ export global Icons {
     out property <IconRef> restore-window: { commands: "M 8 5 L 19 5 L 19 16 M 5 8 L 16 8 L 16 19 L 5 19 Z", source: root.custom-restore-window };
 }
 
+// **No Bruma o titulo de secao mora dentro do modulo, sem caixinha.**
+//
+// Antes cada titulo tinha a propria pastilha de `surface`, porque o texto
+// flutuava sobre o desktop borrado e precisava de chao. Com a secao inteira
+// num modulo (`Prateleira`), o chao ja existe: a pastilha virava caixa dentro
+// de caixa, e o titulo passava a parecer botao. So o titulo de PAGINA, que
+// fica fora dos modulos, ainda pede a pastilha -- por `chip`.
 component SectionTitle inherits Rectangle {
     in property <string> text;
     in property <length> font-size: Theme.size-lg;
-    height: label.preferred-height + (Theme.material-kind == 2 ? Theme.space-xs * 2 : 0px);
-    Rectangle {
+    in property <bool> chip: false;
+    height: label.preferred-height + (root.chip ? Theme.space-sm * 2 : 0px);
+    // A pastilha e um modulo pequeno, com o mesmo raio e a mesma aresta de luz
+    // dos grandes. Com `radius-sm` ela parecia etiqueta colada, de outra
+    // familia que os paineis ao lado.
+    if root.chip: Rectangle {
         x: 0; y: 0;
-        width: min(parent.width, label.preferred-width + Theme.space-sm * 2);
+        width: min(parent.width, label.preferred-width + Theme.space-md * 2);
         height: 100%;
-        border-radius: Theme.radius-sm;
-        background: Theme.material-kind == 2 ? Theme.surface : transparent;
+        border-radius: Theme.radius-lg;
+        background: Theme.surface;
+        clip: true;
+        Glass { radius: parent.border-radius; }
     }
+    // Sem pastilha, o titulo recua `space-sm`: e o recuo interno do cartao e
+    // da linha logo abaixo. Com x zero ele ficava 8 px a esquerda da primeira
+    // capa -- o grupo parecia desalinhado consigo mesmo.
     label := Text {
-        x: Theme.material-kind == 2 ? Theme.space-sm : 0px;
+        x: root.chip ? Theme.space-md : Theme.space-sm;
         width: parent.width - self.x * 2;
         height: 100%;
         text: root.text;
@@ -157,6 +173,7 @@ component SectionTitle inherits Rectangle {
 // Titulos de pagina lideram; titulos de secao organizam o conteudo abaixo.
 component PageTitle inherits SectionTitle {
     font-size: Theme.size-xl;
+    chip: Theme.material-kind == 2;
 }
 
 component EmptyState inherits VerticalLayout {
@@ -194,14 +211,16 @@ component EmptyState inherits VerticalLayout {
             // largura do pai aqui fecha um laco no resolvedor de layout.
             preferred-width: 520px;
             max-width: 520px;
-            border-radius: Theme.material-kind == 1 ? Theme.radius-lg : 0px;
-            clip: Theme.material-kind == 1;
+            // No Bruma tambem: todo texto de conteudo mora num modulo.
+            border-radius: Theme.material-kind > 0 ? Theme.radius-lg : 0px;
+            clip: Theme.material-kind > 0;
+            background: Theme.material-kind == 2 ? Theme.surface : transparent;
 
             if Theme.material-kind == 1: Vidro { radius: parent.border-radius; tinta: Theme.surface; }
-            if Theme.material-kind == 1: Glass { radius: parent.border-radius; }
+            if Theme.material-kind > 0: Glass { radius: parent.border-radius; }
 
             VerticalLayout {
-                padding: Theme.material-kind == 1 ? Theme.space-lg : 0px;
+                padding: Theme.material-kind > 0 ? Theme.space-lg : 0px;
                 spacing: Theme.space-sm;
 
                 Text {
@@ -539,10 +558,13 @@ component TrackListRow inherits Rectangle {
     // numero: dois sinais que nao dependem de matiz. So a cor do titulo em
     // `accent` sumia no Aquario -- azul sobre ceu azul -- e quem volta do jogo
     // quer achar "o que esta tocando" na lista em um segundo.
-    background: Theme.material-kind == 2 ? Theme.surface
-        : (touch.pressed ? Theme.selected
-            : (root.track.playing ? Theme.selected
-                : (touch.has-hover ? Theme.hover : transparent)));
+    // No Bruma a linha nao tem mais chao proprio: ela mora num modulo
+    // (`Prateleira` ou o quadro da lista do Detalhe), que ja e o chao. Seis
+    // pastilhas empilhadas com 4 px entre elas eram o que fazia a Home parecer
+    // uma pilha de barras.
+    background: touch.pressed ? Theme.selected
+        : (root.track.playing ? Theme.selected
+            : (touch.has-hover ? Theme.hover : transparent));
     animate background { duration: Theme.motion-fast; easing: ease; }
 
     // A linha acende como objeto. Ver a nota em `Realce`: veu de cor sobre o
@@ -573,6 +595,11 @@ component TrackListRow inherits Rectangle {
     HorizontalLayout {
         padding-left: Theme.space-md;
         padding-right: Theme.space-md;
+        // A capa tem `row-height - space-md`; metade da sobra em cima e metade
+        // embaixo. Sem isto o `HorizontalLayout` punha a capa no topo da linha:
+        // 1 px acima, 12 px abaixo (medido na captura de 22/09).
+        padding-top: Theme.space-md / 2;
+        padding-bottom: Theme.space-md / 2;
         spacing: Theme.space-md;
 
         Rectangle {
@@ -592,7 +619,7 @@ component TrackListRow inherits Rectangle {
             // nada atras de um jogo.
             if root.track.playing: Icon {
                 glyph: Icons.playing;
-                tint: Theme.accent;
+                tint: Theme.live-accent;
                 size: Theme.control-icon-size;
                 x: parent.width - self.width;
                 y: (parent.height - self.height) / 2;
@@ -847,15 +874,24 @@ component Card inherits Rectangle {
     // O clique responde na hora, antes de a rede voltar: pressionado, o cartao
     // pinta com `selected`, que e mais forte que `hover`. Sem isso, entre o
     // clique e a faixa comecar havia um vazio em que nada dizia "recebi".
-    background: Theme.material-kind == 2 ? Theme.surface
-        : (touch.pressed ? Theme.selected
-            : (touch.has-hover || touch.has-focus ? Theme.hover : transparent));
+    // Sem chao proprio no Bruma, pelo mesmo motivo da linha: o cartao mora
+    // num modulo. A capa e o titulo bastam para dizer onde ele comeca.
+    background: touch.pressed ? Theme.selected
+        : (touch.has-hover || touch.has-focus ? Theme.hover : transparent);
     if Theme.material-kind > 0 && (touch.has-hover || touch.has-focus || touch.pressed): Rectangle {
         width: 100%; height: 100%;
         border-radius: parent.border-radius;
         background: touch.pressed ? Theme.selected : Theme.hover;
     }
     animate background { duration: Theme.motion-fast; easing: ease; }
+    // E o cartao inteiro afunda 3%: o unico lugar da interface onde escala
+    // cabe (auditoria de 21/09, P2.5). Lista nao escala -- linha que encolhe
+    // parece que vai sumir.
+    transform-scale: touch.pressed ? 0.97 : 1.0;
+    animate transform-scale {
+        duration: Theme.motion-normal;
+        easing: cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
 
     conteudo := VerticalLayout {
         padding: Theme.space-sm;
@@ -1453,6 +1489,7 @@ component PlayerBar inherits Rectangle {
             value: root.progress;
             enabled: root.has-track;
             thickness: Theme.progress-thickness;
+            fill-color: Theme.live-accent;
             committed(v) => { root.seek(v); }
         }
 
@@ -1596,11 +1633,18 @@ component PlayerBar inherits Rectangle {
 
                         MaterialRedondo { }
 
-                        Icon {
-                            glyph: root.playing ? Icons.pause : Icons.play;
+                        IconSwap {
+                            off: Icons.play;
+                            on: Icons.pause;
+                            state: root.playing;
                             tint: Theme.material-kind == 1 ? Theme.text : Theme.text-on-accent;
                             filled: true;
                             size: Theme.control-icon-size-primary;
+                            transform-scale: play-touch.pressed ? 0.84 : 1.0;
+                            animate transform-scale {
+                                duration: Theme.motion-normal;
+                                easing: cubic-bezier(0.34, 1.56, 0.64, 1);
+                            }
                         }
 
                         play-touch := PressableArea {
@@ -1666,6 +1710,7 @@ component PlayerBar inherits Rectangle {
                     Slider {
                         label: "Progresso da faixa";
                         horizontal-stretch: 1;
+                        fill-color: Theme.live-accent;
                         value: root.progress;
                         enabled: root.has-track;
                         committed(v) => { root.seek(v); }
@@ -1757,20 +1802,31 @@ component PlayerBar inherits Rectangle {
 // e um `VerticalLayout` comum, sem pintar nada.
 //
 // O recorte e um so, aqui: `Vidro` e `Aurora` nao recortam por conta propria.
+// Um grupo da pagina: titulo e o que ele organiza.
+//
+// No Aero e no Bruma o grupo e um MODULO -- uma peca de vidro com tudo dentro,
+// como os blocos da Central de Controle do iPhone. No Bruma isso substitui as
+// pastilhas por item: o texto continua sobre a mesma `surface` de antes (o
+// contraste medido nao muda), so que uma por grupo em vez de uma por linha.
 component Prateleira inherits Rectangle {
     in property <length> spacing: Theme.space-sm;
+    private property <bool> modulo: Theme.material-kind == 1 || Theme.material-kind == 2;
     vertical-stretch: 0;
-    border-radius: Theme.material-kind == 1 ? Theme.radius-lg : 0px;
-    clip: Theme.material-kind == 1;
+    border-radius: root.modulo ? Theme.radius-lg : 0px;
+    clip: root.modulo;
+    background: Theme.material-kind == 2 ? Theme.surface : transparent;
 
     if Theme.material-kind == 1: Vidro { radius: parent.border-radius; tinta: Theme.surface; }
-    if Theme.material-kind == 1: Glass { radius: parent.border-radius; }
+    if root.modulo: Glass { radius: parent.border-radius; }
 
     VerticalLayout {
-        padding: Theme.material-kind == 1 ? Theme.space-md : 0px;
+        padding: root.modulo ? Theme.space-md : 0px;
         // Mais ar embaixo: a legenda do cartao e a ultima linha do grupo, e
         // com o mesmo recuo dos outros lados ficava colada na moldura.
-        padding-bottom: Theme.material-kind == 1 ? Theme.space-lg : 0px;
+        // No Bruma o cartao ja traz o proprio recuo interno (`space-sm`), e
+        // `space-lg` somado a ele deixava 37 px embaixo contra 25 em cima.
+        padding-bottom: Theme.material-kind == 1 ? Theme.space-lg
+            : (root.modulo ? Theme.space-md : 0px);
         spacing: root.spacing;
         @children
     }
@@ -2028,18 +2084,29 @@ component SearchPage inherits VerticalLayout {
 
     spacing: Theme.space-md;
 
-    campo := SearchField {
-        placeholder: "O que você quer ouvir?";
-        text: root.query;
-        edited(q) => {
-            root.pending-query = q;
-            debounce.running = false;
-            if q.is-empty { root.search(""); }
-            else { debounce.running = true; }
-        }
-        accepted(q) => {
-            debounce.running = false;
-            root.search(q);
+    // O `VerticalLayout` estica o filho na largura inteira e ignora o
+    // `max-width` dele; numa linha propria com `alignment: start` o teto vale.
+    HorizontalLayout {
+        alignment: start;
+        campo := SearchField {
+            // Campo de 1300 px numa janela maximizada e uma faixa, nao um campo:
+            // o olho nao acha onde escrever. O teto e o de uma linha de busca
+            // confortavel; o resto da largura fica para os resultados.
+            preferred-width: 640px;
+            max-width: 640px;
+            horizontal-stretch: 1;
+            placeholder: "O que você quer ouvir?";
+            text: root.query;
+            edited(q) => {
+                root.pending-query = q;
+                debounce.running = false;
+                if q.is-empty { root.search(""); }
+                else { debounce.running = true; }
+            }
+            accepted(q) => {
+                debounce.running = false;
+                root.search(q);
+            }
         }
     }
 
@@ -2520,24 +2587,41 @@ component DetailPage inherits VerticalLayout {
         hint: "Nenhuma faixa desta lista combina com o que você digitou.";
     }
 
-    if root.kind == "Artista" && root.tracks.length > 0: SectionTitle {
-        text: "Faixas populares";
-    }
-
-    if root.tracks.length > 0: TrackList {
+    // A lista num modulo, como na Home: no Bruma as linhas nao tem chao
+    // proprio. Nos outros temas o quadro nao pinta nada e so da o recuo zero.
+    if root.tracks.length > 0: Rectangle {
         vertical-stretch: 1;
-        tracks: root.tracks;
-        has-more: root.has-more;
-        loading: root.loading;
-        nearing-end => { root.load-more(); }
-        activated(id) => { root.activated(id); }
-        favorite-toggled(id) => { root.favorite-toggled(id); }
-        play-next(id) => { root.play-next(id); }
-        enqueue(id) => { root.enqueue(id); }
+        border-radius: Theme.material-kind == 2 ? Theme.radius-lg : 0px;
+        clip: Theme.material-kind == 2;
+        background: Theme.material-kind == 2 ? Theme.surface : transparent;
+        if Theme.material-kind == 2: Glass { radius: parent.border-radius; }
+
+        VerticalLayout {
+            padding: Theme.material-kind == 2 ? Theme.space-md : 0px;
+            spacing: Theme.space-sm;
+
+            if root.kind == "Artista": SectionTitle {
+                text: "Faixas populares";
+            }
+
+            TrackList {
+                vertical-stretch: 1;
+                tracks: root.tracks;
+                has-more: root.has-more;
+                loading: root.loading;
+                nearing-end => { root.load-more(); }
+                activated(id) => { root.activated(id); }
+                favorite-toggled(id) => { root.favorite-toggled(id); }
+                play-next(id) => { root.play-next(id); }
+                enqueue(id) => { root.enqueue(id); }
+            }
+        }
     }
 }
 
-component ManagedQueueShelf inherits VerticalLayout {
+// Modulo como os outros grupos da Fila: as linhas nao tem chao proprio no
+// Bruma, entao precisam morar dentro de um.
+component ManagedQueueShelf inherits Prateleira {
     in property <[TrackRow]> tracks;
     callback activated(int);
     callback favorite-toggled(string);
@@ -2545,8 +2629,7 @@ component ManagedQueueShelf inherits VerticalLayout {
     callback move-queued(int, int);
     callback clear();
 
-    spacing: Theme.space-sm;
-    vertical-stretch: 0;
+    spacing: Theme.space-xs;
 
     HorizontalLayout {
         SectionTitle { text: "Tocará a seguir"; horizontal-stretch: 1; }
@@ -2613,7 +2696,10 @@ component QueuePage inherits Rectangle {
         alignment: start;
         padding-bottom: Theme.space-lg;
 
-        PageTitle { text: "Fila"; }
+        // Como na Biblioteca: o titulo so aparece quando ha o que listar. Com
+        // ele, o estado vazio nao podia ocupar a altura inteira e ficava colado
+        // no topo -- enquanto o da Busca, sem titulo, ficava no meio.
+        if root.has-track || root.manual-tracks.length > 0 || root.context-tracks.length > 0: PageTitle { text: "Fila"; }
 
         if root.has-track: Prateleira {
             SectionTitle { text: "Tocando agora"; }
@@ -2626,13 +2712,16 @@ component QueuePage inherits Rectangle {
                 HorizontalLayout {
                     padding-left: Theme.space-md;
                     padding-right: Theme.space-md;
+                    // Mesma conta da `TrackListRow`: capa centrada na linha.
+                    padding-top: Theme.space-md / 2;
+                    padding-bottom: Theme.space-md / 2;
                     spacing: Theme.space-md;
 
                     Rectangle {
                         width: 26px;
                         Icon {
                             glyph: Icons.playing;
-                            tint: Theme.accent;
+                            tint: Theme.live-accent;
                             size: Theme.control-icon-size;
                             x: parent.width - self.width;
                             y: (parent.height - self.height) / 2;
@@ -2674,7 +2763,8 @@ component QueuePage inherits Rectangle {
             }
         }
 
-        if root.manual-tracks.length == 0 && root.context-tracks.length == 0: EmptyState {
+        if !root.has-track && root.manual-tracks.length == 0 && root.context-tracks.length == 0: EmptyState {
+            altura-util: rolagem.height;
             title: "Fila vazia";
             hint: "Use os controles de uma faixa para tocá-la a seguir ou adicionar ao fim.";
             action-label: "Buscar música";
@@ -2939,6 +3029,24 @@ component ThemeRow inherits Rectangle {
     }
 }
 
+// Titulo de grupo das Configuracoes.
+//
+// **Mais ar em cima do que embaixo.** Com o `spacing` da pagina valendo igual
+// para os dois lados, "Comportamento" ficava a 20 px da dica do grupo de cima e
+// a 20 px do primeiro ajuste do proprio grupo -- o olho nao sabia a qual dos
+// dois o titulo pertencia. Proximidade e o que diz "isto e de baixo".
+component SettingsGroupTitle inherits VerticalLayout {
+    in property <string> text;
+    padding-top: Theme.space-lg;
+    Text {
+        text: root.text;
+        color: Theme.text;
+        font-size: Theme.size-md;
+        font-weight: Theme.weight-bold;
+        font-family: Theme.font-family;
+    }
+}
+
 component SettingRow inherits Rectangle {
     in property <string> label;
     in property <string> hint;
@@ -3172,7 +3280,9 @@ component SettingsPage inherits VerticalLayout {
             padding-top: Theme.material-kind > 0 ? Theme.space-md : 0px;
             padding-bottom: Theme.space-lg;
 
-            PageTitle { text: "Configurações"; }
+            // Ja esta dentro do painel do formulario: pastilha aqui seria caixa
+            // dentro de caixa.
+            PageTitle { text: "Configurações"; chip: false; }
 
             // Cartao da conta.
             //
@@ -3310,13 +3420,7 @@ component SettingsPage inherits VerticalLayout {
                 }
             }
 
-            Text {
-                text: "Atualizações";
-                color: Theme.text;
-                font-size: Theme.size-md;
-                font-weight: Theme.weight-bold;
-                font-family: Theme.font-family;
-            }
+            SettingsGroupTitle { text: "Atualizações"; }
 
             // A altura vem do conteudo porque o bloco muda de tamanho com a
             // fase: parado sao duas linhas, com versao nova sao as notas do
@@ -3412,13 +3516,7 @@ component SettingsPage inherits VerticalLayout {
                 }
             }
 
-            Text {
-                text: "Comportamento";
-                color: Theme.text;
-                font-size: Theme.size-md;
-                font-weight: Theme.weight-bold;
-                font-family: Theme.font-family;
-            }
+            SettingsGroupTitle { text: "Comportamento"; }
 
             SettingRow {
                 label: "Continuar com rádio";
@@ -3441,13 +3539,7 @@ component SettingsPage inherits VerticalLayout {
                 toggled(v) => { root.set-start-with-windows(v); }
             }
 
-            Text {
-                text: "Áudio";
-                color: Theme.text;
-                font-size: Theme.size-md;
-                font-weight: Theme.weight-bold;
-                font-family: Theme.font-family;
-            }
+            SettingsGroupTitle { text: "Áudio"; }
 
             Rectangle {
                 height: 44px;
@@ -3536,13 +3628,7 @@ component SettingsPage inherits VerticalLayout {
                 }
             }
 
-            Text {
-                text: "Aparência";
-                color: Theme.text;
-                font-size: Theme.size-md;
-                font-weight: Theme.weight-bold;
-                font-family: Theme.font-family;
-            }
+            SettingsGroupTitle { text: "Aparência"; }
 
             Text {
                 text: "Estes ajustes são seus, não do tema: trocar de tema não desfaz nenhum deles.";
@@ -4948,14 +5034,21 @@ export component TrayMenuWindow inherits Window {
 
                     MaterialRedondo { }
 
-                    Icon {
-                        glyph: root.playing ? Icons.pause : Icons.play;
+                    IconSwap {
+                        off: Icons.play;
+                        on: Icons.pause;
+                        state: root.playing;
                         tint: Theme.material-kind == 1 ? Theme.text : Theme.text-on-accent;
                         filled: true;
                         size: Theme.control-icon-size-primary;
+                        transform-scale: bandeja-play.pressed ? 0.84 : 1.0;
+                        animate transform-scale {
+                            duration: Theme.motion-normal;
+                            easing: cubic-bezier(0.34, 1.56, 0.64, 1);
+                        }
                     }
 
-                    PressableArea {
+                    bandeja-play := PressableArea {
                         accessible-label: root.playing ? "Pausar" : "Reproduzir";
                         focus-radius: Theme.control-primary-size / 2;
                         clicked => { root.toggle-play(); }

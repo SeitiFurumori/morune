@@ -85,7 +85,14 @@ shadow_strength       = 0.15
 gloss                 = 0.42
 backdrop_blur         = 0.0
 artwork_tint          = true
+# O brilho da capa atras dela, no rodape. Fica em 0.06: com 0.12 uma capa
+# clara sobre desktop branco ja derruba o `text_muted` do rodape para 4,38:1
+# (teste `texto_dos_temas_de_vidro_resiste...`). A cor da capa aparece no
+# acento, que nao disputa contraste com texto.
 artwork_tint_strength = 0.06
+# Bruma e branco sobre vidro: a capa entra como acento (progresso e "tocando"),
+# nunca como fundo. Ver docs/design/PESQUISA-APP-OTIMO-2026-09-22.md.
+artwork_accent        = true
 
 [background]
 image = ""

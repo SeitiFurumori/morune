@@ -101,7 +101,7 @@ pub struct AppearanceConfig {
 impl Default for AppearanceConfig {
     fn default() -> Self {
         Self {
-            theme: "midnight".into(),
+            theme: "bruma".into(),
             font_scale_override: 0.0,
             reduce_motion: false,
             background_image: String::new(),

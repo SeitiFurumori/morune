@@ -148,6 +148,10 @@ export global Theme {
     // faixa. Quando nao ha capa, chega igual a `player-background`, e o veu
     // some sozinho sem ninguem precisar checar.
     in-out property <color> artwork-color: #0f1219;
+    // O acento que acompanha a faixa: parte cheia da barra de progresso e o
+    // indicador de "tocando". E a cor da capa ja clareada no Rust quando o tema
+    // pede (`artwork_accent`); em qualquer outro caso chega igual a `accent`.
+    in-out property <brush> live-accent: #6dd49e;
 }
 
 // Composicao da tela, tambem vinda do tema.

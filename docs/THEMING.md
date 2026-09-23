@@ -270,6 +270,7 @@ gloss = 0.0                 # brilho na superficie dos paineis, 0 desliga
 backdrop_blur = 0.0         # px atras de modais, 0 desliga
 artwork_tint = true         # tinge o fundo com a capa
 artwork_tint_strength = 0.35
+artwork_accent = false      # cor da capa na barra de progresso e no "tocando"
 ```
 
 O piso de `window_opacity` e alto de proposito: uma janela quase transparente

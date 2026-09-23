@@ -427,6 +427,20 @@ pub fn apply_artwork_color(t: &UiTheme<'_>, s: &ThemeSpec, color: Option<SlintCo
         s.colors.player_background.b,
     );
     t.set_artwork_color(color.unwrap_or(fallback));
+
+    // O acento vivo: a cor da capa na barra de progresso e no "tocando".
+    // Sem capa, sem cor na capa, ou tema que nao pede -- o acento do tema.
+    let accent = SlintColor::from_argb_u8(
+        s.colors.accent.a,
+        s.colors.accent.r,
+        s.colors.accent.g,
+        s.colors.accent.b,
+    );
+    let vivo = color
+        .filter(|_| s.effects.artwork_accent)
+        .and_then(crate::tint::accent)
+        .unwrap_or(accent);
+    t.set_live_accent(vivo.into());
 }
 
 fn apply_effects(t: &UiTheme<'_>, s: &ThemeSpec) {

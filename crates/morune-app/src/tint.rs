@@ -88,6 +88,60 @@ fn dominant_pixels(src: &[slint::Rgba8Pixel], w: u32, h: u32) -> Option<Color> {
         .map(|(r, g, b)| Color::from_rgb_u8(r, g, b))
 }
 
+/// Saturacao minima para a capa virar acento.
+///
+/// Abaixo disto a capa e preta, cinza ou branca, e "a cor da capa" seria so um
+/// cinza tirado do tema. Melhor devolver o acento do proprio tema.
+const ACENTO_SATURACAO_MIN: f32 = 0.28;
+
+/// Luminancia relativa (WCAG) minima do acento.
+///
+/// 0,30 contra o vidro escuro do Bruma (~0,02) da contraste de ~5:1 -- folga
+/// sobre os 3:1 que a WCAG pede para elemento grafico, e o que deixa uma capa
+/// azul-marinho virar um azul que ainda se le como "azul".
+const ACENTO_LUZ_MIN: f32 = 0.30;
+
+/// A cor da capa pronta para servir de acento, ou `None` se ela nao serve.
+///
+/// Dois passos: leva o canal mais forte ao maximo (mesmo matiz, mesma
+/// saturacao) e, se ainda estiver escura demais, mistura com branco ate passar
+/// do piso. Nao roda por quadro: e chamada uma vez por capa, junto de
+/// [`dominant`].
+pub fn accent(cor: Color) -> Option<Color> {
+    let (r, g, b) = (cor.red(), cor.green(), cor.blue());
+    if saturacao(r, g, b) < ACENTO_SATURACAO_MIN {
+        return None;
+    }
+    let max = r.max(g).max(b) as f32;
+    let escala = 255.0 / max.max(1.0);
+    let mut c = [r as f32 * escala, g as f32 * escala, b as f32 * escala];
+    let mut passos = 0;
+    while luminancia_relativa(c) < ACENTO_LUZ_MIN && passos < 40 {
+        for canal in &mut c {
+            *canal += (255.0 - *canal) * 0.05;
+        }
+        passos += 1;
+    }
+    Some(Color::from_rgb_u8(
+        c[0].round() as u8,
+        c[1].round() as u8,
+        c[2].round() as u8,
+    ))
+}
+
+/// Luminancia relativa da WCAG, em `[0, 1]`.
+fn luminancia_relativa(c: [f32; 3]) -> f32 {
+    let lin = |v: f32| {
+        let v = v / 255.0;
+        if v <= 0.040_45 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2])
+}
+
 /// Faixa de luminancia aceita na primeira passada.
 const LUZ_MIN: f32 = 0.10;
 const LUZ_MAX: f32 = 0.92;
@@ -132,6 +186,28 @@ fn saturacao(r: u8, g: u8, b: u8) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn capa_sem_cor_nao_vira_acento() {
+        assert_eq!(accent(Color::from_rgb_u8(40, 40, 40)), None);
+        assert_eq!(accent(Color::from_rgb_u8(230, 230, 228)), None);
+    }
+
+    #[test]
+    fn acento_escuro_sobe_ate_o_piso_de_contraste() {
+        let a = accent(Color::from_rgb_u8(10, 20, 90)).expect("azul-marinho tem cor");
+        let luz = luminancia_relativa([a.red() as f32, a.green() as f32, a.blue() as f32]);
+        assert!(luz >= ACENTO_LUZ_MIN, "luminancia {luz}");
+        // Continua azul: o canal azul segue sendo o mais forte.
+        assert!(a.blue() > a.red() && a.blue() > a.green());
+    }
+
+    #[test]
+    fn acento_ja_claro_mantem_o_matiz() {
+        let a = accent(Color::from_rgb_u8(240, 180, 20)).expect("amarelo tem cor");
+        assert_eq!(a.red(), 255);
+        assert!(a.green() > a.blue());
+    }
 
     fn px(r: u8, g: u8, b: u8) -> slint::Rgba8Pixel {
         slint::Rgba8Pixel { r, g, b, a: 255 }

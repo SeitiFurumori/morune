@@ -302,6 +302,13 @@ pub struct EffectTokens {
     pub artwork_tint: bool,
     /// Intensidade do tingimento, em `[0.0, 1.0]`.
     pub artwork_tint_strength: f32,
+    /// Empresta a cor da capa ao **acento vivo**: a parte cheia da barra de
+    /// progresso e o indicador de "tocando".
+    ///
+    /// So acento, nunca fundo nem texto. A cor passa por um piso de claridade
+    /// antes de chegar na tela, e uma capa sem cor (preta, cinza, branca) cai de
+    /// volta no `accent` do tema -- o contraste nunca depende da capa.
+    pub artwork_accent: bool,
 }
 
 impl Default for EffectTokens {
@@ -315,6 +322,7 @@ impl Default for EffectTokens {
             gloss: 0.0,
             artwork_tint: true,
             artwork_tint_strength: 0.35,
+            artwork_accent: false,
         }
     }
 }

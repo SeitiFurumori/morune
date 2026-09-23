@@ -3502,7 +3502,8 @@ impl AppState {
     /// Chamada de onde a capa muda -- e nao de `push_playback`, que roda dez
     /// vezes por segundo. `&mut self` de proposito: quem le a cor le do cache.
     fn refresh_tint(&mut self) {
-        if !self.theme.spec.effects.artwork_tint {
+        let efeitos = &self.theme.spec.effects;
+        if !efeitos.artwork_tint && !efeitos.artwork_accent {
             self.now_tint = (None, None);
             return;
         }
