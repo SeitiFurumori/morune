@@ -430,3 +430,20 @@ sai como "nao medido", e nunca como zero.
 
 Registre o resultado aqui com a data, a maquina e **o cenario**. Numero sem
 procedencia nao entra, e CPU sem dizer o que estava tocando nao e procedencia.
+
+## Medicao de 23/09/2026 -- Inicio montado pelo Spotify
+
+Release instalado (`fa593ee`), tema Bruma, logado, parado no Inicio 30 s depois
+de abrir. O Inicio passou a mostrar as 19 secoes que o Spotify monta para a
+conta (10 cartoes cada, ~190 capas), no lugar das 4 prateleiras do rootlist.
+
+```
+working set    : 236,1 MB   (13/09, Bruma: 153 MB)
+memoria privada: 320,3 MB   (13/09, Bruma: 299 MB)
+```
+
+**+83 MB residentes e +21 MB privados**, quase tudo capa decodificada: cada
+cartao guarda a imagem de 300 px em RGBA (~350 KB), e o Inicio mantem todas as
+secoes vivas, inclusive as que estao fora da tela. Se isso pesar com jogo
+aberto, o caminho e carregar a capa so da secao visivel, ou usar 160 px nos
+cartoes.
