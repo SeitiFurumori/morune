@@ -101,6 +101,10 @@ export global Icons {
     out property <IconRef> volume: { commands: "M 4 9 L 7 9 L 12 5 L 12 19 L 7 15 L 4 15 Z M 15 9 a 5 5 0 0 1 0 6 M 18 6 a 9 9 0 0 1 0 12", source: root.custom-volume };
     in property <image> custom-volume-muted;
     out property <IconRef> volume-muted: { commands: "M 4 9 L 7 9 L 12 5 L 12 19 L 7 15 L 4 15 Z M 16 9 L 22 15 M 22 9 L 16 15", source: root.custom-volume-muted };
+    in property <image> custom-link;
+    out property <IconRef> link: { commands: "M 10 14 L 14 10 M 8.5 11.5 L 6.5 13.5 A 3.5 3.5 0 0 0 11.5 18.5 L 13.5 16.5 M 15.5 12.5 L 17.5 10.5 A 3.5 3.5 0 0 0 12.5 5.5 L 10.5 7.5", source: root.custom-link };
+    in property <image> custom-sleep;
+    out property <IconRef> sleep: { commands: "M 19.5 14.5 A 8 8 0 1 1 9.5 4.5 A 6.5 6.5 0 0 0 19.5 14.5 Z", source: root.custom-sleep };
     in property <image> custom-hide;
     out property <IconRef> hide: { commands: "M 3 12 C 6 6.5 18 6.5 21 12 C 18 17.5 6 17.5 3 12 Z M 12 9.5 A 2.5 2.5 0 1 0 12 14.5 A 2.5 2.5 0 1 0 12 9.5 Z M 4 4 L 20 20", source: root.custom-hide };
     in property <image> custom-playing;
@@ -138,6 +142,13 @@ export global Icons {
 // num modulo (`Prateleira`), o chao ja existe: a pastilha virava caixa dentro
 // de caixa, e o titulo passava a parecer botao. So o titulo de PAGINA, que
 // fica fora dos modulos, ainda pede a pastilha -- por `chip`.
+// Acoes que qualquer linha ou cartao pode pedir, sem encanar um callback por
+// cada componente entre a linha e a janela. O Rust liga os handlers uma vez.
+export global Acoes {
+    callback copy-link(string);
+    callback toggle-hidden(string);
+}
+
 component SectionTitle inherits Rectangle {
     in property <string> text;
     in property <length> font-size: Theme.size-lg;
@@ -738,10 +749,67 @@ component TrackListRow inherits Rectangle {
         }
     }
 
+    private property <length> menu-x;
+    private property <length> menu-y;
+
     touch := PressableArea {
         accessible-label: "Tocar " + root.track.title + " de " + root.track.artist;
         clicked => { root.activated(); }
         double-clicked => { root.activated(); }
+        context-menu-requested(mx, my) => {
+            root.menu-x = mx;
+            root.menu-y = my;
+            menu-faixa.show();
+        }
+    }
+
+    // Clique direito: o que o Spotify oferece numa faixa, menos o que exige
+    // escrita na conta que o Morune ainda nao faz. Mesmo desenho do menu da
+    // barra lateral: `PopupWindow` so e instanciado no `show()`, entao cem
+    // linhas nao custam cem menus.
+    menu-faixa := PopupWindow {
+        x: min(root.menu-x, root.width - self.width);
+        y: root.menu-y;
+        width: 232px;
+        height: (root.queue-actions ? 5 : 3) * 34px + Theme.space-xs * 2;
+        close-policy: PopupClosePolicy.close-on-click-outside;
+
+        Rectangle {
+            border-radius: Theme.radius-md;
+            border-width: Theme.border-width;
+            border-color: Theme.border;
+            background: Theme.surface-raised;
+            Glass { radius: Theme.radius-md; }
+
+            VerticalLayout {
+                padding: Theme.space-xs;
+                if root.queue-actions: MenuRow {
+                    text: "Tocar a seguir";
+                    glyph: Icons.queue-next;
+                    clicked => { menu-faixa.close(); root.play-next(); }
+                }
+                if root.queue-actions: MenuRow {
+                    text: "Adicionar ao fim da fila";
+                    glyph: Icons.queue-add;
+                    clicked => { menu-faixa.close(); root.enqueue(); }
+                }
+                MenuRow {
+                    text: root.track.favorite ? "Remover das curtidas" : "Curtir";
+                    glyph: Icons.heart;
+                    clicked => { menu-faixa.close(); root.favorite-toggled(); }
+                }
+                MenuRow {
+                    text: "Copiar link";
+                    glyph: Icons.link;
+                    clicked => { menu-faixa.close(); Acoes.copy-link(root.track.id); }
+                }
+                MenuRow {
+                    text: "Não tocar no rádio";
+                    glyph: Icons.hide;
+                    clicked => { menu-faixa.close(); Acoes.toggle-hidden(root.track.id); }
+                }
+            }
+        }
     }
 
     // Declarado depois da area da linha para receber o clique primeiro.
@@ -1411,6 +1479,9 @@ component Sidebar inherits Rectangle {
 }
 
 component PlayerBar inherits Rectangle {
+    // Timer para dormir: vazio quando desligado, senao o que falta.
+    in property <string> sleep-label;
+    callback set-sleep(int);
     in property <string> title;
     in property <string> artist;
     in property <bool> playing;
@@ -1770,6 +1841,51 @@ component PlayerBar inherits Rectangle {
                     tint: Theme.text-muted;
                     y: (parent.height - self.height) / 2;
                     clicked => { root.toggle-mini-player(); }
+                }
+
+                // Timer para dormir. O botao acende quando ligado, e o menu
+                // abre para cima, porque o rodape esta na borda da janela.
+                if !root.mini-player: Rectangle {
+                    width: sono-botao.width;
+                    height: sono-botao.height;
+                    y: (parent.height - self.height) / 2;
+
+                    sono-botao := IconButton {
+                        label: root.sleep-label == ""
+                            ? "Timer para dormir"
+                            : "Timer para dormir: " + root.sleep-label;
+                        glyph: Icons.sleep;
+                        active: root.sleep-label != "";
+                        checkable: true;
+                        tint: Theme.text-muted;
+                        clicked => { sono-menu.show(); }
+                    }
+
+                    sono-menu := PopupWindow {
+                        width: 200px;
+                        height: 6 * 34px + Theme.space-xs * 2;
+                        x: parent.width - self.width;
+                        y: -self.height - Theme.space-sm;
+                        close-policy: PopupClosePolicy.close-on-click-outside;
+
+                        Rectangle {
+                            border-radius: Theme.radius-md;
+                            border-width: Theme.border-width;
+                            border-color: Theme.border;
+                            background: Theme.surface-raised;
+                            Glass { radius: Theme.radius-md; }
+
+                            VerticalLayout {
+                                padding: Theme.space-xs;
+                                MenuRow { text: "15 minutos"; glyph: Icons.sleep; clicked => { sono-menu.close(); root.set-sleep(15); } }
+                                MenuRow { text: "30 minutos"; glyph: Icons.sleep; clicked => { sono-menu.close(); root.set-sleep(30); } }
+                                MenuRow { text: "45 minutos"; glyph: Icons.sleep; clicked => { sono-menu.close(); root.set-sleep(45); } }
+                                MenuRow { text: "1 hora"; glyph: Icons.sleep; clicked => { sono-menu.close(); root.set-sleep(60); } }
+                                MenuRow { text: "No fim desta faixa"; glyph: Icons.sleep; clicked => { sono-menu.close(); root.set-sleep(-1); } }
+                                MenuRow { text: "Desligar o timer"; glyph: Icons.close; clicked => { sono-menu.close(); root.set-sleep(0); } }
+                            }
+                        }
+                    }
                 }
 
                 if !root.mini-player && Layout.player-queue-button: IconButton {
@@ -4124,6 +4240,8 @@ export component AppWindow inherits Window {
     in property <[CardItem]> home-playlists;
     in property <[TrackRow]> home-liked;
     in property <[TrackRow]> home-recent;
+    in property <string> sleep-label;
+    callback set-sleep(int);
     in property <[string]> recent-searches;
     callback clear-recent-searches();
     callback toggle-hidden(string);
@@ -4420,6 +4538,8 @@ export component AppWindow inherits Window {
             toggle-favorite => { root.toggle-favorite(root.now-id); }
             open-queue => { if (root.page == 4) { root.close-queue(); } else { root.navigate(4); } }
             toggle-mini-player => { root.toggle-mini-player(); }
+            sleep-label: root.sleep-label;
+            set-sleep(m) => { root.set-sleep(m); }
         }
 
         if !root.mini-player: HorizontalLayout {
@@ -4861,6 +4981,8 @@ export component AppWindow inherits Window {
                 toggle-favorite => { root.toggle-favorite(root.now-id); }
                 open-queue => { root.navigate(4); }
                 toggle-mini-player => { root.toggle-mini-player(); }
+                sleep-label: root.sleep-label;
+                set-sleep(m) => { root.set-sleep(m); }
             }
         }
     }

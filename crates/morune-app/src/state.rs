@@ -302,6 +302,8 @@ pub struct AppState {
     now_tint: (Option<std::path::PathBuf>, Option<slint::Color>),
     /// Historico local: tocadas recentemente, buscas recentes, escondidas.
     history: morune_storage::History,
+    /// Timer para dormir: pausa num horario, ou quando a faixa atual acabar.
+    sleep: Option<SleepTimer>,
     /// As listas que a interface exibe, vivas entre um espelhamento e outro.
     listas: Listas,
     /// Capas pequenas das linhas, indexadas pela URL que o modelo da faixa traz.
@@ -459,6 +461,7 @@ impl AppState {
             now_cover: (String::new(), None),
             now_tint: (None, None),
             history,
+            sleep: None,
             listas: Listas::default(),
             track_covers: HashMap::new(),
             autoplay_seed: None,
@@ -690,6 +693,7 @@ impl AppState {
         self.resolve_account_avatar();
         self.refresh_tint();
         self.record_history();
+        self.check_sleep();
 
         // Por ultimo: tudo acima pode ter escrito uma mensagem nova, e o
         // relogio dela comeca agora, nao no ciclo que vem.
@@ -1685,6 +1689,13 @@ impl AppState {
         match event {
             // O fim natural da faixa avanca a fila com `user_advance = false`,
             // que e o que faz "repetir uma" repetir em vez de pular.
+            PlayerEvent::EndOfTrack(_) if self.sleep == Some(SleepTimer::EndOfTrack) => {
+                self.sleep = None;
+                self.playing = false;
+                self.send(PlayerCommand::Pause);
+                self.status = "Timer: a música parou no fim da faixa.".into();
+                true
+            }
             PlayerEvent::EndOfTrack(_) => {
                 let seed = self.queue.current().map(|track| track.id.clone());
                 if let Some(next) = self.queue.next(false).cloned() {
@@ -2169,6 +2180,33 @@ impl AppState {
                 self.status = "Não foi possível copiar. Selecione o link e copie à mão.".into();
             }
         }
+    }
+
+    /// Copia o link publico do Spotify de uma faixa, album, playlist ou
+    /// artista -- o que se cola no Discord ou manda para alguem.
+    pub fn copy_link(&mut self, tag: &str) {
+        let Some(alvo) = Target::parse(tag) else {
+            return;
+        };
+        let (tipo, canonico) = match &alvo {
+            Target::Track(id) => ("track", id.canonical()),
+            Target::Album(id) => ("album", id.canonical()),
+            Target::Playlist(id) => ("playlist", id.canonical()),
+            Target::Artist(id) => ("artist", id.canonical()),
+            _ => return,
+        };
+        let Some(id) = canonico.strip_prefix("spotify:") else {
+            self.status = "Só dá para copiar link de itens do Spotify.".into();
+            return;
+        };
+        let url = format!("https://open.spotify.com/{tipo}/{id}");
+        self.status = match crate::clipboard::copy(&url) {
+            Ok(()) => "Link copiado.".into(),
+            Err(e) => {
+                tracing::warn!(erro = %e, "nao foi possivel copiar o link");
+                "Não foi possível copiar o link.".into()
+            }
+        };
     }
 
     // ---- atualizacao ----
@@ -3538,6 +3576,47 @@ impl AppState {
     /// escalares -- nenhum `VecModel` reconstruido, nenhuma linha de faixa, nada
     /// de disco -- entao pode rodar a cada quadro de arraste e a cada tique do
     /// relogio de progresso sem aparecer no medidor de CPU.
+    /// Liga, troca ou desliga o timer para dormir.
+    ///
+    /// `minutos`: 0 desliga, -1 e "no fim desta faixa", positivo e o prazo.
+    pub fn set_sleep_timer(&mut self, minutos: i32) {
+        self.sleep = match minutos {
+            0 => None,
+            m if m < 0 => Some(SleepTimer::EndOfTrack),
+            m => Some(SleepTimer::Until(
+                Instant::now() + Duration::from_secs(m as u64 * 60),
+            )),
+        };
+        self.status = match self.sleep {
+            None => "Timer desligado.".into(),
+            Some(SleepTimer::EndOfTrack) => "A música para no fim desta faixa.".into(),
+            Some(SleepTimer::Until(_)) => format!("A música para em {minutos} min."),
+        };
+    }
+
+    /// Texto do botao: vazio quando desligado.
+    pub fn sleep_label(&self) -> String {
+        match self.sleep {
+            None => String::new(),
+            Some(SleepTimer::EndOfTrack) => "fim da faixa".into(),
+            Some(SleepTimer::Until(fim)) => {
+                let resta = fim.saturating_duration_since(Instant::now()).as_secs();
+                format!("{} min", resta.div_ceil(60).max(1))
+            }
+        }
+    }
+
+    /// Chamado no giro do temporizador: so compara um `Instant`.
+    fn check_sleep(&mut self) {
+        if let Some(SleepTimer::Until(fim)) = self.sleep {
+            if Instant::now() >= fim {
+                self.sleep = None;
+                self.pause();
+                self.status = "Timer: música pausada.".into();
+            }
+        }
+    }
+
     /// Guarda no historico a faixa que esta tocando, uma vez por faixa.
     ///
     /// Roda no giro do temporizador, mas a comparacao com a mais recente e o
@@ -3620,6 +3699,7 @@ impl AppState {
         let duration = current.map(|t| t.duration).unwrap_or(snapshot.duration);
 
         window.set_has_track(current.is_some());
+        window.set_sleep_label(self.sleep_label().into());
         window.set_now_cover(cover_image(self.now_cover.1.as_deref()));
         // A ficha da faixa tocando sai do album, igual a das linhas de lista.
         let (initial, hue) = cover_badge(
@@ -4036,6 +4116,13 @@ struct Listas {
 /// todas seriam 81 MB retidos -- num aplicativo cujo orcamento inteiro em
 /// repouso e de 78,8 MB.
 const COVER_CACHE_MAX_BYTES: usize = 32 * 1024 * 1024;
+
+/// Timer para dormir.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SleepTimer {
+    Until(Instant),
+    EndOfTrack,
+}
 
 /// Quantas faixas do historico a prateleira "Tocadas recentemente" mostra.
 const HISTORY_SHELF: usize = 12;

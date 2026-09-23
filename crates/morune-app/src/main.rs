@@ -1512,6 +1512,31 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
         s.push_to_ui(&w);
     });
 
+    {
+        let acoes = window.global::<ui::Acoes>();
+        let weak = window.as_weak();
+        let st = state.clone();
+        acoes.on_copy_link(move |tag| {
+            let Some(w) = weak.upgrade() else { return };
+            let mut s = st.borrow_mut();
+            s.copy_link(tag.as_str());
+            s.push_to_ui(&w);
+        });
+        let weak = window.as_weak();
+        let st = state.clone();
+        acoes.on_toggle_hidden(move |tag| {
+            let Some(w) = weak.upgrade() else { return };
+            let mut s = st.borrow_mut();
+            s.toggle_hidden(tag.as_str());
+            s.push_to_ui(&w);
+        });
+    }
+
+    on!(on_set_sleep, |w, s, minutos: i32| {
+        s.set_sleep_timer(minutos);
+        s.push_to_ui(&w);
+    });
+
     on!(on_clear_recent_searches, |w, s| {
         s.clear_recent_searches();
         s.push_to_ui(&w);
