@@ -49,6 +49,15 @@ const ATALHOS: &[(u16, HotkeyCommand, &str)] = {
     ]
 };
 
+/// Reserva do tocar/pausar, tentada so se Ctrl+Alt+Espaco estiver ocupado.
+///
+/// Espaco e o melhor para uma mao so (a esquerda alcanca Ctrl+Alt+Espaco sem
+/// sair do WASD), mas o app do Claude no Windows usa a mesma combinacao para a
+/// pergunta rapida, e o Windows entrega a combinacao a quem pediu primeiro. Z
+/// fica na mesma mao e quase nenhum jogo usa com Ctrl+Alt.
+#[cfg(windows)]
+const RESERVA_TOCAR: (u16, &str) = (b'Z' as u16, "Ctrl+Alt+Z");
+
 /// Os atalhos vivos. Soltar isto encerra a thread e devolve as combinacoes ao
 /// sistema.
 pub struct GlobalHotkeys {
@@ -101,6 +110,11 @@ impl Drop for GlobalHotkeys {
 }
 
 #[cfg(windows)]
+fn comando_de(indice: usize) -> &'static HotkeyCommand {
+    &ATALHOS[indice].1
+}
+
+#[cfg(windows)]
 fn laco(tx: mpsc::Sender<HotkeyCommand>, pronto: mpsc::Sender<u32>) {
     use windows::Win32::System::Threading::GetCurrentThreadId;
     use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -120,7 +134,21 @@ fn laco(tx: mpsc::Sender<HotkeyCommand>, pronto: mpsc::Sender<u32>) {
             match RegisterHotKey(None, id, modificadores, *tecla as u32) {
                 Ok(()) => registrados.push(id),
                 Err(e) => {
-                    tracing::warn!(atalho = nome, error = %e, "atalho global ocupado por outro programa")
+                    tracing::warn!(atalho = nome, error = %e, "atalho global ocupado por outro programa");
+                    // Mesmo id, outra tecla: o WM_HOTKEY continua caindo no
+                    // mesmo comando.
+                    if *comando_de(i) == HotkeyCommand::TogglePlay {
+                        let (reserva, nome_reserva) = RESERVA_TOCAR;
+                        match RegisterHotKey(None, id, modificadores, reserva as u32) {
+                            Ok(()) => {
+                                registrados.push(id);
+                                tracing::info!(atalho = nome_reserva, "tocar/pausar na reserva");
+                            }
+                            Err(e) => {
+                                tracing::warn!(atalho = nome_reserva, error = %e, "reserva tambem ocupada")
+                            }
+                        }
+                    }
                 }
             }
         }

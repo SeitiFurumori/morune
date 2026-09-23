@@ -101,6 +101,8 @@ export global Icons {
     out property <IconRef> volume: { commands: "M 4 9 L 7 9 L 12 5 L 12 19 L 7 15 L 4 15 Z M 15 9 a 5 5 0 0 1 0 6 M 18 6 a 9 9 0 0 1 0 12", source: root.custom-volume };
     in property <image> custom-volume-muted;
     out property <IconRef> volume-muted: { commands: "M 4 9 L 7 9 L 12 5 L 12 19 L 7 15 L 4 15 Z M 16 9 L 22 15 M 22 9 L 16 15", source: root.custom-volume-muted };
+    in property <image> custom-hide;
+    out property <IconRef> hide: { commands: "M 3 12 C 6 6.5 18 6.5 21 12 C 18 17.5 6 17.5 3 12 Z M 12 9.5 A 2.5 2.5 0 1 0 12 14.5 A 2.5 2.5 0 1 0 12 9.5 Z M 4 4 L 20 20", source: root.custom-hide };
     in property <image> custom-playing;
     out property <IconRef> playing: { commands: "M 5 12 L 5 21 M 12 3 L 12 21 M 19 8 L 19 21", source: root.custom-playing };
     in property <image> custom-chevron-left;
@@ -540,6 +542,9 @@ component TrackListRow inherits Rectangle {
     // Numa lista que e, por definicao, de curtidas, cem coracoes cheios sao
     // informacao zero: ali o coracao volta a ser acao e so aparece no hover.
     in property <bool> quiet-favorite: false;
+    // "Nao tocar no radio": so na lista que o radio alimenta (a fila).
+    in property <bool> hide-action: false;
+    callback hide();
     callback play-next();
     callback enqueue();
     callback remove-queued();
@@ -804,6 +809,17 @@ component TrackListRow inherits Rectangle {
         }
     }
 
+    if root.hide-action && !root.queue-actions && !root.queue-management: IconButton {
+        x: favorite-button.x - Theme.space-md - self.width;
+        y: favorite-button.y;
+        label: "Não tocar " + root.track.title + " no rádio";
+        glyph: Icons.hide;
+        tint: Theme.text-muted;
+        opacity: touch.has-hover || self.has-focus ? 1.0 : 0.0;
+        animate opacity { duration: Theme.motion-fast; easing: ease-out; }
+        clicked => { root.hide(); }
+    }
+
     if root.queue-management: IconButton {
         x: favorite-button.x - Theme.space-md - self.width;
         y: favorite-button.y;
@@ -1001,6 +1017,8 @@ component TrackList inherits ListView {
     // usa o token do tema, e antes tinha um `for` proprio so por causa disso.
     in property <length> row-gap: 2px;
     in property <bool> quiet-favorite: false;
+    in property <bool> hide-action: false;
+    callback hide(string);
 
     scrolled => {
         if root.has-more && !root.loading
@@ -1021,6 +1039,8 @@ component TrackList inherits ListView {
             queue-actions: root.queue-actions;
             queue-management: root.queue-management;
             quiet-favorite: root.quiet-favorite;
+            hide-action: root.hide-action;
+            hide => { root.hide(track.id); }
             can-move-up: i > 0;
             can-move-down: i + 1 < root.tracks.length;
             activated => { root.activated(track.id); }
@@ -1873,6 +1893,8 @@ component TrackShelf inherits Prateleira {
     callback enqueue(string);
     in property <bool> queue-actions: true;
     in property <bool> quiet-favorite: false;
+    in property <bool> hide-action: false;
+    callback hide(string);
     // Oito linhas: o bastante para procurar sem tomar a tela inteira. Sai do
     // token de altura de linha para acompanhar a densidade do tema.
     //
@@ -1911,6 +1933,8 @@ component TrackShelf inherits Prateleira {
             row-gap: Theme.space-xs;
             queue-actions: root.queue-actions;
             quiet-favorite: root.quiet-favorite;
+            hide-action: root.hide-action;
+            hide(id) => { root.hide(id); }
             activated(id) => { root.activated(id); }
             favorite-toggled(id) => { root.favorite-toggled(id); }
             play-next(id) => { root.play-next(id); }
@@ -1938,6 +1962,9 @@ component HomePage inherits Rectangle {
     in property <[CardItem]> retrospectives;
     in property <[CardItem]> playlists;
     in property <[TrackRow]> liked;
+    // Tocadas recentemente: historico local, porque o Spotify nao tem rota
+    // conhecida para isso no protocolo interno.
+    in property <[TrackRow]> recent;
     in property <bool> logged-in;
     in property <bool> loaded;
     callback activated(string);
@@ -2019,6 +2046,17 @@ component HomePage inherits Rectangle {
             enqueue(id) => { root.enqueue(id); }
         }
 
+        if root.recent.length > 0: TrackShelf {
+            title: "Tocadas recentemente";
+            tracks: root.recent;
+            // Quatro linhas: e lembrete do que tocou, nao uma lista para ler.
+            visible-height: (Layout.row-height + Theme.space-xs) * 4 - Theme.space-xs;
+            activated(id) => { root.activated(id); }
+            favorite-toggled(id) => { root.favorite-toggled(id); }
+            play-next(id) => { root.play-next(id); }
+            enqueue(id) => { root.enqueue(id); }
+        }
+
         // Antes das prateleiras recomendadas: o que o usuario montou vem antes
         // do que o Spotify sugeriu.
         if root.playlists.length > 0: ScrollableCardShelf {
@@ -2053,6 +2091,56 @@ component HomePage inherits Rectangle {
     }
 }
 
+// Um criterio de ordenacao da tela de detalhe.
+//
+// Chip e nao cabecalho de coluna de proposito: a linha de faixa mostra numero,
+// titulo com artista e duracao, entao um cabecalho alinhado nao teria onde
+// pendurar "artista" nem "album". O chip diz o que ordena sem fingir uma
+// tabela que nao existe.
+component SortChip inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    in property <bool> descending;
+    // Pilula sempre visivel, mesmo inativa: para a lista de buscas recentes,
+    // onde cada chip e um botao e nao um criterio escolhido entre cinco.
+    in property <bool> filled: false;
+    callback clicked();
+
+    height: 28px;
+    width: rotulo.preferred-width + Theme.space-md * 2;
+    // Pilula, como os outros controles pequenos. O ativo usa `selected` com a
+    // aresta clara: `surface-raised` era quase o mesmo cinza do modulo no
+    // Bruma, e o criterio escolhido nao se distinguia dos outros quatro.
+    border-radius: self.height / 2;
+    background: root.active
+        ? Theme.selected
+        : (toque.has-hover ? Theme.selected : (root.filled ? Theme.hover : transparent));
+    border-width: root.active || root.filled ? Theme.border-width : 0px;
+    border-color: Theme.border-highlight;
+    animate background { duration: Theme.motion-fast; easing: ease; }
+
+    rotulo := Text {
+        // A seta so aparece no criterio ativo: repetida em todos, viraria
+        // ruido, e num criterio inativo ela nao significa nada.
+        text: root.active
+            ? (root.descending ? root.label + " \u{2193}" : root.label + " \u{2191}")
+            : root.label;
+        color: root.active ? Theme.text : Theme.text-muted;
+        font-size: Theme.size-sm;
+        font-weight: root.active ? Theme.weight-medium : Theme.weight-normal;
+        font-family: Theme.font-family;
+        x: Theme.space-md;
+        y: (parent.height - self.height) / 2;
+    }
+
+    toque := PressableArea {
+        accessible-label: "Ordenar por " + root.label;
+        accessible-checkable: true;
+        accessible-checked: root.active;
+        clicked => { root.clicked(); }
+    }
+}
+
 component SearchPage inherits VerticalLayout {
     in property <[TrackRow]> tracks;
     in property <[CardItem]> items;
@@ -2060,6 +2148,8 @@ component SearchPage inherits VerticalLayout {
     in property <bool> searching;
     in property <bool> logged-in;
     in property <int> grid-columns: 5;
+    in property <[string]> recent-searches;
+    callback clear-recent();
     callback search(string);
     callback login();
     callback activated(string);
@@ -2116,7 +2206,34 @@ component SearchPage inherits VerticalLayout {
         hint: "Procurando faixas, álbuns, artistas e playlists para você.";
     }
 
-    if !root.searching && root.tracks.length == 0 && root.items.length == 0 && root.query == "": EmptyState {
+    // Buscas recentes: um clique repete a busca. So o que levou a um clique
+    // num resultado entra aqui (ver `play_track`), nao cada letra digitada.
+    if !root.searching && root.query == "" && root.recent-searches.length > 0: Prateleira {
+        HorizontalLayout {
+            SectionTitle { text: "Buscas recentes"; horizontal-stretch: 1; }
+            GhostButton {
+                label: "Limpar";
+                clicked => { root.clear-recent(); }
+            }
+        }
+        HorizontalLayout {
+            spacing: Theme.space-sm;
+            alignment: start;
+            // Mesmo recuo do titulo (`SectionTitle` recua `space-sm`).
+            padding-left: Theme.space-sm;
+            for termo in root.recent-searches: SortChip {
+                label: termo;
+                filled: true;
+                clicked => { root.search(termo); }
+            }
+        }
+    }
+
+    if !root.searching && root.query == "" && root.recent-searches.length > 0: Rectangle {
+        vertical-stretch: 1;
+    }
+
+    if !root.searching && root.tracks.length == 0 && root.items.length == 0 && root.query == "" && root.recent-searches.length == 0: EmptyState {
         vertical-stretch: 1;
         title: "Busque por música";
         hint: "Digite uma faixa, álbum, artista ou playlist. A busca começa enquanto você escreve.";
@@ -2272,52 +2389,6 @@ component LibraryPage inherits Rectangle {
     }
 }
 
-// Um criterio de ordenacao da tela de detalhe.
-//
-// Chip e nao cabecalho de coluna de proposito: a linha de faixa mostra numero,
-// titulo com artista e duracao, entao um cabecalho alinhado nao teria onde
-// pendurar "artista" nem "album". O chip diz o que ordena sem fingir uma
-// tabela que nao existe.
-component SortChip inherits Rectangle {
-    in property <string> label;
-    in property <bool> active;
-    in property <bool> descending;
-    callback clicked();
-
-    height: 28px;
-    width: rotulo.preferred-width + Theme.space-md * 2;
-    // Pilula, como os outros controles pequenos. O ativo usa `selected` com a
-    // aresta clara: `surface-raised` era quase o mesmo cinza do modulo no
-    // Bruma, e o criterio escolhido nao se distinguia dos outros quatro.
-    border-radius: self.height / 2;
-    background: root.active
-        ? Theme.selected
-        : (toque.has-hover ? Theme.hover : transparent);
-    border-width: root.active ? Theme.border-width : 0px;
-    border-color: Theme.border-highlight;
-    animate background { duration: Theme.motion-fast; easing: ease; }
-
-    rotulo := Text {
-        // A seta so aparece no criterio ativo: repetida em todos, viraria
-        // ruido, e num criterio inativo ela nao significa nada.
-        text: root.active
-            ? (root.descending ? root.label + " \u{2193}" : root.label + " \u{2191}")
-            : root.label;
-        color: root.active ? Theme.text : Theme.text-muted;
-        font-size: Theme.size-sm;
-        font-weight: root.active ? Theme.weight-medium : Theme.weight-normal;
-        font-family: Theme.font-family;
-        x: Theme.space-md;
-        y: (parent.height - self.height) / 2;
-    }
-
-    toque := PressableArea {
-        accessible-label: "Ordenar por " + root.label;
-        accessible-checkable: true;
-        accessible-checked: root.active;
-        clicked => { root.clicked(); }
-    }
-}
 
 // Uma lista aberta: playlist, album, artista ou as curtidas.
 //
@@ -2686,6 +2757,7 @@ component QueuePage inherits Rectangle {
     callback move-queued(int, int);
     callback clear();
     callback explore();
+    callback hide(string);
 
     background: transparent;
 
@@ -2797,6 +2869,8 @@ component QueuePage inherits Rectangle {
             title: root.manual-tracks.length > 0 ? "Depois, da lista atual" : "Da lista atual";
             tracks: root.context-tracks;
             queue-actions: false;
+            hide-action: true;
+            hide(id) => { root.hide(id); }
             activated(id) => { root.activated(id); }
             favorite-toggled(id) => { root.favorite-toggled(id); }
         }
@@ -4049,6 +4123,10 @@ export component AppWindow inherits Window {
     in property <[CardItem]> home-retrospectives;
     in property <[CardItem]> home-playlists;
     in property <[TrackRow]> home-liked;
+    in property <[TrackRow]> home-recent;
+    in property <[string]> recent-searches;
+    callback clear-recent-searches();
+    callback toggle-hidden(string);
     in property <bool> home-loaded: false;
     in property <[TrackRow]> search-tracks;
     in property <[CardItem]> search-items;
@@ -4439,6 +4517,7 @@ export component AppWindow inherits Window {
                         retrospectives: root.home-retrospectives;
                         playlists: root.home-playlists;
                         liked: root.home-liked;
+                        recent: root.home-recent;
                         logged-in: root.logged-in;
                         loaded: root.home-loaded;
                         login => { root.login(); }
@@ -4464,6 +4543,8 @@ export component AppWindow inherits Window {
                         searching: root.searching;
                         logged-in: root.logged-in;
                         grid-columns: root.grid-columns;
+                        recent-searches: root.recent-searches;
+                        clear-recent => { root.clear-recent-searches(); }
                         search(q) => { root.search(q); }
                         login => { root.login(); }
                         activated(id) => { root.play-track(id); }
@@ -4622,6 +4703,7 @@ export component AppWindow inherits Window {
                         remove-queued(i) => { root.queue-remove(i); }
                         move-queued(from, to) => { root.queue-move(from, to); }
                         clear => { root.queue-clear(); }
+                        hide(id) => { root.toggle-hidden(id); }
                     }
                 }
 
@@ -4835,7 +4917,7 @@ export component AppWindow inherits Window {
 
                 // Espelha `ATALHOS` em `hotkeys.rs`.
                 ShortcutGroup { text: "Em qualquer lugar, até dentro do jogo"; }
-                ShortcutRow { keys: "Ctrl + Alt + Espaço"; action: "Tocar ou pausar"; }
+                ShortcutRow { keys: "Ctrl + Alt + Espaço"; action: "Tocar ou pausar (ou Ctrl + Alt + Z)"; }
                 ShortcutRow { keys: "Ctrl + Alt + → / ←"; action: "Próxima / anterior"; }
                 ShortcutRow { keys: "Ctrl + Alt + ↑ / ↓"; action: "Volume"; }
                 ShortcutRow { keys: "Ctrl + Alt + L"; action: "Curtir a faixa"; }

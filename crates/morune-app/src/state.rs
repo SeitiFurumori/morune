@@ -300,6 +300,8 @@ pub struct AppState {
     /// quando a capa muda -- recalcular ali dentro reabriria a imagem dez vezes
     /// por segundo.
     now_tint: (Option<std::path::PathBuf>, Option<slint::Color>),
+    /// Historico local: tocadas recentemente, buscas recentes, escondidas.
+    history: morune_storage::History,
     /// As listas que a interface exibe, vivas entre um espelhamento e outro.
     listas: Listas,
     /// Capas pequenas das linhas, indexadas pela URL que o modelo da faixa traz.
@@ -341,6 +343,7 @@ impl std::fmt::Debug for AppState {
 impl AppState {
     pub fn load() -> Self {
         let paths = AppPaths::discover();
+        let history = morune_storage::History::load(&paths.history_file());
         if let Err(e) = paths.ensure() {
             tracing::warn!(error = %e, "nao foi possivel criar as pastas do aplicativo");
         }
@@ -455,6 +458,7 @@ impl AppState {
             account_avatar: (String::new(), None),
             now_cover: (String::new(), None),
             now_tint: (None, None),
+            history,
             listas: Listas::default(),
             track_covers: HashMap::new(),
             autoplay_seed: None,
@@ -685,6 +689,7 @@ impl AppState {
         self.resolve_now_cover();
         self.resolve_account_avatar();
         self.refresh_tint();
+        self.record_history();
 
         // Por ultimo: tudo acima pode ter escrito uma mensagem nova, e o
         // relogio dela comeca agora, nao no ciclo que vem.
@@ -962,6 +967,11 @@ impl AppState {
                 if self.autoplay_seed.as_ref() == Some(&seed) && self.queue.current().is_none() =>
             {
                 self.autoplay_seed = None;
+                // Escondida pela pessoa nao volta pelo radio.
+                let tracks: Vec<_> = tracks
+                    .into_iter()
+                    .filter(|t| !self.history.is_hidden(&t.id))
+                    .collect();
                 if let Some(track) = self.queue.append_and_select(tracks).cloned() {
                     self.status = "Rádio continuando a fila.".into();
                     self.send(PlayerCommand::Load {
@@ -1551,6 +1561,7 @@ impl AppState {
             .chain(self.liked.tracks.iter())
             .chain(self.detail.iter().flat_map(|detail| detail.tracks.iter()))
             .chain(self.queue.tracks().iter())
+            .chain(self.history.tracks().iter().take(HISTORY_SHELF))
             .filter_map(track_cover_url)
             .collect();
 
@@ -3045,6 +3056,11 @@ impl AppState {
     /// O resto vai ao catalogo, porque so o clique nao diz quais sao as outras
     /// faixas do album.
     pub fn play_track(&mut self, tag: &str) {
+        // Busca que levou a um clique e busca que valeu: e o sinal de
+        // "recente" sem gravar cada letra digitada no meio do caminho.
+        if self.page == Page::Search && self.history.record_search(&self.search_query) {
+            self.save_history();
+        }
         let Some(target) = Target::parse(tag) else {
             self.status = "Não reconheci o que você clicou.".into();
             return;
@@ -3466,6 +3482,24 @@ impl AppState {
                 &self.liked_ids,
             )
         }));
+        window.set_home_recent(l.home_recent.sincronizar_se(na_home, || {
+            track_rows(
+                self.history.tracks().iter().take(HISTORY_SHELF).collect(),
+                current,
+                &self.track_covers,
+                &self.liked_ids,
+            )
+        }));
+        window.set_recent_searches(l.recent_searches.sincronizar_se(
+            pagina == Page::Search,
+            || {
+                self.history
+                    .searches()
+                    .iter()
+                    .map(|s| SharedString::from(s.as_str()))
+                    .collect()
+            },
+        ));
         window.set_home_playlists(
             l.home_playlists
                 .sincronizar_se(na_home, || card_items(&self.home_playlists)),
@@ -3504,6 +3538,58 @@ impl AppState {
     /// escalares -- nenhum `VecModel` reconstruido, nenhuma linha de faixa, nada
     /// de disco -- entao pode rodar a cada quadro de arraste e a cada tique do
     /// relogio de progresso sem aparecer no medidor de CPU.
+    /// Guarda no historico a faixa que esta tocando, uma vez por faixa.
+    ///
+    /// Roda no giro do temporizador, mas a comparacao com a mais recente e o
+    /// unico custo quando nada mudou; gravar em disco so acontece na troca.
+    fn record_history(&mut self) {
+        if !self.playing {
+            return;
+        }
+        let Some(track) = self.queue.current() else {
+            return;
+        };
+        if self
+            .history
+            .tracks()
+            .first()
+            .is_some_and(|t| t.id == track.id)
+        {
+            return;
+        }
+        let track = track.clone();
+        if self.history.record_track(&track) {
+            self.save_history();
+        }
+    }
+
+    fn save_history(&self) {
+        if let Err(error) = self.history.save(&self.paths.history_file()) {
+            tracing::warn!(%error, "nao foi possivel gravar o historico local");
+        }
+    }
+
+    /// Apaga as buscas recentes, a pedido.
+    pub fn clear_recent_searches(&mut self) {
+        if self.history.clear_searches() {
+            self.save_history();
+        }
+    }
+
+    /// Faixa escondida nao volta pelo radio. Devolve o estado novo.
+    pub fn toggle_hidden(&mut self, tag: &str) {
+        let Some(Target::Track(id)) = Target::parse(tag) else {
+            return;
+        };
+        let escondida = self.history.toggle_hidden(&id);
+        self.save_history();
+        self.status = if escondida {
+            "Esta faixa não volta mais pelo rádio.".into()
+        } else {
+            "Faixa liberada para o rádio de novo.".into()
+        };
+    }
+
     /// Recalcula a cor da capa, se a capa mudou.
     ///
     /// Chamada de onde a capa muda -- e nao de `push_playback`, que roda dez
@@ -3927,6 +4013,8 @@ struct Listas {
     diagnostics: Lista<ui::Diagnostic>,
     home_made_for_you: Lista<ui::CardItem>,
     home_liked: Lista<ui::TrackRow>,
+    home_recent: Lista<ui::TrackRow>,
+    recent_searches: Lista<SharedString>,
     home_playlists: Lista<ui::CardItem>,
     home_stations: Lista<ui::CardItem>,
     home_retrospectives: Lista<ui::CardItem>,
@@ -3948,6 +4036,9 @@ struct Listas {
 /// todas seriam 81 MB retidos -- num aplicativo cujo orcamento inteiro em
 /// repouso e de 78,8 MB.
 const COVER_CACHE_MAX_BYTES: usize = 32 * 1024 * 1024;
+
+/// Quantas faixas do historico a prateleira "Tocadas recentemente" mostra.
+const HISTORY_SHELF: usize = 12;
 
 thread_local! {
     /// Capas ja convertidas em `slint::Image`, indexadas pelo caminho.

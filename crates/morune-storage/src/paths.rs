@@ -61,6 +61,12 @@ impl AppPaths {
         self.data_dir.join("favorites.toml")
     }
 
+    /// Historico local: tocadas recentemente, buscas recentes, faixas
+    /// escondidas. Ver [`crate::History`].
+    pub fn history_file(&self) -> PathBuf {
+        self.data_dir.join("history.toml")
+    }
+
     /// Pasta de temas do usuario. Aberta pelo menu "abrir pasta do tema".
     pub fn themes_dir(&self) -> PathBuf {
         self.config_dir.join("themes")

@@ -1512,6 +1512,16 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
         s.push_to_ui(&w);
     });
 
+    on!(on_clear_recent_searches, |w, s| {
+        s.clear_recent_searches();
+        s.push_to_ui(&w);
+    });
+
+    on!(on_toggle_hidden, |w, s, id: slint::SharedString| {
+        s.toggle_hidden(id.as_str());
+        s.push_to_ui(&w);
+    });
+
     on!(on_toggle_favorite, |w, s, id: slint::SharedString| {
         s.toggle_favorite(id.as_str());
         s.push_to_ui(&w);
