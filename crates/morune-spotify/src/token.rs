@@ -245,9 +245,7 @@ impl TokenSource {
     /// se perdeu por uma recusa que nao era dele. Devolve `true` se apagou.
     pub(crate) fn discard_stored(&self, recusado: &str) -> bool {
         match self.stored_refresh() {
-            Ok(Some(atual)) if atual == recusado => {
-                self.credentials.delete(REFRESH_KEY).is_ok()
-            }
+            Ok(Some(atual)) if atual == recusado => self.credentials.delete(REFRESH_KEY).is_ok(),
             _ => false,
         }
     }
@@ -492,8 +490,14 @@ mod tests {
         // Outra copia do Morune ja girou o segredo e guardou o novo.
         tokens.adopt(token("novo", Duration::from_secs(3600))).await;
 
-        assert!(!tokens.discard_stored("antigo"), "apagou o segredo de outra copia");
-        assert_eq!(store.load(REFRESH_KEY).unwrap().as_deref(), Some(&b"novo"[..]));
+        assert!(
+            !tokens.discard_stored("antigo"),
+            "apagou o segredo de outra copia"
+        );
+        assert_eq!(
+            store.load(REFRESH_KEY).unwrap().as_deref(),
+            Some(&b"novo"[..])
+        );
 
         assert!(tokens.discard_stored("novo"));
         assert!(store.load(REFRESH_KEY).unwrap().is_none());
