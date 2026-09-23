@@ -220,6 +220,33 @@ pub trait Library: Send + Sync + 'static {
         Box::pin(async { Err(CoreError::Unsupported("alterar musicas curtidas")) })
     }
 
+    /// Poe faixas no fim de uma playlist.
+    fn add_to_playlist<'a>(
+        &'a self,
+        _playlist: &'a PlaylistId,
+        _tracks: &'a [TrackId],
+    ) -> BoxFuture<'a, CoreResult<()>> {
+        Box::pin(async { Err(CoreError::Unsupported("adicionar a playlist")) })
+    }
+
+    /// Cria uma playlist e devolve o id dela.
+    fn create_playlist<'a>(&'a self, _name: &'a str) -> BoxFuture<'a, CoreResult<PlaylistId>> {
+        Box::pin(async { Err(CoreError::Unsupported("criar playlist")) })
+    }
+
+    fn rename_playlist<'a>(
+        &'a self,
+        _id: &'a PlaylistId,
+        _name: &'a str,
+    ) -> BoxFuture<'a, CoreResult<()>> {
+        Box::pin(async { Err(CoreError::Unsupported("renomear playlist")) })
+    }
+
+    /// Tira a playlist da biblioteca (o "apagar" dos clientes do Spotify).
+    fn delete_playlist<'a>(&'a self, _id: &'a PlaylistId) -> BoxFuture<'a, CoreResult<()>> {
+        Box::pin(async { Err(CoreError::Unsupported("apagar playlist")) })
+    }
+
     /// Salva ou tira da biblioteca um item pelo URI do provedor: album salvo,
     /// artista seguido, playlist seguida.
     fn set_saved<'a>(&'a self, _uri: &'a str, _saved: bool) -> BoxFuture<'a, CoreResult<()>> {

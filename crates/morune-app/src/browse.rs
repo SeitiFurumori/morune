@@ -224,6 +224,33 @@ pub struct LibraryOutcome {
     pub result: Result<(), String>,
 }
 
+/// Uma edicao de playlist pedida pela tela.
+pub enum PlaylistEdit {
+    Add {
+        playlist: PlaylistId,
+        tracks: Vec<TrackId>,
+        nome: String,
+    },
+    Create {
+        nome: String,
+    },
+    Rename {
+        playlist: PlaylistId,
+        nome: String,
+    },
+    Delete {
+        playlist: PlaylistId,
+        nome: String,
+    },
+}
+
+/// O que voltou de uma [`PlaylistEdit`]: a frase para a barra de status e se
+/// as playlists da barra lateral precisam ser recarregadas.
+pub struct PlaylistEditOutcome {
+    pub mensagem: String,
+    pub recarregar: bool,
+}
+
 /// Resultado de salvar album ou seguir artista. `tag` e o `Target::tag()`.
 pub struct ItemSavedOutcome {
     pub tag: String,
@@ -246,6 +273,8 @@ pub struct Browse {
     library_rx: UnboundedReceiver<LibraryOutcome>,
     item_tx: UnboundedSender<ItemSavedOutcome>,
     item_rx: UnboundedReceiver<ItemSavedOutcome>,
+    edit_tx: UnboundedSender<PlaylistEditOutcome>,
+    edit_rx: UnboundedReceiver<PlaylistEditOutcome>,
     artwork: Arc<dyn Artwork>,
     covers: ArtworkCache,
     /// Canal proprio das capas, separado de `pending`: um cartao continua
@@ -275,6 +304,7 @@ impl Browse {
         let (art_tx, art_rx) = tokio::sync::mpsc::unbounded_channel();
         let (library_tx, library_rx) = tokio::sync::mpsc::unbounded_channel();
         let (item_tx, item_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (edit_tx, edit_rx) = tokio::sync::mpsc::unbounded_channel();
         Self {
             catalog,
             library,
@@ -286,6 +316,8 @@ impl Browse {
             library_rx,
             item_tx,
             item_rx,
+            edit_tx,
+            edit_rx,
             artwork,
             covers: ArtworkCache::new(covers_dir),
             art_tx,
@@ -418,6 +450,56 @@ impl Browse {
 
     pub fn poll_item_saved(&mut self) -> Option<ItemSavedOutcome> {
         self.item_rx.try_recv().ok()
+    }
+
+    /// Edita uma playlist em segundo plano; a frase volta por
+    /// [`Browse::poll_playlist_edit`].
+    pub fn edit_playlist(&self, pedido: PlaylistEdit) {
+        let library = self.library.clone();
+        let tx = self.edit_tx.clone();
+        self.handle.spawn(async move {
+            let (resultado, ok, recarregar) = match &pedido {
+                PlaylistEdit::Add {
+                    playlist,
+                    tracks,
+                    nome,
+                } => (
+                    library.add_to_playlist(playlist, tracks).await,
+                    format!("Adicionada a \"{nome}\"."),
+                    false,
+                ),
+                PlaylistEdit::Create { nome } => (
+                    library.create_playlist(nome).await.map(|_| ()),
+                    format!("Playlist \"{nome}\" criada."),
+                    true,
+                ),
+                PlaylistEdit::Rename { playlist, nome } => (
+                    library.rename_playlist(playlist, nome).await,
+                    format!("Renomeada para \"{nome}\"."),
+                    true,
+                ),
+                PlaylistEdit::Delete { playlist, nome } => (
+                    library.delete_playlist(playlist).await,
+                    format!("\"{nome}\" saiu da sua biblioteca."),
+                    true,
+                ),
+            };
+            let saida = match resultado {
+                Ok(()) => PlaylistEditOutcome {
+                    mensagem: ok,
+                    recarregar,
+                },
+                Err(e) => PlaylistEditOutcome {
+                    mensagem: format!("O Spotify não aceitou: {}", describe(&e)),
+                    recarregar: false,
+                },
+            };
+            let _ = tx.send(saida);
+        });
+    }
+
+    pub fn poll_playlist_edit(&mut self) -> Option<PlaylistEditOutcome> {
+        self.edit_rx.try_recv().ok()
     }
 
     pub fn search(&mut self, query: &str) {

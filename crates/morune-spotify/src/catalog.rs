@@ -54,12 +54,15 @@ pub struct SpotifyCatalog {
     /// Busca. E o unico caminho que sobrou depois que o Web API fechou --
     /// ver `crate::pathfinder`.
     pathfinder: Pathfinder,
+    /// Criar, renomear e apagar playlist. Ver `crate::edicao`.
+    edicao: crate::edicao::Edicao,
 }
 
 impl SpotifyCatalog {
     pub(crate) fn new(session: SharedSession) -> Self {
         Self {
             internal: Internal::new(session.clone()),
+            edicao: crate::edicao::Edicao::new(session.clone()),
             pathfinder: Pathfinder::new(session),
         }
     }
@@ -361,6 +364,30 @@ impl Library for SpotifyCatalog {
 
     fn set_saved<'a>(&'a self, uri: &'a str, saved: bool) -> BoxFuture<'a, CoreResult<()>> {
         Box::pin(async move { self.pathfinder.set_uri_saved(uri, saved).await })
+    }
+
+    fn add_to_playlist<'a>(
+        &'a self,
+        playlist: &'a PlaylistId,
+        tracks: &'a [TrackId],
+    ) -> BoxFuture<'a, CoreResult<()>> {
+        Box::pin(async move { self.pathfinder.add_to_playlist(playlist, tracks).await })
+    }
+
+    fn create_playlist<'a>(&'a self, name: &'a str) -> BoxFuture<'a, CoreResult<PlaylistId>> {
+        Box::pin(async move { self.edicao.criar(name).await })
+    }
+
+    fn rename_playlist<'a>(
+        &'a self,
+        id: &'a PlaylistId,
+        name: &'a str,
+    ) -> BoxFuture<'a, CoreResult<()>> {
+        Box::pin(async move { self.edicao.renomear(id, name).await })
+    }
+
+    fn delete_playlist<'a>(&'a self, id: &'a PlaylistId) -> BoxFuture<'a, CoreResult<()>> {
+        Box::pin(async move { self.edicao.apagar(id).await })
     }
 
     /// Artistas seguidos, pela colecao do protocolo interno.

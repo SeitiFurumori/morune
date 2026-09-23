@@ -1530,6 +1530,38 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
             s.toggle_hidden(tag.as_str());
             s.push_to_ui(&w);
         });
+        let weak = window.as_weak();
+        let st = state.clone();
+        acoes.on_add_to_playlist(move |playlist, faixa| {
+            let Some(w) = weak.upgrade() else { return };
+            let mut s = st.borrow_mut();
+            s.add_track_to_playlist(playlist.as_str(), faixa.as_str());
+            s.push_to_ui(&w);
+        });
+        let weak = window.as_weak();
+        let st = state.clone();
+        acoes.on_create_playlist(move |nome| {
+            let Some(w) = weak.upgrade() else { return };
+            let mut s = st.borrow_mut();
+            s.create_playlist(nome.as_str());
+            s.push_to_ui(&w);
+        });
+        let weak = window.as_weak();
+        let st = state.clone();
+        acoes.on_rename_playlist(move |tag, nome| {
+            let Some(w) = weak.upgrade() else { return };
+            let mut s = st.borrow_mut();
+            s.rename_playlist(tag.as_str(), nome.as_str());
+            s.push_to_ui(&w);
+        });
+        let weak = window.as_weak();
+        let st = state.clone();
+        acoes.on_delete_playlist(move |tag| {
+            let Some(w) = weak.upgrade() else { return };
+            let mut s = st.borrow_mut();
+            s.delete_playlist(tag.as_str());
+            s.push_to_ui(&w);
+        });
     }
 
     on!(on_toggle_detail_save, |w, s| {

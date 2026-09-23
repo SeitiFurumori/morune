@@ -126,6 +126,34 @@ impl Pathfinder {
             .await
     }
 
+    /// Poe faixas no fim de uma playlist. Ver `crate::edicao`.
+    pub(crate) async fn add_to_playlist(
+        &self,
+        playlist: &morune_core::model::PlaylistId,
+        faixas: &[TrackId],
+    ) -> CoreResult<()> {
+        let variables = crate::edicao::variaveis_adicionar(playlist, faixas)?;
+        let response: serde_json::Value = self
+            .request(
+                MUTATION_ENDPOINT,
+                "addToPlaylist",
+                crate::edicao::HASH_PLAYLIST_ITEMS,
+                &variables,
+            )
+            .await?;
+        if persisted_query_missing(&response) {
+            return Err(CoreError::Decode(
+                "o Spotify mudou a operacao de adicionar a playlist; atualize o Morune".into(),
+            ));
+        }
+        if let Some(message) = graphql_error(&response) {
+            return Err(CoreError::Network(format!(
+                "o Spotify recusou adicionar a playlist: {message}"
+            )));
+        }
+        Ok(())
+    }
+
     /// `addToLibrary`/`removeFromLibrary` servem a qualquer URI: faixa curtida,
     /// album salvo, artista seguido, playlist seguida. E a mesma operacao que o
     /// coracao ja usava, entao os tres herdam o mesmo hash medido.

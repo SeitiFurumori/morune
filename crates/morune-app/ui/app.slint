@@ -101,6 +101,8 @@ export global Icons {
     out property <IconRef> volume: { commands: "M 4 9 L 7 9 L 12 5 L 12 19 L 7 15 L 4 15 Z M 15 9 a 5 5 0 0 1 0 6 M 18 6 a 9 9 0 0 1 0 12", source: root.custom-volume };
     in property <image> custom-volume-muted;
     out property <IconRef> volume-muted: { commands: "M 4 9 L 7 9 L 12 5 L 12 19 L 7 15 L 4 15 Z M 16 9 L 22 15 M 22 9 L 16 15", source: root.custom-volume-muted };
+    in property <image> custom-plus;
+    out property <IconRef> plus: { commands: "M 12 5 L 12 19 M 5 12 L 19 12", source: root.custom-plus };
     in property <image> custom-link;
     out property <IconRef> link: { commands: "M 10 14 L 14 10 M 8.5 11.5 L 6.5 13.5 A 3.5 3.5 0 0 0 11.5 18.5 L 13.5 16.5 M 15.5 12.5 L 17.5 10.5 A 3.5 3.5 0 0 0 12.5 5.5 L 10.5 7.5", source: root.custom-link };
     in property <image> custom-sleep;
@@ -147,6 +149,12 @@ export global Icons {
 export global Acoes {
     callback copy-link(string);
     callback toggle-hidden(string);
+    // Playlists da pessoa, para "Adicionar a playlist". Escrito pelo Rust.
+    in-out property <[CardItem]> playlists;
+    callback add-to-playlist(string, string);
+    callback create-playlist(string);
+    callback rename-playlist(string, string);
+    callback delete-playlist(string);
 }
 
 component SectionTitle inherits Rectangle {
@@ -763,6 +771,51 @@ component TrackListRow inherits Rectangle {
         }
     }
 
+    // Escolha da playlist. Rola quando ha muitas; o teto de oito linhas e o
+    // mesmo que cabe num menu sem cobrir a tela.
+    menu-playlists := PopupWindow {
+        x: min(root.menu-x, root.width - self.width);
+        y: root.menu-y;
+        width: 260px;
+        height: min(8, Acoes.playlists.length) * 34px + Theme.space-xs * 2 + 26px;
+        close-policy: PopupClosePolicy.close-on-click-outside;
+
+        Rectangle {
+            border-radius: Theme.radius-md;
+            border-width: Theme.border-width;
+            border-color: Theme.border;
+            background: Theme.surface-raised;
+            Glass { radius: Theme.radius-md; }
+
+            VerticalLayout {
+                padding: Theme.space-xs;
+                Text {
+                    height: 26px;
+                    x: Theme.space-sm;
+                    text: "Adicionar à playlist";
+                    color: Theme.text-muted;
+                    font-size: Theme.size-xs;
+                    font-family: Theme.font-family;
+                    vertical-alignment: center;
+                }
+                Flickable {
+                    viewport-height: Acoes.playlists.length * 34px;
+                    VerticalLayout {
+                        alignment: start;
+                        for pl in Acoes.playlists: MenuRow {
+                            text: pl.title;
+                            glyph: Icons.library;
+                            clicked => {
+                                menu-playlists.close();
+                                Acoes.add-to-playlist(pl.id, root.track.id);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // Clique direito: o que o Spotify oferece numa faixa, menos o que exige
     // escrita na conta que o Morune ainda nao faz. Mesmo desenho do menu da
     // barra lateral: `PopupWindow` so e instanciado no `show()`, entao cem
@@ -771,7 +824,7 @@ component TrackListRow inherits Rectangle {
         x: min(root.menu-x, root.width - self.width);
         y: root.menu-y;
         width: 232px;
-        height: (root.queue-actions ? 5 : 3) * 34px + Theme.space-xs * 2;
+        height: (root.queue-actions ? 6 : 4) * 34px + Theme.space-xs * 2;
         close-policy: PopupClosePolicy.close-on-click-outside;
 
         Rectangle {
@@ -797,6 +850,11 @@ component TrackListRow inherits Rectangle {
                     text: root.track.favorite ? "Remover das curtidas" : "Curtir";
                     glyph: Icons.heart;
                     clicked => { menu-faixa.close(); root.favorite-toggled(); }
+                }
+                MenuRow {
+                    text: "Adicionar à playlist";
+                    glyph: Icons.plus;
+                    clicked => { menu-faixa.close(); menu-playlists.show(); }
                 }
                 MenuRow {
                     text: "Copiar link";
@@ -1127,6 +1185,88 @@ component TrackList inherits ListView {
 // Capa pequena e uma linha de texto. A capa nao e enfeite: recolhida, ela e a
 // unica coisa que sobra, e e por ela que a lista continua navegavel sem
 // rotulo.
+// Campo de texto de uma linha, no desenho dos campos do tema.
+component CampoTexto inherits Rectangle {
+    in-out property <string> text;
+    in property <string> placeholder;
+    callback accepted(string);
+    height: 36px;
+    border-radius: Theme.radius-md;
+    background: Theme.hover;
+    border-width: Theme.border-width;
+    border-color: entrada.has-focus ? Theme.focus-ring : Theme.border-highlight;
+
+    entrada := TextInput {
+        x: Theme.space-md;
+        width: parent.width - Theme.space-md * 2;
+        height: 100%;
+        vertical-alignment: center;
+        text <=> root.text;
+        color: Theme.text;
+        font-size: Theme.size-md;
+        font-family: Theme.font-family;
+        single-line: true;
+        accepted => { root.accepted(self.text); }
+    }
+    if root.text == "": Text {
+        x: Theme.space-md;
+        height: 100%;
+        vertical-alignment: center;
+        text: root.placeholder;
+        color: Theme.text-muted;
+        font-size: Theme.size-md;
+        font-family: Theme.font-family;
+    }
+
+    public function focar() { entrada.focus(); }
+}
+
+// Conteudo da janela que pede um nome: "Nova playlist", "Renomear". Quem usa
+// poe dentro de um `PopupWindow` (um componente cuja raiz e PopupWindow nao
+// pode morar em `if`/`for`) e fecha no `confirmado`.
+component PainelNome inherits Rectangle {
+    in property <string> titulo;
+    in property <string> acao;
+    in property <string> texto-inicial;
+    callback confirmado(string);
+    width: 280px;
+    height: 132px;
+
+    Rectangle {
+        border-radius: Theme.radius-md;
+        border-width: Theme.border-width;
+        border-color: Theme.border;
+        background: Theme.surface-raised;
+        Glass { radius: Theme.radius-md; }
+
+        VerticalLayout {
+            padding: Theme.space-md;
+            spacing: Theme.space-sm;
+
+            Text {
+                text: root.titulo;
+                color: Theme.text;
+                font-size: Theme.size-md;
+                font-weight: Theme.weight-bold;
+                font-family: Theme.font-family;
+            }
+            campo := CampoTexto {
+                text: root.texto-inicial;
+                placeholder: "Nome da playlist";
+                init => { self.focar(); }
+                accepted(nome) => { root.confirmado(nome); }
+            }
+            HorizontalLayout {
+                alignment: end;
+                PrimaryButton {
+                    label: root.acao;
+                    clicked => { root.confirmado(campo.text); }
+                }
+            }
+        }
+    }
+}
+
 component PlaylistNavItem inherits Rectangle {
     in property <CardItem> item;
     // As curtidas nao sao playlist do provedor e ja moram no topo: um menu que
@@ -1222,11 +1362,30 @@ component PlaylistNavItem inherits Rectangle {
     // Declarado no corpo do componente repetido, e nao dentro do `for`: o Slint
     // so instancia a subarvore no `show()`, entao oitenta playlists nao custam
     // oitenta menus.
+    // Apagar pede o segundo clique: sem desfazer do lado do Spotify, um clique
+    // errado no menu nao pode levar a playlist embora.
+    private property <bool> confirmar-apagar: false;
+
+    renomear := PopupWindow {
+        x: root.menu-x;
+        y: root.menu-y;
+        close-policy: PopupClosePolicy.close-on-click-outside;
+        PainelNome {
+            titulo: "Renomear playlist";
+            acao: "Salvar";
+            texto-inicial: root.item.title;
+            confirmado(nome) => {
+                renomear.close();
+                Acoes.rename-playlist(root.item.id, nome);
+            }
+        }
+    }
+
     menu := PopupWindow {
         x: root.menu-x;
         y: root.menu-y;
-        width: 184px;
-        height: 34px + Theme.space-xs * 2;
+        width: 208px;
+        height: 3 * 34px + Theme.space-xs * 2;
         close-policy: PopupClosePolicy.close-on-click-outside;
 
         Rectangle {
@@ -1246,6 +1405,28 @@ component PlaylistNavItem inherits Rectangle {
                     clicked => {
                         menu.close();
                         root.toggle-pin();
+                    }
+                }
+                MenuRow {
+                    text: "Renomear";
+                    glyph: Icons.library;
+                    clicked => {
+                        menu.close();
+                        renomear.show();
+                    }
+                }
+                MenuRow {
+                    text: root.confirmar-apagar ? "Clique de novo para apagar" : "Apagar da biblioteca";
+                    glyph: Icons.close;
+                    tint: root.confirmar-apagar ? Theme.danger : Theme.text;
+                    clicked => {
+                        if (root.confirmar-apagar) {
+                            root.confirmar-apagar = false;
+                            menu.close();
+                            Acoes.delete-playlist(root.item.id);
+                        } else {
+                            root.confirmar-apagar = true;
+                        }
                     }
                 }
             }
@@ -1395,9 +1576,37 @@ component Sidebar inherits Rectangle {
             height: Theme.space-sm;
         }
 
-        if Layout.sidebar-playlists && Layout.sidebar-labels-shown && root.playlists.length > 0: SearchField {
-            placeholder: "Filtrar playlists";
-            edited(q) => { root.filter-playlists(q); }
+        if Layout.sidebar-playlists && Layout.sidebar-labels-shown && root.playlists.length > 0: HorizontalLayout {
+            spacing: Theme.space-xs;
+            SearchField {
+                horizontal-stretch: 1;
+                placeholder: "Filtrar playlists";
+                edited(q) => { root.filter-playlists(q); }
+            }
+            Rectangle {
+                width: nova-botao.width;
+                nova-botao := IconButton {
+                    y: (parent.height - self.height) / 2;
+                    label: "Nova playlist";
+                    glyph: Icons.plus;
+                    tint: Theme.text-muted;
+                    clicked => { nova.show(); }
+                }
+                nova := PopupWindow {
+                    x: 0;
+                    y: parent.height + Theme.space-xs;
+                    close-policy: PopupClosePolicy.close-on-click-outside;
+                    PainelNome {
+                        titulo: "Nova playlist";
+                        acao: "Criar";
+                        texto-inicial: "";
+                        confirmado(nome) => {
+                            nova.close();
+                            Acoes.create-playlist(nome);
+                        }
+                    }
+                }
+            }
         }
 
         if !Layout.sidebar-playlists: Rectangle { vertical-stretch: 1; }

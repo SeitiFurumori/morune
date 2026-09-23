@@ -661,6 +661,24 @@ impl AppState {
             changed = true;
         }
 
+        while let Some(outcome) = self
+            .session
+            .browse_mut()
+            .and_then(|b| b.poll_playlist_edit())
+        {
+            self.status = outcome.mensagem;
+            if outcome.recarregar {
+                // A barra lateral sai das playlists do Inicio; pedir de novo e
+                // o que faz a criada aparecer e a apagada sumir.
+                self.home_requested = false;
+                if let Some(browse) = self.session.browse_mut() {
+                    browse.load_home();
+                    self.home_requested = true;
+                }
+            }
+            changed = true;
+        }
+
         while let Some(outcome) = self.session.browse_mut().and_then(|b| b.poll_item_saved()) {
             if let Err(erro) = outcome.result {
                 // Desfaz o que a tela ja mostrava.
@@ -3463,10 +3481,22 @@ impl AppState {
         self.push_playback(window);
 
         let current = self.queue.current();
-        window.set_sidebar_playlists(self.listas.sidebar_playlists.sincronizar(sidebar_items(
+        let lateral = sidebar_items(
             &self.sidebar_playlists(),
             &self.config.navigation.pinned_playlists,
-        )));
+        );
+        // "Adicionar a playlist" oferece as mesmas da barra lateral, menos as
+        // curtidas, que nao sao playlist do Spotify.
+        window.global::<ui::Acoes>().set_playlists(
+            self.listas.acoes_playlists.sincronizar(
+                lateral
+                    .iter()
+                    .filter(|c| c.id.as_str() != "liked")
+                    .cloned()
+                    .collect(),
+            ),
+        );
+        window.set_sidebar_playlists(self.listas.sidebar_playlists.sincronizar(lateral));
 
         if let Some(detail) = &self.detail {
             window.set_detail_title(detail.title.as_str().into());
@@ -3634,6 +3664,87 @@ impl AppState {
                 self.status = "Timer: música pausada.".into();
             }
         }
+    }
+
+    /// Pede uma edicao de playlist ao Spotify. `alvo` e o `Target::tag()`.
+    fn pedir_edicao(&mut self, pedido: crate::browse::PlaylistEdit, aguarde: &str) {
+        let Some(browse) = self.session.browse_mut() else {
+            self.status = "Entre na sua conta do Spotify para editar playlists.".into();
+            return;
+        };
+        browse.edit_playlist(pedido);
+        self.status = aguarde.into();
+    }
+
+    fn playlist_de(&self, tag: &str) -> Option<(morune_core::PlaylistId, String)> {
+        let Some(Target::Playlist(id)) = Target::parse(tag) else {
+            return None;
+        };
+        let nome = self
+            .sidebar_playlists()
+            .iter()
+            .find(|c| c.tag == tag)
+            .map(|c| c.title.clone())
+            .unwrap_or_else(|| "playlist".into());
+        Some((id, nome))
+    }
+
+    pub fn add_track_to_playlist(&mut self, playlist: &str, track: &str) {
+        let (Some((playlist, nome)), Some(Target::Track(faixa))) =
+            (self.playlist_de(playlist), Target::parse(track))
+        else {
+            return;
+        };
+        self.pedir_edicao(
+            crate::browse::PlaylistEdit::Add {
+                playlist,
+                tracks: vec![faixa],
+                nome,
+            },
+            "Adicionando...",
+        );
+    }
+
+    pub fn create_playlist(&mut self, nome: &str) {
+        let nome = nome.trim();
+        let nome = if nome.is_empty() {
+            "Nova playlist"
+        } else {
+            nome
+        };
+        self.pedir_edicao(
+            crate::browse::PlaylistEdit::Create {
+                nome: nome.to_string(),
+            },
+            "Criando a playlist...",
+        );
+    }
+
+    pub fn rename_playlist(&mut self, tag: &str, nome: &str) {
+        let nome = nome.trim();
+        let Some((playlist, _)) = self.playlist_de(tag) else {
+            return;
+        };
+        if nome.is_empty() {
+            return;
+        }
+        self.pedir_edicao(
+            crate::browse::PlaylistEdit::Rename {
+                playlist,
+                nome: nome.to_string(),
+            },
+            "Renomeando...",
+        );
+    }
+
+    pub fn delete_playlist(&mut self, tag: &str) {
+        let Some((playlist, nome)) = self.playlist_de(tag) else {
+            return;
+        };
+        self.pedir_edicao(
+            crate::browse::PlaylistEdit::Delete { playlist, nome },
+            "Apagando...",
+        );
     }
 
     /// Album ou artista aberto no Detalhe: `(tag, uri, tipo)`.
@@ -4166,6 +4277,7 @@ impl<T: Clone + PartialEq + 'static> Lista<T> {
 struct Listas {
     output_devices: Lista<SharedString>,
     sidebar_playlists: Lista<ui::CardItem>,
+    acoes_playlists: Lista<ui::CardItem>,
     detail_tracks: Lista<ui::TrackRow>,
     detail_items: Lista<ui::CardItem>,
     queue_manual_tracks: Lista<ui::TrackRow>,

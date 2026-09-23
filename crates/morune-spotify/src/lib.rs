@@ -35,6 +35,7 @@
 mod artwork;
 mod auth;
 mod catalog;
+mod edicao;
 mod engine;
 mod error;
 mod graphql;
