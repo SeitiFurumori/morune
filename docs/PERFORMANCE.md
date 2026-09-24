@@ -447,3 +447,31 @@ cartao guarda a imagem de 300 px em RGBA (~350 KB), e o Inicio mantem todas as
 secoes vivas, inclusive as que estao fora da tela. Se isso pesar com jogo
 aberto, o caminho e carregar a capa so da secao visivel, ou usar 160 px nos
 cartoes.
+
+## Medicao de 24/09/2026 -- rolagem com trancos
+
+`MORUNE_QUADROS=1` liga o medidor em `crates/morune-app/src/quadros.rs`;
+`bench-out/medir-rolagem.ps1` manda `WM_MOUSEWHEEL` de verdade para a janela.
+Monitor de 240 Hz, RTX 3060 (OpenGL ES 3.2, driver 616.64), Bruma, Inicio
+com as 19 secoes do Spotify.
+
+**Achado e corrigido: o cache de capas descartava o que estava na tela.** O
+teto de 32 MB valia tambem para as ~190 capas do Inicio (~68 MB): cada
+espelhamento da tela decodificava tudo de novo -- 671 capas em 22 s e
+`push_to_ui` de 108 a 216 ms, com a interface parada. Agora o que foi usado
+no espelhamento atual nunca sai (`LruCache::nova_rodada`). Depois: 4-5 ms.
+
+**Achado e nao resolvido: a animacao sai a ~60 quadros por segundo.** O
+DWM compoe a 240 Hz (`DwmGetCompositionTimingInfo`), o desenho leva 1,5-2 ms,
+mas os quadros ficam em 57-60 por segundo, com 2-4 intervalos de 25-35 ms por
+segundo. Nao mudaram o numero: `DwmFlush` apos o desenho, `glFinish`,
+`timeBeginPeriod(1)`, e numa copia do backend winit do Slint trocar o
+temporizador de ritmo, manter o laco em `Poll` durante animacao e desligar a
+sincronia do OpenGL em favor do `DwmFlush`. O tema sem vidro (Midnight) tem o
+mesmo ritmo. Nao e o vidro nem o nivel de otimizacao (`medir-z` e `medir-3`
+empatam). Suspeita em aberto: apresentacao do OpenGL da NVIDIA em janela,
+com um monitor virtual (Meta) de outra taxa ligado.
+
+**Armadilha de medicao:** rolagem disparada por temporizador de dentro do app
+mantem o laco acordado e mostrou 220 quadros por segundo -- falso. So vale
+roda entregue pelo Windows.

@@ -64,6 +64,21 @@ debug = 0
 [profile.ci.package."*"]
 opt-level = 0
 
+# Perfis so para medir desempenho na maquina local, sem o custo do LTO: iguais
+# ao release no que pesa no quadro, com compilacao incremental. `medir-z` usa o
+# mesmo nivel de otimizacao do release; `medir-3` otimiza para velocidade. A
+# diferenca entre os dois e o que o `opt-level` custa por quadro.
+[profile.medir-z]
+inherits = "release"
+lto = false
+codegen-units = 16
+incremental = true
+strip = "none"
+
+[profile.medir-3]
+inherits = "medir-z"
+opt-level = 3
+
 # Perfil de release: otimizado para tamanho + velocidade, alvo do performance budget.
 [profile.release]
 opt-level = "z"

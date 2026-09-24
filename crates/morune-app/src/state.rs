@@ -365,7 +365,14 @@ impl AppState {
         }
 
         let config = Config::load(&paths.config_file());
-        let theme = loader::load(&paths.themes_dir(), &config.appearance.theme);
+        // So na medicao de quadros: comparar temas sem tocar na configuracao.
+        let tema_medicao = std::env::var("MORUNE_TEMA")
+            .ok()
+            .filter(|_| crate::quadros::medindo());
+        let theme = loader::load(
+            &paths.themes_dir(),
+            tema_medicao.as_deref().unwrap_or(&config.appearance.theme),
+        );
         if theme.fell_back {
             tracing::warn!(
                 pedido = config.appearance.theme,
@@ -3448,6 +3455,8 @@ impl AppState {
     // ---- espelhamento para a interface ----
 
     pub fn push_to_ui(&self, window: &ui::AppWindow) {
+        // Capa usada daqui em diante esta na tela e fica no cache.
+        COVER_CACHE.with(|c| c.borrow_mut().nova_rodada());
         window.set_page(self.page as i32);
         window.set_status_message(SharedString::from(self.status.as_str()));
         window.set_undo_available(self.undo_available());
@@ -4420,6 +4429,9 @@ struct LruCache<K, V> {
     /// Relogio logico: cada acesso recebe o proximo numero, e o menor numero e
     /// o candidato mais antigo. Um `u64` nao da a volta em nenhuma sessao real.
     clock: u64,
+    /// Relogio no inicio do espelhamento atual. Quem foi usado desde entao
+    /// esta na tela e nao sai -- ver [`LruCache::nova_rodada`].
+    rodada: u64,
 }
 
 struct CacheEntry<V> {
@@ -4435,7 +4447,21 @@ impl<K: std::hash::Hash + Eq + Clone, V: Clone> LruCache<K, V> {
             bytes: 0,
             max_bytes,
             clock: 0,
+            rodada: 0,
         }
+    }
+
+    /// Marca o inicio de um espelhamento da tela.
+    ///
+    /// **Por que existe.** O teto valia tambem para o que esta na tela. Com o
+    /// Inicio montado pelo Spotify sao ~190 capas (~68 MB), o dobro do teto: a
+    /// cada espelhamento o LRU descartava as primeiras para caber as ultimas, e
+    /// o espelhamento seguinte decodificava tudo de novo -- 671 capas em 22 s,
+    /// e 100 a 200 ms de interface parada a cada vez (medido em 24/09/2026 com
+    /// `MORUNE_QUADROS`). Descartar o que esta na tela nao economiza nada: o
+    /// modelo do Slint continua segurando a mesma imagem.
+    fn nova_rodada(&mut self) {
+        self.rodada = self.clock + 1;
     }
 
     fn get(&mut self, key: &K) -> Option<V> {
@@ -4474,6 +4500,8 @@ impl<K: std::hash::Hash + Eq + Clone, V: Clone> LruCache<K, V> {
         let mut idade: Vec<(u64, K)> = self
             .entries
             .iter()
+            // Antes do primeiro espelhamento nao ha tela a proteger.
+            .filter(|(_, e)| self.rodada == 0 || e.used < self.rodada)
             .map(|(k, e)| (e.used, k.clone()))
             .collect();
         idade.sort_unstable_by_key(|(used, _)| *used);
@@ -4580,6 +4608,7 @@ fn cover_image(path: Option<&std::path::Path>) -> slint::Image {
         return cached;
     }
 
+    let decodificando = std::time::Instant::now();
     let image = slint::Image::load_from_path(path).unwrap_or_else(|e| {
         // Arquivo truncado ou formato inesperado: o cartao fica sem capa e o
         // aplicativo segue. Trocar isto por `expect` derrubaria a tela por
@@ -4587,6 +4616,10 @@ fn cover_image(path: Option<&std::path::Path>) -> slint::Image {
         tracing::debug!(path = %path.display(), error = ?e, "capa nao decodificou");
         slint::Image::default()
     });
+    crate::quadros::tarefa("decodificar capa", decodificando);
+    if crate::quadros::medindo() {
+        tracing::info!(path = %path.display(), "capa fora do cache, decodificada de novo");
+    }
     let bytes = image_bytes(&image);
     COVER_CACHE.with(|c| {
         c.borrow_mut()
@@ -4756,6 +4789,38 @@ mod cover_cache_tests {
         assert_eq!(c.get(&"a".to_string()), Some(1), "a foi usada de novo");
         assert_eq!(c.get(&"c".to_string()), Some(3));
         assert_eq!(c.get(&"d".to_string()), Some(4));
+    }
+
+    #[test]
+    fn what_is_on_screen_is_never_evicted_even_over_the_ceiling() {
+        // O Inicio do Spotify: mais capas na tela do que o teto. Antes, cada
+        // espelhamento descartava as primeiras e decodificava tudo de novo.
+        let mut c = cache(GRANDE * 3);
+        c.nova_rodada();
+        for i in 0..10u32 {
+            c.insert(format!("tela{i}"), i, GRANDE);
+        }
+        for i in 0..10u32 {
+            assert_eq!(c.get(&format!("tela{i}")), Some(i), "tela{i} saiu do cache");
+        }
+
+        // Na rodada seguinte so metade continua na tela; a outra metade pode
+        // sair assim que algo novo entrar.
+        c.nova_rodada();
+        for i in 0..5u32 {
+            c.get(&format!("tela{i}"));
+        }
+        c.insert("nova".into(), 99, GRANDE);
+        for i in 0..5u32 {
+            assert!(
+                c.get(&format!("tela{i}")).is_some(),
+                "tela{i} ainda esta na tela"
+            );
+        }
+        assert!(
+            c.bytes <= GRANDE * 6,
+            "o que saiu da tela nao foi descartado"
+        );
     }
 
     #[test]

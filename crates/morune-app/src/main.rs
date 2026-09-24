@@ -28,6 +28,7 @@ mod hotkeys;
 #[cfg(windows)]
 mod instance;
 mod optics;
+mod quadros;
 mod session;
 mod smtc;
 #[cfg(feature = "snapshot")]
@@ -148,6 +149,7 @@ fn main() -> anyhow::Result<()> {
     let _fullscreen_gate = wire_fullscreen_gate(&window, &state);
     let _window_state_poll = wire_window_state(&window, &state);
     wire_close_behavior(&window, &state, tray.is_some());
+    let _quadros = quadros::instalar(&window);
 
     // Medida real do caminho critico, comparavel entre execucoes. Aparece no
     // log sempre e na sobreposicao de performance no Developer Mode.
@@ -595,6 +597,7 @@ fn wire_window_state(
         slint::TimerMode::Repeated,
         std::time::Duration::from_millis(500),
         move || {
+            let _cronometro = quadros::Cronometro::new("janela escondida");
             let Some(window) = weak.upgrade() else { return };
             // Escondida na bandeja nao ha canto para arredondar, efeito para
             // aplicar nem tamanho para lembrar -- e essas sao chamadas ao DWM,
@@ -751,13 +754,17 @@ fn wire_backend(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState>>
         // O backend continua sendo lido com a janela na bandeja: e o que faz a
         // musica seguir, a fila andar e a bandeja mostrar a faixa certa. O que
         // para e **escrever na interface** -- ver `push_to_ui`.
+        let t = std::time::Instant::now();
         pendente |= state.borrow_mut().poll_backend();
+        quadros::tarefa("poll_backend", t);
 
         let visivel = window.window().is_visible();
         // Reaparecer conta como motivo para espelhar tudo, mesmo sem mudanca
         // nova: a tela pode ter ficado minutos sem receber o que se acumulou.
         if visivel && (pendente || !estava_visivel) {
+            let t = std::time::Instant::now();
             state.borrow().push_to_ui(&window);
+            quadros::tarefa("push_to_ui", t);
             pendente = false;
         }
         estava_visivel = visivel;
@@ -818,6 +825,7 @@ fn wire_fullscreen_gate(
 
     let timer = slint::Timer::default();
     timer.start(slint::TimerMode::Repeated, VIGIA_TELA_CHEIA, move || {
+        let _cronometro = quadros::Cronometro::new("tela cheia");
         let Some(window) = weak.upgrade() else { return };
         let cheia = crate::tela_cheia::app_em_tela_cheia();
 
@@ -857,6 +865,7 @@ fn wire_progress_tick(
 
     let timer = slint::Timer::default();
     timer.start(slint::TimerMode::Repeated, PROGRESS_TICK, move || {
+        let _cronometro = quadros::Cronometro::new("progresso");
         let Some(window) = weak.upgrade() else { return };
         if !window.window().is_visible() {
             return;
@@ -886,6 +895,7 @@ fn wire_tray(
 
     let timer = slint::Timer::default();
     timer.start(slint::TimerMode::Repeated, tray::POLL_INTERVAL, move || {
+        let _cronometro = quadros::Cronometro::new("bandeja");
         let Some(window) = weak.upgrade() else { return };
 
         for command in tray.poll() {
@@ -1086,6 +1096,7 @@ fn wire_taskbar(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState>>
 
     let timer = slint::Timer::default();
     timer.start(slint::TimerMode::Repeated, tray::POLL_INTERVAL, move || {
+        let _cronometro = quadros::Cronometro::new("barra de tarefas");
         let Some(window) = weak.upgrade() else { return };
 
         let tint = state.borrow().taskbar_tint();
