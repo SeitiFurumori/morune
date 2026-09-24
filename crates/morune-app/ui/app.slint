@@ -1056,6 +1056,7 @@ component Card inherits Rectangle {
             initial: root.item.initial;
             hue: root.item.hue;
             pending: root.item.cover-pending;
+            curtidas: root.item.id == "liked";
             width: parent.width - Theme.space-sm * 2;
             height: self.width;
         }
@@ -1354,6 +1355,7 @@ component PlaylistNavItem inherits Rectangle {
             initial: root.item.initial;
             hue: root.item.hue;
             pending: root.item.cover-pending;
+            curtidas: root.item.id == "liked";
             radius: Theme.radius-sm;
             width: Layout.sidebar-playlist-height - Theme.space-xs * 2;
             height: self.width;

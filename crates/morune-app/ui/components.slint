@@ -1386,6 +1386,10 @@ export component Artwork inherits Rectangle {
     in property <float> hue;
     /// `true` enquanto a capa existe e ainda esta a caminho do cache.
     in property <bool> pending;
+    /// Musicas curtidas: nao e playlist e nao tem capa. Ganha a marca que o
+    /// Spotify usa -- degrade roxo para verde-agua com o coracao -- para ser
+    /// reconhecida de relance entre as playlists.
+    in property <bool> curtidas: false;
     // O raio do tema e o de capa GRANDE. Numa miniatura de 32 px, 14 px de
     // raio faziam da capa quase um circulo. Proporcional ate o teto do tema:
     // 32 px -> ~5, 56 px -> ~8, cartao e detalhe -> o raio do tema.
@@ -1406,7 +1410,7 @@ export component Artwork inherits Rectangle {
     // Sem nome nao ha ficha: o rodape sem musica tocando cairia numa cor
     // sorteada do texto vazio, e um quadrado colorido ao lado de "Nada tocando"
     // promete um conteudo que nao existe.
-    if root.source.width == 0 && !root.pending && root.initial != "": Rectangle {
+    if !root.curtidas && root.source.width == 0 && !root.pending && root.initial != "": Rectangle {
         // Diagonal, e nao chapado: o gradiente e o que faz vinte fichas lado a
         // lado parecerem capas em vez de vinte retangulos de cor.
         background: @linear-gradient(135deg,
@@ -1446,6 +1450,21 @@ export component Artwork inherits Rectangle {
             vertical-alignment: center;
             width: 100%;
             height: 100%;
+        }
+    }
+
+    if root.curtidas: Rectangle {
+        background: @linear-gradient(135deg, #450af5 0%, #8e8ee5 60%, #c4efd9 100%);
+        Path {
+            width: parent.width * 0.42;
+            height: self.width;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            viewbox-width: 256;
+            viewbox-height: 256;
+            commands: "M240,102c0,70-103.79,126.66-108.21,129a8,8,0,0,1-7.58,0C119.79,228.66,16,172,16,102A62.07,62.07,0,0,1,78,40c20.65,0,38.73,8.88,50,23.89C139.27,48.88,157.35,40,178,40A62.07,62.07,0,0,1,240,102Z";
+            fill: #ffffff;
+            stroke-width: 0px;
         }
     }
 
