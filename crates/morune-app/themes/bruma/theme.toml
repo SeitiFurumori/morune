@@ -2,6 +2,13 @@
 # A cor pertence ao desktop e as capas; o cromo usa luz branca.
 # Direcao: docs/design/PESQUISA-AQUARIO-BRUMA-2026-09-10.md.
 # Translucidez no fundo, nao no texto: piso mais firme e barras sem outro veu escuro.
+#
+# ICONES: os embutidos sao do Phosphor (phosphoricons.com), peso "regular".
+# Para trocar qualquer um, ponha um .svg com o nome do icone em
+# assets/icons/ deste tema -- por exemplo assets/icons/play.svg. Ele pega a
+# cor do tema sozinho. Um jeito facil de mudar o estilo inteiro: baixe o mesmo
+# icone do Phosphor em outro peso (thin, light, bold, fill) e salve com o nome
+# do Morune. Nomes aceitos e dicas: docs/THEMING.md, secao "Icones".
 
 [color]
 # Base de fallback. Com DWM ativo a janela usa apenas 12% desta tinta.

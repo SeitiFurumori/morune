@@ -509,10 +509,36 @@ Os nomes aceitos sao exatamente estes:
 ```
 home  search  library  settings
 play  pause  stop  next  previous  shuffle  repeat  repeat-one
-queue  queue-add  queue-next  mini-player  volume  heart  pin
+queue  queue-add  queue-next  mini-player  volume  volume-muted
+heart  pin  plus  link  sleep  hide
 chevron-left  chevron-right  chevron-up  chevron-down  close
 minimize-window  maximize-window  restore-window
 ```
+
+**Os embutidos sao do [Phosphor](https://phosphoricons.com)** (MIT), peso
+*regular*, com a versao *fill* para o estado ligado (play no botao principal,
+coracao curtido, fixado). O caminho mais curto para mudar o estilo inteiro de
+um tema e baixar os mesmos icones do Phosphor em outro peso -- *thin*,
+*light*, *bold*, *fill* ou *duotone* -- e salvar cada um com o nome do Morune:
+
+| Nome no Morune | Nome no Phosphor |
+|---|---|
+| `home` | `house` |
+| `search` | `magnifying-glass` |
+| `library` | `books` |
+| `settings` | `gear-six` |
+| `play`, `pause`, `stop` | `play`, `pause`, `stop` |
+| `next`, `previous` | `skip-forward`, `skip-back` |
+| `shuffle`, `repeat`, `repeat-one` | `shuffle`, `repeat`, `repeat-once` |
+| `queue`, `queue-add`, `queue-next` | `queue`, `list-plus`, `list-numbers` |
+| `mini-player` | `picture-in-picture` |
+| `volume`, `volume-muted` | `speaker-high`, `speaker-slash` |
+| `heart`, `pin`, `plus`, `link` | `heart`, `push-pin`, `plus`, `link` |
+| `sleep`, `hide` | `moon`, `eye-slash` |
+| `chevron-*`, `close` | `caret-*`, `x` |
+
+Qualquer outro banco serve do mesmo jeito (Fluent, Material Symbols, Lucide),
+desde que a licenca permita redistribuir junto com o tema.
 
 Um arquivo com nome fora da lista e ignorado, e o aviso aparece no log -- a
 alternativa seria um erro de digitacao virar silencio, com o icone
@@ -522,9 +548,11 @@ simplesmente nao trocando e ninguem sabendo por que.
 mesma cor que o desenho embutido receberia, entao um SVG multicolorido sai
 chapado. Desenhe em uma cor so; a paleta e do tema, nao do icone.
 
-Desenhe num viewbox de **24x24**, com o conteudo dentro de `5..19` -- e a grade
-otica que os icones embutidos usam, e sair dela deixa o icone trocado com peso
-visivelmente diferente dos vizinhos.
+Qualquer viewbox serve: o icone e encaixado na caixa do botao. O que importa e
+a **margem interna igual a do resto do conjunto** -- no Phosphor o desenho
+ocupa cerca de 12% a 88% da caixa. Um icone trocado que encosta nas bordas sai
+visivelmente maior que os vizinhos. Trocar o conjunto inteiro de uma vez, do
+mesmo banco, e o que mantem tudo com o mesmo peso.
 
 Nao ha substituicao para a marca do Morune: ver o item sobre isso nos limites
 abaixo. Icones de terceiros seguem a mesma regra das fontes -- ver

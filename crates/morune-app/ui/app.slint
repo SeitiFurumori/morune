@@ -69,72 +69,76 @@ export struct Diagnostic {
 
 // `export` para o Rust conseguir instalar os substitutos do tema.
 export global Icons {
+    // Desenhos embutidos: Phosphor 2.1.1 (MIT, phosphoricons.com), grade 256,
+    // versao "regular" e, quando ha estado ligado, a "fill" em `solid`. Os da
+    // janela e as barras de "tocando" continuam os proprios, de traco.
+    //
     // Cada icone e o desenho embutido mais o arquivo que um tema pode por no
     // lugar. O substituto chega do Rust em `custom-*`; vazio = desenho
     // embutido. Quem desenha a tela le so `Icons.play` e nao precisa saber
     // qual dos dois esta valendo.
     in property <image> custom-home;
-    out property <IconRef> home: { commands: "M 3 11 L 12 3 L 21 11 L 21 21 L 14 21 L 14 15 L 10 15 L 10 21 L 3 21 Z", source: root.custom-home };
+    out property <IconRef> home: { commands: "M219.31,108.68l-80-80a16,16,0,0,0-22.62,0l-80,80A15.87,15.87,0,0,0,32,120v96a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V160h32v56a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V120A15.87,15.87,0,0,0,219.31,108.68ZM208,208H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48V120l80-80,80,80Z", source: root.custom-home, box: 256, solid: "M224,120v96a8,8,0,0,1-8,8H160a8,8,0,0,1-8-8V164a4,4,0,0,0-4-4H108a4,4,0,0,0-4,4v52a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V120a16,16,0,0,1,4.69-11.31l80-80a16,16,0,0,1,22.62,0l80,80A16,16,0,0,1,224,120Z" };
     in property <image> custom-search;
-    out property <IconRef> search: { commands: "M 10 2 a 8 8 0 1 0 0 16 a 8 8 0 0 0 0 -16 M 16 16 L 22 22", source: root.custom-search };
+    out property <IconRef> search: { commands: "M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z", source: root.custom-search, box: 256 };
     in property <image> custom-library;
-    out property <IconRef> library: { commands: "M 5 5 L 5 19 M 11 5 L 11 19 M 16 5 L 20 19", source: root.custom-library };
+    out property <IconRef> library: { commands: "M231.65,194.55,198.46,36.75a16,16,0,0,0-19-12.39L132.65,34.42a16.08,16.08,0,0,0-12.3,19l33.19,157.8A16,16,0,0,0,169.16,224a16.25,16.25,0,0,0,3.38-.36l46.81-10.06A16.09,16.09,0,0,0,231.65,194.55ZM136,50.15c0-.06,0-.09,0-.09l46.8-10,3.33,15.87L139.33,66Zm6.62,31.47,46.82-10.05,3.34,15.9L146,97.53Zm6.64,31.57,46.82-10.06,13.3,63.24-46.82,10.06ZM216,197.94l-46.8,10-3.33-15.87L212.67,182,216,197.85C216,197.91,216,197.94,216,197.94ZM104,32H56A16,16,0,0,0,40,48V208a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V48A16,16,0,0,0,104,32ZM56,48h48V64H56Zm0,32h48v96H56Zm48,128H56V192h48v16Z", source: root.custom-library, box: 256 };
     in property <image> custom-settings;
-    out property <IconRef> settings: { commands: "M 12 8 a 4 4 0 1 0 0 8 a 4 4 0 0 0 0 -8 M 12 2 L 13 5 L 16 4 L 17 7 L 20 8 L 19 11 L 22 12 L 19 13 L 20 16 L 17 17 L 16 20 L 13 19 L 12 22 L 11 19 L 8 20 L 7 17 L 4 16 L 5 13 L 2 12 L 5 11 L 4 8 L 7 7 L 8 4 L 11 5 Z", source: root.custom-settings };
+    out property <IconRef> settings: { commands: "M128,80a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160Zm109.94-52.79a8,8,0,0,0-3.89-5.4l-29.83-17-.12-33.62a8,8,0,0,0-2.83-6.08,111.91,111.91,0,0,0-36.72-20.67,8,8,0,0,0-6.46.59L128,41.85,97.88,25a8,8,0,0,0-6.47-.6A112.1,112.1,0,0,0,54.73,45.15a8,8,0,0,0-2.83,6.07l-.15,33.65-29.83,17a8,8,0,0,0-3.89,5.4,106.47,106.47,0,0,0,0,41.56,8,8,0,0,0,3.89,5.4l29.83,17,.12,33.62a8,8,0,0,0,2.83,6.08,111.91,111.91,0,0,0,36.72,20.67,8,8,0,0,0,6.46-.59L128,214.15,158.12,231a7.91,7.91,0,0,0,3.9,1,8.09,8.09,0,0,0,2.57-.42,112.1,112.1,0,0,0,36.68-20.73,8,8,0,0,0,2.83-6.07l.15-33.65,29.83-17a8,8,0,0,0,3.89-5.4A106.47,106.47,0,0,0,237.94,107.21Zm-15,34.91-28.57,16.25a8,8,0,0,0-3,3c-.58,1-1.19,2.06-1.81,3.06a7.94,7.94,0,0,0-1.22,4.21l-.15,32.25a95.89,95.89,0,0,1-25.37,14.3L134,199.13a8,8,0,0,0-3.91-1h-.19c-1.21,0-2.43,0-3.64,0a8.08,8.08,0,0,0-4.1,1l-28.84,16.1A96,96,0,0,1,67.88,201l-.11-32.2a8,8,0,0,0-1.22-4.22c-.62-1-1.23-2-1.8-3.06a8.09,8.09,0,0,0-3-3.06l-28.6-16.29a90.49,90.49,0,0,1,0-28.26L61.67,97.63a8,8,0,0,0,3-3c.58-1,1.19-2.06,1.81-3.06a7.94,7.94,0,0,0,1.22-4.21l.15-32.25a95.89,95.89,0,0,1,25.37-14.3L122,56.87a8,8,0,0,0,4.1,1c1.21,0,2.43,0,3.64,0a8.08,8.08,0,0,0,4.1-1l28.84-16.1A96,96,0,0,1,188.12,55l.11,32.2a8,8,0,0,0,1.22,4.22c.62,1,1.23,2,1.8,3.06a8.09,8.09,0,0,0,3,3.06l28.6,16.29A90.49,90.49,0,0,1,222.9,142.12Z", source: root.custom-settings, box: 256 };
     in property <image> custom-play;
-    out property <IconRef> play: { commands: "M 8 5 L 19 12 L 8 19 Z", source: root.custom-play };
+    out property <IconRef> play: { commands: "M232.4,114.49,88.32,26.35a16,16,0,0,0-16.2-.3A15.86,15.86,0,0,0,64,39.87V216.13A15.94,15.94,0,0,0,80,232a16.07,16.07,0,0,0,8.36-2.35L232.4,141.51a15.81,15.81,0,0,0,0-27ZM80,215.94V40l143.83,88Z", source: root.custom-play, box: 256, solid: "M240,128a15.74,15.74,0,0,1-7.6,13.51L88.32,229.65a16,16,0,0,1-16.2.3A15.86,15.86,0,0,1,64,216.13V39.87a15.86,15.86,0,0,1,8.12-13.82,16,16,0,0,1,16.2.3L232.4,114.49A15.74,15.74,0,0,1,240,128Z" };
     in property <image> custom-pause;
-    out property <IconRef> pause: { commands: "M 6 5 L 10 5 L 10 19 L 6 19 Z M 14 5 L 18 5 L 18 19 L 14 19 Z", source: root.custom-pause };
+    out property <IconRef> pause: { commands: "M200,32H160a16,16,0,0,0-16,16V208a16,16,0,0,0,16,16h40a16,16,0,0,0,16-16V48A16,16,0,0,0,200,32Zm0,176H160V48h40ZM96,32H56A16,16,0,0,0,40,48V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V48A16,16,0,0,0,96,32Zm0,176H56V48H96Z", source: root.custom-pause, box: 256, solid: "M216,48V208a16,16,0,0,1-16,16H160a16,16,0,0,1-16-16V48a16,16,0,0,1,16-16h40A16,16,0,0,1,216,48ZM96,32H56A16,16,0,0,0,40,48V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V48A16,16,0,0,0,96,32Z" };
     // Quadrado de verdade, e nao a barra do pause alargada: 12x12 centrado
     // pesa o mesmo que as duas barras do pause ao lado dele.
     in property <image> custom-stop;
-    out property <IconRef> stop: { commands: "M 6 6 L 18 6 L 18 18 L 6 18 Z", source: root.custom-stop };
+    out property <IconRef> stop: { commands: "M200,40H56A16,16,0,0,0,40,56V200a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm0,160H56V56H200V200Z", source: root.custom-stop, box: 256, solid: "M216,56V200a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V56A16,16,0,0,1,56,40H200A16,16,0,0,1,216,56Z" };
     in property <image> custom-next;
-    out property <IconRef> next: { commands: "M 5 5 L 13 12 L 5 19 Z M 16 5 L 19 5 L 19 19 L 16 19 Z", source: root.custom-next };
+    out property <IconRef> next: { commands: "M200,32a8,8,0,0,0-8,8v69.23L72.43,34.45A15.95,15.95,0,0,0,48,47.88V208.12a16,16,0,0,0,24.43,13.43L192,146.77V216a8,8,0,0,0,16,0V40A8,8,0,0,0,200,32ZM64,207.93V48.05l127.84,80Z", source: root.custom-next, box: 256, solid: "M208,40V216a8,8,0,0,1-16,0V146.77L72.43,221.55A15.95,15.95,0,0,1,48,208.12V47.88A15.95,15.95,0,0,1,72.43,34.45L192,109.23V40a8,8,0,0,1,16,0Z" };
     in property <image> custom-previous;
-    out property <IconRef> previous: { commands: "M 19 5 L 11 12 L 19 19 Z M 5 5 L 8 5 L 8 19 L 5 19 Z", source: root.custom-previous };
+    out property <IconRef> previous: { commands: "M199.81,34a16,16,0,0,0-16.24.43L64,109.23V40a8,8,0,0,0-16,0V216a8,8,0,0,0,16,0V146.77l119.57,74.78A15.95,15.95,0,0,0,208,208.12V47.88A15.86,15.86,0,0,0,199.81,34ZM192,208,64.16,128,192,48.07Z", source: root.custom-previous, box: 256, solid: "M208,47.88V208.12a16,16,0,0,1-24.43,13.43L64,146.77V216a8,8,0,0,1-16,0V40a8,8,0,0,1,16,0v69.23L183.57,34.45A15.95,15.95,0,0,1,208,47.88Z" };
     in property <image> custom-shuffle;
-    out property <IconRef> shuffle: { commands: "M 3 6 L 7 6 L 16 18 L 21 18 M 18 15 L 21 18 L 18 21 M 3 18 L 7 18 L 10 14 M 14 9 L 16 6 L 21 6 M 18 3 L 21 6 L 18 9", source: root.custom-shuffle };
+    out property <IconRef> shuffle: { commands: "M237.66,178.34a8,8,0,0,1,0,11.32l-24,24a8,8,0,0,1-11.32-11.32L212.69,192H200.94a72.12,72.12,0,0,1-58.59-30.15l-41.72-58.4A56.1,56.1,0,0,0,55.06,80H32a8,8,0,0,1,0-16H55.06a72.12,72.12,0,0,1,58.59,30.15l41.72,58.4A56.1,56.1,0,0,0,200.94,176h11.75l-10.35-10.34a8,8,0,0,1,11.32-11.32ZM143,107a8,8,0,0,0,11.16-1.86l1.2-1.67A56.1,56.1,0,0,1,200.94,80h11.75L202.34,90.34a8,8,0,0,0,11.32,11.32l24-24a8,8,0,0,0,0-11.32l-24-24a8,8,0,0,0-11.32,11.32L212.69,64H200.94a72.12,72.12,0,0,0-58.59,30.15l-1.2,1.67A8,8,0,0,0,143,107Zm-30,42a8,8,0,0,0-11.16,1.86l-1.2,1.67A56.1,56.1,0,0,1,55.06,176H32a8,8,0,0,0,0,16H55.06a72.12,72.12,0,0,0,58.59-30.15l1.2-1.67A8,8,0,0,0,113,149Z", source: root.custom-shuffle, box: 256 };
     in property <image> custom-repeat;
-    out property <IconRef> repeat: { commands: "M 4 9 L 4 6 L 17 6 L 17 3 L 21 7 L 17 11 L 17 8 M 20 15 L 20 18 L 7 18 L 7 21 L 3 17 L 7 13 L 7 16", source: root.custom-repeat };
+    out property <IconRef> repeat: { commands: "M24,128A72.08,72.08,0,0,1,96,56H204.69L194.34,45.66a8,8,0,0,1,11.32-11.32l24,24a8,8,0,0,1,0,11.32l-24,24a8,8,0,0,1-11.32-11.32L204.69,72H96a56.06,56.06,0,0,0-56,56,8,8,0,0,1-16,0Zm200-8a8,8,0,0,0-8,8,56.06,56.06,0,0,1-56,56H51.31l10.35-10.34a8,8,0,0,0-11.32-11.32l-24,24a8,8,0,0,0,0,11.32l24,24a8,8,0,0,0,11.32-11.32L51.31,200H160a72.08,72.08,0,0,0,72-72A8,8,0,0,0,224,120Z", source: root.custom-repeat, box: 256 };
     in property <image> custom-repeat-one;
-    out property <IconRef> repeat-one: { commands: "M 4 9 L 4 6 L 17 6 L 17 3 L 21 7 L 17 11 L 17 8 M 20 15 L 20 18 L 7 18 L 7 21 L 3 17 L 7 13 L 7 16 M 11 12 L 12 12 L 12 17", source: root.custom-repeat-one };
+    out property <IconRef> repeat-one: { commands: "M24,128A72.08,72.08,0,0,1,96,56H204.69L194.34,45.66a8,8,0,0,1,11.32-11.32l24,24a8,8,0,0,1,0,11.32l-24,24a8,8,0,0,1-11.32-11.32L204.69,72H96a56.06,56.06,0,0,0-56,56,8,8,0,0,1-16,0Zm200-8a8,8,0,0,0-8,8,56.06,56.06,0,0,1-56,56H51.31l10.35-10.34a8,8,0,0,0-11.32-11.32l-24,24a8,8,0,0,0,0,11.32l24,24a8,8,0,0,0,11.32-11.32L51.31,200H160a72.08,72.08,0,0,0,72-72A8,8,0,0,0,224,120Zm-88,40a8,8,0,0,0,8-8V104a8,8,0,0,0-11.58-7.16l-16,8a8,8,0,1,0,7.16,14.31l4.42-2.21V152A8,8,0,0,0,136,160Z", source: root.custom-repeat-one, box: 256 };
     in property <image> custom-queue;
-    out property <IconRef> queue: { commands: "M 3 6 L 15 6 M 3 12 L 15 12 M 3 18 L 11 18 M 17 10 L 17 19 M 17 10 L 21 9 L 21 7 L 17 8", source: root.custom-queue };
+    out property <IconRef> queue: { commands: "M32,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H40A8,8,0,0,1,32,64Zm104,56H40a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Zm0,64H40a8,8,0,0,0,0,16h96a8,8,0,0,0,0-16Zm112-24a8,8,0,0,1-3.76,6.78l-64,40A8,8,0,0,1,168,200V120a8,8,0,0,1,12.24-6.78l64,40A8,8,0,0,1,248,160Zm-23.09,0L184,134.43v51.14Z", source: root.custom-queue, box: 256 };
     in property <image> custom-mini-player;
-    out property <IconRef> mini-player: { commands: "M 4 6 L 20 6 L 20 18 L 4 18 Z M 8 14 L 16 14", source: root.custom-mini-player };
+    out property <IconRef> mini-player: { commands: "M216,48H40A16,16,0,0,0,24,64V192a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V64A16,16,0,0,0,216,48ZM40,64H216v56H136a8,8,0,0,0-8,8v64H40ZM216,192H144V136h72v56Z", source: root.custom-mini-player, box: 256 };
     in property <image> custom-volume;
-    out property <IconRef> volume: { commands: "M 4 9 L 7 9 L 12 5 L 12 19 L 7 15 L 4 15 Z M 15 9 a 5 5 0 0 1 0 6 M 18 6 a 9 9 0 0 1 0 12", source: root.custom-volume };
+    out property <IconRef> volume: { commands: "M155.51,24.81a8,8,0,0,0-8.42.88L77.25,80H32A16,16,0,0,0,16,96v64a16,16,0,0,0,16,16H77.25l69.84,54.31A8,8,0,0,0,160,224V32A8,8,0,0,0,155.51,24.81ZM32,96H72v64H32ZM144,207.64,88,164.09V91.91l56-43.55Zm54-106.08a40,40,0,0,1,0,52.88,8,8,0,0,1-12-10.58,24,24,0,0,0,0-31.72,8,8,0,0,1,12-10.58ZM248,128a79.9,79.9,0,0,1-20.37,53.34,8,8,0,0,1-11.92-10.67,64,64,0,0,0,0-85.33,8,8,0,1,1,11.92-10.67A79.83,79.83,0,0,1,248,128Z", source: root.custom-volume, box: 256 };
     in property <image> custom-volume-muted;
-    out property <IconRef> volume-muted: { commands: "M 4 9 L 7 9 L 12 5 L 12 19 L 7 15 L 4 15 Z M 16 9 L 22 15 M 22 9 L 16 15", source: root.custom-volume-muted };
+    out property <IconRef> volume-muted: { commands: "M53.92,34.62A8,8,0,1,0,42.08,45.38L73.55,80H32A16,16,0,0,0,16,96v64a16,16,0,0,0,16,16H77.25l69.84,54.31A8,8,0,0,0,160,224V175.09l42.08,46.29a8,8,0,1,0,11.84-10.76ZM32,96H72v64H32ZM144,207.64,88,164.09V95.89l56,61.6Zm42-63.77a24,24,0,0,0,0-31.72,8,8,0,1,1,12-10.57,40,40,0,0,1,0,52.88,8,8,0,0,1-12-10.59Zm-80.16-76a8,8,0,0,1,1.4-11.23l39.85-31A8,8,0,0,1,160,32v74.83a8,8,0,0,1-16,0V48.36l-26.94,21A8,8,0,0,1,105.84,67.91ZM248,128a79.9,79.9,0,0,1-20.37,53.34,8,8,0,0,1-11.92-10.67,64,64,0,0,0,0-85.33,8,8,0,1,1,11.92-10.67A79.83,79.83,0,0,1,248,128Z", source: root.custom-volume-muted, box: 256 };
     in property <image> custom-plus;
-    out property <IconRef> plus: { commands: "M 12 5 L 12 19 M 5 12 L 19 12", source: root.custom-plus };
+    out property <IconRef> plus: { commands: "M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z", source: root.custom-plus, box: 256 };
     in property <image> custom-link;
-    out property <IconRef> link: { commands: "M 10 14 L 14 10 M 8.5 11.5 L 6.5 13.5 A 3.5 3.5 0 0 0 11.5 18.5 L 13.5 16.5 M 15.5 12.5 L 17.5 10.5 A 3.5 3.5 0 0 0 12.5 5.5 L 10.5 7.5", source: root.custom-link };
+    out property <IconRef> link: { commands: "M240,88.23a54.43,54.43,0,0,1-16,37L189.25,160a54.27,54.27,0,0,1-38.63,16h-.05A54.63,54.63,0,0,1,96,119.84a8,8,0,0,1,16,.45A38.62,38.62,0,0,0,150.58,160h0a38.39,38.39,0,0,0,27.31-11.31l34.75-34.75a38.63,38.63,0,0,0-54.63-54.63l-11,11A8,8,0,0,1,135.7,59l11-11A54.65,54.65,0,0,1,224,48,54.86,54.86,0,0,1,240,88.23ZM109,185.66l-11,11A38.41,38.41,0,0,1,70.6,208h0a38.63,38.63,0,0,1-27.29-65.94L78,107.31A38.63,38.63,0,0,1,144,135.71a8,8,0,0,0,16,.45A54.86,54.86,0,0,0,144,96a54.65,54.65,0,0,0-77.27,0L32,130.75A54.62,54.62,0,0,0,70.56,224h0a54.28,54.28,0,0,0,38.64-16l11-11A8,8,0,0,0,109,185.66Z", source: root.custom-link, box: 256 };
     in property <image> custom-sleep;
-    out property <IconRef> sleep: { commands: "M 19.5 14.5 A 8 8 0 1 1 9.5 4.5 A 6.5 6.5 0 0 0 19.5 14.5 Z", source: root.custom-sleep };
+    out property <IconRef> sleep: { commands: "M233.54,142.23a8,8,0,0,0-8-2,88.08,88.08,0,0,1-109.8-109.8,8,8,0,0,0-10-10,104.84,104.84,0,0,0-52.91,37A104,104,0,0,0,136,224a103.09,103.09,0,0,0,62.52-20.88,104.84,104.84,0,0,0,37-52.91A8,8,0,0,0,233.54,142.23ZM188.9,190.34A88,88,0,0,1,65.66,67.11a89,89,0,0,1,31.4-26A106,106,0,0,0,96,56,104.11,104.11,0,0,0,200,160a106,106,0,0,0,14.92-1.06A89,89,0,0,1,188.9,190.34Z", source: root.custom-sleep, box: 256 };
     in property <image> custom-hide;
-    out property <IconRef> hide: { commands: "M 3 12 C 6 6.5 18 6.5 21 12 C 18 17.5 6 17.5 3 12 Z M 12 9.5 A 2.5 2.5 0 1 0 12 14.5 A 2.5 2.5 0 1 0 12 9.5 Z M 4 4 L 20 20", source: root.custom-hide };
+    out property <IconRef> hide: { commands: "M53.92,34.62A8,8,0,1,0,42.08,45.38L61.32,66.55C25,88.84,9.38,123.2,8.69,124.76a8,8,0,0,0,0,6.5c.35.79,8.82,19.57,27.65,38.4C61.43,194.74,93.12,208,128,208a127.11,127.11,0,0,0,52.07-10.83l22,24.21a8,8,0,1,0,11.84-10.76Zm47.33,75.84,41.67,45.85a32,32,0,0,1-41.67-45.85ZM128,192c-30.78,0-57.67-11.19-79.93-33.25A133.16,133.16,0,0,1,25,128c4.69-8.79,19.66-33.39,47.35-49.38l18,19.75a48,48,0,0,0,63.66,70l14.73,16.2A112,112,0,0,1,128,192Zm6-95.43a8,8,0,0,1,3-15.72,48.16,48.16,0,0,1,38.77,42.64,8,8,0,0,1-7.22,8.71,6.39,6.39,0,0,1-.75,0,8,8,0,0,1-8-7.26A32.09,32.09,0,0,0,134,96.57Zm113.28,34.69c-.42.94-10.55,23.37-33.36,43.8a8,8,0,1,1-10.67-11.92A132.77,132.77,0,0,0,231.05,128a133.15,133.15,0,0,0-23.12-30.77C185.67,75.19,158.78,64,128,64a118.37,118.37,0,0,0-19.36,1.57A8,8,0,1,1,106,49.79,134,134,0,0,1,128,48c34.88,0,66.57,13.26,91.66,38.35,18.83,18.83,27.3,37.62,27.65,38.41A8,8,0,0,1,247.31,131.26Z", source: root.custom-hide, box: 256 };
     in property <image> custom-playing;
     out property <IconRef> playing: { commands: "M 5 12 L 5 21 M 12 3 L 12 21 M 19 8 L 19 21", source: root.custom-playing };
     in property <image> custom-chevron-left;
-    out property <IconRef> chevron-left: { commands: "M 15 5 L 8 12 L 15 19", source: root.custom-chevron-left };
+    out property <IconRef> chevron-left: { commands: "M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z", source: root.custom-chevron-left, box: 256 };
     in property <image> custom-chevron-right;
-    out property <IconRef> chevron-right: { commands: "M 9 5 L 16 12 L 9 19", source: root.custom-chevron-right };
+    out property <IconRef> chevron-right: { commands: "M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z", source: root.custom-chevron-right, box: 256 };
     in property <image> custom-close;
-    out property <IconRef> close: { commands: "M 5 5 L 19 19 M 19 5 L 5 19", source: root.custom-close };
+    out property <IconRef> close: { commands: "M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z", source: root.custom-close, box: 256 };
     in property <image> custom-heart;
-    out property <IconRef> heart: { commands: "M 12 21 C 10 18 4 15 4 9 C 4 5 9 3 12 7 C 15 3 20 5 20 9 C 20 15 14 18 12 21 Z", source: root.custom-heart };
+    out property <IconRef> heart: { commands: "M178,40c-20.65,0-38.73,8.88-50,23.89C116.73,48.88,98.65,40,78,40a62.07,62.07,0,0,0-62,62c0,70,103.79,126.66,108.21,129a8,8,0,0,0,7.58,0C136.21,228.66,240,172,240,102A62.07,62.07,0,0,0,178,40ZM128,214.8C109.74,204.16,32,155.69,32,102A46.06,46.06,0,0,1,78,56c19.45,0,35.78,10.36,42.6,27a8,8,0,0,0,14.8,0c6.82-16.67,23.15-27,42.6-27a46.06,46.06,0,0,1,46,46C224,155.61,146.24,204.15,128,214.8Z", source: root.custom-heart, box: 256, solid: "M240,102c0,70-103.79,126.66-108.21,129a8,8,0,0,1-7.58,0C119.79,228.66,16,172,16,102A62.07,62.07,0,0,1,78,40c20.65,0,38.73,8.88,50,23.89C139.27,48.88,157.35,40,178,40A62.07,62.07,0,0,1,240,102Z" };
     in property <image> custom-pin;
-    out property <IconRef> pin: { commands: "M 9 3 L 15 3 L 14 9 L 18 13 L 6 13 L 10 9 Z M 12 13 L 12 21", source: root.custom-pin };
+    out property <IconRef> pin: { commands: "M235.32,81.37,174.63,20.69a16,16,0,0,0-22.63,0L98.37,74.49c-10.66-3.34-35-7.37-60.4,13.14a16,16,0,0,0-1.29,23.78L85,159.71,42.34,202.34a8,8,0,0,0,11.32,11.32L96.29,171l48.29,48.29A16,16,0,0,0,155.9,224c.38,0,.75,0,1.13,0a15.93,15.93,0,0,0,11.64-6.33c19.64-26.1,17.75-47.32,13.19-60L235.33,104A16,16,0,0,0,235.32,81.37ZM224,92.69h0l-57.27,57.46a8,8,0,0,0-1.49,9.22c9.46,18.93-1.8,38.59-9.34,48.62L48,100.08c12.08-9.74,23.64-12.31,32.48-12.31A40.13,40.13,0,0,1,96.81,91a8,8,0,0,0,9.25-1.51L163.32,32,224,92.68Z", source: root.custom-pin, box: 256, solid: "M235.33,104l-53.47,53.65c4.56,12.67,6.45,33.89-13.19,60A15.93,15.93,0,0,1,157,224c-.38,0-.75,0-1.13,0a16,16,0,0,1-11.32-4.69L96.29,171,53.66,213.66a8,8,0,0,1-11.32-11.32L85,159.71l-48.3-48.3A16,16,0,0,1,38,87.63c25.42-20.51,49.75-16.48,60.4-13.14L152,20.7a16,16,0,0,1,22.63,0l60.69,60.68A16,16,0,0,1,235.33,104Z" };
     in property <image> custom-queue-add;
-    out property <IconRef> queue-add: { commands: "M 3 6 L 14 6 M 3 12 L 14 12 M 3 18 L 10 18 M 18 13 L 18 21 M 14 17 L 22 17", source: root.custom-queue-add };
+    out property <IconRef> queue-add: { commands: "M32,64a8,8,0,0,1,8-8H216a8,8,0,0,1,0,16H40A8,8,0,0,1,32,64Zm8,72H216a8,8,0,0,0,0-16H40a8,8,0,0,0,0,16Zm104,48H40a8,8,0,0,0,0,16H144a8,8,0,0,0,0-16Zm88,0H216V168a8,8,0,0,0-16,0v16H184a8,8,0,0,0,0,16h16v16a8,8,0,0,0,16,0V200h16a8,8,0,0,0,0-16Z", source: root.custom-queue-add, box: 256 };
     in property <image> custom-queue-next;
-    out property <IconRef> queue-next: { commands: "M 3 6 L 14 6 M 3 12 L 14 12 M 3 18 L 10 18 M 18 12 L 18 21 M 14 16 L 18 12 L 22 16", source: root.custom-queue-next };
+    out property <IconRef> queue-next: { commands: "M224,128a8,8,0,0,1-8,8H104a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128ZM104,72H216a8,8,0,0,0,0-16H104a8,8,0,0,0,0,16ZM216,184H104a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16ZM43.58,55.16,48,52.94V104a8,8,0,0,0,16,0V40a8,8,0,0,0-11.58-7.16l-16,8a8,8,0,0,0,7.16,14.32ZM79.77,156.72a23.73,23.73,0,0,0-9.6-15.95,24.86,24.86,0,0,0-34.11,4.7,23.63,23.63,0,0,0-3.57,6.46,8,8,0,1,0,15,5.47,7.84,7.84,0,0,1,1.18-2.13,8.76,8.76,0,0,1,12-1.59A7.91,7.91,0,0,1,63.93,159a7.64,7.64,0,0,1-1.57,5.78,1,1,0,0,0-.08.11L33.59,203.21A8,8,0,0,0,40,216H72a8,8,0,0,0,0-16H56l19.08-25.53A23.47,23.47,0,0,0,79.77,156.72Z", source: root.custom-queue-next, box: 256 };
     in property <image> custom-chevron-up;
-    out property <IconRef> chevron-up: { commands: "M 5 15 L 12 8 L 19 15", source: root.custom-chevron-up };
+    out property <IconRef> chevron-up: { commands: "M213.66,165.66a8,8,0,0,1-11.32,0L128,91.31,53.66,165.66a8,8,0,0,1-11.32-11.32l80-80a8,8,0,0,1,11.32,0l80,80A8,8,0,0,1,213.66,165.66Z", source: root.custom-chevron-up, box: 256 };
     in property <image> custom-chevron-down;
-    out property <IconRef> chevron-down: { commands: "M 5 9 L 12 16 L 19 9", source: root.custom-chevron-down };
+    out property <IconRef> chevron-down: { commands: "M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z", source: root.custom-chevron-down, box: 256 };
     in property <image> custom-minimize-window;
     out property <IconRef> minimize-window: { commands: "M 5 12 L 19 12", source: root.custom-minimize-window };
     in property <image> custom-maximize-window;
@@ -986,9 +990,11 @@ component Card inherits Rectangle {
     in property <CardItem> item;
     // O gabarito da grade reserva a maior variante, mesmo com dados vazios.
     in property <bool> reserve-subtitle: false;
+    // A grade estica o cartao para as colunas fecharem na borda direita.
+    in property <length> largura: Layout.card-width;
     callback activated();
 
-    width: Layout.card-width;
+    width: root.largura;
     // A altura vem do conteudo, nao de um palpite. A versao anterior somava
     // 56px fixos a largura para dar conta do titulo e do subtitulo, e esses
     // 56px nao acompanhavam o tamanho de fonte nem a entrelinha do tema: em
@@ -1085,8 +1091,33 @@ component Card inherits Rectangle {
 
 component CardCollection inherits Rectangle {
     in property <[CardItem]> items;
-    in property <int> columns: 5;
+    // `false` quando nenhum item tem legenda (playlists): sem isto cada linha
+    // reserva a altura de um subtitulo vazio, e o vao entre as linhas fica
+    // maior que o vao entre as colunas.
+    in property <bool> legenda: true;
     callback activated(string);
+
+    // **As colunas saem da largura da propria grade, e o cartao estica.**
+    //
+    // Antes o numero de colunas vinha da janela e o cartao tinha largura fixa:
+    // sobrava uma faixa vazia a direita que mudava a cada tamanho de janela.
+    // Agora cabem quantas colunas de `card-width` couberem, e a sobra e
+    // dividida entre elas -- a grade fecha nas duas bordas do modulo.
+    //
+    // Por atribuicao num handler, e nao por ligacao: a grade repassa ao layout
+    // de cima o que os filhos pedem, e os filhos dependeriam da largura que o
+    // layout de cima da -- o Slint recusa o ciclo. O handler le a largura fora
+    // da cadeia de layout.
+    property <length> vao: Theme.space-md;
+    property <int> columns: 1;
+    property <length> celula: Layout.card-width;
+    function medir() {
+        if root.width <= 0px { return; }
+        root.columns = max(1, floor((root.width + root.vao) / (Layout.card-width + root.vao)));
+        root.celula = (root.width - root.vao * (root.columns - 1)) / root.columns;
+    }
+    init => { root.medir(); }
+    changed width => { root.medir(); }
     height: collection.preferred-height;
 
     // A grade nao anuncia largura preferida ao layout de cima, so altura.
@@ -1109,21 +1140,27 @@ component CardCollection inherits Rectangle {
     // O gabarito mede em vez de chutar: todo cartao tem a mesma altura (capa
     // quadrada, uma linha de titulo, uma de subtitulo), entao um so instante
     // invisivel responde pela grade toda e a medida acompanha a fonte do tema.
+    // Medido na largura fixa do tema e somado depois: a capa e quadrada, entao
+    // cada pixel a mais de largura e um pixel a mais de altura. Medir ja na
+    // largura da celula fecharia um ciclo -- a largura da grade depende do que
+    // os filhos pedem.
     gabarito := Card {
         visible: false;
-        reserve-subtitle: true;
+        reserve-subtitle: root.legenda;
     }
+    property <length> altura-celula: gabarito.height + root.celula - Layout.card-width;
 
     collection := VerticalLayout {
-        spacing: Theme.space-md;
+        spacing: root.vao;
         alignment: start;
         for row-index in ceil(root.items.length / root.columns): HorizontalLayout {
-            spacing: Theme.space-md;
+            spacing: root.vao;
             alignment: start;
             for column in root.columns: Rectangle {
-                width: Layout.card-width;
-                height: gabarito.height;
+                width: root.celula;
+                height: root.altura-celula;
                 if row-index * root.columns + column < root.items.length: Card {
+                    largura: root.celula;
                     item: root.items[row-index * root.columns + column];
                     activated => { root.activated(root.items[row-index * root.columns + column].id); }
                 }
@@ -1896,21 +1933,31 @@ component PlayerBar inherits Rectangle {
                         : LayoutAlignment.start;
                     spacing: root.compact-player ? Theme.space-xs : Theme.space-sm;
 
-                    if Layout.player-shuffle-repeat: IconButton {
-                        label: root.shuffle ? "Desligar modo aleatório" : "Ligar modo aleatório";
-                        glyph: Icons.shuffle;
-                        active: root.shuffle;
-                        checkable: true;
-                        tint: Theme.text-muted;
-                        clicked => { root.toggle-shuffle(); }
+                    if Layout.player-shuffle-repeat: VerticalLayout {
+                        // Centrado na altura do botao principal: solto no layout, o
+                        // botao menor ficava colado no topo, 4,5 px acima do play.
+                        alignment: center;
+                        IconButton {
+                            label: root.shuffle ? "Desligar modo aleatório" : "Ligar modo aleatório";
+                            glyph: Icons.shuffle;
+                            active: root.shuffle;
+                            checkable: true;
+                            tint: Theme.text-muted;
+                            clicked => { root.toggle-shuffle(); }
+                        }
                     }
 
-                    IconButton {
-                        label: "Faixa anterior";
-                        glyph: Icons.previous;
-                        filled: true;
-                        enabled: root.has-track;
-                        clicked => { root.previous(); }
+                    VerticalLayout {
+                        // Centrado na altura do botao principal: solto no layout, o
+                        // botao menor ficava colado no topo, 4,5 px acima do play.
+                        alignment: center;
+                        IconButton {
+                            label: "Faixa anterior";
+                            glyph: Icons.previous;
+                            filled: true;
+                            enabled: root.has-track;
+                            clicked => { root.previous(); }
+                        }
                     }
 
                     Rectangle {
@@ -1974,31 +2021,46 @@ component PlayerBar inherits Rectangle {
                         }
                     }
 
-                    if Layout.player-stop-button: IconButton {
-                        label: "Parar";
-                        glyph: Icons.stop;
-                        filled: true;
-                        enabled: root.has-track;
-                        clicked => { root.stop(); }
+                    if Layout.player-stop-button: VerticalLayout {
+                        // Centrado na altura do botao principal: solto no layout, o
+                        // botao menor ficava colado no topo, 4,5 px acima do play.
+                        alignment: center;
+                        IconButton {
+                            label: "Parar";
+                            glyph: Icons.stop;
+                            filled: true;
+                            enabled: root.has-track;
+                            clicked => { root.stop(); }
+                        }
                     }
 
-                    IconButton {
-                        label: "Próxima faixa";
-                        glyph: Icons.next;
-                        filled: true;
-                        enabled: root.has-track;
-                        clicked => { root.next(); }
+                    VerticalLayout {
+                        // Centrado na altura do botao principal: solto no layout, o
+                        // botao menor ficava colado no topo, 4,5 px acima do play.
+                        alignment: center;
+                        IconButton {
+                            label: "Próxima faixa";
+                            glyph: Icons.next;
+                            filled: true;
+                            enabled: root.has-track;
+                            clicked => { root.next(); }
+                        }
                     }
 
-                    if Layout.player-shuffle-repeat: IconButton {
-                        label: root.repeat == 0
-                            ? "Ligar repetição da fila"
-                            : (root.repeat == 1 ? "Repetir esta faixa" : "Desligar repetição");
-                        glyph: root.repeat == 2 ? Icons.repeat-one : Icons.repeat;
-                        active: root.repeat != 0;
-                        checkable: true;
-                        tint: Theme.text-muted;
-                        clicked => { root.cycle-repeat(); }
+                    if Layout.player-shuffle-repeat: VerticalLayout {
+                        // Centrado na altura do botao principal: solto no layout, o
+                        // botao menor ficava colado no topo, 4,5 px acima do play.
+                        alignment: center;
+                        IconButton {
+                            label: root.repeat == 0
+                                ? "Ligar repetição da fila"
+                                : (root.repeat == 1 ? "Repetir esta faixa" : "Desligar repetição");
+                            glyph: root.repeat == 2 ? Icons.repeat-one : Icons.repeat;
+                            active: root.repeat != 0;
+                            checkable: true;
+                            tint: Theme.text-muted;
+                            clicked => { root.cycle-repeat(); }
+                        }
                     }
                 }
 
@@ -2502,7 +2564,6 @@ component SearchPage inherits VerticalLayout {
     in property <string> query;
     in property <bool> searching;
     in property <bool> logged-in;
-    in property <int> grid-columns: 5;
     in property <[string]> recent-searches;
     callback clear-recent();
     callback search(string);
@@ -2653,7 +2714,6 @@ component SearchPage inherits VerticalLayout {
                 SectionTitle { text: "Álbuns, artistas e playlists"; }
                 CardCollection {
                     items: root.items;
-                    columns: root.grid-columns;
                     activated(id) => { root.activated(id); }
                 }
             }
@@ -2671,7 +2731,6 @@ component LibraryPage inherits Rectangle {
     property <bool> tem-algo: root.items.length > 0 || root.playlists.length > 0;
     in property <bool> logged-in;
     in property <bool> loaded;
-    in property <int> grid-columns: 5;
     callback login();
     callback cancel-login();
     callback copy-auth-url();
@@ -2735,7 +2794,7 @@ component LibraryPage inherits Rectangle {
             SectionTitle { text: "Playlists"; }
             CardCollection {
                 items: root.playlists;
-                columns: root.grid-columns;
+                legenda: false;
                 activated(id) => { root.activated(id); }
             }
         }
@@ -2744,7 +2803,6 @@ component LibraryPage inherits Rectangle {
             SectionTitle { text: "Álbuns e artistas"; }
             CardCollection {
                 items: root.items;
-                columns: root.grid-columns;
                 activated(id) => { root.activated(id); }
             }
         }
@@ -4502,6 +4560,8 @@ export component AppWindow inherits Window {
     in property <image> account-avatar;
 
     in property <[FeedShelf]> home-feed;
+    // Musicas curtidas e as playlists da conta, na ordem da barra lateral.
+    in property <[CardItem]> library-playlists;
     in property <[CardItem]> home-made-for-you;
     in property <[CardItem]> home-stations;
     in property <[CardItem]> home-retrospectives;
@@ -4573,31 +4633,7 @@ export component AppWindow inherits Window {
     in-out property <bool> shortcuts-visible: false;
     private property <int> busca-foco-pedido: 0;
     in-out property <bool> mini-player: false;
-    // Quantas colunas cabem na area de conteudo.
-    //
-    // Calculado em handler, e nao como binding, de proposito: a largura da
-    // janela depende do que o conteudo pede, e a grade depende da largura da
-    // janela. Escrito de forma declarativa isso fecha um ciclo em
-    // `layoutinfo-h`, que o Slint aceita mas avisa que pode virar panic em
-    // execucao. O handler le a largura sem entrar na cadeia de layout.
-    //
-    // O `+ space-md` no numerador existe porque n colunas tem n-1 vaos: sem
-    // ele a conta cobra um espacamento a mais e perde uma coluna inteira nas
-    // larguras de fronteira.
-    property <int> grid-columns: 5;
-    private property <bool> sidebar-is-collapsed: Layout.sidebar-collapsed;
-    pure function colunas-que-cabem() -> int {
-        return max(1, floor((root.width
-            - (Layout.sidebar-collapsed ? Layout.sidebar-collapsed-width : Layout.sidebar-width)
-            - Theme.space-lg * 2 + Theme.space-md
-            - (Theme.material-kind > 0 ? Theme.space-sm * 3 : 0px))
-            / (Layout.card-width + Theme.space-md)));
-    }
-    // Sem este `init`, o valor de abertura ficava no default fixo de 5 ate
-    // alguem redimensionar a janela: na largura padrao cabem quatro, e a
-    // quinta coluna sangrava pela borda direita da grade -- em todos os temas,
-    // toda vez que o aplicativo abria.
-    // O tamanho da janela tambem vai para a global do tema.
+    // O tamanho da janela vai para a global do tema.
     //
     // Quem precisa e o `Vidro`: para achar o pedaco do fundo que cai atras de um
     // painel, ele refaz a conta que o `image-fit: cover` fez, e essa conta
@@ -4606,18 +4642,11 @@ export component AppWindow inherits Window {
     // conta. Por atribuicao, e nao por ligacao: global nao aceita ligacao vinda
     // de um componente.
     init => {
-        root.grid-columns = root.colunas-que-cabem();
         Theme.window-width = root.width;
         Theme.window-height = root.height;
     }
-    changed width => {
-        root.grid-columns = root.colunas-que-cabem();
-        Theme.window-width = root.width;
-    }
+    changed width => { Theme.window-width = root.width; }
     changed height => { Theme.window-height = root.height; }
-    changed sidebar-is-collapsed => { root.grid-columns = root.colunas-que-cabem(); }
-    private property <int> material-family: Theme.material-kind;
-    changed material-family => { root.grid-columns = root.colunas-que-cabem(); }
 
     // --- eventos para o Rust ---
     callback navigate(int);
@@ -4933,7 +4962,6 @@ export component AppWindow inherits Window {
                         query: root.search-query;
                         searching: root.searching;
                         logged-in: root.logged-in;
-                        grid-columns: root.grid-columns;
                         recent-searches: root.recent-searches;
                         clear-recent => { root.clear-recent-searches(); }
                         search(q) => { root.search(q); }
@@ -4952,10 +4980,9 @@ export component AppWindow inherits Window {
                         animate opacity, y { duration: Theme.motion-fast; easing: ease-out; }
                         width: paginas.largura; height: paginas.altura;
                         items: root.library-items;
-                        playlists: root.home-playlists;
+                        playlists: root.library-playlists;
                         logged-in: root.logged-in;
                         loaded: root.library-loaded;
-                        grid-columns: root.grid-columns;
                         login => { root.login(); }
                         cancel-login => { root.cancel-login(); }
                         copy-auth-url => { root.copy-auth-url(); }

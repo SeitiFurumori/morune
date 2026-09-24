@@ -12,6 +12,13 @@
 export struct IconRef {
     commands: string,
     source: image,
+    // Silhueta cheia do mesmo icone, para o estado ligado (coracao curtido,
+    // play no botao principal). Vazio = o proprio `commands` preenchido.
+    solid: string,
+    // Grade do desenho. 0 = 24, com contorno por traco (os icones antigos e os
+    // da janela). Diferente de 0 = desenho de preenchimento, como os do
+    // Phosphor (grade 256): o contorno ja faz parte da forma.
+    box: float,
 }
 
 // Icones sao caminhos vetoriais no espaco 24x24, nao imagens: escalam em
@@ -26,6 +33,9 @@ export component Icon {
     in property <length> size: Theme.control-icon-size;
     /// `true` para silhuetas cheias (play, pause), `false` para contornos.
     in property <bool> filled: false;
+    // Desenho de preenchimento (Phosphor) e sempre pintado por dentro; o
+    // `filled` so escolhe entre a versao de linha e a cheia.
+    property <bool> cheio: root.filled || root.glyph.box > 0;
 
     width: root.size;
     height: root.size;
@@ -41,11 +51,11 @@ export component Icon {
     if root.glyph.source.width == 0: Path {
         width: 100%;
         height: 100%;
-        viewbox-width: 24;
-        viewbox-height: 24;
-        commands: root.glyph.commands;
-        fill: root.filled ? root.tint : transparent;
-        stroke: root.filled ? transparent : root.tint;
+        viewbox-width: root.glyph.box > 0 ? root.glyph.box : 24;
+        viewbox-height: self.viewbox-width;
+        commands: root.filled && root.glyph.solid != "" ? root.glyph.solid : root.glyph.commands;
+        fill: root.cheio ? root.tint : transparent;
+        stroke: root.cheio ? transparent : root.tint;
         // O traco vem do tema em unidades do viewbox e so aqui vira pixel.
         // Antes disto eram 2px fixos: num icone de 12px o traco comia 17% da
         // caixa e o desenho sumia dentro do proprio contorno.
@@ -54,7 +64,7 @@ export component Icon {
         // o Slint encaixa a viewbox em `tamanho - espessura` **mesmo se o traco
         // for invisivel**. Reservar 1,5 px para um contorno que ninguem desenha
         // encolhia o glifo em 8% e fechava o vao do pause.
-        stroke-width: root.filled ? 0px : root.size * Theme.control-icon-stroke / 24;
+        stroke-width: root.cheio ? 0px : root.size * Theme.control-icon-stroke / 24;
         // Sem isto o Slint junta os segmentos em miter puro, e cada canto de
         // contorno sai numa ponta aguda que nao combina com nenhum outro
         // elemento da interface.
@@ -1042,7 +1052,7 @@ export component SearchField inherits Rectangle {
         spacing: Theme.space-sm;
 
         Icon {
-            glyph: { commands: "M 10 2 a 8 8 0 1 0 0 16 a 8 8 0 0 0 0 -16 M 16 16 l 6 6" };
+            glyph: { commands: "M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z", box: 256 };
             tint: Theme.text-muted;
             size: Theme.control-icon-size;
             y: (parent.height - self.size) / 2;
@@ -1403,7 +1413,23 @@ export component Artwork inherits Rectangle {
             hsv(root.hue, root.claro ? 0.34 : 0.52, root.claro ? 0.94 : 0.42) 0%,
             hsv(root.hue, root.claro ? 0.24 : 0.44, root.claro ? 0.80 : 0.24) 100%);
 
-        Text {
+        // Capa grande sem imagem ganha a nota musical, como no Spotify: a letra
+        // de 45 px numa grade de playlists virava um alfabeto gigante e era a
+        // primeira coisa que se via na tela. Na miniatura da lista e da barra
+        // lateral a letra continua -- ali ela ajuda a achar a playlist.
+        if parent.height >= 64px: Path {
+            width: parent.width * 0.34;
+            height: self.width;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            viewbox-width: 256;
+            viewbox-height: 256;
+            commands: "M212.92,17.69a8,8,0,0,0-6.86-1.45l-128,32A8,8,0,0,0,72,56V166.08A36,36,0,1,0,88,196V62.25l112-28v99.83A36,36,0,1,0,216,164V24A8,8,0,0,0,212.92,17.69ZM52,216a20,20,0,1,1,20-20A20,20,0,0,1,52,216Zm128-32a20,20,0,1,1,20-20A20,20,0,0,1,180,184Z";
+            fill: root.claro ? hsv(root.hue, 0.45, 0.40) : hsv(root.hue, 0.18, 0.92, 0.85);
+            stroke-width: 0px;
+        }
+
+        if parent.height < 64px: Text {
             text: root.initial;
             // Acompanha a caixa: a mesma ficha serve a linha de 40px da lista e
             // ao cartao de 160px, e uma inicial de tamanho fixo sumiria numa e

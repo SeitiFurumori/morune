@@ -3,7 +3,7 @@ id = "bruma"
 name = "Bruma"
 # Sem este campo, a atualizacao de tema embutido nao consegue comparar e o
 # tema instalado fica congelado para sempre. Ver `bundled.rs`.
-version = "2.3.0"
+version = "2.4.0"
 author = "Morune"
 appearance = "dark"
 description = "Vidro neutro sobre a area de trabalho: transparencia nativa, fundo desfocado e bordas luminosas."

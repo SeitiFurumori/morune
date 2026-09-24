@@ -3616,14 +3616,24 @@ impl AppState {
                     .collect()
             },
         ));
-        // A Biblioteca tambem mostra as playlists da conta.
-        let na_biblioteca = pagina == Page::Library;
         window.set_home_playlists(
             l.home_playlists
-                .sincronizar_se(na_home || na_biblioteca, || {
-                    card_items(&self.home_playlists)
-                }),
+                .sincronizar_se(na_home, || card_items(&self.home_playlists)),
         );
+        // Na Biblioteca, como no Spotify: Musicas curtidas primeiro, depois as
+        // playlists da conta.
+        window.set_library_playlists(l.library_playlists.sincronizar_se(
+            pagina == Page::Library,
+            || {
+                if self.home_playlists.is_empty() {
+                    return Vec::new();
+                }
+                std::iter::once(&self.liked_card)
+                    .chain(&self.home_playlists)
+                    .map(card_item)
+                    .collect()
+            },
+        ));
         window.set_home_feed(l.home_feed.sincronizar_se(na_home, || {
             // Cada secao guarda o proprio modelo de cartoes entre
             // espelhamentos: um `ModelRc` novo a cada clique faria o Slint
@@ -4335,6 +4345,7 @@ struct Listas {
     diagnostics: Lista<ui::Diagnostic>,
     home_made_for_you: Lista<ui::CardItem>,
     home_feed: Lista<ui::FeedShelf>,
+    library_playlists: Lista<ui::CardItem>,
     home_feed_itens: std::cell::RefCell<Vec<Lista<ui::CardItem>>>,
     home_liked: Lista<ui::TrackRow>,
     home_recent: Lista<ui::TrackRow>,
