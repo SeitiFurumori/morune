@@ -202,6 +202,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "alsa"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c88dbbce13b232b26250e1e2e6ac18b6a891a646b8148285036ebce260ac5c3"
+dependencies = [
+ "alsa-sys",
+ "bitflags 2.13.1",
+ "cfg-if",
+ "libc",
+]
+
+[[package]]
 name = "alsa-sys"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1156,14 +1168,14 @@ version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cbd307f43cc2a697e2d1f8bc7a1d824b5269e052209e28883e5bc04d095aaa3f"
 dependencies = [
- "alsa",
+ "alsa 0.9.1",
  "audio_thread_priority",
  "coreaudio-rs",
  "dasp_sample",
  "jni 0.21.1",
  "js-sys",
  "libc",
- "mach2",
+ "mach2 0.4.3",
  "ndk",
  "ndk-context",
  "num-derive",
@@ -1175,6 +1187,36 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "windows 0.54.0",
+]
+
+[[package]]
+name = "cpal"
+version = "0.17.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5b1f9c7312f19fc2fa12fd7acaf38de54e8320ba10d1a02dcbe21038def51ccb"
+dependencies = [
+ "alsa 0.10.0",
+ "coreaudio-rs",
+ "dasp_sample",
+ "jni 0.21.1",
+ "js-sys",
+ "libc",
+ "mach2 0.5.0",
+ "ndk",
+ "ndk-context",
+ "num-derive",
+ "num-traits",
+ "objc2 0.6.4",
+ "objc2-audio-toolbox",
+ "objc2-avf-audio",
+ "objc2-core-audio",
+ "objc2-core-audio-types",
+ "objc2-core-foundation",
+ "objc2-foundation 0.3.2",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "windows 0.62.2",
 ]
 
 [[package]]
@@ -3769,7 +3811,7 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "88258620bf3e6808ea1fadd11639648d77c06280b9f5a4c9d14ea79f6f998af6"
 dependencies = [
- "cpal",
+ "cpal 0.16.0",
  "form_urlencoded",
  "futures-util",
  "librespot-audio",
@@ -3779,7 +3821,7 @@ dependencies = [
  "portable-atomic",
  "rand 0.9.5",
  "rand_distr",
- "rodio",
+ "rodio 0.21.1",
  "shell-words",
  "symphonia",
  "thiserror 2.0.20",
@@ -3955,6 +3997,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mach2"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a1b95cd5421ec55b445b5ae102f5ea0e768de1f82bd3001e11f426c269c3aea"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "matchers"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4074,7 +4125,7 @@ name = "morune-spotify"
 version = "0.1.0"
 dependencies = [
  "bytes",
- "cpal",
+ "cpal 0.16.0",
  "futures-util",
  "http",
  "librespot-core",
@@ -4087,7 +4138,7 @@ dependencies = [
  "open",
  "protobuf",
  "reqwest",
- "rodio",
+ "rodio 0.22.2",
  "serde",
  "serde_json",
  "thiserror 2.0.20",
@@ -4550,6 +4601,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "objc2-avf-audio"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13a380031deed8e99db00065c45937da434ca987c034e13b87e4441f9e4090be"
+dependencies = [
+ "objc2 0.6.4",
+ "objc2-foundation 0.3.2",
+]
+
+[[package]]
 name = "objc2-cloud-kit"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4594,6 +4655,7 @@ dependencies = [
  "objc2 0.6.4",
  "objc2-core-audio-types",
  "objc2-core-foundation",
+ "objc2-foundation 0.3.2",
 ]
 
 [[package]]
@@ -4636,7 +4698,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a180dd8642fa45cdb7dd721cd4c11b1cadd4929ce112ebd8b9f5803cc79d536"
 dependencies = [
  "bitflags 2.13.1",
+ "block2 0.6.2",
  "dispatch2",
+ "libc",
  "objc2 0.6.4",
 ]
 
@@ -4739,6 +4803,7 @@ checksum = "e3e0adef53c21f888deb4fa59fc59f7eb17404926ee8a6f59f5df0fd7f9f3272"
 dependencies = [
  "bitflags 2.13.1",
  "block2 0.6.2",
+ "libc",
  "objc2 0.6.4",
  "objc2-core-foundation",
 ]
@@ -5958,9 +6023,21 @@ version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e40ecf59e742e03336be6a3d53755e789fd05a059fa22dfa0ed624722319e183"
 dependencies = [
- "cpal",
+ "cpal 0.16.0",
  "dasp_sample",
  "num-rational",
+]
+
+[[package]]
+name = "rodio"
+version = "0.22.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d0a536bb79db59098ef71a4dd4246c02eb87b316deceb1b68e0cde7167ec01eb"
+dependencies = [
+ "cpal 0.17.1",
+ "dasp_sample",
+ "num-rational",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
