@@ -145,6 +145,10 @@ export global Icons {
     in property <image> custom-chevron-down;
     out property <IconRef> chevron-down: { source: root.custom-chevron-down, builtin: @image-url("icones/chevron-down.svg") };
     in property <image> custom-minimize-window;
+    // O X da barra de titulo e desenho de traco, como minimizar e maximizar:
+    // `WindowControl` desenha `commands`. Com o `close` do Phosphor (imagem),
+    // o botao ficou sem desenho nenhum e o X sumiu (24/09/2026).
+    out property <IconRef> close-window: { commands: "M 6 6 L 18 18 M 18 6 L 6 18" };
     out property <IconRef> minimize-window: { commands: "M 5 12 L 19 12", source: root.custom-minimize-window };
     in property <image> custom-maximize-window;
     out property <IconRef> maximize-window: { commands: "M 5 5 L 19 5 L 19 19 L 5 19 Z", source: root.custom-maximize-window };
@@ -445,7 +449,7 @@ component AppTitleBar inherits Rectangle {
 
         WindowControl {
             label: "Fechar janela";
-            glyph: Icons.close;
+            glyph: Icons.close-window;
             danger: true;
             clicked => { root.close(); }
         }
@@ -3778,46 +3782,23 @@ component SettingsPage inherits VerticalLayout {
         // Roda, nao arraste: ver a nota na Home.
         interactive: false;
         viewport-height: pagina.preferred-height;
-        // **Formulario tem largura de formulario.** Em janela larga, o rotulo
-        // ficava na esquerda e o interruptor a 1500 px dele, na direita: a
-        // linha era uma so, mas o olho nao ligava "Nivelar o volume" ao
-        // controle. 960 px e o bastante para o texto de ajuda numa linha e
-        // curto o bastante para rotulo e controle serem lidos juntos. Fica
-        // alinhado a esquerda, com o titulo da pagina.
-        private property <length> largura-do-formulario: min(self.width, 960px);
-
-        // Formulario: protecao local para os textos pequenos sobre a fotografia.
-        // Nao altera o campo central das demais paginas nem os temas legados.
-        Rectangle {
-            x: 0; y: 0;
-            width: parent.largura-do-formulario;
-            height: pagina.preferred-height;
-            border-radius: Theme.material-kind == 1 ? Theme.radius-lg : Theme.radius-md;
-            background: Theme.material-kind == 2 ? Theme.surface : transparent;
-            clip: Theme.material-kind == 1;
-
-            // No Aero as Configuracoes sao um grupo so, e ganham a mesma
-            // moldura de vidro dos grupos do Inicio. Sem ela a pagina era
-            // texto solto sobre a foto: "nao da para ver nada".
-            if Theme.material-kind == 1: Vidro { radius: parent.border-radius; tinta: Theme.surface; }
-            if Theme.material-kind == 1: Glass { radius: parent.border-radius; }
-        }
+        // **Um modulo por grupo, na largura da pagina**, como no Inicio e na
+        // Biblioteca. Antes era um painel so de 960 px com o titulo dentro:
+        // destoava das outras paginas, deixava meia janela vazia e o painel
+        // terminava cortado pelo rodape. Linha na largura toda com o controle
+        // na ponta direita e o arranjo das Configuracoes do proprio Windows 11.
+        private property <length> largura-do-formulario: self.width;
 
         pagina := VerticalLayout {
             // `x: 0` explicito: filho com largura propria e sem `x` o Slint
             // centraliza, e o formulario saia do meio da moldura de vidro.
             x: 0;
             width: parent.largura-do-formulario;
-            spacing: Theme.space-md;
+            spacing: Theme.space-lg;
             alignment: start;
-            padding-left: Theme.material-kind > 0 ? Theme.space-md : 0px;
-            padding-right: Theme.material-kind > 0 ? Theme.space-md : 0px;
-            padding-top: Theme.material-kind > 0 ? Theme.space-md : 0px;
             padding-bottom: Theme.space-lg;
 
-            // Ja esta dentro do painel do formulario: pastilha aqui seria caixa
-            // dentro de caixa.
-            PageTitle { text: "Configurações"; chip: false; }
+            PageTitle { text: "Configurações"; }
 
             // Cartao da conta.
             //
@@ -3955,451 +3936,483 @@ component SettingsPage inherits VerticalLayout {
                 }
             }
 
-            SettingsGroupTitle { text: "Atualizações"; }
+            Prateleira {
+                SectionTitle { text: "Atualizações"; }
+                // As linhas recuam `space-sm`, como o titulo: comecam no mesmo x.
+                VerticalLayout {
+                    padding-left: Theme.space-sm;
+                    padding-right: Theme.space-sm;
+                    spacing: Theme.space-md;
 
-            // A altura vem do conteudo porque o bloco muda de tamanho com a
-            // fase: parado sao duas linhas, com versao nova sao as notas do
-            // lancamento inteiras. Uma altura fixa cortaria o texto justamente
-            // no estado que a pessoa precisa ler antes de decidir.
-            Rectangle {
-                height: atualizacao.preferred-height;
+                    // A altura vem do conteudo porque o bloco muda de tamanho com a
+                    // fase: parado sao duas linhas, com versao nova sao as notas do
+                    // lancamento inteiras. Uma altura fixa cortaria o texto justamente
+                    // no estado que a pessoa precisa ler antes de decidir.
+                    Rectangle {
+                        height: atualizacao.preferred-height;
 
-                atualizacao := VerticalLayout {
-                    width: parent.width;
-                    spacing: Theme.space-sm;
+                        atualizacao := VerticalLayout {
+                            width: parent.width;
+                            spacing: Theme.space-sm;
 
-                    HorizontalLayout {
-                        spacing: Theme.space-md;
-                        height: 34px;
+                            HorizontalLayout {
+                                spacing: Theme.space-md;
+                                height: 34px;
 
-                        VerticalLayout {
-                            alignment: center;
-                            horizontal-stretch: 1;
+                                VerticalLayout {
+                                    alignment: center;
+                                    horizontal-stretch: 1;
 
-                            Text {
-                                text: root.update-title;
-                                color: Theme.text;
-                                font-size: Theme.size-md;
+                                    Text {
+                                        text: root.update-title;
+                                        color: Theme.text;
+                                        font-size: Theme.size-md;
+                                        font-family: Theme.font-family;
+                                        overflow: elide;
+                                    }
+                                }
+
+                                // Um botao por vez, e o texto dele diz o que o proximo
+                                // clique faz -- nao "Atualizar" em toda fase, que
+                                // esconderia que baixar e instalar sao coisas
+                                // diferentes (instalar fecha o aplicativo).
+                                if root.update-phase == 3: PrimaryButton {
+                                    label: "Baixar";
+                                    y: (parent.height - self.height) / 2;
+                                    clicked => { root.download-update(); }
+                                }
+
+                                if root.update-phase == 5: PrimaryButton {
+                                    label: "Instalar e reiniciar";
+                                    y: (parent.height - self.height) / 2;
+                                    clicked => { root.install-update(); }
+                                }
+
+                                if root.update-phase != 3 && root.update-phase != 5: PrimaryButton {
+                                    label: root.update-phase == 1
+                                        ? "Procurando..."
+                                        : (root.update-phase == 4 ? "Baixando..." : "Procurar atualizações");
+                                    // Clicar de novo no meio da rede nao faz nada util,
+                                    // e o botao apagado e o que diz isso sem texto.
+                                    enabled: root.update-phase != 1 && root.update-phase != 4;
+                                    y: (parent.height - self.height) / 2;
+                                    clicked => { root.check-update(); }
+                                }
+                            }
+
+                            if root.update-detail != "": Text {
+                                text: root.update-detail;
+                                color: root.update-phase == 6 ? Theme.danger : Theme.text-muted;
+                                font-size: Theme.size-xs;
                                 font-family: Theme.font-family;
+                                wrap: word-wrap;
+                            }
+
+                            if root.update-phase == 4: Rectangle {
+                                height: 6px;
+                                border-radius: Theme.radius-sm;
+                                background: Theme.border;
+
+                                Rectangle {
+                                    x: 0;
+                                    y: 0;
+                                    width: parent.width * root.update-progress;
+                                    height: parent.height;
+                                    border-radius: parent.border-radius;
+                                    background: Theme.accent;
+                                }
+                            }
+
+                            // Saida manual: enquanto nao houver assinatura de codigo, o
+                            // SmartScreen pode barrar o instalador baixado aqui, e a
+                            // pessoa precisa de um caminho que nao dependa deste botao.
+                            if root.update-phase == 3 || root.update-phase == 6: HorizontalLayout {
+                                alignment: start;
+                                height: 32px;
+
+                                GhostButton {
+                                    label: "Abrir a página de lançamentos";
+                                    clicked => { root.open-releases-page(); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Prateleira {
+                SectionTitle { text: "Comportamento"; }
+                // As linhas recuam `space-sm`, como o titulo: comecam no mesmo x.
+                VerticalLayout {
+                    padding-left: Theme.space-sm;
+                    padding-right: Theme.space-sm;
+                    spacing: Theme.space-md;
+
+                    SettingRow {
+                        label: "Continuar com rádio";
+                        hint: "Quando a fila acabar, toca uma estação baseada na última faixa.";
+                        checked: root.autoplay;
+                        toggled(v) => { root.set-autoplay(v); }
+                    }
+
+                    SettingRow {
+                        label: "Continuar tocando ao fechar";
+                        hint: "Fechar a janela esconde o Morune na bandeja em vez de encerrar.";
+                        checked: root.close-to-tray;
+                        toggled(v) => { root.set-close-to-tray(v); }
+                    }
+
+                    SettingRow {
+                        label: "Iniciar com o Windows";
+                        hint: "Abre em segundo plano na bandeja quando você entra no Windows.";
+                        checked: root.start-with-windows;
+                        toggled(v) => { root.set-start-with-windows(v); }
+                    }
+                }
+            }
+
+            Prateleira {
+                SectionTitle { text: "Áudio"; }
+                // As linhas recuam `space-sm`, como o titulo: comecam no mesmo x.
+                VerticalLayout {
+                    padding-left: Theme.space-sm;
+                    padding-right: Theme.space-sm;
+                    spacing: Theme.space-md;
+
+                    Rectangle {
+                        height: 44px;
+                        HorizontalLayout {
+                            spacing: Theme.space-sm;
+
+                            VerticalLayout {
+                                alignment: center;
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: "Qualidade";
+                                    color: Theme.text;
+                                    font-size: Theme.size-md;
+                                    font-family: Theme.font-family;
+                                }
+                                Text {
+                                    // Diz quando vale porque nao vale agora: a
+                                    // configuracao do reprodutor e congelada quando ele
+                                    // nasce, e refazer o motor pararia a musica.
+                                    text: "Vale a partir da próxima vez que o Morune abrir.";
+                                    color: Theme.text-muted;
+                                    font-size: Theme.size-xs;
+                                    font-family: Theme.font-family;
+                                }
+                            }
+
+                            for option[index] in ["96 kbps", "160 kbps", "320 kbps"]: GhostButton {
+                                label: option;
+                                active: root.bitrate == index;
+                                y: (parent.height - self.height) / 2;
+                                clicked => { root.set-bitrate(index); }
+                            }
+                        }
+                    }
+
+                    SettingRow {
+                        label: "Nivelar o volume entre faixas";
+                        hint: "Deixa músicas gravadas em volumes diferentes no mesmo nível. Vale ao reabrir.";
+                        checked: root.normalize;
+                        toggled(v) => { root.set-normalize(v); }
+                    }
+
+                    Rectangle {
+                        height: 44px;
+                        HorizontalLayout {
+                            VerticalLayout {
+                                alignment: center;
+                                horizontal-stretch: 1;
+                                Text { text: "Saída de áudio"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
+                                Text {
+                                    text: "Vale a partir da próxima vez que o Morune abrir.";
+                                    color: Theme.text-muted;
+                                    font-size: Theme.size-xs;
+                                    font-family: Theme.font-family;
+                                }
+                            }
+                            Text {
+                                text: root.output-device == "" ? "Padrão do Windows" : root.output-device;
+                                color: Theme.text-muted;
+                                font-size: Theme.size-sm;
+                                font-family: Theme.font-family;
+                                vertical-alignment: center;
                                 overflow: elide;
+                                horizontal-alignment: right;
+                                max-width: 220px;
+                            }
+                        }
+                    }
+
+                    // Lista em vez de menu suspenso: sao poucos dispositivos, o Slint
+                    // aqui e construido so com primitivas (sem `std-widgets`), e uma
+                    // lista mostra a escolha atual sem exigir um clique para abrir.
+                    VerticalLayout {
+                        spacing: 2px;
+
+                        OutputDeviceRow {
+                            label: "Padrão do Windows";
+                            active: root.output-device == "";
+                            chosen => { root.set-output-device(""); }
+                        }
+
+                        for device in root.output-devices: OutputDeviceRow {
+                            label: device;
+                            active: root.output-device == device;
+                            chosen => { root.set-output-device(device); }
+                        }
+                    }
+                }
+            }
+
+            Prateleira {
+                SectionTitle { text: "Aparência"; }
+                // As linhas recuam `space-sm`, como o titulo: comecam no mesmo x.
+                VerticalLayout {
+                    padding-left: Theme.space-sm;
+                    padding-right: Theme.space-sm;
+                    spacing: Theme.space-md;
+
+                    Text {
+                        text: "Estes ajustes são seus, não do tema: trocar de tema não desfaz nenhum deles.";
+                        color: Theme.text-muted;
+                        font-size: Theme.size-xs;
+                        font-family: Theme.font-family;
+                    }
+
+                    Rectangle {
+                        height: 44px;
+                        HorizontalLayout {
+                            spacing: Theme.space-md;
+
+                            VerticalLayout {
+                                alignment: center;
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: "Imagem de fundo";
+                                    color: Theme.text;
+                                    font-size: Theme.size-md;
+                                    font-family: Theme.font-family;
+                                }
+                                Text {
+                                    text: root.has-background
+                                        ? root.background-name
+                                        : "Nenhuma. O tema decide o fundo da janela.";
+                                    color: Theme.text-muted;
+                                    font-size: Theme.size-xs;
+                                    font-family: Theme.font-family;
+                                    overflow: elide;
+                                }
+                            }
+
+                            if root.has-background: GhostButton {
+                                label: "Remover";
+                                y: (parent.height - self.height) / 2;
+                                clicked => { root.clear-background(); }
+                            }
+
+                            GhostButton {
+                                label: root.has-background ? "Trocar..." : "Escolher...";
+                                y: (parent.height - self.height) / 2;
+                                clicked => { root.choose-background(); }
+                            }
+                        }
+                    }
+
+                    // Os ajustes da imagem so aparecem quando ha imagem: quatro sliders
+                    // inertes seriam quatro perguntas sem resposta possivel.
+                    if root.has-background: Rectangle {
+                        height: 44px;
+                        HorizontalLayout {
+                            spacing: Theme.space-sm;
+
+                            VerticalLayout {
+                                alignment: center;
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: "Encaixe";
+                                    color: Theme.text;
+                                    font-size: Theme.size-md;
+                                    font-family: Theme.font-family;
+                                }
+                                Text {
+                                    text: "Como a imagem preenche a janela.";
+                                    color: Theme.text-muted;
+                                    font-size: Theme.size-xs;
+                                    font-family: Theme.font-family;
+                                }
+                            }
+
+                            for option[index] in ["Cobrir", "Caber", "Centro", "Esticar"]: GhostButton {
+                                label: option;
+                                active: root.background-fit == index;
+                                y: (parent.height - self.height) / 2;
+                                clicked => { root.set-background-fit(index); }
+                            }
+                        }
+                    }
+
+                    if root.has-background: SettingSlider {
+                        label: "Opacidade da imagem";
+                        pesado: true;
+                        hint: "Quanto da imagem aparece sobre a cor de fundo do tema.";
+                        value: root.background-opacity;
+                        value-text: round(root.background-opacity * 100) + "%";
+                        changed(v) => { root.set-background-opacity(v); }
+                    }
+
+                    if root.has-background: SettingSlider {
+                        label: "Escurecer o fundo";
+                        pesado: true;
+                        hint: "Véu sobre a imagem. Sem ele, uma foto clara apaga o texto.";
+                        value: root.background-tint;
+                        value-text: round(root.background-tint * 100) + "%";
+                        changed(v) => { root.set-background-tint(v); }
+                    }
+
+                    if root.has-background: SettingSlider {
+                        label: "Desfoque";
+                        pesado: true;
+                        hint: "Aplicado uma vez ao carregar; não custa nada enquanto você joga.";
+                        value: root.background-blur;
+                        value-text: round(root.background-blur * 64) + "px";
+                        changed(v) => { root.set-background-blur(v); }
+                    }
+
+                    // So faz sentido onde ha vidro sobre o fundo: o material Aero.
+                    if Theme.material-kind == 1: SettingSlider {
+                        label: "Desfoque do vidro";
+                        pesado: true;
+                        hint: "Quanto os painéis borram o que está atrás. Zero mostra o fundo nítido.";
+                        value: root.glass-blur;
+                        value-text: round(root.glass-blur * 24) + "px";
+                        changed(v) => { root.set-glass-blur(v); }
+                    }
+
+                    SettingSlider {
+                        label: "Transparência da janela";
+                        hint: "Deixa ver o que está atrás. Vale para qualquer tema, e o tema não desfaz.";
+                        value: root.window-opacity;
+                        value-text: round(root.window-opacity * 80) + "%";
+                        changed(v) => { root.set-window-opacity(v); }
+                    }
+
+                    SettingSlider {
+                        label: "Tamanho da interface";
+                        hint: "Multiplica todos os textos. A escala do Windows continua valendo por cima.";
+                        value: root.font-scale;
+                        value-text: round(80 + root.font-scale * 80) + "%";
+                        changed(v) => { root.set-font-scale(v); }
+                    }
+
+                    SettingRow {
+                        label: "Reduzir animações";
+                        hint: "Desliga as transições, mesmo que o tema peça por elas.";
+                        checked: root.reduce-motion;
+                        toggled(v) => { root.set-reduce-motion(v); }
+                    }
+
+                    Text {
+                        text: "Temas";
+                        color: Theme.text;
+                        font-size: Theme.size-md;
+                        font-weight: Theme.weight-bold;
+                        font-family: Theme.font-family;
+                    }
+
+                    SettingRow {
+                        label: "Recarregar tema ao salvar";
+                        hint: "Observa a pasta de temas e aplica assim que você salva o arquivo.";
+                        checked: root.hot-reload;
+                        toggled(v) => { root.set-hot-reload(v); }
+                    }
+
+                    Text {
+                        text: "A troca é imediata. Você pode voltar ao tema padrão a qualquer momento.";
+                        color: Theme.text-muted;
+                        font-size: Theme.size-xs;
+                        font-family: Theme.font-family;
+                    }
+
+                    VerticalLayout {
+                        spacing: Theme.space-sm;
+                        height: 76px;
+                        alignment: start;
+
+                        HorizontalLayout {
+                            spacing: Theme.space-sm;
+                            height: 34px;
+                            alignment: start;
+
+                            PrimaryButton {
+                                label: "Importar tema";
+                                clicked => { root.import-theme(); }
+                            }
+
+                            GhostButton {
+                                label: "Abrir pasta de temas";
+                                clicked => { root.open-theme-folder(); }
                             }
                         }
 
-                        // Um botao por vez, e o texto dele diz o que o proximo
-                        // clique faz -- nao "Atualizar" em toda fase, que
-                        // esconderia que baixar e instalar sao coisas
-                        // diferentes (instalar fecha o aplicativo).
-                        if root.update-phase == 3: PrimaryButton {
-                            label: "Baixar";
-                            y: (parent.height - self.height) / 2;
-                            clicked => { root.download-update(); }
-                        }
+                        HorizontalLayout {
+                            spacing: Theme.space-sm;
+                            height: 34px;
+                            alignment: start;
 
-                        if root.update-phase == 5: PrimaryButton {
-                            label: "Instalar e reiniciar";
-                            y: (parent.height - self.height) / 2;
-                            clicked => { root.install-update(); }
-                        }
+                            GhostButton {
+                                label: "Recarregar temas";
+                                clicked => { root.reload-theme(); }
+                            }
 
-                        if root.update-phase != 3 && root.update-phase != 5: PrimaryButton {
-                            label: root.update-phase == 1
-                                ? "Procurando..."
-                                : (root.update-phase == 4 ? "Baixando..." : "Procurar atualizações");
-                            // Clicar de novo no meio da rede nao faz nada util,
-                            // e o botao apagado e o que diz isso sem texto.
-                            enabled: root.update-phase != 1 && root.update-phase != 4;
-                            y: (parent.height - self.height) / 2;
-                            clicked => { root.check-update(); }
+                            GhostButton {
+                                label: "Usar tema padrão";
+                                clicked => { root.reset-theme(); }
+                            }
                         }
                     }
 
-                    if root.update-detail != "": Text {
-                        text: root.update-detail;
-                        color: root.update-phase == 6 ? Theme.danger : Theme.text-muted;
-                        font-size: Theme.size-xs;
-                        font-family: Theme.font-family;
-                        wrap: word-wrap;
-                    }
-
-                    if root.update-phase == 4: Rectangle {
-                        height: 6px;
-                        border-radius: Theme.radius-sm;
-                        background: Theme.border;
-
-                        Rectangle {
-                            x: 0;
-                            y: 0;
-                            width: parent.width * root.update-progress;
-                            height: parent.height;
-                            border-radius: parent.border-radius;
-                            background: Theme.accent;
-                        }
-                    }
-
-                    // Saida manual: enquanto nao houver assinatura de codigo, o
-                    // SmartScreen pode barrar o instalador baixado aqui, e a
-                    // pessoa precisa de um caminho que nao dependa deste botao.
-                    if root.update-phase == 3 || root.update-phase == 6: HorizontalLayout {
+                    VerticalLayout {
+                        spacing: Theme.space-xs;
+                        padding-top: Theme.space-sm;
                         alignment: start;
-                        height: 32px;
 
-                        GhostButton {
-                            label: "Abrir a página de lançamentos";
-                            clicked => { root.open-releases-page(); }
+                        for item in root.themes: ThemeRow {
+                            item: item;
+                            selected => { root.select-theme(item.id); }
+                            export-pack => { root.export-theme(item.id); }
+                            duplicate => { root.duplicate-theme(item.id); }
                         }
-                    }
-                }
-            }
 
-            SettingsGroupTitle { text: "Comportamento"; }
-
-            SettingRow {
-                label: "Continuar com rádio";
-                hint: "Quando a fila acabar, toca uma estação baseada na última faixa.";
-                checked: root.autoplay;
-                toggled(v) => { root.set-autoplay(v); }
-            }
-
-            SettingRow {
-                label: "Continuar tocando ao fechar";
-                hint: "Fechar a janela esconde o Morune na bandeja em vez de encerrar.";
-                checked: root.close-to-tray;
-                toggled(v) => { root.set-close-to-tray(v); }
-            }
-
-            SettingRow {
-                label: "Iniciar com o Windows";
-                hint: "Abre em segundo plano na bandeja quando você entra no Windows.";
-                checked: root.start-with-windows;
-                toggled(v) => { root.set-start-with-windows(v); }
-            }
-
-            SettingsGroupTitle { text: "Áudio"; }
-
-            Rectangle {
-                height: 44px;
-                HorizontalLayout {
-                    spacing: Theme.space-sm;
-
-                    VerticalLayout {
-                        alignment: center;
-                        horizontal-stretch: 1;
-                        Text {
-                            text: "Qualidade";
+                        if root.diagnostics.length > 0: Text {
+                            text: "Diagnósticos do tema";
                             color: Theme.text;
                             font-size: Theme.size-md;
+                            font-weight: Theme.weight-bold;
                             font-family: Theme.font-family;
                         }
-                        Text {
-                            // Diz quando vale porque nao vale agora: a
-                            // configuracao do reprodutor e congelada quando ele
-                            // nasce, e refazer o motor pararia a musica.
-                            text: "Vale a partir da próxima vez que o Morune abrir.";
-                            color: Theme.text-muted;
-                            font-size: Theme.size-xs;
-                            font-family: Theme.font-family;
+
+                        for d in root.diagnostics: Rectangle {
+                            height: diag.preferred-height + Theme.space-sm * 2;
+                            border-radius: Theme.radius-sm;
+                            background: Theme.surface;
+                            border-width: Theme.border-width;
+                            border-color: Theme.border;
+
+                            diag := Text {
+                                text: d.field + ": " + d.message;
+                                color: d.level == "error" ? Theme.danger : Theme.warning;
+                                font-size: Theme.size-xs;
+                                font-family: Theme.font-family;
+                                wrap: word-wrap;
+                                x: Theme.space-md;
+                                y: Theme.space-sm;
+                                width: parent.width - Theme.space-md * 2;
+                            }
                         }
-                    }
-
-                    for option[index] in ["96 kbps", "160 kbps", "320 kbps"]: GhostButton {
-                        label: option;
-                        active: root.bitrate == index;
-                        y: (parent.height - self.height) / 2;
-                        clicked => { root.set-bitrate(index); }
-                    }
-                }
-            }
-
-            SettingRow {
-                label: "Nivelar o volume entre faixas";
-                hint: "Deixa músicas gravadas em volumes diferentes no mesmo nível. Vale ao reabrir.";
-                checked: root.normalize;
-                toggled(v) => { root.set-normalize(v); }
-            }
-
-            Rectangle {
-                height: 44px;
-                HorizontalLayout {
-                    VerticalLayout {
-                        alignment: center;
-                        horizontal-stretch: 1;
-                        Text { text: "Saída de áudio"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
-                        Text {
-                            text: "Vale a partir da próxima vez que o Morune abrir.";
-                            color: Theme.text-muted;
-                            font-size: Theme.size-xs;
-                            font-family: Theme.font-family;
-                        }
-                    }
-                    Text {
-                        text: root.output-device == "" ? "Padrão do Windows" : root.output-device;
-                        color: Theme.text-muted;
-                        font-size: Theme.size-sm;
-                        font-family: Theme.font-family;
-                        vertical-alignment: center;
-                        overflow: elide;
-                        horizontal-alignment: right;
-                        max-width: 220px;
-                    }
-                }
-            }
-
-            // Lista em vez de menu suspenso: sao poucos dispositivos, o Slint
-            // aqui e construido so com primitivas (sem `std-widgets`), e uma
-            // lista mostra a escolha atual sem exigir um clique para abrir.
-            VerticalLayout {
-                spacing: 2px;
-
-                OutputDeviceRow {
-                    label: "Padrão do Windows";
-                    active: root.output-device == "";
-                    chosen => { root.set-output-device(""); }
-                }
-
-                for device in root.output-devices: OutputDeviceRow {
-                    label: device;
-                    active: root.output-device == device;
-                    chosen => { root.set-output-device(device); }
-                }
-            }
-
-            SettingsGroupTitle { text: "Aparência"; }
-
-            Text {
-                text: "Estes ajustes são seus, não do tema: trocar de tema não desfaz nenhum deles.";
-                color: Theme.text-muted;
-                font-size: Theme.size-xs;
-                font-family: Theme.font-family;
-            }
-
-            Rectangle {
-                height: 44px;
-                HorizontalLayout {
-                    spacing: Theme.space-md;
-
-                    VerticalLayout {
-                        alignment: center;
-                        horizontal-stretch: 1;
-                        Text {
-                            text: "Imagem de fundo";
-                            color: Theme.text;
-                            font-size: Theme.size-md;
-                            font-family: Theme.font-family;
-                        }
-                        Text {
-                            text: root.has-background
-                                ? root.background-name
-                                : "Nenhuma. O tema decide o fundo da janela.";
-                            color: Theme.text-muted;
-                            font-size: Theme.size-xs;
-                            font-family: Theme.font-family;
-                            overflow: elide;
-                        }
-                    }
-
-                    if root.has-background: GhostButton {
-                        label: "Remover";
-                        y: (parent.height - self.height) / 2;
-                        clicked => { root.clear-background(); }
-                    }
-
-                    GhostButton {
-                        label: root.has-background ? "Trocar..." : "Escolher...";
-                        y: (parent.height - self.height) / 2;
-                        clicked => { root.choose-background(); }
-                    }
-                }
-            }
-
-            // Os ajustes da imagem so aparecem quando ha imagem: quatro sliders
-            // inertes seriam quatro perguntas sem resposta possivel.
-            if root.has-background: Rectangle {
-                height: 44px;
-                HorizontalLayout {
-                    spacing: Theme.space-sm;
-
-                    VerticalLayout {
-                        alignment: center;
-                        horizontal-stretch: 1;
-                        Text {
-                            text: "Encaixe";
-                            color: Theme.text;
-                            font-size: Theme.size-md;
-                            font-family: Theme.font-family;
-                        }
-                        Text {
-                            text: "Como a imagem preenche a janela.";
-                            color: Theme.text-muted;
-                            font-size: Theme.size-xs;
-                            font-family: Theme.font-family;
-                        }
-                    }
-
-                    for option[index] in ["Cobrir", "Caber", "Centro", "Esticar"]: GhostButton {
-                        label: option;
-                        active: root.background-fit == index;
-                        y: (parent.height - self.height) / 2;
-                        clicked => { root.set-background-fit(index); }
-                    }
-                }
-            }
-
-            if root.has-background: SettingSlider {
-                label: "Opacidade da imagem";
-                pesado: true;
-                hint: "Quanto da imagem aparece sobre a cor de fundo do tema.";
-                value: root.background-opacity;
-                value-text: round(root.background-opacity * 100) + "%";
-                changed(v) => { root.set-background-opacity(v); }
-            }
-
-            if root.has-background: SettingSlider {
-                label: "Escurecer o fundo";
-                pesado: true;
-                hint: "Véu sobre a imagem. Sem ele, uma foto clara apaga o texto.";
-                value: root.background-tint;
-                value-text: round(root.background-tint * 100) + "%";
-                changed(v) => { root.set-background-tint(v); }
-            }
-
-            if root.has-background: SettingSlider {
-                label: "Desfoque";
-                pesado: true;
-                hint: "Aplicado uma vez ao carregar; não custa nada enquanto você joga.";
-                value: root.background-blur;
-                value-text: round(root.background-blur * 64) + "px";
-                changed(v) => { root.set-background-blur(v); }
-            }
-
-            // So faz sentido onde ha vidro sobre o fundo: o material Aero.
-            if Theme.material-kind == 1: SettingSlider {
-                label: "Desfoque do vidro";
-                pesado: true;
-                hint: "Quanto os painéis borram o que está atrás. Zero mostra o fundo nítido.";
-                value: root.glass-blur;
-                value-text: round(root.glass-blur * 24) + "px";
-                changed(v) => { root.set-glass-blur(v); }
-            }
-
-            SettingSlider {
-                label: "Transparência da janela";
-                hint: "Deixa ver o que está atrás. Vale para qualquer tema, e o tema não desfaz.";
-                value: root.window-opacity;
-                value-text: round(root.window-opacity * 80) + "%";
-                changed(v) => { root.set-window-opacity(v); }
-            }
-
-            SettingSlider {
-                label: "Tamanho da interface";
-                hint: "Multiplica todos os textos. A escala do Windows continua valendo por cima.";
-                value: root.font-scale;
-                value-text: round(80 + root.font-scale * 80) + "%";
-                changed(v) => { root.set-font-scale(v); }
-            }
-
-            SettingRow {
-                label: "Reduzir animações";
-                hint: "Desliga as transições, mesmo que o tema peça por elas.";
-                checked: root.reduce-motion;
-                toggled(v) => { root.set-reduce-motion(v); }
-            }
-
-            Text {
-                text: "Temas";
-                color: Theme.text;
-                font-size: Theme.size-md;
-                font-weight: Theme.weight-bold;
-                font-family: Theme.font-family;
-            }
-
-            SettingRow {
-                label: "Recarregar tema ao salvar";
-                hint: "Observa a pasta de temas e aplica assim que você salva o arquivo.";
-                checked: root.hot-reload;
-                toggled(v) => { root.set-hot-reload(v); }
-            }
-
-            Text {
-                text: "A troca é imediata. Você pode voltar ao tema padrão a qualquer momento.";
-                color: Theme.text-muted;
-                font-size: Theme.size-xs;
-                font-family: Theme.font-family;
-            }
-
-            VerticalLayout {
-                spacing: Theme.space-sm;
-                height: 76px;
-                alignment: start;
-
-                HorizontalLayout {
-                    spacing: Theme.space-sm;
-                    height: 34px;
-                    alignment: start;
-
-                    PrimaryButton {
-                        label: "Importar tema";
-                        clicked => { root.import-theme(); }
-                    }
-
-                    GhostButton {
-                        label: "Abrir pasta de temas";
-                        clicked => { root.open-theme-folder(); }
-                    }
-                }
-
-                HorizontalLayout {
-                    spacing: Theme.space-sm;
-                    height: 34px;
-                    alignment: start;
-
-                    GhostButton {
-                        label: "Recarregar temas";
-                        clicked => { root.reload-theme(); }
-                    }
-
-                    GhostButton {
-                        label: "Usar tema padrão";
-                        clicked => { root.reset-theme(); }
-                    }
-                }
-            }
-
-            VerticalLayout {
-                spacing: Theme.space-xs;
-                padding-top: Theme.space-sm;
-                alignment: start;
-
-                for item in root.themes: ThemeRow {
-                    item: item;
-                    selected => { root.select-theme(item.id); }
-                    export-pack => { root.export-theme(item.id); }
-                    duplicate => { root.duplicate-theme(item.id); }
-                }
-
-                if root.diagnostics.length > 0: Text {
-                    text: "Diagnósticos do tema";
-                    color: Theme.text;
-                    font-size: Theme.size-md;
-                    font-weight: Theme.weight-bold;
-                    font-family: Theme.font-family;
-                }
-
-                for d in root.diagnostics: Rectangle {
-                    height: diag.preferred-height + Theme.space-sm * 2;
-                    border-radius: Theme.radius-sm;
-                    background: Theme.surface;
-                    border-width: Theme.border-width;
-                    border-color: Theme.border;
-
-                    diag := Text {
-                        text: d.field + ": " + d.message;
-                        color: d.level == "error" ? Theme.danger : Theme.warning;
-                        font-size: Theme.size-xs;
-                        font-family: Theme.font-family;
-                        wrap: word-wrap;
-                        x: Theme.space-md;
-                        y: Theme.space-sm;
-                        width: parent.width - Theme.space-md * 2;
                     }
                 }
             }

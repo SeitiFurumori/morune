@@ -694,6 +694,11 @@ impl Browse {
         true
     }
 
+    /// `true` enquanto ha pedido de tela em andamento.
+    pub fn ocupado(&self) -> bool {
+        self.pending.is_some()
+    }
+
     /// Recolhe o resultado do pedido em andamento, se ja houver.
     pub fn poll(&mut self) -> Option<Outcome> {
         poll_outcome(&mut self.pending, "a consulta foi interrompida")

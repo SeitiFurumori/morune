@@ -1684,6 +1684,16 @@ impl AppState {
                 self.library_requested = true;
                 self.pending_retry = Some(RetryTarget::Page(Page::Library));
             }
+            // A barra lateral sai do pedido do Inicio e aparece em toda pagina:
+            // aberto direto em Configuracoes, Busca ou Fila, ela ficava so com
+            // "Musicas curtidas" ate alguem passar pelo Inicio. A Biblioteca
+            // pede o Inicio depois da propria resposta -- ver `Outcome::Library`.
+            // So quando nada esta carregando: um pedido novo descartaria o que
+            // esta em andamento (busca, lista aberta, Biblioteca).
+            _ if !home_requested && page != Page::Library && !browse.ocupado() => {
+                browse.load_home();
+                self.home_requested = true;
+            }
             _ => {}
         }
     }
