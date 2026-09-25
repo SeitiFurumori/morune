@@ -63,7 +63,7 @@ anyhow = { workspace = true }
 thiserror = { workspace = true }
 # Dialogos nativos de arquivo para importar/exportar .musicpack. No Windows usa
 # as caixas COM do sistema, sem trazer nenhum toolkit adicional.
-rfd = "0.15"
+rfd = "0.17"
 png = { version = "0.18", optional = true }
 
 # Verificacao e download de atualizacao (`update.rs`). O `reqwest` ja esta no
