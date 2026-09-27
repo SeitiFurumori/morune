@@ -16,12 +16,12 @@
 </div>
 
 <div align="center">
-  <img src="assets/screenshots/temas.png" width="880" alt="A mesma tela nos quatro temas: Bruma, Cristal, Pulse e Paper">
-  <p><em>Um aplicativo, quatro temas. Repare no Paper (inferior direito): a barra lateral foi para a direita e o player para o topo — tema aqui muda composição, não só cor.</em></p>
+  <img src="assets/screenshots/temas.png" width="880" alt="O mesmo Início nos seis temas: Bruma, Aquário, Travessia, Dreamcore, Lo-fi e Neo-Shinjuku">
+  <p><em>Um aplicativo, seis temas. Cada um traz material e movimento próprios: o céu do Travessia acompanha a hora real, e chove na janela do Lo-fi e sobre Neo-Shinjuku.</em></p>
 </div>
 
 > [!IMPORTANT]
-> O MORU•NE está em **alpha**. Já dá para usar, mas ainda tem arestas.
+> O MORU•NE **1.0** é a primeira versão estável.
 > A reprodução exige uma conta Spotify Premium.
 
 ## Por que mais um cliente de Spotify?
@@ -60,13 +60,17 @@ forma, movimento, espaçamento, ícones, fontes e a composição da janela.
 
 ## Capturas
 
-| Bruma (vidro acrílico) | Cristal |
+| Bruma (vidro acrílico) | Aquário (gel do Frutiger Aero) |
 |---|---|
-| <img src="assets/screenshots/bruma.png" alt="Tema Bruma"> | <img src="assets/screenshots/cristal.png" alt="Tema Cristal"> |
+| <img src="assets/screenshots/bruma.png" alt="Tema Bruma"> | <img src="assets/screenshots/aquario.png" alt="Tema Aquário"> |
 
-| Pulse | Paper (barra lateral à direita) |
+| Travessia (céu noturno animado) | Dreamcore |
 |---|---|
-| <img src="assets/screenshots/pulse.png" alt="Tema Pulse"> | <img src="assets/screenshots/paper.png" alt="Tema Paper"> |
+| <img src="assets/screenshots/travessia.png" alt="Tema Travessia"> | <img src="assets/screenshots/dreamcore.png" alt="Tema Dreamcore"> |
+
+| Lo-fi (chuva na janela) | Neo-Shinjuku (neon, chuva) |
+|---|---|
+| <img src="assets/screenshots/lofi.png" alt="Tema Lo-fi"> | <img src="assets/screenshots/neo-shinjuku.png" alt="Tema Neo-Shinjuku"> |
 
 ## Instalar
 
@@ -119,7 +123,7 @@ Um tema é um diretório ou um arquivo `.musicpack` feito de TOML e recursos:
 manifest.toml    identificação e versão do esquema
 theme.toml       cor, tipografia, forma, movimento e efeitos
 layout.toml      composição da janela
-assets/          imagens e ícones opcionais
+assets/          imagens, ícones e camadas de cena animada opcionais
 fonts/           fontes opcionais
 ```
 

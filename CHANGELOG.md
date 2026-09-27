@@ -5,6 +5,34 @@ Versionamento semantico.
 
 ## [Nao lancado]
 
+## [1.0.0] — 2026-09-26
+
+Primeira versao estavel. Toca pelo Spotify (conta Premium), com Inicio montado
+pelo proprio Spotify, biblioteca e playlists editaveis, painel de reproducao do
+Windows, atualizacao pelo aplicativo e seis temas de fabrica.
+
+### Adicionado (temas)
+- **Quatro temas novos, cada um com material e movimento proprios:**
+  Travessia (ceu que acompanha a hora real, estrelas e estrela cadente atras
+  do Inicio), Dreamcore (corredor liminar com vidro ameixa), Lo-fi (quarto de
+  estudo com chuva so no vidro da janela) e Neo-Shinjuku (Toquio debaixo de
+  chuva, aresta neon).
+- Cena `chuva` e secao `[scene.rain]`, acabamentos (`finish`) e varias fontes
+  por tema (`bundled_fonts`). Ver [Temas](docs/THEMING.md).
+- Paper, Cristal e Pulse sairam. As copias instaladas por versoes anteriores sao
+  apagadas (so as que o proprio Morune instalou) e quem usava um deles volta ao
+  Bruma.
+
+### Seguranca
+- Revisao antes da 1.0: login (PKCE, conferencia de `state`, retorno so em
+  127.0.0.1, segredo no Gerenciador de Credenciais), atualizacao (hash
+  conferido, tamanho limitado, so do repositorio oficial), importacao de tema
+  (id restrito, caminhos contidos, limites de tamanho e compressao) e registro
+  (sem segredo). 9 de 860 dependencias com aviso publico, nenhuma alcancavel
+  pelo Morune.
+- Desinstalar com "apagar configuracoes" tambem remove o login guardado no
+  Gerenciador de Credenciais, que antes ficava no PC.
+
 ### Corrigido
 
 **Os dois temas de vidro, contra a fonte primaria de cada estilo**
@@ -953,10 +981,10 @@ implementados depois dessa rodada e aguardam a reverificacao final descrita em
 - Binario de 9,15 MB para 9,39 MB e instalador de 3,83 MB para 4,00 MB, com o
   detalhamento medido em [Performance](docs/PERFORMANCE.md).
 
-### A fazer antes da v1
-- Reverificar radio/autoplay e artista contra a conta Premium.
-- Medir CPU e GPU em segundo plano com musica tocando e um jogo em tela cheia.
-- Instalar o pacote final numa conta limpa do Windows.
+### Conhecido na 1.0
+- Radio automatica (continuar tocando quando a fila acaba) escrita, mas ainda
+  nao conferida contra a conta real.
+- O instalador nao e assinado: o SmartScreen mostra "Editor desconhecido".
 
 ## [0.1.0] — 2026-08-18
 

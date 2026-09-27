@@ -196,6 +196,29 @@ fn main() -> anyhow::Result<()> {
             .ok()
             .and_then(|value| value.parse::<u64>().ok())
             .unwrap_or(600);
+        // Fotos publicas (README): conteudo de exemplo no lugar da conta.
+        //
+        // Aplicado no ultimo segundo e de novo a cada 100 ms, e nao no mesmo
+        // instante da captura: `take_snapshot` devolve o ultimo quadro
+        // desenhado, e o estado do aplicativo continua empurrando a conta real
+        // para a tela enquanto a sessao carrega.
+        if let Some(pasta) = std::env::var_os("MORUNE_SNAPSHOT_EXEMPLO") {
+            let pasta = std::path::PathBuf::from(pasta);
+            let weak = window.as_weak();
+            let comeca = started + std::time::Duration::from_millis(delay.saturating_sub(1000));
+            let timer = Box::leak(Box::new(slint::Timer::default()));
+            timer.start(
+                slint::TimerMode::Repeated,
+                std::time::Duration::from_millis(100),
+                move || {
+                    if Instant::now() >= comeca {
+                        if let Some(w) = weak.upgrade() {
+                            snapshot::dados_de_exemplo(&w, &pasta);
+                        }
+                    }
+                },
+            );
+        }
         slint::Timer::single_shot(std::time::Duration::from_millis(delay), move || {
             if let Some(w) = weak.upgrade() {
                 match snapshot::save(&w, &path) {

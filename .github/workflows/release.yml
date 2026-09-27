@@ -185,7 +185,7 @@ jobs:
         shell: pwsh
         run: |
           @"
-          Primeira distribuicao de teste do MORU•NE para Windows.
+          MORU•NE para Windows. O que mudou nesta versao esta no [historico de mudancas](https://github.com/SeitiFurumori/morune/blob/main/CHANGELOG.md).
 
           **Antes de instalar**
 

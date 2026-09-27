@@ -406,6 +406,15 @@ impl ThemeSpec {
     }
 }
 
+/// Caminho relativo que nao sai do diretorio do tema. Vazio conta como seguro:
+/// e so "sem imagem".
+fn caminho_relativo_seguro(caminho: &str) -> bool {
+    !(caminho.contains("..")
+        || caminho.starts_with('/')
+        || caminho.starts_with('\\')
+        || caminho.contains(':'))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -657,13 +666,4 @@ name = "Quase Vazio"
             self.layout.sidebar.width = 10_000.0;
         }
     }
-}
-
-/// Caminho relativo que nao sai do diretorio do tema. Vazio conta como seguro:
-/// e so "sem imagem".
-fn caminho_relativo_seguro(caminho: &str) -> bool {
-    !(caminho.contains("..")
-        || caminho.starts_with('/')
-        || caminho.starts_with('\\')
-        || caminho.contains(':'))
 }

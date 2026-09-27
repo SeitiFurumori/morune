@@ -16,12 +16,12 @@
 </div>
 
 <div align="center">
-  <img src="assets/screenshots/temas.png" width="880" alt="The same screen in the four bundled themes: Bruma, Cristal, Pulse and Paper">
-  <p><em>One app, four bundled themes. Notice Paper (bottom right): the sidebar moved to the right and the player to the top — themes change layout, not just color.</em></p>
+  <img src="assets/screenshots/temas.png" width="880" alt="The same Home screen in the six bundled themes: Bruma, Aquario, Travessia, Dreamcore, Lo-fi and Neo-Shinjuku">
+  <p><em>One app, six bundled themes. Each brings its own material and motion: Travessia's sky follows the real time of day, and it rains on Lo-fi's window and over Neo-Shinjuku.</em></p>
 </div>
 
 > [!IMPORTANT]
-> MORU•NE is in **alpha**. It is usable by testers but still has rough edges.
+> MORU•NE **1.0** is the first stable release.
 > Playback requires a Spotify Premium account.
 
 ## Why another Spotify client?
@@ -59,13 +59,17 @@ shape, motion, spacing, icons, fonts and the composition of the window itself.
 
 ## Screenshots
 
-| Bruma (acrylic glass) | Cristal |
+| Bruma (acrylic glass) | Aquário (Frutiger Aero gel) |
 |---|---|
-| <img src="assets/screenshots/bruma.png" alt="Bruma theme"> | <img src="assets/screenshots/cristal.png" alt="Cristal theme"> |
+| <img src="assets/screenshots/bruma.png" alt="Bruma theme"> | <img src="assets/screenshots/aquario.png" alt="Aquario theme"> |
 
-| Pulse | Paper (sidebar on the right) |
+| Travessia (animated night sky) | Dreamcore |
 |---|---|
-| <img src="assets/screenshots/pulse.png" alt="Pulse theme"> | <img src="assets/screenshots/paper.png" alt="Paper theme"> |
+| <img src="assets/screenshots/travessia.png" alt="Travessia theme"> | <img src="assets/screenshots/dreamcore.png" alt="Dreamcore theme"> |
+
+| Lo-fi (rain on the window) | Neo-Shinjuku (neon, rain) |
+|---|---|
+| <img src="assets/screenshots/lofi.png" alt="Lo-fi theme"> | <img src="assets/screenshots/neo-shinjuku.png" alt="Neo-Shinjuku theme"> |
 
 ## Install
 
@@ -117,7 +121,7 @@ A theme is a directory or a `.musicpack` file made of TOML and assets:
 manifest.toml    identity and schema version
 theme.toml       color, typography, shape, motion and effects
 layout.toml      window composition
-assets/          optional images and icons
+assets/          optional images, icons and animated-scene layers
 fonts/           optional bundled fonts
 ```
 
