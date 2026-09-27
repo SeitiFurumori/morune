@@ -323,9 +323,13 @@ Section /o "un.Configuracoes e temas" UnUserData
     ; perder os temas que criou.
     RMDir /r "$APPDATA\morune"
     RMDir /r "$LOCALAPPDATA\morune"
+    ; O login do Spotify nao mora nessas pastas: fica no Gerenciador de
+    ; Credenciais do Windows (ver morune-storage/src/credentials.rs). Sem isto,
+    ; "apagar tudo" deixava a sessao guardada no PC depois de desinstalar.
+    nsExec::ExecToLog 'cmdkey /delete:Morune:spotify.refresh_token'
 SectionEnd
 
 !insertmacro MUI_UNFUNCTION_DESCRIPTION_BEGIN
     !insertmacro MUI_DESCRIPTION_TEXT ${UnCore}     "Remove o aplicativo e os atalhos."
-    !insertmacro MUI_DESCRIPTION_TEXT ${UnUserData} "Tambem apaga suas configuracoes e os temas que voce criou."
+    !insertmacro MUI_DESCRIPTION_TEXT ${UnUserData} "Tambem apaga suas configuracoes, os temas que voce criou e o login do Spotify guardado neste PC."
 !insertmacro MUI_UNFUNCTION_DESCRIPTION_END
