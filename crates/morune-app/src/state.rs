@@ -364,7 +364,21 @@ impl AppState {
             tracing::info!(?installed, "temas de exemplo instalados");
         }
 
-        let config = Config::load(&paths.config_file());
+        crate::bundled::remover_aposentados(&paths.themes_dir());
+
+        let mut config = Config::load(&paths.config_file());
+        // Quem usava um tema que saiu do aplicativo volta para o padrao, em vez
+        // de cair no embutido de emergencia.
+        if crate::bundled::tema_aposentado(&config.appearance.theme) {
+            tracing::info!(
+                antigo = config.appearance.theme,
+                "tema aposentado; voltando ao Bruma"
+            );
+            config.appearance.theme = "bruma".into();
+            if let Err(e) = config.save(&paths.config_file()) {
+                tracing::warn!(error = %e, "nao foi possivel gravar a troca de tema");
+            }
+        }
         // So na medicao de quadros: comparar temas sem tocar na configuracao.
         let tema_medicao = std::env::var("MORUNE_TEMA")
             .ok()
@@ -1919,6 +1933,7 @@ impl AppState {
             self.overrides,
         );
         theme_bridge::apply_background(&theme, self.spec(), &self.wallpaper);
+        theme_bridge::apply_scene(&theme, self.spec(), self.theme.source.as_deref());
         theme_bridge::apply_icons(&window.global::<ui::Icons>(), self.theme.source.as_deref());
     }
 
@@ -2038,7 +2053,8 @@ impl AppState {
     }
 
     pub fn reset_theme(&mut self) {
-        self.theme = loader::LoadedTheme::builtin();
+        // O padrao e o Bruma. O embutido so entra se o Bruma nao carregar.
+        self.theme = loader::load(&self.paths.themes_dir(), "bruma");
         self.config.appearance = Default::default();
         self.overrides = UserOverrides::default();
         self.refresh_wallpaper();
@@ -4013,8 +4029,11 @@ impl AppState {
         }
 
         let active = self.theme_id();
+        // O embutido e a rede de seguranca de quando um tema quebra, nao uma
+        // escolha: fica fora da lista.
         self.themes
             .iter()
+            .filter(|entry| !entry.builtin)
             .map(|entry| ui::ThemeItem {
                 id: entry.manifest.id.as_str().into(),
                 name: entry.manifest.name.as_str().into(),

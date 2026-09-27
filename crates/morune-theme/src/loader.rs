@@ -270,6 +270,7 @@ struct PartialTheme {
     motion: Option<crate::tokens::MotionTokens>,
     effects: Option<crate::tokens::EffectTokens>,
     background: Option<crate::tokens::BackgroundTokens>,
+    scene: Option<crate::tokens::SceneTokens>,
 }
 
 impl PartialTheme {
@@ -295,6 +296,9 @@ impl PartialTheme {
         if let Some(v) = self.background {
             base.background = v;
         }
+        if let Some(v) = self.scene {
+            base.scene = v;
+        }
     }
 }
 
@@ -315,6 +319,7 @@ pub fn write_theme(dir: &Path, spec: &ThemeSpec) -> Result<(), String> {
         motion: &'a crate::tokens::MotionTokens,
         effects: &'a crate::tokens::EffectTokens,
         background: &'a crate::tokens::BackgroundTokens,
+        scene: &'a crate::tokens::SceneTokens,
     }
 
     let theme = toml::to_string_pretty(&ThemeFile {
@@ -325,6 +330,7 @@ pub fn write_theme(dir: &Path, spec: &ThemeSpec) -> Result<(), String> {
         motion: &spec.motion,
         effects: &spec.effects,
         background: &spec.background,
+        scene: &spec.scene,
     })
     .map_err(|e| e.to_string())?;
     fs::write(dir.join("theme.toml"), theme).map_err(|e| e.to_string())?;

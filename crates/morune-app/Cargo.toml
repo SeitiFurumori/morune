@@ -107,6 +107,9 @@ windows = { version = "0.61.3", features = [
     "Win32_UI_Input_KeyboardAndMouse",
     # Cantos arredondados da janela. Ver `round_window_corners` em `main.rs`.
     "Win32_Graphics_Dwm",
+    # `GetLocalTime`: a hora que move o ceu da cena Travessia. Ver
+    # `hora_local` em `theme_bridge.rs`.
+    "Win32_System_SystemInformation",
     # Area de transferencia, para o botao que copia o link de login.
     # Ver `clipboard.rs`.
     "Win32_System_DataExchange",

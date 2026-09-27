@@ -4,8 +4,8 @@ use crate::color::Color;
 use crate::layout::LayoutSpec;
 use crate::manifest::{ManifestError, ThemeManifest};
 use crate::tokens::{
-    BackgroundTokens, ColorTokens, ControlTokens, EffectTokens, MotionTokens, ShapeTokens,
-    TypographyTokens,
+    BackgroundTokens, ColorTokens, ControlTokens, EffectTokens, MotionTokens, SceneTokens,
+    ShapeTokens, TypographyTokens,
 };
 
 /// Um tema resolvido e pronto para ser aplicado na interface.
@@ -31,6 +31,8 @@ pub struct ThemeSpec {
     pub effects: EffectTokens,
     #[serde(rename = "background")]
     pub background: BackgroundTokens,
+    #[serde(rename = "scene")]
+    pub scene: SceneTokens,
     #[serde(rename = "layout")]
     pub layout: LayoutSpec,
 }
@@ -46,6 +48,7 @@ impl Default for ThemeSpec {
             motion: MotionTokens::default(),
             effects: EffectTokens::default(),
             background: BackgroundTokens::default(),
+            scene: SceneTokens::default(),
             layout: LayoutSpec::default(),
         }
     }
@@ -211,11 +214,7 @@ impl ThemeSpec {
         // Fundo. Um caminho que escapa do diretorio do tema e apagado em vez de
         // recusado: o tema continua valido, so nao tem imagem -- mesma postura
         // do resto do carregamento, que nunca deixa de aplicar um tema.
-        if self.background.image.contains("..")
-            || self.background.image.starts_with('/')
-            || self.background.image.starts_with('\\')
-            || self.background.image.contains(':')
-        {
+        if !caminho_relativo_seguro(&self.background.image) {
             warnings.push(ThemeWarning::new(
                 "background.image",
                 format!(
@@ -225,6 +224,55 @@ impl ThemeSpec {
             ));
             self.background.image.clear();
         }
+        // Camadas da cena: mesma regra do fundo, camada por camada. Uma camada
+        // que sai do tema vira vazia -- a cena continua, sem aquela camada.
+        for (i, camada) in self.scene.layers.iter_mut().enumerate() {
+            if !caminho_relativo_seguro(camada) {
+                warnings.push(ThemeWarning::new(
+                    format!("scene.layers[{i}]"),
+                    format!("{camada:?} nao e um caminho relativo dentro do tema, ignorado"),
+                ));
+                camada.clear();
+            }
+        }
+        // Chuva: numero fora da faixa vira o limite mais proximo, e numero
+        // invalido (NaN) volta ao padrao -- a area nunca sai da imagem.
+        let padrao = crate::tokens::RainTokens::default();
+        let chuva = &mut self.scene.rain;
+        for (campo, v, def, min, max) in [
+            ("x", &mut chuva.x, padrao.x, 0.0, 1.0),
+            ("y", &mut chuva.y, padrao.y, 0.0, 1.0),
+            ("width", &mut chuva.width, padrao.width, 0.0, 1.0),
+            ("height", &mut chuva.height, padrao.height, 0.0, 1.0),
+            ("strength", &mut chuva.strength, padrao.strength, 0.0, 1.0),
+            ("wind", &mut chuva.wind, padrao.wind, -1.0, 1.0),
+        ] {
+            let novo = if v.is_finite() {
+                v.clamp(min, max)
+            } else {
+                def
+            };
+            if novo != *v {
+                warnings.push(ThemeWarning::new(
+                    format!("scene.rain.{campo}"),
+                    format!("{v} fora de {min}..{max}, usando {novo}"),
+                ));
+                *v = novo;
+            }
+        }
+        chuva.width = chuva.width.min(1.0 - chuva.x);
+        chuva.height = chuva.height.min(1.0 - chuva.y);
+        self.typography.bundled_fonts.retain(|nome| {
+            let ok = !nome.is_empty() && !nome.contains(['/', '\\', ':']) && !nome.contains("..");
+            if !ok {
+                warnings.push(ThemeWarning::new(
+                    "typography.bundled_fonts",
+                    format!("{nome:?} precisa ser so o nome do arquivo em fonts/, ignorado"),
+                ));
+            }
+            ok
+        });
+
         self.background.opacity = if self.background.opacity.is_finite() {
             self.background.opacity.clamp(0.0, 1.0)
         } else {
@@ -361,6 +409,74 @@ impl ThemeSpec {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn finish_and_scene_are_read_from_toml() {
+        let t: ThemeSpec = toml::from_str(
+            r#"
+            [effects]
+            material = "liquid"
+            finish = "starry"
+            [scene]
+            kind = "travessia"
+            layers = ["assets/cena/ceu.jpg", "assets/cena/colinas.png"]
+            [typography]
+            bundled_fonts = ["ZenKaku-Regular.ttf", "ZenOldMincho-Regular.ttf"]
+            "#,
+        )
+        .unwrap();
+        assert_eq!(t.effects.finish, crate::tokens::Finish::Starry);
+        assert_eq!(t.scene.kind, crate::tokens::SceneKind::Travessia);
+        assert_eq!(t.scene.layers.len(), 2);
+        assert_eq!(t.typography.bundled_fonts.len(), 2);
+    }
+
+    #[test]
+    fn rain_is_read_and_kept_inside_the_image() {
+        let mut t: ThemeSpec = toml::from_str(
+            r#"
+            [scene]
+            kind = "chuva"
+            [scene.rain]
+            x = 0.4
+            width = 0.9
+            strength = 3.0
+            wind = 0.12
+            "#,
+        )
+        .unwrap();
+        assert_eq!(t.scene.kind, crate::tokens::SceneKind::Chuva);
+        let warnings = t.sanitize();
+        let r = &t.scene.rain;
+        assert!(
+            (r.x + r.width - 1.0).abs() < 1e-6,
+            "area passou da borda: {r:?}"
+        );
+        assert_eq!(r.strength, 1.0);
+        assert_eq!(r.wind, 0.12);
+        assert!(warnings.iter().any(|w| w.field == "scene.rain.strength"));
+    }
+
+    #[test]
+    fn scene_layers_and_fonts_cannot_escape_the_theme() {
+        let mut t = ThemeSpec::default();
+        t.scene.layers = vec![
+            "assets/ok.png".into(),
+            "../fora.png".into(),
+            "C:/Windows/x.png".into(),
+        ];
+        t.typography.bundled_fonts = vec!["Boa.ttf".into(), "../Ruim.ttf".into(), "a/b.ttf".into()];
+        let warnings = t.sanitize();
+        assert_eq!(t.scene.layers, ["assets/ok.png", "", ""]);
+        assert_eq!(t.typography.bundled_fonts, ["Boa.ttf"]);
+        assert_eq!(
+            warnings
+                .iter()
+                .filter(|w| w.field.starts_with("scene."))
+                .count(),
+            2
+        );
+    }
 
     #[test]
     fn builtin_theme_is_clean() {
@@ -541,4 +657,13 @@ name = "Quase Vazio"
             self.layout.sidebar.width = 10_000.0;
         }
     }
+}
+
+/// Caminho relativo que nao sai do diretorio do tema. Vazio conta como seguro:
+/// e so "sem imagem".
+fn caminho_relativo_seguro(caminho: &str) -> bool {
+    !(caminho.contains("..")
+        || caminho.starts_with('/')
+        || caminho.starts_with('\\')
+        || caminho.contains(':'))
 }

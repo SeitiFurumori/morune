@@ -129,6 +129,36 @@ export global Theme {
     // --- efeitos ---
     // 0 conserva temas anteriores, 1 gel Aero, 2 lente Liquid.
     in-out property <int> material-kind: 0;
+    // Acabamento sobre os paineis flutuantes do material Liquid: 0 = nenhum
+    // (vidro), 1 = neon, 2 = adesivo, 3 = sonho, 4 = estrelado. E o que da identidade aos temas de
+    // estetica forte sem criar uma familia de layout nova.
+    in-out property <int> acabamento: 0;
+    // Cena animada atras da interface. 0 = nenhuma, 1 = Travessia, 2 = chuva
+    // sobre a imagem de fundo.
+    in-out property <int> cena: 0;
+    // Chuva: o retangulo onde ela cai, em fracao da IMAGEM de fundo (e nao da
+    // janela), para acompanhar o recorte do `cover` -- a chuva do Lo-fi fica
+    // dentro do vidro em qualquer tamanho de janela. 0,0,1,1 = tela inteira.
+    in-out property <float> chuva-x: 0.0;
+    in-out property <float> chuva-y: 0.0;
+    in-out property <float> chuva-largura: 1.0;
+    in-out property <float> chuva-altura: 1.0;
+    // Forca: 0 garoa atras do vidro, 1 temporal com gotas grandes na frente.
+    in-out property <float> chuva-forca: 0.5;
+    // Vento: inclinacao da queda (0 = reta).
+    in-out property <float> chuva-vento: 0.0;
+    // Hora da cena, de 0 (madrugada) a 1 (amanhecer). Vem do relogio.
+    in-out property <float> cena-hora: 0.0;
+    // `false` para tudo parado: tela cheia, bandeja, movimento reduzido.
+    in-out property <bool> cena-viva: true;
+    // Camadas desenhadas da cena, vindas dos arquivos do tema. Cada cena diz
+    // o que cada uma e (Travessia: 1-3 ceus, 4 colinas longe, 5 perto, 6 nevoa).
+    in-out property <image> cena-camada-1;
+    in-out property <image> cena-camada-2;
+    in-out property <image> cena-camada-3;
+    in-out property <image> cena-camada-4;
+    in-out property <image> cena-camada-5;
+    in-out property <image> cena-camada-6;
     // A aurora do vidro Aero: as listras diagonais que andam.
     //
     // `aurora-fase` vai de 0 a 1 e da a volta; quem a move e um temporizador

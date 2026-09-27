@@ -1,0 +1,9 @@
+schema_version = 1
+id = "travessia"
+name = "Travessia"
+# Sem este campo a atualizacao do tema embutido nao compara versoes. Ver `bundled.rs`.
+version = "1.0.0"
+author = "Morune"
+description = "A madrugada ate o amanhecer: ceu que acompanha a hora real, estrelas girando, estrelas cadentes e um carro atravessando a estrada."
+license = "MIT"
+appearance = "dark"

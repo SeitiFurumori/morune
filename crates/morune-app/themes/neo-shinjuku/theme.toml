@@ -1,0 +1,113 @@
+# Neo-Shinjuku -- Toquio cyberpunk numa noite de chuva.
+# Imagem gerada pelo Felipe. Magenta e ciano dos letreiros, cantos retos e o
+# acabamento neon (aresta acesa e cantoneiras de HUD). Chove na tela inteira,
+# com vento, atras dos paineis; para sozinha com jogo em tela cheia.
+#
+# ICONES: os embutidos sao do Phosphor. Para trocar, ponha um .svg com o nome
+# do icone em assets/icons/ -- ver docs/THEMING.md, secao "Icones".
+
+[color]
+background         = "#0b0e14"
+surface            = "#0f131ccc"
+sidebar_background = "#0e1119d6"
+player_background  = "#10141cd6"
+surface_raised     = "#1a2030f2"
+text           = "#e8ecf5"
+text_muted     = "#9aa3b8"
+text_on_accent = "#06070a"
+accent         = "#ff2e9a"
+accent_hover   = "#ff5cb8"
+border           = "#64749a"
+border_highlight = "#00e5ff66"
+hover            = "#00e5ff14"
+selected         = "#ff2e9a2e"
+focus_ring       = "#00e5ff"
+success          = "#3dffb5"
+warning          = "#ffd23d"
+danger           = "#ff4d6d"
+shadow           = "#00000040"
+scrollbar        = "#8090b0cc"
+
+[typography]
+family         = "Rajdhani"
+display_family = "Chakra Petch"
+bundled_fonts  = [
+    "Rajdhani-Medium.ttf",
+    "Rajdhani-Bold.ttf",
+    "ChakraPetch-Regular.ttf",
+    "ChakraPetch-Bold.ttf",
+]
+scale  = 1.0
+size_xs      = 13.0
+size_sm      = 14.0
+size_md      = 16.0
+size_lg      = 19.0
+size_xl      = 26.0
+size_display = 36.0
+weight_normal = 400
+weight_medium = 600
+weight_bold   = 700
+line_height    = 1.45
+letter_spacing = 0.0
+
+[shape]
+radius_sm      = 2.0
+radius_md      = 3.0
+radius_lg      = 4.0
+radius_artwork = 2.0
+radius_avatar  = 999.0
+spacing_xs = 4.0
+spacing_sm = 8.0
+spacing_md = 14.0
+spacing_lg = 24.0
+spacing_xl = 36.0
+border_width       = 1.0
+progress_thickness = 3.0
+scrollbar_width    = 10.0
+
+[control]
+button_size         = 34.0
+button_radius       = 2.0
+primary_button_size = 44.0
+icon_size           = 18.0
+icon_size_primary   = 22.0
+icon_stroke         = 1.8
+slider_knob         = 12.0
+tooltip_height      = 30.0
+
+[motion]
+# Rapido e seco, como um HUD.
+enabled         = true
+speed           = 1.0
+duration_fast   = 110
+duration_normal = 180
+duration_slow   = 280
+easing          = "ease-out"
+
+[effects]
+material              = "liquid"
+finish                = "neon"
+window_opacity        = 1.0
+acrylic               = false
+shadow_strength       = 0.0
+gloss                 = 0.0
+backdrop_blur         = 0.0
+artwork_tint          = false
+artwork_tint_strength = 0.0
+artwork_accent        = false
+
+[background]
+image = "assets/fundo/rua.jpg"
+fit = "cover"
+opacity = 1.0
+tint = "#0b0e14"
+tint_strength = 0.0
+blur = 0.0
+
+[scene]
+kind = "chuva"
+
+# Tela inteira, forte e com vento.
+[scene.rain]
+strength = 0.9
+wind     = 0.12

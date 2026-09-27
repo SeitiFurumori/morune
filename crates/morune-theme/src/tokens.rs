@@ -112,6 +112,9 @@ pub struct TypographyTokens {
     pub display_family: String,
     /// Nome de arquivo dentro de `fonts/` no pacote, se o tema traz a fonte.
     pub bundled_font: Option<String>,
+    /// Mais arquivos de `fonts/`, para o tema que traz corpo e titulo em
+    /// familias diferentes, ou mais de um peso. Soma-se a `bundled_font`.
+    pub bundled_fonts: Vec<String>,
 
     /// Multiplicador global aplicado a todos os tamanhos.
     ///
@@ -142,6 +145,7 @@ impl Default for TypographyTokens {
             family: String::new(),
             display_family: String::new(),
             bundled_font: None,
+            bundled_fonts: Vec::new(),
             scale: 1.0,
             size_xs: 11.0,
             size_sm: 12.0,
@@ -274,11 +278,33 @@ pub enum MaterialKind {
     Liquid,
 }
 
+/// Acabamento sobre os paineis flutuantes do material Liquid.
+///
+/// E o que da identidade a um tema de estetica forte sem criar uma familia de
+/// layout nova: a mesma estrutura de modulos do Bruma, com outra pele.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Finish {
+    /// Vidro, como o Bruma.
+    #[default]
+    None,
+    /// Aresta acesa, cantoneiras de HUD e brilho por fora.
+    Neon,
+    /// Contorno grosso e sombra dura deslocada.
+    Sticker,
+    /// Painel leitoso, sem aresta; menus surgem devagar.
+    Dream,
+    /// Fio violeta, estrelas cintilando; menus acendem em cascata.
+    Starry,
+}
+
 /// Efeitos visuais que afetam custo de renderizacao.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct EffectTokens {
     pub material: MaterialKind,
+    /// Pele dos paineis. Ver [`Finish`].
+    pub finish: Finish,
     /// Opacidade da janela em `[0.2, 1.0]`.
     pub window_opacity: f32,
     /// Fundo translucido no estilo Mica/Acrylic do Windows, quando disponivel.
@@ -315,6 +341,7 @@ impl Default for EffectTokens {
     fn default() -> Self {
         Self {
             material: MaterialKind::Legacy,
+            finish: Finish::None,
             window_opacity: 1.0,
             acrylic: false,
             shadow_strength: 0.5,
@@ -374,6 +401,67 @@ pub enum BackgroundFit {
     Center,
     /// Esticada ate a janela, sem preservar a proporcao.
     Stretch,
+}
+
+/// Cena animada atras da interface.
+///
+/// Uma cena e um conjunto conhecido de camadas com movimento proprio, desenhado
+/// pelo Morune -- o tema escolhe qual e entrega as imagens, na ordem que a cena
+/// documenta. Nao e codigo: o pacote continua sem nada executavel.
+///
+/// Todo movimento para com o portao de tela cheia e com movimento reduzido.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SceneTokens {
+    pub kind: SceneKind,
+    /// Caminhos relativos ao tema, na ordem da cena escolhida.
+    pub layers: Vec<String>,
+    /// So para `kind = "chuva"`.
+    pub rain: RainTokens,
+}
+
+/// Chuva sobre a imagem de fundo (`[scene.rain]`).
+///
+/// A area e em fracao da IMAGEM, nao da janela: o Morune refaz o recorte do
+/// fundo e a chuva fica no mesmo lugar da foto em qualquer tamanho de janela.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct RainTokens {
+    /// Canto esquerdo e topo da area, de 0 a 1.
+    pub x: f32,
+    pub y: f32,
+    /// Largura e altura da area, de 0 a 1. `1, 1` = a imagem inteira.
+    pub width: f32,
+    pub height: f32,
+    /// 0 garoa atras do vidro, 1 temporal com gotas grossas na frente.
+    pub strength: f32,
+    /// Inclinacao da queda: 0 reta, positivo para a direita.
+    pub wind: f32,
+}
+
+impl Default for RainTokens {
+    fn default() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            width: 1.0,
+            height: 1.0,
+            strength: 0.5,
+            wind: 0.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SceneKind {
+    #[default]
+    None,
+    /// Madrugada ate o amanhecer. Camadas: tres ceus (madrugada, hora azul,
+    /// amanhecer), colinas ao longe, colinas perto com a estrada, nevoa.
+    Travessia,
+    /// Chuva sobre `background.image`, sem camadas. Ajustes em `[scene.rain]`.
+    Chuva,
 }
 
 /// Imagem de fundo da janela.

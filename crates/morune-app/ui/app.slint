@@ -1,5 +1,5 @@
 ﻿import { Theme, Layout } from "theme.slint";
-import { Realce, Vidro, SceneGlass, Material, MaterialRedondo, Aurora, MolduraAero, GlassEdge, Gloss, Glass, ScrollFade, Icon, IconSwap, IconRef, IconButton, PrimaryButton, GhostButton, SearchField, Slider, Artwork, PressableArea, Toggle, Logo, MenuRow, AccountAvatar } from "components.slint";
+import { CenaTravessia, CenaChuva, Realce, Vidro, SceneGlass, Material, MaterialRedondo, Aurora, MolduraAero, GlassEdge, Gloss, Glass, ScrollFade, Icon, IconSwap, IconRef, IconButton, PrimaryButton, GhostButton, SearchField, Slider, Artwork, PressableArea, Toggle, Logo, MenuRow, AccountAvatar } from "components.slint";
 import { ListView } from "std-widgets.slint";
 
 // O Slint exige que um componente esteja declarado antes de ser usado, entao
@@ -196,14 +196,28 @@ component SectionTitle inherits Rectangle {
     // Sem pastilha, o titulo recua `space-sm`: e o recuo interno do cartao e
     // da linha logo abaixo. Com x zero ele ficava 8 px a esquerda da primeira
     // capa -- o grupo parecia desalinhado consigo mesmo.
-    label := Text {
+    // Neon: marcador aceso antes do titulo, como a legenda de um HUD.
+    if Theme.acabamento == 1: Rectangle {
         x: root.chip ? Theme.space-md : Theme.space-sm;
+        y: (parent.height - self.height) / 2;
+        width: 3px;
+        height: label.font-size * 0.9;
+        background: Theme.accent;
+        drop-shadow-color: Theme.accent;
+        drop-shadow-blur: 8px;
+    }
+    label := Text {
+        x: (root.chip ? Theme.space-md : Theme.space-sm) + (Theme.acabamento == 1 ? 11px : 0px);
         width: parent.width - self.x * 2;
         height: 100%;
-        text: root.text;
+        // No neon, caixa alta e espacada: e a voz de painel de nave, e o que
+        // separa titulo de texto corrido sem precisar de outra cor.
+        text: Theme.acabamento == 1 ? root.text.to-uppercase() : root.text;
+        letter-spacing: Theme.acabamento == 1 ? 1.6px : 0px;
         font-size: root.font-size;
         font-weight: Theme.weight-bold;
-        font-family: Theme.font-family;
+        // Titulo usa a fonte de titulo do tema; sem ela, a do corpo.
+        font-family: Theme.display-family != "" ? Theme.display-family : Theme.font-family;
         color: Theme.text;
         vertical-alignment: center;
         overflow: elide;
@@ -1050,7 +1064,9 @@ component Card inherits Rectangle {
     // E o cartao inteiro afunda 3%: o unico lugar da interface onde escala
     // cabe (auditoria de 21/09, P2.5). Lista nao escala -- linha que encolhe
     // parece que vai sumir.
-    transform-scale: touch.pressed ? 0.97 : 1.0;
+    // Adesivo: o cartao salta um pouco sob o cursor, na mesma mola do clique.
+    transform-scale: touch.pressed ? 0.97
+        : (Theme.acabamento == 2 && (touch.has-hover || touch.has-focus) ? 1.04 : 1.0);
     animate transform-scale {
         duration: Theme.motion-normal;
         easing: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -1983,9 +1999,19 @@ component PlayerBar inherits Rectangle {
                             : Theme.accent;
                         border-width: Theme.material-kind == 1 ? 1px : 0px;
                         border-color: Theme.accent.darker(0.45);
-                        drop-shadow-color: Theme.material-kind == 1 && root.has-track
+                        drop-shadow-color: Theme.acabamento == 1 ? Theme.accent.with-alpha(0.75)
+                            : Theme.acabamento == 2 ? Theme.border-highlight
+                            : Theme.material-kind == 1 && root.has-track
                             ? Theme.selected.with-alpha(play-touch.has-hover ? 0.95 : 0.6) : transparent;
-                        drop-shadow-blur: 9px;
+                        // Neon: halo que cresce sob o cursor. Adesivo: sombra
+                        // dura deslocada, como um botao de borracha.
+                        drop-shadow-blur: Theme.acabamento == 1 ? (play-touch.has-hover ? 26px : 16px)
+                            : Theme.acabamento == 2 ? 0px : 9px;
+                        drop-shadow-offset-x: Theme.acabamento == 2 ? (play-touch.pressed ? 1px : 3px) : 0px;
+                        drop-shadow-offset-y: Theme.acabamento == 2 ? (play-touch.pressed ? 1px : 3px) : 0px;
+                        animate drop-shadow-blur, drop-shadow-offset-x, drop-shadow-offset-y {
+                            duration: Theme.motion-normal; easing: ease-out;
+                        }
                         opacity: !root.has-track ? 0.45
                             : (Theme.material-kind > 0 && play-touch.pressed ? 0.82 : 1.0);
                         clip: true;
@@ -2252,6 +2278,13 @@ component Prateleira inherits Rectangle {
     border-radius: root.modulo ? Theme.radius-lg : 0px;
     clip: root.modulo;
     background: Theme.material-kind == 2 ? Theme.surface : transparent;
+    // Brilho do neon e sombra dura do adesivo, por fora do modulo.
+    drop-shadow-color: Theme.acabamento == 1 ? Theme.border-highlight.with-alpha(0.22)
+        : Theme.acabamento == 2 ? Theme.accent.with-alpha(0.85)
+        : transparent;
+    drop-shadow-blur: Theme.acabamento == 1 ? 20px : Theme.acabamento == 3 ? 40px : 0px;
+    drop-shadow-offset-x: Theme.acabamento == 2 ? 5px : 0px;
+    drop-shadow-offset-y: Theme.acabamento == 2 ? 5px : 0px;
 
     if Theme.material-kind == 1: Vidro { radius: parent.border-radius; tinta: Theme.surface; }
     if root.modulo: Glass { radius: parent.border-radius; }
@@ -3574,18 +3607,6 @@ component ThemeRow inherits Rectangle {
 // para os dois lados, "Comportamento" ficava a 20 px da dica do grupo de cima e
 // a 20 px do primeiro ajuste do proprio grupo -- o olho nao sabia a qual dos
 // dois o titulo pertencia. Proximidade e o que diz "isto e de baixo".
-component SettingsGroupTitle inherits VerticalLayout {
-    in property <string> text;
-    padding-top: Theme.space-lg;
-    Text {
-        text: root.text;
-        color: Theme.text;
-        font-size: Theme.size-md;
-        font-weight: Theme.weight-bold;
-        font-family: Theme.font-family;
-    }
-}
-
 component SettingRow inherits Rectangle {
     in property <string> label;
     in property <string> hint;
@@ -4536,8 +4557,8 @@ component ShortcutRow inherits HorizontalLayout {
     }
 }
 
-// Titulo de grupo do painel de atalhos, com mais ar em cima do que embaixo
-// pelo mesmo motivo do `SettingsGroupTitle`.
+// Titulo de grupo do painel de atalhos, com mais ar em cima do que embaixo:
+// o espaco maior fica do lado do grupo anterior, e o titulo "cola" no seu.
 component ShortcutGroup inherits VerticalLayout {
     in property <string> text;
     padding-top: Theme.space-sm;
@@ -4804,6 +4825,18 @@ export component AppWindow inherits Window {
             : (Theme.background-fit == 2
                 ? ImageFit.preserve
                 : (Theme.background-fit == 3 ? ImageFit.fill : ImageFit.cover));
+    }
+
+    // Cena animada do tema, entre o fundo e o veu.
+    if Theme.cena == 1: CenaTravessia {
+        x: 0; y: 0;
+        width: root.width;
+        height: root.height;
+    }
+    if Theme.cena == 2: CenaChuva {
+        x: 0; y: 0;
+        width: root.width;
+        height: root.height;
     }
 
     // Veu de legibilidade. Sem ele, uma foto clara apaga o texto de um tema

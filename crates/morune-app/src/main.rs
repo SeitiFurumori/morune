@@ -828,6 +828,14 @@ fn wire_fullscreen_gate(
         let _cronometro = quadros::Cronometro::new("tela cheia");
         let Some(window) = weak.upgrade() else { return };
         let cheia = crate::tela_cheia::app_em_tela_cheia();
+        // A cena da Travessia anda com o relogio de verdade.
+        let tema = window.global::<ui::Theme>();
+        if tema.get_cena() != 0 {
+            let hora = theme_bridge::hora_da_cena(theme_bridge::hora_local());
+            if (tema.get_cena_hora() - hora).abs() > 0.001 {
+                tema.set_cena_hora(hora);
+            }
+        }
 
         let mudou = state.borrow_mut().set_tela_cheia(cheia);
         if mudou {

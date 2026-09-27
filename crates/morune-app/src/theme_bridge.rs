@@ -334,6 +334,98 @@ fn apply_motion(t: &UiTheme<'_>, s: &ThemeSpec, over: UserOverrides) {
     t.set_motion_fast(d(m.duration_fast));
     t.set_motion_normal(d(m.duration_normal));
     t.set_motion_slow(d(m.duration_slow));
+    // A cena animada para pelo mesmo motivo: `reduce_motion` ja soma o jogo em
+    // tela cheia, a preferencia do Windows e a do usuario.
+    t.set_cena_viva(!over.reduce_motion);
+}
+
+/// Liga a cena animada do tema e entrega as camadas dela.
+///
+/// As imagens sao decodificadas uma vez, aqui; o que anda por quadro e so a
+/// posicao e a opacidade de cada camada. Camada que falta vira imagem vazia --
+/// a cena continua, sem aquela camada.
+pub fn apply_scene(t: &UiTheme<'_>, spec: &ThemeSpec, theme_dir: Option<&std::path::Path>) {
+    use morune_theme::tokens::SceneKind;
+    let cena = &spec.scene;
+    let tipo = match cena.kind {
+        SceneKind::None => 0,
+        SceneKind::Travessia => 1,
+        SceneKind::Chuva => 2,
+    };
+    let camada = |i: usize| -> slint::Image {
+        let (Some(dir), Some(rel)) = (theme_dir, cena.layers.get(i)) else {
+            return slint::Image::default();
+        };
+        if rel.is_empty() {
+            return slint::Image::default();
+        }
+        slint::Image::load_from_path(&dir.join(rel)).unwrap_or_else(|e| {
+            tracing::warn!(camada = rel, error = ?e, "camada da cena nao carregou");
+            slint::Image::default()
+        })
+    };
+    // Sem imagens a cena nao liga: seria so um retangulo vazio animando. A
+    // chuva nao tem camadas proprias -- cai sobre a imagem de fundo.
+    let tem_imagens = match cena.kind {
+        SceneKind::Chuva => !spec.background.image.is_empty(),
+        _ => !cena.layers.is_empty(),
+    };
+    let ativa = tipo != 0 && theme_dir.is_some() && tem_imagens;
+    let chuva = &cena.rain;
+    t.set_chuva_x(chuva.x);
+    t.set_chuva_y(chuva.y);
+    t.set_chuva_largura(chuva.width);
+    t.set_chuva_altura(chuva.height);
+    t.set_chuva_forca(chuva.strength);
+    t.set_chuva_vento(chuva.wind);
+    t.set_cena(if ativa { tipo } else { 0 });
+    let img = |i: usize| {
+        if ativa {
+            camada(i)
+        } else {
+            slint::Image::default()
+        }
+    };
+    t.set_cena_camada_1(img(0));
+    t.set_cena_camada_2(img(1));
+    t.set_cena_camada_3(img(2));
+    t.set_cena_camada_4(img(3));
+    t.set_cena_camada_5(img(4));
+    t.set_cena_camada_6(img(5));
+    t.set_cena_hora(hora_da_cena(hora_local()));
+}
+
+/// Hora local em horas decimais (14:30 = 14.5).
+pub fn hora_local() -> f32 {
+    #[cfg(windows)]
+    {
+        // SAFETY: preenche e devolve uma estrutura por valor; sem ponteiros.
+        let agora = unsafe { windows::Win32::System::SystemInformation::GetLocalTime() };
+        agora.wHour as f32 + agora.wMinute as f32 / 60.0
+    }
+    #[cfg(not(windows))]
+    {
+        0.0
+    }
+}
+
+/// Posicao da Travessia para uma hora do dia: 0 madrugada, 0,5 hora azul,
+/// 1 amanhecer.
+///
+/// A noite e longa e parada; as duas viradas acontecem na hora de verdade --
+/// o ceu clareia entre 3h30 e 6h30, fica aceso durante o dia, e escurece de
+/// novo no fim da tarde, passando pela hora azul.
+pub fn hora_da_cena(h: f32) -> f32 {
+    let rampa = |a: f32, b: f32, de: f32, ate: f32| de + (ate - de) * ((h - a) / (b - a));
+    match h {
+        h if h < 3.5 => 0.0,
+        h if h < 5.0 => rampa(3.5, 5.0, 0.0, 0.5),
+        h if h < 6.5 => rampa(5.0, 6.5, 0.5, 1.0),
+        h if h < 17.5 => 1.0,
+        h if h < 19.0 => rampa(17.5, 19.0, 1.0, 0.5),
+        h if h < 21.0 => rampa(19.0, 21.0, 0.5, 0.0),
+        _ => 0.0,
+    }
 }
 
 /// Registra a fonte que o tema traz em `fonts/`, se houver.
@@ -356,10 +448,26 @@ pub fn apply_bundled_font(spec: &ThemeSpec, theme_dir: Option<&std::path::Path>)
         static REGISTRADAS: RefCell<HashSet<PathBuf>> = RefCell::new(HashSet::new());
     }
 
-    let (Some(nome), Some(dir)) = (spec.typography.bundled_font.as_deref(), theme_dir) else {
+    let Some(dir) = theme_dir else {
         return;
     };
+    let nomes = spec
+        .typography
+        .bundled_font
+        .iter()
+        .chain(&spec.typography.bundled_fonts);
+    for nome in nomes {
+        registrar_do_tema(dir, nome, &REGISTRADAS);
+    }
+}
 
+fn registrar_do_tema(
+    dir: &std::path::Path,
+    nome: &str,
+    registradas: &'static std::thread::LocalKey<
+        std::cell::RefCell<std::collections::HashSet<std::path::PathBuf>>,
+    >,
+) {
     // Nome de arquivo, nao caminho: `fonts/../../algo.ttf` num pacote importado
     // apontaria para fora do tema.
     let seguro = std::path::Path::new(nome)
@@ -380,7 +488,7 @@ pub fn apply_bundled_font(spec: &ThemeSpec, theme_dir: Option<&std::path::Path>)
         return;
     }
 
-    let novo = REGISTRADAS.with(|r| r.borrow_mut().insert(path.clone()));
+    let novo = registradas.with(|r| r.borrow_mut().insert(path.clone()));
     if !novo {
         return;
     }
@@ -454,6 +562,13 @@ fn apply_effects(t: &UiTheme<'_>, s: &ThemeSpec) {
         morune_theme::tokens::MaterialKind::Legacy => 0,
         morune_theme::tokens::MaterialKind::Aero => 1,
         morune_theme::tokens::MaterialKind::Liquid => 2,
+    });
+    t.set_acabamento(match e.finish {
+        morune_theme::tokens::Finish::None => 0,
+        morune_theme::tokens::Finish::Neon => 1,
+        morune_theme::tokens::Finish::Sticker => 2,
+        morune_theme::tokens::Finish::Dream => 3,
+        morune_theme::tokens::Finish::Starry => 4,
     });
     t.set_shadow_strength(e.shadow_strength);
     t.set_gloss(e.gloss);

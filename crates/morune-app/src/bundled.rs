@@ -37,23 +37,6 @@ struct BundledTheme {
 
 const THEMES: &[BundledTheme] = &[
     BundledTheme {
-        id: "paper",
-        files: &[
-            BundledFile {
-                name: "manifest.toml",
-                contents: BundledContents::Text(include_str!("../themes/paper/manifest.toml")),
-            },
-            BundledFile {
-                name: "theme.toml",
-                contents: BundledContents::Text(include_str!("../themes/paper/theme.toml")),
-            },
-            BundledFile {
-                name: "layout.toml",
-                contents: BundledContents::Text(include_str!("../themes/paper/layout.toml")),
-            },
-        ],
-    },
-    BundledTheme {
         id: "bruma",
         files: &[
             BundledFile {
@@ -69,32 +52,6 @@ const THEMES: &[BundledTheme] = &[
                 contents: BundledContents::Text(include_str!(
                     "../themes/bruma/assets/atmosfera.svg"
                 )),
-            },
-        ],
-    },
-    BundledTheme {
-        id: "cristal",
-        files: &[
-            BundledFile {
-                name: "manifest.toml",
-                contents: BundledContents::Text(include_str!("../themes/cristal/manifest.toml")),
-            },
-            BundledFile {
-                name: "theme.toml",
-                contents: BundledContents::Text(include_str!("../themes/cristal/theme.toml")),
-            },
-        ],
-    },
-    BundledTheme {
-        id: "pulse",
-        files: &[
-            BundledFile {
-                name: "manifest.toml",
-                contents: BundledContents::Text(include_str!("../themes/pulse/manifest.toml")),
-            },
-            BundledFile {
-                name: "theme.toml",
-                contents: BundledContents::Text(include_str!("../themes/pulse/theme.toml")),
             },
         ],
     },
@@ -125,7 +82,308 @@ const THEMES: &[BundledTheme] = &[
             },
         ],
     },
+    BundledTheme {
+        id: "travessia",
+        files: &[
+            BundledFile {
+                name: "manifest.toml",
+                contents: BundledContents::Text(include_str!("../themes/travessia/manifest.toml")),
+            },
+            BundledFile {
+                name: "theme.toml",
+                contents: BundledContents::Text(include_str!("../themes/travessia/theme.toml")),
+            },
+            BundledFile {
+                name: "assets/cena/ceu-madrugada.jpg",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/travessia/assets/cena/ceu-madrugada.jpg"
+                )),
+            },
+            BundledFile {
+                name: "assets/cena/ceu-hora-azul.jpg",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/travessia/assets/cena/ceu-hora-azul.jpg"
+                )),
+            },
+            BundledFile {
+                name: "assets/cena/ceu-amanhecer.jpg",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/travessia/assets/cena/ceu-amanhecer.jpg"
+                )),
+            },
+            BundledFile {
+                name: "assets/cena/colinas-longe.png",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/travessia/assets/cena/colinas-longe.png"
+                )),
+            },
+            BundledFile {
+                name: "assets/cena/colinas-perto.png",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/travessia/assets/cena/colinas-perto.png"
+                )),
+            },
+            BundledFile {
+                name: "assets/cena/nevoa.png",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/travessia/assets/cena/nevoa.png"
+                )),
+            },
+            BundledFile {
+                name: "fonts/ZenKakuGothicNew-Regular.ttf",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/travessia/fonts/ZenKakuGothicNew-Regular.ttf"
+                )),
+            },
+            BundledFile {
+                name: "fonts/ZenKakuGothicNew-Bold.ttf",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/travessia/fonts/ZenKakuGothicNew-Bold.ttf"
+                )),
+            },
+            BundledFile {
+                name: "fonts/ZenOldMincho-Regular.ttf",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/travessia/fonts/ZenOldMincho-Regular.ttf"
+                )),
+            },
+            BundledFile {
+                name: "fonts/ZenOldMincho-Bold.ttf",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/travessia/fonts/ZenOldMincho-Bold.ttf"
+                )),
+            },
+            BundledFile {
+                name: "fonts/OFL-zenkakugothicnew.txt",
+                contents: BundledContents::Text(include_str!(
+                    "../themes/travessia/fonts/OFL-zenkakugothicnew.txt"
+                )),
+            },
+            BundledFile {
+                name: "fonts/OFL-zenoldmincho.txt",
+                contents: BundledContents::Text(include_str!(
+                    "../themes/travessia/fonts/OFL-zenoldmincho.txt"
+                )),
+            },
+        ],
+    },
+    BundledTheme {
+        id: "dreamcore",
+        files: &[
+            BundledFile {
+                name: "manifest.toml",
+                contents: BundledContents::Text(include_str!("../themes/dreamcore/manifest.toml")),
+            },
+            BundledFile {
+                name: "theme.toml",
+                contents: BundledContents::Text(include_str!("../themes/dreamcore/theme.toml")),
+            },
+            BundledFile {
+                name: "assets/fundo/corredor.jpg",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/dreamcore/assets/fundo/corredor.jpg"
+                )),
+            },
+            BundledFile {
+                name: "fonts/Nunito-Regular.ttf",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/dreamcore/fonts/Nunito-Regular.ttf"
+                )),
+            },
+            BundledFile {
+                name: "fonts/Nunito-Bold.ttf",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/dreamcore/fonts/Nunito-Bold.ttf"
+                )),
+            },
+            BundledFile {
+                name: "fonts/InstrumentSerif-Regular.ttf",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/dreamcore/fonts/InstrumentSerif-Regular.ttf"
+                )),
+            },
+            BundledFile {
+                name: "fonts/OFL-nunito.txt",
+                contents: BundledContents::Text(include_str!(
+                    "../themes/dreamcore/fonts/OFL-nunito.txt"
+                )),
+            },
+            BundledFile {
+                name: "fonts/OFL-instrumentserif.txt",
+                contents: BundledContents::Text(include_str!(
+                    "../themes/dreamcore/fonts/OFL-instrumentserif.txt"
+                )),
+            },
+        ],
+    },
+    BundledTheme {
+        id: "lofi",
+        files: &[
+            BundledFile {
+                name: "manifest.toml",
+                contents: BundledContents::Text(include_str!("../themes/lofi/manifest.toml")),
+            },
+            BundledFile {
+                name: "theme.toml",
+                contents: BundledContents::Text(include_str!("../themes/lofi/theme.toml")),
+            },
+            BundledFile {
+                name: "assets/fundo/quarto.jpg",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/lofi/assets/fundo/quarto.jpg"
+                )),
+            },
+            BundledFile {
+                name: "fonts/MPLUS1-Bold.ttf",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/lofi/fonts/MPLUS1-Bold.ttf"
+                )),
+            },
+            BundledFile {
+                name: "fonts/MPLUS1-Regular.ttf",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/lofi/fonts/MPLUS1-Regular.ttf"
+                )),
+            },
+            BundledFile {
+                name: "fonts/OFL-mplus1.txt",
+                contents: BundledContents::Text(include_str!(
+                    "../themes/lofi/fonts/OFL-mplus1.txt"
+                )),
+            },
+            BundledFile {
+                name: "fonts/OFL-zenkakugothicnew.txt",
+                contents: BundledContents::Text(include_str!(
+                    "../themes/lofi/fonts/OFL-zenkakugothicnew.txt"
+                )),
+            },
+            BundledFile {
+                name: "fonts/ZenKakuGothicNew-Bold.ttf",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/lofi/fonts/ZenKakuGothicNew-Bold.ttf"
+                )),
+            },
+            BundledFile {
+                name: "fonts/ZenKakuGothicNew-Regular.ttf",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/lofi/fonts/ZenKakuGothicNew-Regular.ttf"
+                )),
+            },
+        ],
+    },
+    BundledTheme {
+        id: "neo-shinjuku",
+        files: &[
+            BundledFile {
+                name: "manifest.toml",
+                contents: BundledContents::Text(include_str!(
+                    "../themes/neo-shinjuku/manifest.toml"
+                )),
+            },
+            BundledFile {
+                name: "theme.toml",
+                contents: BundledContents::Text(include_str!("../themes/neo-shinjuku/theme.toml")),
+            },
+            BundledFile {
+                name: "assets/fundo/rua.jpg",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/neo-shinjuku/assets/fundo/rua.jpg"
+                )),
+            },
+            BundledFile {
+                name: "fonts/ChakraPetch-Bold.ttf",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/neo-shinjuku/fonts/ChakraPetch-Bold.ttf"
+                )),
+            },
+            BundledFile {
+                name: "fonts/ChakraPetch-Regular.ttf",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/neo-shinjuku/fonts/ChakraPetch-Regular.ttf"
+                )),
+            },
+            BundledFile {
+                name: "fonts/OFL-chakrapetch.txt",
+                contents: BundledContents::Text(include_str!(
+                    "../themes/neo-shinjuku/fonts/OFL-chakrapetch.txt"
+                )),
+            },
+            BundledFile {
+                name: "fonts/OFL-rajdhani.txt",
+                contents: BundledContents::Text(include_str!(
+                    "../themes/neo-shinjuku/fonts/OFL-rajdhani.txt"
+                )),
+            },
+            BundledFile {
+                name: "fonts/Rajdhani-Bold.ttf",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/neo-shinjuku/fonts/Rajdhani-Bold.ttf"
+                )),
+            },
+            BundledFile {
+                name: "fonts/Rajdhani-Medium.ttf",
+                contents: BundledContents::Bytes(include_bytes!(
+                    "../themes/neo-shinjuku/fonts/Rajdhani-Medium.ttf"
+                )),
+            },
+        ],
+    },
 ];
+
+/// Temas que ja vieram com o Morune e sairam. A copia instalada e apagada
+/// (inclusive as `.bak`), e quem estava usando um deles volta para o Bruma --
+/// ver [`tema_aposentado`].
+///
+/// Decidido em 25/09/2026: eram escuros e claros genericos, sem conceito, e
+/// deram lugar a Travessia e ao Dreamcore.
+const APOSENTADOS: &[&str] = &["paper", "cristal", "pulse"];
+
+/// Apaga do disco os temas aposentados que vieram conosco.
+pub fn remover_aposentados(themes_dir: &Path) {
+    let Ok(entradas) = std::fs::read_dir(themes_dir) else {
+        return;
+    };
+    for entrada in entradas.flatten() {
+        let nome = entrada.file_name().to_string_lossy().to_string();
+        // So o nome exato, a copia `.bak` e as `.bak-<n>` que `pasta_de_copia`
+        // cria -- `paper.backup` ou `pulse.bak-minha` sao do usuario.
+        let base = match nome.split_once(".bak") {
+            None => nome.as_str(),
+            Some((base, "")) => base,
+            Some((base, resto))
+                if resto
+                    .strip_prefix('-')
+                    .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit())) =>
+            {
+                base
+            }
+            Some(_) => continue,
+        };
+        // E so se fomos nos que instalamos: um tema importado que por acaso se
+        // chame `paper` nao e o Paper antigo e nao pode sumir a cada abertura.
+        if APOSENTADOS.contains(&base) && feito_pelo_morune(&entrada.path()) {
+            match std::fs::remove_dir_all(entrada.path()) {
+                Ok(()) => tracing::info!(tema = nome, "tema aposentado removido"),
+                Err(e) => {
+                    tracing::warn!(tema = nome, error = %e, "nao consegui remover tema aposentado")
+                }
+            }
+        }
+    }
+}
+
+/// `true` se o `manifest.toml` da pasta diz `author = "Morune"`.
+fn feito_pelo_morune(dir: &Path) -> bool {
+    std::fs::read_to_string(dir.join("manifest.toml"))
+        .ok()
+        .and_then(|texto| texto.parse::<toml::Table>().ok())
+        .is_some_and(|m| m.get("author").and_then(|a| a.as_str()) == Some("Morune"))
+}
+
+/// `true` se o id e de um tema que saiu do aplicativo.
+pub fn tema_aposentado(id: &str) -> bool {
+    APOSENTADOS.contains(&id)
+}
 
 /// Grava os temas embutidos que faltam, e atualiza os que ficaram para tras.
 ///
@@ -287,12 +545,12 @@ mod tests {
     #[test]
     fn a_copia_antiga_vai_para_bak_quando_ele_esta_livre() {
         let dir = temp_dir("bak-livre");
-        std::fs::create_dir_all(dir.join("paper.bak")).unwrap();
-        std::fs::write(dir.join("paper.bak").join("velho"), "x").unwrap();
+        std::fs::create_dir_all(dir.join("tema.bak")).unwrap();
+        std::fs::write(dir.join("tema.bak").join("velho"), "x").unwrap();
 
-        assert_eq!(pasta_de_copia(&dir, "paper"), dir.join("paper.bak"));
+        assert_eq!(pasta_de_copia(&dir, "tema"), dir.join("tema.bak"));
         assert!(
-            !dir.join("paper.bak").exists(),
+            !dir.join("tema.bak").exists(),
             "o .bak antigo devia ter sido apagado"
         );
     }
@@ -303,7 +561,7 @@ mod tests {
     #[test]
     fn com_o_bak_preso_a_copia_vai_para_outra_pasta() {
         let dir = temp_dir("bak-preso");
-        let bak = dir.join("paper.bak");
+        let bak = dir.join("tema.bak");
         std::fs::create_dir_all(&bak).unwrap();
         // Um arquivo aberto sem permitir exclusao segura a pasta inteira. E o
         // que faz um programa comum (visualizador, indexador) com o arquivo
@@ -318,14 +576,14 @@ mod tests {
             .open(bak.join("aberto"))
             .unwrap();
 
-        let escolhida = pasta_de_copia(&dir, "paper");
+        let escolhida = pasta_de_copia(&dir, "tema");
         assert_ne!(escolhida, bak, "nao pode insistir numa pasta que nao sai");
         assert!(
             escolhida
                 .file_name()
                 .unwrap()
                 .to_string_lossy()
-                .starts_with("paper.bak-"),
+                .starts_with("tema.bak-"),
             "{}",
             escolhida.display()
         );
@@ -338,8 +596,8 @@ mod tests {
         let dir = temp_dir("atualiza");
         install_missing(&dir);
 
-        let paper = dir.join("paper");
-        let manifesto = paper.join("manifest.toml");
+        let travessia = dir.join("travessia");
+        let manifesto = travessia.join("manifest.toml");
         let original = std::fs::read_to_string(&manifesto).unwrap();
         // Finge uma instalacao antiga.
         let version_line = original
@@ -352,12 +610,12 @@ mod tests {
             "a versao simulada precisa ser mais antiga"
         );
         std::fs::write(&manifesto, outdated).unwrap();
-        std::fs::write(paper.join("theme.toml"), "editado a mao").unwrap();
+        std::fs::write(travessia.join("theme.toml"), "editado a mao").unwrap();
 
         let atualizados = install_missing(&dir);
         assert!(
-            atualizados.contains(&"paper"),
-            "paper devia ter sido atualizado"
+            atualizados.contains(&"travessia"),
+            "travessia devia ter sido atualizado"
         );
         assert_eq!(
             std::fs::read_to_string(&manifesto).unwrap(),
@@ -365,7 +623,7 @@ mod tests {
             "o manifesto instalado devia ser o novo"
         );
         assert_eq!(
-            std::fs::read_to_string(dir.join("paper.bak").join("theme.toml")).unwrap(),
+            std::fs::read_to_string(dir.join("travessia.bak").join("theme.toml")).unwrap(),
             "editado a mao",
             "a copia antiga precisa sobreviver: perder edicao alheia seria pior que o defeito"
         );
@@ -446,20 +704,62 @@ mod tests {
         install_missing(&dir);
 
         let builtin = morune_theme::ThemeSpec::default();
-        let paper = morune_theme::load(&dir, "paper").spec;
+        let mut fundos = Vec::new();
+        for theme in THEMES {
+            let spec = morune_theme::load(&dir, theme.id).spec;
+            assert_ne!(
+                spec.colors.background, builtin.colors.background,
+                "{} repete o fundo do embutido",
+                theme.id
+            );
+            fundos.push((theme.id, spec.colors.background));
+        }
+        for (i, (a, fa)) in fundos.iter().enumerate() {
+            for (b, fb) in &fundos[i + 1..] {
+                assert_ne!(fa, fb, "{a} e {b} tem o mesmo fundo");
+            }
+        }
 
-        assert_ne!(paper.colors.background, builtin.colors.background);
-        assert_ne!(
-            paper.layout.sidebar.position,
-            builtin.layout.sidebar.position
-        );
-        assert_ne!(paper.layout.player.position, builtin.layout.player.position);
-        assert_ne!(
-            paper.layout.content.view_mode,
-            builtin.layout.content.view_mode
-        );
-        assert_ne!(paper.shape.radius_md, builtin.shape.radius_md);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
+    #[test]
+    fn temas_aposentados_saem_do_disco_com_as_copias() {
+        let dir = temp_dir("aposentados");
+        let nosso = "id = \"x\"
+author = \"Morune\"
+";
+        let alheio = "id = \"paper\"
+author = \"Fulano\"
+";
+        for (pasta, manifest) in [
+            ("paper", nosso),
+            ("cristal.bak", nosso),
+            ("pulse.bak-123", nosso),
+            ("paper.backup", nosso),
+            ("pulse.bak-minha", nosso),
+            ("bruma", nosso),
+            ("meu-tema", nosso),
+        ] {
+            std::fs::create_dir_all(dir.join(pasta)).unwrap();
+            std::fs::write(dir.join(pasta).join("manifest.toml"), manifest).unwrap();
+        }
+        remover_aposentados(&dir);
+        for pasta in ["paper", "cristal.bak", "pulse.bak-123"] {
+            assert!(!dir.join(pasta).exists(), "{pasta} devia ter saido");
+        }
+        for pasta in ["paper.backup", "pulse.bak-minha", "bruma", "meu-tema"] {
+            assert!(dir.join(pasta).exists(), "{pasta} nao podia ter saido");
+        }
+        // Tema importado de outra pessoa com o mesmo id fica.
+        std::fs::create_dir_all(dir.join("paper")).unwrap();
+        std::fs::write(dir.join("paper").join("manifest.toml"), alheio).unwrap();
+        remover_aposentados(&dir);
+        assert!(
+            dir.join("paper").exists(),
+            "tema alheio chamado paper sumiu"
+        );
+        assert!(tema_aposentado("paper") && !tema_aposentado("bruma"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -469,12 +769,11 @@ mod tests {
         install_missing(&dir);
 
         let builtin = morune_theme::ThemeSpec::default();
-        let pulse = morune_theme::load(&dir, "pulse").spec;
+        let travessia = morune_theme::load(&dir, "travessia").spec;
 
-        // Pulse nao declara layout.toml: a composicao tem de vir do pai.
-        assert_eq!(pulse.layout, builtin.layout);
-        assert_ne!(pulse.colors.accent, builtin.colors.accent);
-        assert_ne!(pulse.shape.radius_lg, builtin.shape.radius_lg);
+        // Travessia nao declara layout.toml: a composicao tem de vir do embutido.
+        assert_eq!(travessia.layout, builtin.layout);
+        assert_ne!(travessia.colors.accent, builtin.colors.accent);
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -494,7 +793,7 @@ mod tests {
         install_missing(&dir);
 
         let mut culpados = Vec::new();
-        for id in ["paper", "bruma", "cristal", "pulse", "aquario"] {
+        for id in ["bruma", "aquario", "travessia", "dreamcore"] {
             for aviso in morune_theme::load(&dir, id).spec.contrast_warnings() {
                 culpados.push(format!("{id}: {} -- {}", aviso.field, aviso.message));
             }
@@ -553,7 +852,7 @@ mod tests {
         use morune_theme::Color;
         let dir = temp_dir("vidro-camadas");
         install_missing(&dir);
-        for id in ["bruma", "aquario"] {
+        for id in ["bruma", "aquario", "travessia", "dreamcore"] {
             let spec = morune_theme::load(&dir, id).spec;
             let c = &spec.colors;
             for desktop in [Color::rgb(0, 0, 0), Color::rgb(255, 255, 255)] {
@@ -721,7 +1020,7 @@ mod tests {
         let dir = temp_dir("preserve");
         install_missing(&dir);
 
-        let edited = dir.join("paper").join("theme.toml");
+        let edited = dir.join("travessia").join("theme.toml");
         std::fs::write(&edited, "[color]\naccent = \"#123456\"\n").unwrap();
 
         let installed = install_missing(&dir);

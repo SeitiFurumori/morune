@@ -58,9 +58,9 @@ erro de digitacao seria silenciosamente perdido, e e melhor saber na hora.
 ### Heranca
 
 Com `based_on`, o tema pai e carregado primeiro e o filho aplica por cima. Herdar
-e simplesmente **nao declarar** uma secao. O tema `pulse` que acompanha o
-aplicativo faz isso: declara `[color]`, `[shape]` e `[motion]`, nao declara
-`layout.toml`, e por isso usa a composicao do `midnight`.
+e simplesmente **nao declarar** uma secao. Sem `based_on`, o pai e o tema
+embutido: o `travessia`, por exemplo, nao declara `layout.toml` e por isso usa a
+composicao do `midnight`.
 
 A substituicao e **por secao**, nao por campo. Declarar `[color]` substitui a
 paleta inteira. Isso mantem o formato previsivel para quem escreve a mao.
@@ -73,8 +73,8 @@ de travar.
 
 > **Armadilha:** declarar uma secao substitui a **secao inteira**, e os campos
 > que voce nao listar vem do **padrao embutido**, nao do tema pai. Um tema com
-> `based_on = "pulse"` e um `[color]` de tres linhas nao herda as outras cores
-> do Pulse -- ele herda as do tema embutido, e o resultado quase nunca e o que
+> `based_on = "bruma"` e um `[color]` de tres linhas nao herda as outras cores
+> do Bruma -- ele herda as do tema embutido, e o resultado quase nunca e o que
 > se queria. Para mudar poucas cores de um tema pai, copie a secao `[color]`
 > dele inteira e altere o que precisa.
 
@@ -194,6 +194,15 @@ bundled_font = "MinhaFonte.ttf"
 family = "Minha Fonte"
 ```
 
+Para mais de um arquivo (regular e negrito, ou uma fonte de titulo), use a
+lista `bundled_fonts`, que soma com `bundled_font`:
+
+```toml
+bundled_fonts = ["Texto-Regular.ttf", "Texto-Bold.ttf", "Titulo-Regular.ttf"]
+family = "Texto"
+display_family = "Titulo"
+```
+
 `family` precisa ser o **nome interno da fonte**, nao o nome do arquivo:
 registrar `MinhaFonte.ttf` nao cria uma familia chamada "MinhaFonte". Se o texto
 sair na fonte padrao, e quase sempre isso.
@@ -275,6 +284,49 @@ artwork_accent = false      # cor da capa na barra de progresso e no "tocando"
 
 O piso de `window_opacity` e alto de proposito: uma janela quase transparente
 deixaria o aplicativo irrecuperavel pelo proprio usuario.
+
+`finish` e o acabamento dos paineis flutuantes do material `liquid`:
+
+| Valor | Aparencia |
+|---|---|
+| `"none"` | vidro puro (padrao) |
+| `"neon"` | aresta acesa em `border_highlight`, cantoneiras de HUD em `accent` e brilho para fora |
+| `"sticker"` | contorno grosso e sombra dura deslocada, como adesivo |
+| `"dream"` | leitoso, com halo suave nos itens de menu |
+| `"starry"` | fio violeta, clarao de cima e estrelas cintilando; itens de menu em cascata |
+
+### `[scene]`
+
+Uma cena animada atras da interface. Nao e codigo: o tema escolhe uma das cenas
+que o Morune sabe desenhar e entrega as imagens. Toda cena para sozinha com jogo
+em tela cheia, com a janela escondida e com movimento reduzido.
+
+```toml
+[scene]
+kind = "travessia"          # "none" (padrao), "travessia" ou "chuva"
+layers = ["assets/cena/ceu.jpg", ...]   # so a travessia usa camadas
+```
+
+`travessia` quer seis camadas, nesta ordem: ceu de madrugada, ceu da hora azul,
+ceu do amanhecer (os tres se misturam pelo relogio do Windows), colinas ao
+longe, colinas perto com a estrada, nevoa. Caminhos fora do tema sao ignorados.
+
+`chuva` cai sobre a imagem de `[background]` e nao tem camadas. A area e em
+**fracao da imagem**, nao da janela: o Morune refaz o recorte do fundo, e a
+chuva continua no mesmo lugar da foto (o vidro de uma janela, por exemplo) em
+qualquer tamanho de janela do aplicativo.
+
+```toml
+[scene.rain]
+x = 0.39          # canto esquerdo da area, 0 .. 1
+y = 0.0           # topo
+width = 0.38      # largura, 0 .. 1 (1 = a imagem inteira)
+height = 0.53     # altura
+strength = 0.25   # 0 garoa, 1 temporal com gotas grossas na frente
+wind = 0.0        # inclinacao da queda, -1 .. 1
+```
+
+Sem `[scene.rain]`, chove na imagem inteira com forca media e sem vento.
 
 ## Vidro: as duas metades
 
@@ -453,18 +505,16 @@ codigo.
 | Id | O que demonstra |
 |---|---|
 | `midnight` | tema embutido. Escuro, verde, cantos medios, grade, sidebar a esquerda, player embaixo |
-| `paper` | o contrario em todos os eixos: claro, serifado, cantos retos, lista, sidebar a **direita**, player em **cima**, progresso de ponta a ponta, densidade compacta |
-| `pulse` | tema **derivado**: herda a composicao do `midnight` e muda so cor, forma e movimento. E o exemplo minimo para quem for escrever o proprio |
-| `cristal` | vidro: superficies de branco translucido, acrilico do sistema, cantos generosos. Mostra `[effects]` e alfa nas cores trabalhando juntos |
 | `bruma` | vidro **sobre a area de trabalho**: neutro, azul frio, com `gloss` e `border_highlight` ligados. E o exemplo de como as duas metades do vidro se somam |
+| `aquario` | gel Aero (Frutiger): borda de Windows 7, aurora que anda e layout proprio em `layout.toml` |
+| `travessia` | `[scene]` com camadas: ceu que acompanha a hora, estrelas, estrela cadente e acabamento `starry` |
+| `dreamcore` | imagem de fundo com paineis de vidro ameixa e acabamento `dream` |
+| `lofi` | imagem de fundo com `[scene] kind = "chuva"` so numa area da foto (o vidro da janela) |
+| `neo-shinjuku` | chuva com vento na tela inteira, cantos retos e acabamento `neon` |
 
-`paper` existe justamente para tornar visivel que a customizacao vai alem de
-trocar cor. Compare as capturas geradas por `tools/snapshot.ps1`.
-
-`cristal` pede a fonte **Inter** sem traze-la junto: ela nao vem dentro do
-Morune, e sem ela o Windows cai na fonte padrao e o tema continua inteiro. O
-porque esta comentado no proprio `theme.toml` e em
-[Direitos em temas](DIREITOS-EM-TEMAS.md).
+Os quatro ultimos trazem as proprias fontes (OFL, com a licenca em `fonts/`).
+Paper, Pulse e Cristal sairam em 26/09/2026; o Morune apaga as copias antigas
+deles da pasta de temas e, se um deles estava escolhido, volta para o Bruma.
 
 **O Slint aceita um nome de familia, nao uma lista.** `family = "Inter, Segoe
 UI"` e lido como um nome unico que nao existe -- medido, nao suposto. Nao ha

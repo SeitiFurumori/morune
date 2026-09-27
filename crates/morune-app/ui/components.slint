@@ -349,6 +349,326 @@ export component MolduraAero {
     }
 }
 
+// Cena de chuva sobre a imagem de fundo (Lo-fi, Neo-Shinjuku).
+//
+// A area onde chove vem do tema em fracao da IMAGEM: a conta abaixo refaz o
+// `image-fit: cover` do fundo, entao a chuva continua no mesmo lugar da foto
+// (o vidro da janela, por exemplo) em qualquer tamanho de janela do app.
+//
+// Duas camadas: garoa fina ao longe e, com `chuva-forca` alta, gotas grossas
+// na frente. Cada gota cai um numero INTEIRO de vezes por volta do relogio,
+// entao o laco recomeca sem salto. Perto das bordas da area as gotas somem aos
+// poucos, para a chuva nao terminar num risco reto. So posicao e opacidade:
+// nada de desfoque por quadro atras do jogo.
+export component CenaChuva inherits Rectangle {
+    clip: true;
+    private property <bool> ligado: false;
+    private property <bool> vivo: Theme.cena-viva && self.ligado;
+    init => { self.ligado = true; }
+
+    // --- onde a imagem de fundo caiu na janela ---
+    private property <float> iw: Theme.background-image.width;
+    private property <float> ih: Theme.background-image.height;
+    private property <bool> tem-imagem: self.iw > 0 && self.ih > 0;
+    private property <float> esc: self.tem-imagem ? max(root.width / 1px / self.iw, root.height / 1px / self.ih) : 1.0;
+    private property <length> dw: self.tem-imagem ? self.iw * self.esc * 1px : root.width;
+    private property <length> dh: self.tem-imagem ? self.ih * self.esc * 1px : root.height;
+    private property <length> ox: (root.width - self.dw) / 2;
+    private property <length> oy: (root.height - self.dh) / 2;
+
+    // --- relogio da chuva: 0 a 1 em 2 s, sem fim ---
+    private property <float> t: root.vivo ? 1.0 : 0.0;
+    animate t { duration: 2s; iteration-count: -1; easing: linear; }
+
+    private property <float> forca: Theme.chuva-forca;
+    private property <float> vento: Theme.chuva-vento;
+    private property <int> n-longe: 50 + 110 * root.forca;
+    private property <int> n-perto: max(0, (root.forca - 0.55) * 90);
+
+    area := Rectangle {
+        clip: true;
+        x: root.ox + Theme.chuva-x * root.dw;
+        y: root.oy + Theme.chuva-y * root.dh;
+        width: Theme.chuva-largura * root.dw;
+        height: Theme.chuva-altura * root.dh;
+        // Borda que some: o quanto da area, em cada lado, e transicao.
+        private property <bool> inteira: Theme.chuva-largura >= 0.999 && Theme.chuva-altura >= 0.999;
+
+        for i in root.n-longe: Rectangle {
+            private property <float> r1: Math.mod(Math.abs(Math.sin((i + 1) * 12.9898 * 1rad) * 43758.5453), 1.0);
+            private property <float> r2: Math.mod(Math.abs(Math.sin((i + 1) * 78.233 * 1rad) * 43758.5453), 1.0);
+            private property <float> r3: Math.mod(Math.abs(Math.sin((i + 1) * 37.719 * 1rad) * 43758.5453), 1.0);
+            private property <int> voltas: 3 + Math.mod(i * 31, 3);
+            private property <length> comp: 12px + 20px * self.r1;
+            private property <float> fy: Math.mod(self.r3 + root.t * self.voltas, 1.0);
+            private property <length> x0: self.r2 * (parent.width + root.vento * parent.height) - root.vento * parent.height;
+            y: self.fy * (parent.height + self.comp) - self.comp;
+            x: self.x0 + root.vento * self.y;
+            width: 1px;
+            height: self.comp;
+            transform-rotation: -Math.atan(root.vento);
+            // Some perto das bordas da area (so quando ela nao e a tela toda).
+            private property <float> fx: (self.x + 0.5px) / max(1px, parent.width);
+            private property <float> borda: parent.inteira ? 1.0 : min(1.0, min(self.fx, 1.0 - self.fx) * 8.0) * min(1.0, (1.0 - self.fy) * 5.0);
+            opacity: max(0.0, self.borda) * (0.16 + 0.26 * self.r1);
+            background: @linear-gradient(180deg, #dce8ff00 0%, #dce8ff 100%);
+        }
+
+        for i in root.n-perto: Rectangle {
+            private property <float> r1: Math.mod(Math.abs(Math.sin((i + 1) * 93.989 * 1rad) * 43758.5453), 1.0);
+            private property <float> r2: Math.mod(Math.abs(Math.sin((i + 1) * 26.651 * 1rad) * 43758.5453), 1.0);
+            private property <float> r3: Math.mod(Math.abs(Math.sin((i + 1) * 54.337 * 1rad) * 43758.5453), 1.0);
+            private property <int> voltas: 5 + Math.mod(i * 17, 3);
+            private property <length> comp: 44px + 46px * self.r1;
+            private property <float> fy: Math.mod(self.r3 + root.t * self.voltas, 1.0);
+            private property <length> x0: self.r2 * (parent.width + root.vento * parent.height) - root.vento * parent.height;
+            y: self.fy * (parent.height + self.comp) - self.comp;
+            x: self.x0 + root.vento * self.y;
+            width: 2px;
+            height: self.comp;
+            border-radius: 1px;
+            transform-rotation: -Math.atan(root.vento);
+            opacity: 0.30 + 0.25 * self.r1;
+            background: @linear-gradient(180deg, #ffffff00 0%, #eef4ff 100%);
+        }
+    }
+}
+
+// Acabamento estrelado (Travessia): fio violeta, clarao de cima e cinco
+// estrelas cintilando no fundo da peca. As posicoes sao fixas por peca para
+// nao "dancarem" quando o painel muda de tamanho.
+export component Estrelado {
+    in property <length> radius: 0px;
+    private property <bool> ligado: false;
+    init => { self.ligado = true; }
+    width: 100%;
+    height: 100%;
+    Rectangle {
+        width: 100%; height: 100%;
+        border-radius: root.radius;
+        background: @linear-gradient(180deg, Theme.border-highlight.with-alpha(0.16) 0%, transparent 35%);
+        border-width: 1px;
+        border-color: Theme.border-highlight;
+    }
+    for i in 5: Rectangle {
+        private property <float> fx: [0.12, 0.34, 0.58, 0.81, 0.93][i];
+        private property <float> fy: [0.22, 0.70, 0.18, 0.55, 0.30][i];
+        x: parent.width * self.fx;
+        y: parent.height * self.fy;
+        width: 2px; height: 2px; border-radius: 1px;
+        background: Theme.accent;
+        opacity: root.ligado && Theme.cena-viva ? 0.1 : 0.55;
+        animate opacity {
+            duration: 1300ms + i * 470ms; delay: i * 300ms;
+            iteration-count: -1; direction: alternate; easing: ease-in-out;
+        }
+    }
+}
+
+// Acabamento neon: aresta acesa na cor secundaria e cantoneiras de HUD na cor
+// de destaque. O brilho de fora fica no hospedeiro (`drop-shadow`), porque um
+// filho recortado nao desenha para fora do painel.
+export component Neon {
+    in property <length> radius: 0px;
+    // Pecas pequenas (chip, item de menu) ficam so com a aresta.
+    private property <bool> cantos: root.width > 90px && root.height > 44px;
+    private property <length> perna: min(16px, root.height / 3);
+
+    width: 100%;
+    height: 100%;
+
+    // Halo interno: a luz vaza um pouco para dentro da aresta.
+    Rectangle {
+        width: 100%; height: 100%;
+        border-radius: root.radius;
+        border-width: 3px;
+        border-color: Theme.border-highlight.with-alpha(0.10);
+    }
+    Rectangle {
+        width: 100%; height: 100%;
+        border-radius: root.radius;
+        border-width: 1px;
+        border-color: Theme.border-highlight.with-alpha(0.55);
+    }
+    // Cantoneiras: duas pernas de 2 px em cada canto, como a mira de um HUD.
+    if root.cantos: Rectangle { x: 0; y: 0; width: root.perna; height: 2px; background: Theme.accent; }
+    if root.cantos: Rectangle { x: 0; y: 0; width: 2px; height: root.perna; background: Theme.accent; }
+    if root.cantos: Rectangle { x: parent.width - root.perna; y: parent.height - 2px; width: root.perna; height: 2px; background: Theme.accent; }
+    if root.cantos: Rectangle { x: parent.width - 2px; y: parent.height - root.perna; width: 2px; height: root.perna; background: Theme.accent; }
+}
+
+// Acabamento adesivo: contorno grosso. A sombra dura deslocada fica no
+// hospedeiro, pelo mesmo motivo do brilho do neon.
+export component Adesivo {
+    in property <length> radius: 0px;
+    width: 100%;
+    height: 100%;
+    Rectangle {
+        width: 100%; height: 100%;
+        border-radius: root.radius;
+        border-width: 2px;
+        border-color: Theme.border-highlight;
+    }
+}
+
+// Cena "Travessia": a madrugada ate o amanhecer, atras da interface.
+//
+// Camadas de tras para frente: tres ceus que se fundem pela hora, estrelas que
+// cintilam e derivam, estrela cadente, colinas em dois planos, nevoa, e faroes
+// de um carro atravessando a estrada. Tudo e transformacao de quadrilatero ou
+// opacidade -- nada de giro nem desfoque por quadro, que custariam GPU atras do
+// jogo. Com `cena-viva` falso as animacoes nao rodam.
+export component CenaTravessia inherits Rectangle {
+    clip: true;
+    private property <bool> ligado: false;
+    private property <bool> vivo: Theme.cena-viva && self.ligado;
+    private property <float> h: Theme.cena-hora;
+    init => { self.ligado = true; }
+
+    // --- ceu: a hora escolhe a mistura ---
+    Image { width: 100%; height: 100%; source: Theme.cena-camada-1; image-fit: cover; }
+    Image {
+        width: 100%; height: 100%; source: Theme.cena-camada-2; image-fit: cover;
+        opacity: clamp(root.h * 2.0, 0.0, 1.0);
+        animate opacity { duration: 4s; easing: ease-in-out; }
+    }
+    Image {
+        width: 100%; height: 100%; source: Theme.cena-camada-3; image-fit: cover;
+        opacity: clamp(root.h * 2.0 - 1.0, 0.0, 1.0);
+        animate opacity { duration: 4s; easing: ease-in-out; }
+    }
+
+    // --- estrelas: o ceu gira sem parar e emenda sem costura ---
+    // Dois ladrilhos identicos lado a lado; quando o primeiro sai inteiro pela
+    // esquerda o laco recomeca e o segundo esta exatamente onde o primeiro
+    // estava. Cada estrela cintila no proprio ritmo por cima disso.
+    estrelas := Rectangle {
+        width: root.width * 2;
+        height: root.height * 0.72;
+        x: root.vivo ? -root.width : 0px;
+        animate x { duration: 420s; iteration-count: -1; easing: linear; }
+        opacity: 1.0 - clamp(root.h * 1.4 - 0.2, 0.0, 0.95);
+        animate opacity { duration: 4s; }
+        for i in 220: Rectangle {
+            private property <int> j: Math.mod(i, 110);
+            private property <float> r: Math.mod(self.j * 7919, 1000) / 1000.0;
+            private property <length> tam: self.r > 0.9 ? 3px : (self.r > 0.6 ? 2px : 1.5px);
+            x: (Math.mod(self.j * 397, 1000) / 1000.0 + (i >= 110 ? 1.0 : 0.0)) * root.width;
+            y: Math.mod(self.j * 619, 1000) / 1000.0 * parent.height;
+            width: self.tam; height: self.tam;
+            border-radius: self.tam / 2;
+            background: self.r > 0.8 ? #ffffff : #d8ccff;
+            opacity: root.vivo ? 0.25 + 0.35 * self.r : 0.9;
+            animate opacity {
+                duration: 1400ms + Math.mod(self.j * 131, 2600) * 1ms;
+                delay: Math.mod(self.j * 57, 1500) * 1ms;
+                iteration-count: -1; direction: alternate; easing: ease-in-out;
+            }
+        }
+    }
+
+    // --- estrela cadente: ponto e angulo novos a cada vez, so no alto do ceu ---
+    // Rastro e caminho saem do MESMO angulo, em pixels: a estrela anda na
+    // direcao do proprio risco, com a cabeca na frente.
+    private property <int> semente: 1;
+    private property <float> cadente: 0.0;
+    private property <bool> cadente-volta: false;
+    // Velocidade constante (~750 px/s): uma queda longa demora mais que uma curta.
+    animate cadente { duration: root.cadente-volta ? 0ms : root.c-dist / 750px * 1s; easing: ease-in; }
+    // Onde nasce: largura inteira, altura so ate a linha de 40% do ceu.
+    private property <length> c-x0: (0.15 + 0.80 * Math.mod(root.semente * 7919, 1000) / 1000.0) * root.width;
+    private property <length> c-y0: (0.03 + 0.30 * Math.mod(root.semente * 3571, 1000) / 1000.0) * root.height;
+    // Angulo de 18 a 40 graus abaixo da horizontal, sempre descendo para a esquerda.
+    private property <angle> c-ang: (18 + Math.mod(root.semente * 1237, 23)) * 1deg;
+    // Cai ate o chao: o caminho termina atras das colinas, que sao desenhadas
+    // por cima e escondem o fim da queda.
+    private property <length> c-dist: (root.height * 0.82 - root.c-y0) / Math.sin(root.c-ang);
+    Timer {
+        // Intervalo variado: 9 a 19 s.
+        interval: (9000 + Math.mod(root.semente * 4099, 10000)) * 1ms;
+        running: root.vivo && root.h < 0.8;
+        triggered => {
+            root.cadente-volta = true; root.cadente = 0.0;
+            root.semente += 1;
+            root.cadente-volta = false; root.cadente = 1.0;
+            volta-cadente.running = true;
+        }
+    }
+    volta-cadente := Timer {
+        interval: 3200ms;
+        running: false;
+        triggered => { self.running = false; root.cadente-volta = true; root.cadente = 0.0; }
+    }
+    Rectangle {
+        private property <length> comp: 150px;
+        // Posicao da cabeca ao longo do caminho.
+        private property <length> hx: root.c-x0 - root.c-dist * Math.cos(root.c-ang) * root.cadente;
+        private property <length> hy: root.c-y0 + root.c-dist * Math.sin(root.c-ang) * root.cadente;
+        width: self.comp; height: 2px;
+        // O retangulo gira em volta do proprio centro: o centro fica meio
+        // rastro atras da cabeca, na direcao contraria ao movimento.
+        x: self.hx + self.comp / 2 * Math.cos(root.c-ang) - self.comp / 2;
+        y: self.hy - self.comp / 2 * Math.sin(root.c-ang) - 1px;
+        transform-rotation: -root.c-ang;
+        opacity: root.cadente > 0.02 && root.cadente < 0.99 ? 0.95 * (1.0 - root.cadente * 0.35) : 0.0;
+        background: @linear-gradient(90deg, #ffffff 0%, #c4a6ffaa 25%, transparent 100%);
+    }
+
+    // --- colinas: a de tras mexe menos, a da frente mais -- e a profundidade ---
+    Image {
+        x: root.vivo ? -18px : 0px; y: 0;
+        width: parent.width + 36px; height: parent.height;
+        source: Theme.cena-camada-4; image-fit: fill;
+        animate x { duration: 60s; iteration-count: -1; direction: alternate; easing: ease-in-out; }
+    }
+    nevoa := Image {
+        x: root.vivo ? -parent.width : 0px;
+        y: parent.height * 0.62;
+        width: parent.width * 2; height: parent.height * 0.28;
+        source: Theme.cena-camada-6; image-fit: fill;
+        animate x { duration: 120s; iteration-count: -1; direction: alternate; easing: linear; }
+    }
+    perto := Image {
+        x: root.vivo ? -40px : 0px; y: 0;
+        width: parent.width + 80px; height: parent.height;
+        source: Theme.cena-camada-5; image-fit: fill;
+        animate x { duration: 60s; iteration-count: -1; direction: alternate; easing: ease-in-out; }
+    }
+
+    // --- farois: um carro atravessando a estrada, do horizonte ate perto ---
+    private property <float> carro: 0.0;
+    private property <bool> carro-volta: false;
+    animate carro { duration: root.carro-volta ? 0ms : 9s; easing: ease-in; }
+    Timer {
+        interval: 22s;
+        running: root.vivo;
+        triggered => { root.carro-volta = false; root.carro = 1.0; volta-carro.running = true; }
+    }
+    volta-carro := Timer {
+        interval: 9500ms;
+        running: false;
+        triggered => { self.running = false; root.carro-volta = true; root.carro = 0.0; }
+    }
+    // Mesma curva da estrada desenhada em `colinas-perto`, em fracao da tela.
+    private property <float> t: root.carro;
+    private property <float> base: 0.83;
+    Rectangle {
+        private property <length> tam: 3px + 12px * root.t * root.t;
+        x: perto.x + parent.width * (0.58 + Math.sin(root.t * 3.2 * 1rad) * 0.047 * (1.0 - root.t) - 0.156 * root.t * root.t) - self.tam;
+        y: parent.height * (root.base + 0.0185 + (1.0 - root.base - 0.0185) * Math.pow(root.t, 1.4)) - self.tam;
+        width: self.tam * 2; height: self.tam;
+        opacity: root.carro > 0.01 && root.carro < 0.99 ? 1.0 : 0.0;
+        Rectangle {
+            x: 0; width: parent.height; height: parent.height; border-radius: self.width / 2;
+            background: #fff4d6; drop-shadow-color: #ffd9a6; drop-shadow-blur: 10px;
+        }
+        Rectangle {
+            x: parent.width - parent.height; width: parent.height; height: parent.height; border-radius: self.width / 2;
+            background: #fff4d6; drop-shadow-color: #ffd9a6; drop-shadow-blur: 10px;
+        }
+    }
+}
+
 export component Glass {
     in property <length> radius: 0px;
     in property <bool> bottom: true;
@@ -372,11 +692,22 @@ export component Glass {
     // Aero: a aurora e a moldura dupla; os outros materiais, a aresta simples.
     if Theme.material-kind == 1: Aurora { radius: root.radius; }
     if Theme.material-kind == 1: MolduraAero { radius: root.radius; }
-    if Theme.material-kind != 1: GlassEdge {
+    if Theme.material-kind != 1 && Theme.acabamento == 0: GlassEdge {
         radius: root.radius;
         bottom: root.bottom;
     }
+    if Theme.acabamento == 1: Neon { radius: root.radius; }
+    if Theme.acabamento == 2: Adesivo { radius: root.radius; }
+    // Sonho: sem aresta nenhuma; so uma luz leitosa descendo do topo, como
+    // lembranca fora de foco.
+    if Theme.acabamento == 3: Rectangle {
+        width: 100%; height: 100%;
+        border-radius: root.radius;
+        background: @linear-gradient(180deg, #ffffff66 0%, #ffffff14 40%, transparent 100%);
+    }
+    if Theme.acabamento == 4: Estrelado { radius: root.radius; }
 }
+
 
 // Diz que a lista continua alem da borda.
 //
@@ -757,6 +1088,13 @@ export component SceneGlass inherits Rectangle {
     border-radius: root.radius;
     clip: true;
     background: Theme.background-image.width > 0 ? Theme.background : transparent;
+    // Brilho do neon e sombra dura do adesivo: por fora do painel.
+    drop-shadow-color: Theme.acabamento == 1 ? Theme.border-highlight.with-alpha(0.28)
+        : Theme.acabamento == 2 ? Theme.accent.with-alpha(0.85)
+        : transparent;
+    drop-shadow-blur: Theme.acabamento == 1 ? 18px : Theme.acabamento == 3 ? 36px : 0px;
+    drop-shadow-offset-x: Theme.acabamento == 2 ? 4px : 0px;
+    drop-shadow-offset-y: Theme.acabamento == 2 ? 4px : 0px;
     lens := Image {
         width: 100%; height: 100%;
         image-fit: fill;
@@ -774,6 +1112,12 @@ export component SceneGlass inherits Rectangle {
         border-radius: root.radius;
         background: Theme.background-image.width > 0
             ? Theme.glass-tint(lens.source, root.tint) : transparent;
+    }
+    // Com acabamento o painel e cheio: a cor do tema por cima da lente.
+    if Theme.acabamento > 0: Rectangle {
+        width: 100%; height: 100%;
+        border-radius: root.radius;
+        background: root.tint;
     }
     Glass { radius: root.radius; }
 }
@@ -892,6 +1236,19 @@ export component Realce inherits Rectangle {
     if root.com-vidro && Theme.material-kind == 0: Vidro {
         radius: root.radius;
         forca: root.aceso * 0.55;
+    }
+
+    // Neon: a linha sob o cursor ganha uma barra acesa na esquerda, que cresce
+    // do meio para as pontas.
+    if Theme.acabamento == 1: Rectangle {
+        x: 0;
+        width: 3px;
+        height: parent.height * min(1.0, root.aceso * 2.5);
+        y: (parent.height - self.height) / 2;
+        background: Theme.accent;
+        drop-shadow-color: Theme.accent;
+        drop-shadow-blur: 8px;
+        animate height, y { duration: Theme.motion-normal; easing: ease-out; }
     }
 
     if Theme.material-kind != 2: Material {
@@ -1560,7 +1917,62 @@ export component MenuRow inherits Rectangle {
 
     animate background { duration: Theme.motion-fast; easing: ease; }
 
+    // Estrelado: os itens acendem um depois do outro quando o menu abre, como
+    // estrelas aparecendo. O atraso sai da posicao do item no menu.
+    private property <bool> entrou: false;
+    private property <bool> estrelado: Theme.acabamento == 4;
+    init => { self.entrou = true; }
+    // Sonho: o menu inteiro surge devagar, como saindo de uma nevoa.
+    private property <bool> sonho: Theme.acabamento == 3;
+    opacity: (root.estrelado || root.sonho) && !root.entrou ? 0.0 : 1.0;
+    animate opacity {
+        duration: root.estrelado ? 320ms : (root.sonho ? 520ms : 0ms);
+        delay: root.estrelado ? root.y / 34px * 55ms : 0ms;
+        easing: ease-out;
+    }
+
+    // Sonho: halo branco macio que pulsa sob o item apontado.
+    if root.sonho && (touch.has-hover || touch.has-focus): Rectangle {
+        private property <bool> pulso: false;
+        init => { self.pulso = true; }
+        width: 100%; height: 100%;
+        border-radius: parent.border-radius;
+        background: #ffffff70;
+        drop-shadow-color: #ffffff;
+        drop-shadow-blur: self.pulso ? 18px : 6px;
+        animate drop-shadow-blur { duration: 1400ms; iteration-count: -1; direction: alternate; easing: ease-in-out; }
+    }
+
     if touch.has-hover || touch.has-focus: Glass { radius: Theme.radius-sm; }
+
+    // Estrelado: fio aceso na esquerda do item sob o cursor.
+    if root.estrelado: Rectangle {
+        x: 0;
+        width: 2px;
+        height: touch.has-hover || touch.has-focus ? parent.height * 0.6 : 0px;
+        y: (parent.height - self.height) / 2;
+        background: Theme.accent;
+        drop-shadow-color: Theme.accent;
+        drop-shadow-blur: 6px;
+        animate height, y { duration: Theme.motion-normal; easing: ease-out; }
+    }
+    // ... e a estrela que gira ate aparecer na ponta direita.
+    if root.estrelado: Text {
+        x: parent.width - Theme.space-sm - 12px;
+        width: 12px;
+        height: parent.height;
+        text: "✦";
+        color: Theme.accent;
+        font-size: 12px;
+        vertical-alignment: center;
+        horizontal-alignment: center;
+        opacity: touch.has-hover || touch.has-focus ? 1.0 : 0.0;
+        transform-rotation: touch.has-hover || touch.has-focus ? 0deg : -120deg;
+        transform-scale: touch.has-hover || touch.has-focus ? 1.0 : 0.3;
+        animate opacity, transform-rotation, transform-scale {
+            duration: Theme.motion-slow; easing: cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+    }
 
     HorizontalLayout {
         padding-left: Theme.space-sm;

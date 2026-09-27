@@ -1,0 +1,9 @@
+schema_version = 1
+id = "neo-shinjuku"
+name = "Neo-Shinjuku"
+# Sem este campo a atualizacao do tema embutido nao compara versoes. Ver `bundled.rs`.
+version = "1.0.0"
+author = "Morune"
+description = "Toquio cyberpunk debaixo de chuva: letreiros magenta e ciano, aresta neon e chuva com vento na tela inteira."
+license = "MIT"
+appearance = "dark"
