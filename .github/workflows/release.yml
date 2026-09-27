@@ -33,7 +33,10 @@ jobs:
   windows:
     name: Empacotar e publicar
     runs-on: windows-latest
-    timeout-minutes: 90
+    # 150, e nao 90: quando o Cargo.lock muda (troca de versao, por exemplo) o
+    # cache inteiro e descartado e o release com LTO recompila tudo do zero --
+    # a v1.0.0 estourou 90 minutos assim. Com cache leva uns 45.
+    timeout-minutes: 150
 
     env:
       CARGO_TERM_COLOR: always
