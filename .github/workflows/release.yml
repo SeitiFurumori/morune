@@ -120,6 +120,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: release-gnu
+          # Guarda mesmo quando um passo depois da compilacao reprova: a v1.0.0
+          # compilou do zero em 1h45, parou no teto de tamanho e o cache se
+          # perdeu, e a tentativa seguinte recomecaria do zero.
+          cache-on-failure: true
 
       # O runner windows-latest costuma trazer NSIS pre-instalado. Baixar de
       # novo custa tempo e uma dependencia de rede que pode falhar sozinha.
@@ -162,6 +166,9 @@ jobs:
       # cresce sem ninguem notar e regressao, entao o build reprova acima do
       # teto. Tetos com folga sobre o medido em 23/09/2026 (instalador 10,5 MB,
       # executavel ~25 MB): subir o teto e decisao, nao acidente.
+      # 27/09/2026, v1.0.0: instalador 13,1 MB e executavel 37,3 MB. Uns 2,2 MB
+      # sao imagens e fontes dos quatro temas novos; ~6,7 MB ainda sem causa
+      # medida (a investigar na 1.0.1). Tetos subidos por decisao do dono.
       - name: Conferir o tamanho
         shell: pwsh
         run: |
@@ -170,8 +177,8 @@ jobs:
           $mbSetup = [math]::Round($setup.Length / 1MB, 1)
           $mbExe = [math]::Round($exe.Length / 1MB, 1)
           Write-Host "instalador: $mbSetup MB  executavel: $mbExe MB"
-          if ($mbSetup -gt 14) { throw "instalador com $mbSetup MB passou do teto de 14 MB" }
-          if ($mbExe -gt 32) { throw "executavel com $mbExe MB passou do teto de 32 MB" }
+          if ($mbSetup -gt 18) { throw "instalador com $mbSetup MB passou do teto de 18 MB" }
+          if ($mbExe -gt 40) { throw "executavel com $mbExe MB passou do teto de 40 MB" }
 
       - name: Guardar artefatos do build
         uses: actions/upload-artifact@v4

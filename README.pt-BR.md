@@ -45,7 +45,7 @@ forma, movimento, espaçamento, ícones, fontes e a composição da janela.
 ## O que ele tem de diferente
 
 - **Nativo e leve** — Rust + [Slint](https://slint.dev). Sem Electron, sem
-  Chromium, sem WebView. O instalador tem menos de 4 MB.
+  Chromium, sem WebView. O instalador tem cerca de 13 MB, com seis temas incluídos.
 - **Feito para o segundo plano** — fecha para a bandeja e continua tocando, com
   menu e controle de volume para quando o jogo está em primeiro plano.
 - **Temas que mudam o layout** — posição da barra lateral, posição do player,

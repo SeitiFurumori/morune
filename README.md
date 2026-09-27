@@ -45,7 +45,7 @@ shape, motion, spacing, icons, fonts and the composition of the window itself.
 ## What makes it different
 
 - **Native and light** — Rust + [Slint](https://slint.dev). No Electron, no
-  Chromium, no WebView. The installer is under 4 MB.
+  Chromium, no WebView. The installer is about 13 MB, six themes included.
 - **Built for the background** — closes to the system tray and keeps playing,
   with a tray menu and volume control for when a game is in the foreground.
 - **Themes that change the layout** — sidebar position, player position,
