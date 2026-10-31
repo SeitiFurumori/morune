@@ -337,10 +337,22 @@ fn abrir_menu_bandeja(app: &AppHandle, icone: tauri::Rect) {
     janela.on_window_event({
         let app = app.clone();
         move |evento| {
+            // Ao aparecer, a janela ganha o foco, perde por um instante e
+            // ganha de novo. Fechar na primeira perda fechava o menu antes de
+            // ele ser visto: so fecha se o foco nao voltou logo depois.
             if let WindowEvent::Focused(false) = evento {
-                if let Some(w) = app.get_webview_window("bandeja") {
-                    let _ = w.close();
-                }
+                let app = app.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(Duration::from_millis(150));
+                    let app2 = app.clone();
+                    let _ = app.run_on_main_thread(move || {
+                        if let Some(w) = app2.get_webview_window("bandeja") {
+                            if !w.is_focused().unwrap_or(false) {
+                                let _ = w.close();
+                            }
+                        }
+                    });
+                });
             }
         }
     });
