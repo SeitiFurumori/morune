@@ -1,1 +1,1 @@
-{}
+{"default":{"identifier":"default","description":"A janela principal e o menu da bandeja escutam os eventos do motor (estado, tema, visibilidade, tela cheia).","local":true,"windows":["main","bandeja"],"permissions":["core:default"]}}

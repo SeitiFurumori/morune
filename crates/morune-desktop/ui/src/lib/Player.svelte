@@ -43,7 +43,11 @@
       </div>
       <div class="txt">
         <div class="t corta">{e.now_title}</div>
-        <div class="a corta suave">{e.now_artist}</div>
+        {#if e.now_artist_id}
+          <button class="a corta suave link" title="Abrir {e.now_artist}" onclick={() => acao('play-track', e.now_artist_id)}>{e.now_artist}</button>
+        {:else}
+          <div class="a corta suave">{e.now_artist}</div>
+        {/if}
       </div>
       <button class="ic-bt" class:on={e.now_favorite} title="Curtir" onclick={() => acao('toggle-favorite', e.now_id)}>
         <Icone nome="coracao" cheio={e.now_favorite} tamanho={18} />
@@ -94,6 +98,8 @@
   .txt { min-width: 0; }
   .t { font-weight: var(--peso-medio); font-size: var(--t-sm); }
   .a { font-size: var(--t-xs); }
+  .link { display: block; max-width: 100%; text-align: left; }
+  .link:hover { color: var(--texto); text-decoration: underline; }
   .centro { display: flex; flex-direction: column; align-items: center; gap: 6px; }
   .bts { display: flex; align-items: center; gap: var(--e-lg); }
   .ic-bt { position: relative; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 99px; color: var(--texto-suave); transition: color var(--m-rapido), transform var(--m-rapido); }

@@ -39,9 +39,23 @@
       <Capa src={f.cover} inicial={f.initial} matiz={f.hue} pendente={f.cover_pending} tamanho="44px" />
       <div class="txt">
         <div class="t corta">{f.title}</div>
-        <div class="a corta suave">{f.artist}</div>
+        {#if f.artist_id}
+          <button class="a corta suave link" title="Abrir {f.artist}"
+            onclick={(ev) => { ev.stopPropagation(); acao('play-track', f.artist_id) }}
+            ondblclick={(ev) => ev.stopPropagation()}>{f.artist}</button>
+        {:else}
+          <div class="a corta suave">{f.artist}</div>
+        {/if}
       </div>
-      {#if album}<div class="alb corta suave">{f.album}</div>{/if}
+      {#if album}
+        {#if f.album_id}
+          <button class="alb corta suave link" title="Abrir {f.album}"
+            onclick={(ev) => { ev.stopPropagation(); acao('play-track', f.album_id) }}
+            ondblclick={(ev) => ev.stopPropagation()}>{f.album}</button>
+        {:else}
+          <div class="alb corta suave">{f.album}</div>
+        {/if}
+      {/if}
       <button class="cor" class:on={f.favorite} title={f.favorite ? 'Remover das curtidas' : 'Curtir'}
         onclick={() => acao('toggle-favorite', f.id)}>
         <Icone nome="coracao" cheio={f.favorite} tamanho={18} />
@@ -70,6 +84,8 @@
   .t { font-weight: var(--peso-medio); }
   .tocando .t { color: var(--acento); }
   .a, .alb { font-size: var(--t-sm); }
+  .link { display: block; max-width: 100%; text-align: left; }
+  .link:hover { color: var(--texto); text-decoration: underline; }
   .d { font-size: var(--t-sm); font-variant-numeric: tabular-nums; text-align: right; }
   .cor, .mais { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 99px; color: var(--texto-suave); opacity: 0; transition: opacity var(--m-rapido), color var(--m-rapido); }
   .linha:hover .cor, .linha:hover .mais, .cor.on { opacity: 1; }

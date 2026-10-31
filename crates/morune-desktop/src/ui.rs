@@ -124,6 +124,8 @@ pub struct Estado {
     pub detail_loading: bool,
     pub detail_loaded_count: i32,
     pub now_artist: String,
+    /// Primeiro artista da faixa atual, para o nome no player levar a pagina dele.
+    pub now_artist_id: String,
     pub playing: bool,
     pub has_track: bool,
     pub now_favorite: bool,
@@ -296,6 +298,7 @@ impl AppWindow {
     pub fn get_detail_loaded_count(&self) -> i32 { self.estado.borrow().detail_loaded_count.clone() }
     pub fn set_now_artist(&self, v: String) { self.estado.borrow_mut().now_artist = v.into(); }
     pub fn get_now_artist(&self) -> String { self.estado.borrow().now_artist.clone() }
+    pub fn set_now_artist_id(&self, v: String) { self.estado.borrow_mut().now_artist_id = v; }
     pub fn set_playing(&self, v: bool) { self.estado.borrow_mut().playing = v.into(); }
     pub fn get_playing(&self) -> bool { self.estado.borrow().playing.clone() }
     pub fn set_has_track(&self, v: bool) { self.estado.borrow_mut().has_track = v.into(); }

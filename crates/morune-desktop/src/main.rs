@@ -37,7 +37,6 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Map, Value};
 use state::AppState;
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
@@ -59,6 +58,10 @@ struct Motor {
     oculta: Option<oculta::JanelaOculta>,
     media: Option<smtc::MediaControls>,
     notificador: Option<notify::TrackNotifier>,
+    /// Botoes anterior/tocar/proxima na miniatura da barra de tarefas. Vivem
+    /// com a janela: fechar para a bandeja os derruba, reabrir os recria.
+    barra: Option<taskbar::TaskbarControls>,
+    barra_falhou: bool,
     ultimo_progresso: Instant,
     ultima_tela_cheia: Instant,
 }
@@ -107,6 +110,8 @@ fn main() -> anyhow::Result<()> {
                 oculta: oculta::JanelaOculta::criar(),
                 media: None,
                 notificador: None,
+                barra: None,
+                barra_falhou: false,
                 ultimo_progresso: Instant::now(),
                 ultima_tela_cheia: Instant::now(),
             };
@@ -194,7 +199,12 @@ fn tratar_evento_janela(app: &AppHandle, evento: &WindowEvent) {
     match evento {
         WindowEvent::CloseRequested { api, .. } => {
             let para_bandeja = com_motor(|m| m.state.close_to_tray()).unwrap_or(true);
-            com_motor(|m| m.state.save_config());
+            com_motor(|m| {
+                m.state.save_config();
+                // A subclasse sai enquanto a janela ainda existe.
+                m.barra = None;
+                m.barra_falhou = false;
+            });
             if !para_bandeja {
                 api.prevent_close();
                 app.exit(0);
@@ -251,50 +261,95 @@ fn suspender_tela(w: &tauri::WebviewWindow, suspender: bool) {
 }
 
 fn criar_bandeja(app: &AppHandle) -> tauri::Result<()> {
-    let abrir = MenuItem::with_id(app, "abrir", "Abrir Morune", true, None::<&str>)?;
-    let tocar = MenuItem::with_id(app, "tocar", "Tocar / pausar", true, None::<&str>)?;
-    let proxima = MenuItem::with_id(app, "proxima", "Próxima", true, None::<&str>)?;
-    let anterior = MenuItem::with_id(app, "anterior", "Anterior", true, None::<&str>)?;
-    let sep = PredefinedMenuItem::separator(app)?;
-    let sair = MenuItem::with_id(app, "sair", "Sair do Morune", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&abrir, &tocar, &proxima, &anterior, &sep, &sair])?;
     TrayIconBuilder::with_id("morune")
         .icon(app.default_window_icon().cloned().expect("icone embutido"))
         .tooltip("Morune")
-        .menu(&menu)
-        .show_menu_on_left_click(false)
-        .on_menu_event(|app, e| {
-            match e.id.as_ref() {
-                "abrir" => abrir_janela(app),
-                "tocar" => {
-                    com_motor(|m| m.state.toggle_play());
-                }
-                "proxima" => {
-                    com_motor(|m| m.state.next_track());
-                }
-                "anterior" => {
-                    com_motor(|m| m.state.previous_track());
-                }
-                "sair" => {
-                    com_motor(|m| m.state.save_config());
-                    app.exit(0);
-                }
-                _ => {}
-            }
-            com_motor(|m| enviar(app, m, true));
-        })
         .on_tray_icon_event(|tray, e| {
-            if let TrayIconEvent::Click {
-                button: MouseButton::Left,
-                button_state: MouseButtonState::Up,
-                ..
-            } = e
-            {
-                abrir_janela(tray.app_handle());
+            if let TrayIconEvent::Click { button, button_state: MouseButtonState::Up, rect, .. } = e {
+                match button {
+                    MouseButton::Left => abrir_janela(tray.app_handle()),
+                    MouseButton::Right => abrir_menu_bandeja(tray.app_handle(), rect),
+                    _ => {}
+                }
             }
         })
         .build(app)?;
     Ok(())
+}
+
+/// Largura do menu da bandeja, em pixels logicos.
+const MENU_LARGURA: f64 = 272.0;
+/// Distancia entre o menu e o icone, e entre o menu e a borda da tela.
+const MENU_MARGEM: f64 = 8.0;
+
+/// O menu proprio da bandeja: o do Windows nao aceita cor, fonte nem forma.
+///
+/// A janela so existe enquanto o menu esta aberto -- uma segunda tela viva em
+/// repouso pesaria na maquina de quem esta jogando. Fecha ao perder o foco.
+fn abrir_menu_bandeja(app: &AppHandle, icone: tauri::Rect) {
+    if let Some(w) = app.get_webview_window("bandeja") {
+        let _ = w.close();
+        return;
+    }
+    let com_faixa = com_motor(|m| m.state.tray_status().0.is_some()).unwrap_or(false);
+    let altura = if com_faixa { 240.0 } else { 184.0 };
+
+    // A janela nasce escondida, vai para o lugar e so entao aparece.
+    let janela = WebviewWindowBuilder::new(app, "bandeja", WebviewUrl::App("index.html#bandeja".into()))
+        .title("Morune")
+        .inner_size(MENU_LARGURA, altura)
+        .decorations(false)
+        .resizable(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .visible(false)
+        .build();
+    let janela = match janela {
+        Ok(j) => j,
+        Err(e) => {
+            tracing::error!(error = %e, "nao foi possivel abrir o menu da bandeja");
+            return;
+        }
+    };
+
+    // Acima do icone, centrado nele e dentro da area util do monitor; quando
+    // nao cabe acima (barra de tarefas no alto), cai para baixo dele.
+    let escala = janela.scale_factor().unwrap_or(1.0);
+    let pos = icone.position.to_physical::<f64>(escala);
+    let tam = icone.size.to_physical::<f64>(escala);
+    let (largura, alto, margem) = (MENU_LARGURA * escala, altura * escala, MENU_MARGEM * escala);
+    let mut x = pos.x + tam.width / 2.0 - largura / 2.0;
+    let mut y = pos.y - alto - margem;
+    if let Ok(Some(monitor)) = app.monitor_from_point(pos.x, pos.y) {
+        let area = monitor.work_area();
+        let (ax, ay) = (area.position.x as f64, area.position.y as f64);
+        let (aw, ah) = (area.size.width as f64, area.size.height as f64);
+        if y < ay + margem {
+            y = pos.y + tam.height + margem;
+        }
+        x = x.clamp(ax + margem, ax + aw - largura - margem);
+        y = y.clamp(ay + margem, ay + ah - alto - margem);
+    }
+    let _ = janela.set_position(tauri::PhysicalPosition::new(x.round() as i32, y.round() as i32));
+    let _ = janela.show();
+    let _ = janela.set_focus();
+
+    janela.on_window_event({
+        let app = app.clone();
+        move |evento| {
+            if let WindowEvent::Focused(false) = evento {
+                if let Some(w) = app.get_webview_window("bandeja") {
+                    let _ = w.close();
+                }
+            }
+        }
+    });
+}
+
+fn fechar_menu_bandeja(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("bandeja") {
+        let _ = w.close();
+    }
 }
 
 // ---- giro do motor ----
@@ -352,6 +407,34 @@ fn giro(app: &AppHandle) {
             }
         }
 
+        if let Some(w) = app.get_webview_window("main") {
+            let tint = m.state.taskbar_tint();
+            if m.barra.is_none() && !m.barra_falhou {
+                match taskbar::TaskbarControls::new(&w, tint) {
+                    Ok(b) => m.barra = Some(b),
+                    Err(error) => {
+                        m.barra_falhou = true;
+                        tracing::warn!(%error, "controles da barra de tarefas indisponiveis");
+                    }
+                }
+            }
+            if let Some(barra) = m.barra.as_mut() {
+                for c in barra.poll() {
+                    let s = &mut m.state;
+                    match c {
+                        taskbar::TaskbarCommand::TogglePlay => s.toggle_play(),
+                        taskbar::TaskbarCommand::Next => s.next_track(),
+                        taskbar::TaskbarCommand::Previous => s.previous_track(),
+                    }
+                    mudou = true;
+                }
+                // Antes do `update`: trocar de tema invalida os icones antigos.
+                barra.set_tint(tint);
+                let (agora, tocando) = m.state.tray_status();
+                barra.update(agora.is_some(), tocando);
+            }
+        }
+
         if m.ultima_tela_cheia.elapsed() >= VIGIA_TELA_CHEIA {
             m.ultima_tela_cheia = Instant::now();
             let cheia = tela_cheia::app_em_tela_cheia();
@@ -372,10 +455,14 @@ fn giro(app: &AppHandle) {
 }
 
 /// Manda para a tela so os campos que mudaram. Sem tela, nao monta nada.
+///
+/// O evento vai para todas as janelas: a principal e, quando aberto, o menu da
+/// bandeja, que mostra a mesma faixa e o mesmo volume.
 fn enviar(app: &AppHandle, m: &mut Motor, tudo: bool) {
-    let Some(w) = app.get_webview_window("main") else {
+    if app.get_webview_window("main").is_none() && app.get_webview_window("bandeja").is_none() {
         return;
-    };
+    }
+    let w = app;
     if tudo {
         m.state.push_to_ui(&m.janela);
     }
@@ -532,6 +619,15 @@ fn executar(app: &AppHandle, m: &mut Motor, nome: &str, a: &[Value]) -> Result<(
             if s.install_update() {
                 app.exit(0);
             }
+        }
+        "fechar-bandeja" => fechar_menu_bandeja(app),
+        "abrir-janela" => {
+            fechar_menu_bandeja(app);
+            abrir_janela(app);
+        }
+        "sair" => {
+            s.save_config();
+            app.exit(0);
         }
         "login" => s.login(),
         "cancel-login" => s.cancel_login(),

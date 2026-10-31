@@ -4321,6 +4321,12 @@ impl AppState {
         });
         window.set_now_title(current.map(|t| t.name.as_ref()).unwrap_or("").into());
         window.set_now_artist(current.map(|t| t.artists_line()).unwrap_or_default().into());
+        window.set_now_artist_id(
+            current
+                .and_then(|t| t.artists.first())
+                .map(|a| Target::Artist(a.id.clone()).tag())
+                .unwrap_or_default(),
+        );
         window.set_now_id(
             current
                 .map(|track| Target::Track(track.id.clone()).tag())

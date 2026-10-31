@@ -14,8 +14,10 @@ export function aplicarTema(t: any) {
   const s = t?.spec
   if (!s) return
   const r = document.documentElement.style
-  const c = s.colors ?? {}
-  const vidro = !!s.effects?.acrylic
+  const c = s.color ?? {}
+  // A janela ainda e opaca (o acrilico nao foi ligado): um fundo transparente
+  // mostraria o branco da janela por tras. Quando ligar, usar `s.effects.acrylic`.
+  const vidro = false
   const set = (k: string, v: string | number) => r.setProperty(k, String(v))
 
   set('--fundo', vidro ? cor(c.background, '#0b0d12') : opaca(cor(c.background, '#0b0d12')))

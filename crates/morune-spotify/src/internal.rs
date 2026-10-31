@@ -57,6 +57,9 @@ const ROOTLIST_LENGTH: usize = 200;
 /// o bastante para nao atrasar a primeira tela visivel de uma playlist grande.
 const METADATA_BATCH: usize = 50;
 
+/// Quantos lancamentos de "Aparece em" a pagina do artista mostra.
+const APARECE_EM_MAX: usize = 20;
+
 /// Quantos lotes de metadado saem ao mesmo tempo.
 ///
 /// Os lotes eram sequenciais: uma pagina de 100 faixas custava duas idas a rede
@@ -479,8 +482,104 @@ impl Internal {
         let message = ArtistMessage::parse_from_bytes(&bytes)
             .map_err(|e| CoreError::Decode(format!("artista ilegivel: {e}")))?;
 
-        ArtistMeta::from_message(&message, session.get_user_attribute("country").as_deref())
-            .ok_or_else(|| CoreError::NotFound(format!("artista {id}")))
+        let mut meta =
+            ArtistMeta::from_message(&message, session.get_user_attribute("country").as_deref())
+                .ok_or_else(|| CoreError::NotFound(format!("artista {id}")))?;
+
+        // **A discografia chega so com o codigo de cada album**, sem nome nem
+        // capa: o protobuf do artista nao os inclui. Sem completar aqui, a tela
+        // desenhava um cartao vazio por lancamento -- 1797 no Coldplay.
+        //
+        // "Aparece em" vem antes cortado: e onde mora o volume (coletaneas de
+        // terceiros), e o Spotify tambem so mostra o comeco dessa lista.
+        meta.appears_on.truncate(APARECE_EM_MAX);
+        let faltam: Vec<String> = [&meta.albums, &meta.singles, &meta.compilations, &meta.appears_on]
+            .into_iter()
+            .flatten()
+            .filter(|(_, nome, _)| nome.is_empty())
+            .map(|(id, _, _)| id.clone())
+            .collect();
+        if !faltam.is_empty() {
+            let achados = match self.album_refs(&faltam).await {
+                Ok(achados) => achados,
+                Err(e) => {
+                    tracing::warn!(error = %e, artista = id, "nomes da discografia indisponiveis");
+                    HashMap::new()
+                }
+            };
+            for grupo in [&mut meta.albums, &mut meta.singles, &mut meta.compilations, &mut meta.appears_on] {
+                for (id, nome, capas) in grupo.iter_mut() {
+                    if let Some((n, c)) = achados.get(id) {
+                        if nome.is_empty() {
+                            nome.clone_from(n);
+                        }
+                        if capas.0.is_empty() {
+                            capas.clone_from(c);
+                        }
+                    }
+                }
+                // Cartao sem nome nao diz nada a ninguem: melhor nao desenhar.
+                grupo.retain(|(_, nome, _)| !nome.is_empty());
+            }
+        }
+        Ok(meta)
+    }
+
+    /// Nome e capa de varios albuns numa requisicao so.
+    ///
+    /// Mesmo caminho de [`Internal::artists`]: o artista entrega so os codigos
+    /// da discografia, e um pedido por album custaria um por cartao.
+    async fn album_refs(&self, ids: &[String]) -> CoreResult<HashMap<String, (String, ImageSet)>> {
+        let session = self.session.get().ok_or(CoreError::NotAuthenticated)?;
+        let pedidos: Vec<BatchedEntityRequest> = ids
+            .chunks(METADATA_BATCH)
+            .map(|lote| {
+                let mut pedido = BatchedEntityRequest::new();
+                for id in lote {
+                    let mut consulta = ExtensionQuery::new();
+                    consulta.extension_kind = EnumOrUnknown::new(ExtensionKind::ALBUM_V4);
+
+                    let mut entidade = EntityRequest::new();
+                    entidade.entity_uri = format!("spotify:album:{id}");
+                    entidade.query.push(consulta);
+                    pedido.entity_request.push(entidade);
+                }
+                pedido
+            })
+            .collect();
+
+        let lotes = pedidos.into_iter().map(|pedido| {
+            let session = session.clone();
+            async move {
+                session
+                    .spclient()
+                    .get_extended_metadata(pedido)
+                    .await
+                    .map_err(from_librespot)
+            }
+        });
+        let respostas: Vec<_> = futures_util::stream::iter(lotes)
+            .buffer_unordered(METADATA_CONCURRENCY)
+            .try_collect()
+            .await?;
+
+        let mut por_id = HashMap::with_capacity(ids.len());
+        for resposta in &respostas {
+            for entidade in &resposta.extended_metadata {
+                for extensao in &entidade.extension_data {
+                    let Some(dado) = extensao.extension_data.as_ref() else {
+                        continue;
+                    };
+                    let Ok(message) = AlbumMessage::parse_from_bytes(&dado.value) else {
+                        continue;
+                    };
+                    if let Some(id) = base62(message.gid()) {
+                        por_id.insert(id, (message.name().to_string(), covers(message.cover_group.as_ref())));
+                    }
+                }
+            }
+        }
+        Ok(por_id)
     }
     /// Metadado de varios artistas numa requisicao so.
     ///
