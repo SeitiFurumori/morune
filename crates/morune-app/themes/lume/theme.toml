@@ -1,0 +1,67 @@
+# Lume -- o padrao. A interface e grafite neutro e frio; quem pinta o app e a
+# capa: o brilho em volta dela, o fundo desfocado e o acento vivo mudam a cada
+# faixa. Sem imagem nem cena: a vida vem da musica.
+
+[color]
+background         = "#101317"
+surface            = "#161a20c2"
+sidebar_background = "#13161bc2"
+player_background  = "#161a20c7"
+surface_raised     = "#1e232bf5"
+text           = "#eef1f5"
+text_muted     = "#b0b9c4"
+text_on_accent = "#101317"
+accent         = "#e8ecf2"
+accent_hover   = "#ffffff"
+border           = "#5b6472"
+border_highlight = "#ffffff12"
+hover            = "#ffffff0d"
+selected         = "#ffffff14"
+focus_ring       = "#e8ecf2"
+success          = "#7fd6a8"
+warning          = "#f2c46b"
+danger           = "#ff8a80"
+shadow           = "#00000040"
+scrollbar        = "#6b7584"
+
+[typography]
+family         = "Segoe UI Variable Text"
+display_family = "Segoe UI Variable Display"
+scale        = 1.0
+size_xs      = 12.0
+size_sm      = 13.0
+size_md      = 15.0
+size_lg      = 18.0
+size_xl      = 24.0
+size_display = 34.0
+weight_normal = 400
+weight_medium = 600
+weight_bold   = 700
+line_height    = 1.45
+letter_spacing = -0.1
+
+[shape]
+radius_sm      = 8.0
+radius_md      = 12.0
+radius_lg      = 16.0
+radius_artwork = 10.0
+radius_avatar  = 999.0
+border_width       = 0.0
+progress_thickness = 4.0
+
+[control]
+button_radius = 999.0
+
+[motion]
+# Macia: chega e assenta com um balanco leve.
+spring_stiffness = 180.0
+spring_damping   = 13.0
+
+[effects]
+material              = "legacy"
+acrylic               = false
+artwork_tint          = true
+artwork_tint_strength = 0.55
+artwork_accent        = true
+artwork_glow          = 0.55
+breathe               = true

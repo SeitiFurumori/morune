@@ -322,6 +322,8 @@ pub struct AppState {
     /// quando a capa muda -- recalcular ali dentro reabriria a imagem dez vezes
     /// por segundo.
     now_tint: (Option<std::path::PathBuf>, Option<ui::Cor>),
+    /// Miniatura desfocada da capa atual, para o fundo da capa (`tint::fundo`).
+    now_fundo: Option<std::path::PathBuf>,
     /// Historico local: tocadas recentemente, buscas recentes, escondidas.
     history: morune_storage::History,
     /// Timer para dormir: pausa num horario, ou quando a faixa atual acabar.
@@ -391,9 +393,9 @@ impl AppState {
         if crate::bundled::tema_aposentado(&config.appearance.theme) {
             tracing::info!(
                 antigo = config.appearance.theme,
-                "tema aposentado; voltando ao Bruma"
+                "tema aposentado; voltando ao Lume"
             );
-            config.appearance.theme = "bruma".into();
+            config.appearance.theme = "lume".into();
             if let Err(e) = config.save(&paths.config_file()) {
                 tracing::warn!(error = %e, "nao foi possivel gravar a troca de tema");
             }
@@ -515,6 +517,7 @@ impl AppState {
             account_avatar: (String::new(), None),
             now_cover: (String::new(), None),
             now_tint: (None, None),
+            now_fundo: None,
             history,
             sleep: None,
             saved_items: HashSet::new(),
@@ -3397,6 +3400,20 @@ impl AppState {
         self.playing
     }
 
+    /// O brilho deve respirar agora? So com o tema pedindo, musica tocando,
+    /// sem jogo em tela cheia e sem movimento reduzido.
+    pub fn respirando(&self) -> bool {
+        self.spec().effects.breathe
+            && self.playing
+            && !self.tela_cheia
+            && !self.overrides.reduce_motion
+    }
+
+    /// Pulso de 0 a 1 do som que esta saindo agora.
+    pub fn pulso(&self) -> f32 {
+        self.engine.level()
+    }
+
     /// Posicao a mostrar: a de um seek ainda nao confirmado, ou a do motor.
     fn shown_position(&self, snapshot: &morune_core::playback::PlayerSnapshot) -> Duration {
         self.seek_target.unwrap_or(snapshot.position)
@@ -4263,6 +4280,7 @@ impl AppState {
         let efeitos = &self.theme.spec.effects;
         if !efeitos.artwork_tint && !efeitos.artwork_accent {
             self.now_tint = (None, None);
+            self.now_fundo = None;
             return;
         }
         let path = self.now_cover.1.clone();
@@ -4270,6 +4288,8 @@ impl AppState {
             return;
         }
         let cor = path.as_deref().and_then(crate::tint::dominant);
+        let pasta = self.paths.cache_dir().join("fundo-capa");
+        self.now_fundo = path.as_deref().and_then(|p| crate::tint::fundo(p, &pasta));
         self.now_tint = (path, cor);
     }
 
@@ -4284,6 +4304,18 @@ impl AppState {
                 .and_then(crate::tint::accent)
                 .unwrap_or(s.colors.accent.into());
             window.set_live_accent(vivo);
+            window.set_now_fundo(
+                self.now_fundo
+                    .as_deref()
+                    .map(crate::capas::endereco)
+                    .unwrap_or_default(),
+            );
+            window.set_capa_viva(
+                self.now_tint
+                    .1
+                    .and_then(crate::tint::accent)
+                    .unwrap_or(s.colors.accent.into()),
+            );
             window.set_fundo(self.fundo.as_deref().map(ui::Imagem::de_arquivo).unwrap_or_default());
         }
         let snapshot = self.engine.snapshot();

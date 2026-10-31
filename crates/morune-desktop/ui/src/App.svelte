@@ -53,6 +53,11 @@
 <svelte:window onkeydown={teclas} onmouseup={mouse} />
 
 <div class="fundo" aria-hidden="true"></div>
+<!-- A capa vira um fundo desfocado: o motor grava uma miniatura ja borrada e a
+     tela so a estica. Fica parado: so troca com a faixa. -->
+{#if e.now_fundo}
+  {#key e.now_fundo}<div class="fundo-capa" aria-hidden="true" style:background-image="url({e.now_fundo})"></div>{/key}
+{/if}
 <div class="app" class:carregando={!motor.pronto}>
   <div class="superficie lateral-wrap"><Lateral /></div>
   <main class="superficie conteudo" bind:this={conteudo}>
@@ -95,7 +100,19 @@
     transition: opacity var(--m-normal);
   }
   .app.carregando { opacity: 0; }
-  .superficie { border-radius: var(--r-lg); min-height: 0; }
+  /* Sem `filter`: o borrao ja vem na imagem. Um desfoque de janela inteira
+     por baixo dos paineis transparentes travava a rolagem no Lume. */
+  .fundo-capa {
+    position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background: center / cover no-repeat;
+    opacity: var(--fundo-capa, 0);
+    animation: aparece var(--m-lento) ease-out;
+  }
+  @keyframes aparece { from { opacity: 0; } }
+  .superficie {
+    border-radius: var(--r-lg); min-height: 0;
+    border: var(--borda-painel, 0px) solid var(--borda-destaque, var(--borda));
+  }
   :global([data-material='liquid']) .superficie, :global([data-material='aero']) .superficie {
     backdrop-filter: blur(var(--vidro-desfoque));
   }
@@ -108,10 +125,10 @@
   .aviso {
     position: fixed; left: 50%; bottom: 104px; transform: translateX(-50%); z-index: 40;
     display: flex; align-items: center; gap: var(--e-md); padding: 8px 8px 8px 18px; border-radius: 99px;
-    background: var(--texto); color: var(--fundo); font-size: var(--t-sm); font-weight: var(--peso-medio);
+    background: var(--texto); color: var(--sobre-texto); font-size: var(--t-sm); font-weight: var(--peso-medio);
     box-shadow: 0 10px 30px #0008; animation: entra var(--m-normal) var(--saida);
   }
-  .aviso .botao { background: color-mix(in srgb, var(--fundo) 12%, transparent); height: 30px; }
+  .aviso .botao { background: color-mix(in srgb, var(--sobre-texto) 12%, transparent); height: 30px; }
   .fecha { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 99px; }
   :global([data-quieta='1'] *) { animation-play-state: paused !important; transition: none !important; }
 </style>

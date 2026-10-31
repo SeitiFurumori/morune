@@ -47,6 +47,23 @@ pub fn dominant(path: &Path) -> Option<Color> {
     dominant_pixels(&pixels, image.width(), image.height())
 }
 
+/// Fundo tirado da capa: uma miniatura de 40 px ja desfocada, gravada uma vez
+/// por capa em `pasta`. A tela so estica a imagem -- esticar uma imagem
+/// pequena ja da o borrao, sem `filter: blur` na janela inteira, que pesava na
+/// rolagem por baixo de paineis transparentes.
+pub fn fundo(capa: &Path, pasta: &Path) -> Option<std::path::PathBuf> {
+    let nome = format!("{}.png", capa.file_stem()?.to_string_lossy());
+    let destino = pasta.join(nome);
+    if destino.exists() {
+        return Some(destino);
+    }
+    let mini = image::open(capa).ok()?.thumbnail(40, 40).to_rgba8();
+    let borrada = image::imageops::blur(&mini, 3.0);
+    std::fs::create_dir_all(pasta).ok()?;
+    borrada.save(&destino).ok()?;
+    Some(destino)
+}
+
 /// A conta em si, separada do carregamento.
 ///
 /// Separada para poder ser testada sem gravar imagem em disco: o que pode dar

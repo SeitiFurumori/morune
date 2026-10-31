@@ -128,6 +128,8 @@ impl PositionClock {
 /// Estado compartilhado entre a task da librespot e a interface.
 #[derive(Debug)]
 struct Shared {
+    /// Nivel do som que esta saindo agora. Ver [`crate::sink::Nivel`].
+    nivel: crate::sink::NivelCompartilhado,
     snapshot: Mutex<PlayerSnapshot>,
     clock: Mutex<PositionClock>,
     volume: Arc<SharedVolume>,
@@ -268,11 +270,13 @@ impl SpotifyEngine {
         // esta em [`crate::sink`]. Abrir aqui, e nao dentro do construtor do
         // `Player`, e o que permite reportar falha de dispositivo como falha de
         // dispositivo -- a librespot chamaria `unwrap` e derrubaria o processo.
+        let nivel: crate::sink::NivelCompartilhado = Default::default();
         let sink = crate::sink::open(
             volume.clone(),
             flush.clone(),
             &audio.output_device,
             audio.mono,
+            nivel.clone(),
         )
         .map_err(CoreError::AudioDevice)?;
 
@@ -306,6 +310,7 @@ impl SpotifyEngine {
             clock: Mutex::new(PositionClock::default()),
             volume: volume.clone(),
             flush,
+            nivel,
         });
         let (events, _) = broadcast::channel(EVENT_CAPACITY);
         let (commands, command_rx) = mpsc::unbounded_channel();
@@ -342,6 +347,10 @@ impl PlaybackEngine for SpotifyEngine {
         self.commands
             .send(command)
             .map_err(|_| CoreError::InvalidState("motor de reproducao encerrado".into()))
+    }
+
+    fn level(&self) -> f32 {
+        self.shared.nivel.lock().map(|mut n| n.pulso()).unwrap_or(0.0)
     }
 
     fn snapshot(&self) -> PlayerSnapshot {
@@ -948,6 +957,7 @@ mod tests {
             clock: Mutex::new(PositionClock::default()),
             volume: Arc::new(SharedVolume::default()),
             flush: Arc::new(AtomicBool::new(false)),
+            nivel: Default::default(),
         });
 
         shared.update(|s| s.repeat = RepeatMode::One);

@@ -171,6 +171,12 @@ pub struct Estado {
     pub editable_playlist_open: bool,
     pub live_accent: Cor,
     pub artwork_color: Cor,
+    /// Cor viva da capa atual, sempre (mesmo sem `artwork_accent`): e a do brilho.
+    pub capa_viva: Cor,
+    /// Endereco da miniatura desfocada da capa atual (fundo da capa).
+    pub now_fundo: String,
+    /// Nivel do som tocando agora, de 0 a 1, ja no tempo em que sai na caixa.
+    pub nivel: f32,
     pub fundo: Imagem,
     pub acoes_playlists: Vec<CardItem>,
 }
@@ -389,6 +395,9 @@ impl AppWindow {
     pub fn get_live_accent(&self) -> Cor { self.estado.borrow().live_accent.clone() }
     pub fn set_artwork_color(&self, v: Cor) { self.estado.borrow_mut().artwork_color = v.into(); }
     pub fn get_artwork_color(&self) -> Cor { self.estado.borrow().artwork_color.clone() }
+    pub fn set_capa_viva(&self, v: Cor) { self.estado.borrow_mut().capa_viva = v; }
+    pub fn set_now_fundo(&self, v: String) { self.estado.borrow_mut().now_fundo = v; }
+    pub fn set_nivel(&self, v: f32) { self.estado.borrow_mut().nivel = v; }
     pub fn set_fundo(&self, v: Imagem) { self.estado.borrow_mut().fundo = v.into(); }
     pub fn get_fundo(&self) -> Imagem { self.estado.borrow().fundo.clone() }
     pub fn set_acoes_playlists(&self, v: Vec<CardItem>) { self.estado.borrow_mut().acoes_playlists = v.into(); }

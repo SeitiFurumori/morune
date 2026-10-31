@@ -217,6 +217,12 @@ pub trait PlaybackEngine: Send + Sync + 'static {
     /// Novo receptor de eventos. Cada assinante recebe todos os eventos
     /// emitidos a partir do momento da inscricao.
     fn subscribe(&self) -> broadcast::Receiver<PlayerEvent>;
+
+    /// Pulso de 0 a 1 do som que esta saindo agora, para efeitos que reagem a
+    /// musica. Motor sem audio proprio devolve 0.
+    fn level(&self) -> f32 {
+        0.0
+    }
 }
 
 /// Motor que nao toca nada.

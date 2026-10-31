@@ -101,7 +101,9 @@ pub struct AppearanceConfig {
 impl Default for AppearanceConfig {
     fn default() -> Self {
         Self {
-            theme: "bruma".into(),
+            // O padrao da identidade de 31/10/2026. So vale para quem instala
+            // agora: quem ja tem config continua no tema que escolheu.
+            theme: "lume".into(),
             font_scale_override: 0.0,
             reduce_motion: false,
             background_image: String::new(),

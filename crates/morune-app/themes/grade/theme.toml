@@ -1,0 +1,67 @@
+# Grade -- de equipamento: cinza escuro (nao preto), cantos quase retos,
+# contornos de 1 px e barra fina. A capa aparece so nos detalhes: o acento da
+# barra de tempo e um brilho pequeno. Sem fundo da capa e sem respirar.
+
+[color]
+background         = "#16181c"
+surface            = "#1b1e23"
+sidebar_background = "#1b1e23"
+player_background  = "#1b1e23"
+surface_raised     = "#23272d"
+text           = "#e6e8eb"
+text_muted     = "#9aa3ae"
+text_on_accent = "#16181c"
+accent         = "#e6e8eb"
+accent_hover   = "#ffffff"
+border           = "#646c77"
+border_highlight = "#2e333a"
+hover            = "#ffffff0a"
+selected         = "#ffffff10"
+focus_ring       = "#e6e8eb"
+success          = "#7fd6a8"
+warning          = "#f2c46b"
+danger           = "#ff8a80"
+shadow           = "#00000000"
+scrollbar        = "#6f7782"
+
+[typography]
+family         = "Segoe UI Variable Text"
+display_family = "Segoe UI Variable Display"
+scale        = 1.0
+size_xs      = 12.0
+size_sm      = 13.0
+size_md      = 15.0
+size_lg      = 18.0
+size_xl      = 24.0
+size_display = 32.0
+weight_normal = 400
+weight_medium = 600
+weight_bold   = 650
+line_height    = 1.4
+letter_spacing = -0.2
+
+[shape]
+radius_sm      = 2.0
+radius_md      = 3.0
+radius_lg      = 4.0
+radius_artwork = 2.0
+radius_avatar  = 2.0
+border_width       = 1.0
+progress_thickness = 2.0
+
+[control]
+button_radius = 2.0
+
+[motion]
+# Firme e rapida, quase sem passar do ponto.
+spring_stiffness = 420.0
+spring_damping   = 34.0
+
+[effects]
+material              = "legacy"
+acrylic               = false
+artwork_tint          = false
+artwork_tint_strength = 0.0
+artwork_accent        = true
+artwork_glow          = 0.3
+breathe               = false

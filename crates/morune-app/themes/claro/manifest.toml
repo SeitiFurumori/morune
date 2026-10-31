@@ -1,0 +1,7 @@
+schema_version = 1
+id = "claro"
+name = "Claro"
+version = "1.0.2"
+author = "Morune"
+appearance = "light"
+description = "O tema claro: papel frio, sombras macias e a capa tingindo o fundo de leve."

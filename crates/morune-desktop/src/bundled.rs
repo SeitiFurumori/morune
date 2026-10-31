@@ -35,308 +35,53 @@ struct BundledTheme {
     files: &'static [BundledFile],
 }
 
+/// Os quatro temas prontos da identidade de 31/10/2026: so manifesto e tokens,
+/// sem imagem nem fonte -- a cor vem da capa e a fonte e a do Windows.
+macro_rules! tema_so_tokens {
+    ($id:literal) => {
+        BundledTheme {
+            id: $id,
+            files: &[
+                BundledFile {
+                    name: "manifest.toml",
+                    contents: BundledContents::Text(include_str!(concat!("../../morune-app/themes/", $id, "/manifest.toml"))),
+                },
+                BundledFile {
+                    name: "theme.toml",
+                    contents: BundledContents::Text(include_str!(concat!("../../morune-app/themes/", $id, "/theme.toml"))),
+                },
+            ],
+        }
+    };
+}
+
 const THEMES: &[BundledTheme] = &[
-    BundledTheme {
-        id: "bruma",
-        files: &[
-            BundledFile {
-                name: "manifest.toml",
-                contents: BundledContents::Text(include_str!("../../morune-app/themes/bruma/manifest.toml")),
-            },
-            BundledFile {
-                name: "theme.toml",
-                contents: BundledContents::Text(include_str!("../../morune-app/themes/bruma/theme.toml")),
-            },
-            BundledFile {
-                name: "assets/atmosfera.svg",
-                contents: BundledContents::Text(include_str!(
-                    "../../morune-app/themes/bruma/assets/atmosfera.svg"
-                )),
-            },
-        ],
-    },
-    BundledTheme {
-        id: "aquario",
-        files: &[
-            BundledFile {
-                name: "manifest.toml",
-                contents: BundledContents::Text(include_str!("../../morune-app/themes/aquario/manifest.toml")),
-            },
-            BundledFile {
-                name: "theme.toml",
-                contents: BundledContents::Text(include_str!("../../morune-app/themes/aquario/theme.toml")),
-            },
-            BundledFile {
-                name: "layout.toml",
-                contents: BundledContents::Text(include_str!("../../morune-app/themes/aquario/layout.toml")),
-            },
-            BundledFile {
-                name: "fundo.png",
-                contents: BundledContents::Bytes(include_bytes!("../../morune-app/themes/aquario/fundo.png")),
-            },
-            BundledFile {
-                name: "assets/cidade-aero.jpg",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/aquario/assets/cidade-aero.jpg"
-                )),
-            },
-        ],
-    },
-    BundledTheme {
-        id: "travessia",
-        files: &[
-            BundledFile {
-                name: "manifest.toml",
-                contents: BundledContents::Text(include_str!("../../morune-app/themes/travessia/manifest.toml")),
-            },
-            BundledFile {
-                name: "theme.toml",
-                contents: BundledContents::Text(include_str!("../../morune-app/themes/travessia/theme.toml")),
-            },
-            BundledFile {
-                name: "assets/cena/ceu-madrugada.jpg",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/travessia/assets/cena/ceu-madrugada.jpg"
-                )),
-            },
-            BundledFile {
-                name: "assets/cena/ceu-hora-azul.jpg",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/travessia/assets/cena/ceu-hora-azul.jpg"
-                )),
-            },
-            BundledFile {
-                name: "assets/cena/ceu-amanhecer.jpg",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/travessia/assets/cena/ceu-amanhecer.jpg"
-                )),
-            },
-            BundledFile {
-                name: "assets/cena/colinas-longe.png",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/travessia/assets/cena/colinas-longe.png"
-                )),
-            },
-            BundledFile {
-                name: "assets/cena/colinas-perto.png",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/travessia/assets/cena/colinas-perto.png"
-                )),
-            },
-            BundledFile {
-                name: "assets/cena/nevoa.png",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/travessia/assets/cena/nevoa.png"
-                )),
-            },
-            BundledFile {
-                name: "fonts/ZenKakuGothicNew-Regular.ttf",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/travessia/fonts/ZenKakuGothicNew-Regular.ttf"
-                )),
-            },
-            BundledFile {
-                name: "fonts/ZenKakuGothicNew-Bold.ttf",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/travessia/fonts/ZenKakuGothicNew-Bold.ttf"
-                )),
-            },
-            BundledFile {
-                name: "fonts/ZenOldMincho-Regular.ttf",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/travessia/fonts/ZenOldMincho-Regular.ttf"
-                )),
-            },
-            BundledFile {
-                name: "fonts/ZenOldMincho-Bold.ttf",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/travessia/fonts/ZenOldMincho-Bold.ttf"
-                )),
-            },
-            BundledFile {
-                name: "fonts/OFL-zenkakugothicnew.txt",
-                contents: BundledContents::Text(include_str!(
-                    "../../morune-app/themes/travessia/fonts/OFL-zenkakugothicnew.txt"
-                )),
-            },
-            BundledFile {
-                name: "fonts/OFL-zenoldmincho.txt",
-                contents: BundledContents::Text(include_str!(
-                    "../../morune-app/themes/travessia/fonts/OFL-zenoldmincho.txt"
-                )),
-            },
-        ],
-    },
-    BundledTheme {
-        id: "dreamcore",
-        files: &[
-            BundledFile {
-                name: "manifest.toml",
-                contents: BundledContents::Text(include_str!("../../morune-app/themes/dreamcore/manifest.toml")),
-            },
-            BundledFile {
-                name: "theme.toml",
-                contents: BundledContents::Text(include_str!("../../morune-app/themes/dreamcore/theme.toml")),
-            },
-            BundledFile {
-                name: "assets/fundo/corredor.jpg",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/dreamcore/assets/fundo/corredor.jpg"
-                )),
-            },
-            BundledFile {
-                name: "fonts/Nunito-Regular.ttf",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/dreamcore/fonts/Nunito-Regular.ttf"
-                )),
-            },
-            BundledFile {
-                name: "fonts/Nunito-Bold.ttf",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/dreamcore/fonts/Nunito-Bold.ttf"
-                )),
-            },
-            BundledFile {
-                name: "fonts/InstrumentSerif-Regular.ttf",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/dreamcore/fonts/InstrumentSerif-Regular.ttf"
-                )),
-            },
-            BundledFile {
-                name: "fonts/OFL-nunito.txt",
-                contents: BundledContents::Text(include_str!(
-                    "../../morune-app/themes/dreamcore/fonts/OFL-nunito.txt"
-                )),
-            },
-            BundledFile {
-                name: "fonts/OFL-instrumentserif.txt",
-                contents: BundledContents::Text(include_str!(
-                    "../../morune-app/themes/dreamcore/fonts/OFL-instrumentserif.txt"
-                )),
-            },
-        ],
-    },
-    BundledTheme {
-        id: "lofi",
-        files: &[
-            BundledFile {
-                name: "manifest.toml",
-                contents: BundledContents::Text(include_str!("../../morune-app/themes/lofi/manifest.toml")),
-            },
-            BundledFile {
-                name: "theme.toml",
-                contents: BundledContents::Text(include_str!("../../morune-app/themes/lofi/theme.toml")),
-            },
-            BundledFile {
-                name: "assets/fundo/quarto.jpg",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/lofi/assets/fundo/quarto.jpg"
-                )),
-            },
-            BundledFile {
-                name: "fonts/MPLUS1-Bold.ttf",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/lofi/fonts/MPLUS1-Bold.ttf"
-                )),
-            },
-            BundledFile {
-                name: "fonts/MPLUS1-Regular.ttf",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/lofi/fonts/MPLUS1-Regular.ttf"
-                )),
-            },
-            BundledFile {
-                name: "fonts/OFL-mplus1.txt",
-                contents: BundledContents::Text(include_str!(
-                    "../../morune-app/themes/lofi/fonts/OFL-mplus1.txt"
-                )),
-            },
-            BundledFile {
-                name: "fonts/OFL-zenkakugothicnew.txt",
-                contents: BundledContents::Text(include_str!(
-                    "../../morune-app/themes/lofi/fonts/OFL-zenkakugothicnew.txt"
-                )),
-            },
-            BundledFile {
-                name: "fonts/ZenKakuGothicNew-Bold.ttf",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/lofi/fonts/ZenKakuGothicNew-Bold.ttf"
-                )),
-            },
-            BundledFile {
-                name: "fonts/ZenKakuGothicNew-Regular.ttf",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/lofi/fonts/ZenKakuGothicNew-Regular.ttf"
-                )),
-            },
-        ],
-    },
-    BundledTheme {
-        id: "neo-shinjuku",
-        files: &[
-            BundledFile {
-                name: "manifest.toml",
-                contents: BundledContents::Text(include_str!(
-                    "../../morune-app/themes/neo-shinjuku/manifest.toml"
-                )),
-            },
-            BundledFile {
-                name: "theme.toml",
-                contents: BundledContents::Text(include_str!("../../morune-app/themes/neo-shinjuku/theme.toml")),
-            },
-            BundledFile {
-                name: "assets/fundo/rua.jpg",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/neo-shinjuku/assets/fundo/rua.jpg"
-                )),
-            },
-            BundledFile {
-                name: "fonts/ChakraPetch-Bold.ttf",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/neo-shinjuku/fonts/ChakraPetch-Bold.ttf"
-                )),
-            },
-            BundledFile {
-                name: "fonts/ChakraPetch-Regular.ttf",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/neo-shinjuku/fonts/ChakraPetch-Regular.ttf"
-                )),
-            },
-            BundledFile {
-                name: "fonts/OFL-chakrapetch.txt",
-                contents: BundledContents::Text(include_str!(
-                    "../../morune-app/themes/neo-shinjuku/fonts/OFL-chakrapetch.txt"
-                )),
-            },
-            BundledFile {
-                name: "fonts/OFL-rajdhani.txt",
-                contents: BundledContents::Text(include_str!(
-                    "../../morune-app/themes/neo-shinjuku/fonts/OFL-rajdhani.txt"
-                )),
-            },
-            BundledFile {
-                name: "fonts/Rajdhani-Bold.ttf",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/neo-shinjuku/fonts/Rajdhani-Bold.ttf"
-                )),
-            },
-            BundledFile {
-                name: "fonts/Rajdhani-Medium.ttf",
-                contents: BundledContents::Bytes(include_bytes!(
-                    "../../morune-app/themes/neo-shinjuku/fonts/Rajdhani-Medium.ttf"
-                )),
-            },
-        ],
-    },
+    tema_so_tokens!("lume"),
+    tema_so_tokens!("vidro"),
+    tema_so_tokens!("grade"),
+    tema_so_tokens!("claro"),
 ];
 
 /// Temas que ja vieram com o Morune e sairam. A copia instalada e apagada
-/// (inclusive as `.bak`), e quem estava usando um deles volta para o Bruma --
+/// (inclusive as `.bak`), e quem estava usando um deles volta para o Lume --
 /// ver [`tema_aposentado`].
 ///
 /// Decidido em 25/09/2026: eram escuros e claros genericos, sem conceito, e
 /// deram lugar a Travessia e ao Dreamcore.
-const APOSENTADOS: &[&str] = &["paper", "cristal", "pulse"];
+/// Os seis da tela em Slint sairam em 31/10/2026, com a identidade nova: eram
+/// "o mesmo app com outra cor". Os originais (e as imagens) continuam em
+/// `crates/morune-app/themes`, que o app em Slint ainda usa.
+const APOSENTADOS: &[&str] = &[
+    "paper",
+    "cristal",
+    "pulse",
+    "bruma",
+    "aquario",
+    "travessia",
+    "dreamcore",
+    "lofi",
+    "neo-shinjuku",
+];
 
 /// Apaga do disco os temas aposentados que vieram conosco.
 pub fn remover_aposentados(themes_dir: &Path) {
@@ -596,8 +341,8 @@ mod tests {
         let dir = temp_dir("atualiza");
         install_missing(&dir);
 
-        let travessia = dir.join("travessia");
-        let manifesto = travessia.join("manifest.toml");
+        let lume = dir.join("lume");
+        let manifesto = lume.join("manifest.toml");
         let original = std::fs::read_to_string(&manifesto).unwrap();
         // Finge uma instalacao antiga.
         let version_line = original
@@ -610,12 +355,12 @@ mod tests {
             "a versao simulada precisa ser mais antiga"
         );
         std::fs::write(&manifesto, outdated).unwrap();
-        std::fs::write(travessia.join("theme.toml"), "editado a mao").unwrap();
+        std::fs::write(lume.join("theme.toml"), "editado a mao").unwrap();
 
         let atualizados = install_missing(&dir);
         assert!(
-            atualizados.contains(&"travessia"),
-            "travessia devia ter sido atualizado"
+            atualizados.contains(&"lume"),
+            "lume devia ter sido atualizado"
         );
         assert_eq!(
             std::fs::read_to_string(&manifesto).unwrap(),
@@ -623,7 +368,7 @@ mod tests {
             "o manifesto instalado devia ser o novo"
         );
         assert_eq!(
-            std::fs::read_to_string(dir.join("travessia.bak").join("theme.toml")).unwrap(),
+            std::fs::read_to_string(dir.join("lume.bak").join("theme.toml")).unwrap(),
             "editado a mao",
             "a copia antiga precisa sobreviver: perder edicao alheia seria pior que o defeito"
         );
@@ -645,7 +390,7 @@ mod tests {
         let dir = temp_dir("sem-versao");
         install_missing(&dir);
 
-        let manifesto = dir.join("bruma").join("manifest.toml");
+        let manifesto = dir.join("lume").join("manifest.toml");
         let sem_versao: String = std::fs::read_to_string(&manifesto)
             .unwrap()
             .lines()
@@ -657,7 +402,7 @@ mod tests {
             );
         std::fs::write(&manifesto, sem_versao).unwrap();
 
-        assert!(install_missing(&dir).contains(&"bruma"), "devia atualizar");
+        assert!(install_missing(&dir).contains(&"lume"), "devia atualizar");
         assert!(
             install_missing(&dir).is_empty(),
             "e nao pode reescrever de novo no arranque seguinte"
@@ -738,7 +483,7 @@ author = \"Fulano\"
             ("pulse.bak-123", nosso),
             ("paper.backup", nosso),
             ("pulse.bak-minha", nosso),
-            ("bruma", nosso),
+            ("lume", nosso),
             ("meu-tema", nosso),
         ] {
             std::fs::create_dir_all(dir.join(pasta)).unwrap();
@@ -748,7 +493,7 @@ author = \"Fulano\"
         for pasta in ["paper", "cristal.bak", "pulse.bak-123"] {
             assert!(!dir.join(pasta).exists(), "{pasta} devia ter saido");
         }
-        for pasta in ["paper.backup", "pulse.bak-minha", "bruma", "meu-tema"] {
+        for pasta in ["paper.backup", "pulse.bak-minha", "lume", "meu-tema"] {
             assert!(dir.join(pasta).exists(), "{pasta} nao podia ter saido");
         }
         // Tema importado de outra pessoa com o mesmo id fica.
@@ -759,7 +504,7 @@ author = \"Fulano\"
             dir.join("paper").exists(),
             "tema alheio chamado paper sumiu"
         );
-        assert!(tema_aposentado("paper") && !tema_aposentado("bruma"));
+        assert!(tema_aposentado("paper") && !tema_aposentado("lume"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -769,11 +514,11 @@ author = \"Fulano\"
         install_missing(&dir);
 
         let builtin = morune_theme::ThemeSpec::default();
-        let travessia = morune_theme::load(&dir, "travessia").spec;
+        let lume = morune_theme::load(&dir, "lume").spec;
 
         // Travessia nao declara layout.toml: a composicao tem de vir do embutido.
-        assert_eq!(travessia.layout, builtin.layout);
-        assert_ne!(travessia.colors.accent, builtin.colors.accent);
+        assert_eq!(lume.layout, builtin.layout);
+        assert_ne!(lume.colors.accent, builtin.colors.accent);
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -793,7 +538,7 @@ author = \"Fulano\"
         install_missing(&dir);
 
         let mut culpados = Vec::new();
-        for id in ["bruma", "aquario", "travessia", "dreamcore"] {
+        for id in ["lume", "vidro", "grade", "claro"] {
             for aviso in morune_theme::load(&dir, id).spec.contrast_warnings() {
                 culpados.push(format!("{id}: {} -- {}", aviso.field, aviso.message));
             }
@@ -813,7 +558,7 @@ author = \"Fulano\"
     fn temas_de_vidro_preservam_opacidade_do_conteudo() {
         let dir = temp_dir("vidro-opacidade");
         install_missing(&dir);
-        for id in ["bruma", "aquario"] {
+        for id in ["vidro"] {
             let spec = morune_theme::load(&dir, id).spec;
             assert_eq!(spec.effects.window_opacity, 1.0, "{id}");
             for tinta in [
@@ -852,31 +597,36 @@ author = \"Fulano\"
         use morune_theme::Color;
         let dir = temp_dir("vidro-camadas");
         install_missing(&dir);
-        for id in ["bruma", "aquario", "travessia", "dreamcore"] {
+        for id in ["lume", "vidro", "grade", "claro"] {
             let spec = morune_theme::load(&dir, id).spec;
             let c = &spec.colors;
+            // Na tela web o fundo da capa fica ATRAS dos paineis (App.svelte,
+            // `.fundo-capa`): a capa mais clara e a mais escura tingem o fundo,
+            // e cada superficie vem por cima.
+            let tintas: Vec<Color> = if spec.effects.artwork_tint {
+                [Color::TRANSPARENT, Color::rgb(0, 0, 0), Color::rgb(255, 255, 255)]
+                    .into_iter()
+                    .map(|capa| capa.scale_alpha(spec.effects.artwork_tint_strength))
+                    .collect()
+            } else {
+                vec![Color::TRANSPARENT]
+            };
             for desktop in [Color::rgb(0, 0, 0), Color::rgb(255, 255, 255)] {
-                let base = c.background.over(desktop);
-                for (nome, superficie) in [
-                    ("conteudo", Color::TRANSPARENT),
-                    ("painel", c.surface),
-                    ("menu", c.surface_raised),
-                    ("sidebar", c.sidebar_background),
-                    ("player", c.player_background),
-                ] {
-                    let fundo = superficie.over(base);
-                    for estado in [Color::TRANSPARENT, c.hover, c.selected] {
-                        assert_texto_legivel(&spec, estado.over(fundo), nome);
-                        if nome == "player" && spec.effects.artwork_tint {
-                            for capa in [Color::rgb(0, 0, 0), Color::rgb(255, 255, 255)] {
-                                let tingido = capa
-                                    .scale_alpha(spec.effects.artwork_tint_strength)
-                                    .over(fundo);
-                                assert_texto_legivel(&spec, estado.over(tingido), "player tingido");
-                            }
+                for tinta in &tintas {
+                    let base = tinta.over(c.background.over(desktop));
+                    for (nome, superficie) in [
+                        ("painel", c.surface),
+                        ("menu", c.surface_raised),
+                        ("sidebar", c.sidebar_background),
+                        ("player", c.player_background),
+                    ] {
+                        let fundo = superficie.over(base);
+                        for estado in [Color::TRANSPARENT, c.hover, c.selected] {
+                            assert_texto_legivel(&spec, estado.over(fundo), nome);
                         }
                     }
                 }
+                let base = c.background.over(desktop);
                 for acento in [c.accent, c.accent_hover] {
                     let fundo = acento.over(base);
                     assert!(
@@ -888,139 +638,12 @@ author = \"Fulano\"
         }
         let _ = std::fs::remove_dir_all(&dir);
     }
-
-    /// Decodificacao de arquivo apenas: nao cria janela nem captura a tela.
-    /// Verifica todos os pixels da cena, com opacidade, veu e realces da UI.
-    #[test]
-    fn aquario_preserva_texto_sobre_a_imagem_de_fundo() {
-        use morune_theme::Color;
-        let dir = temp_dir("aquario-pixels");
-        install_missing(&dir);
-        let spec = morune_theme::load(&dir, "aquario").spec;
-        // A mesma preparacao da tela: nitida reduzida e a copia borrada.
-        let paper = crate::wallpaper::load(Some(&dir.join("aquario")), &spec.background, None, 0.0);
-        // **No Aero toda peca de vidro fica sobre a copia borrada** -- barras e
-        // molduras de grupo --, e e contra ela que as tintas sao calculadas
-        // (ver `apply_background`). A foto nitida so aparece nas frestas.
-        let nitida = paper.image;
-        let borrada = paper.blurred;
-        let surface = crate::optics::readable_tint(&borrada, spec.colors.surface, &spec);
-        let sidebar = crate::optics::readable_tint(&borrada, spec.colors.sidebar_background, &spec);
-        let player = crate::optics::readable_tint(&borrada, spec.colors.player_background, &spec);
-        let mut pior = Color::rgb(255, 255, 255);
-        let mut luminancia_minima = f32::MAX;
-        // A foto nitida so aparece nas frestas, sem texto; `nitida` fica no
-        // laco para o dia em que alguma peca voltar a escrever sobre ela.
-        let _ = &nitida;
-        for (cena, paineis) in [(&borrada, vec![surface, sidebar, player])] {
-            let pixels = cena.to_rgba8().expect("as duas copias tem pixels");
-            assert!(!pixels.as_slice().is_empty());
-            for pixel in pixels.as_slice() {
-                let fundo = Color::rgba(pixel.r, pixel.g, pixel.b, pixel.a)
-                    .scale_alpha(spec.background.opacity)
-                    .over(spec.colors.background);
-                for painel in &paineis {
-                    let base = painel.over(fundo);
-                    for estado in [Color::TRANSPARENT, spec.colors.hover, spec.colors.selected] {
-                        let composto = estado.over(base);
-                        let luminancia = composto.relative_luminance();
-                        if luminancia < luminancia_minima {
-                            luminancia_minima = luminancia;
-                            pior = composto;
-                        }
-                    }
-                }
-            }
-        }
-        // As duas tintas sao opacas e mais escuras que qualquer pixel da cena;
-        // portanto o pixel de menor luminancia e o pior caso para ambas.
-        println!(
-            "Aquario: menor contraste secundario na cena = {:.2}:1",
-            spec.colors.text_muted.contrast_ratio(pior)
-        );
-        println!(
-            "Aquario: tintas resolvidas -- surface a={} sidebar a={} player a={}",
-            surface.a, sidebar.a, player.a
-        );
-        assert!(spec.colors.text.relative_luminance() < luminancia_minima);
-        assert!(spec.colors.text_muted.relative_luminance() < luminancia_minima);
-        assert_texto_legivel(&spec, pior, "pior pixel da cena com realce");
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn bruma_preserva_leitura_sobre_cena_branca_e_reflexo() {
-        use morune_theme::Color;
-        let dir = temp_dir("bruma-cena-clara");
-        install_missing(&dir);
-        let spec = morune_theme::load(&dir, "bruma").spec;
-        assert!(
-            spec.effects.acrylic,
-            "Bruma deve pedir o fundo nativo do desktop"
-        );
-        assert!(
-            spec.background.image.is_empty(),
-            "wallpaper nao pode encobrir o desktop"
-        );
-        let branco = Color::rgb(255, 255, 255);
-        let mut white_pixels = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(1, 1);
-        white_pixels.make_mut_slice()[0] = slint::Rgba8Pixel::new(255, 255, 255, 255);
-        let white_image = slint::Image::from_rgba8(white_pixels);
-        let mut dark_pixels = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(1, 1);
-        dark_pixels.make_mut_slice()[0] = slint::Rgba8Pixel::new(20, 27, 34, 255);
-        let dark_image = slint::Image::from_rgba8(dark_pixels);
-        let mut rim_pixels = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(32, 32);
-        for (i, pixel) in rim_pixels.make_mut_slice().iter_mut().enumerate() {
-            let (x, y) = (i % 32, i / 32);
-            *pixel = if x < 4 || y < 4 || x >= 28 || y >= 28 {
-                slint::Rgba8Pixel::new(255, 255, 255, 255)
-            } else {
-                slint::Rgba8Pixel::new(20, 27, 34, 255)
-            };
-        }
-        let rim_image = slint::Image::from_rgba8(rim_pixels);
-        for tint in [
-            spec.colors.sidebar_background,
-            spec.colors.player_background,
-        ] {
-            let adjusted = crate::optics::readable_glass_tint(&white_image, tint, &spec);
-            let clear = crate::optics::readable_glass_tint(&dark_image, tint, &spec);
-            assert_eq!(
-                crate::optics::readable_glass_tint(&rim_image, tint, &spec).a,
-                clear.a,
-                "o brilho decorativo da orla nao pode escurecer o centro"
-            );
-            assert_eq!(
-                clear.a, tint.a,
-                "cena escura preserva a transparencia pedida"
-            );
-            assert!(
-                adjusted.a > clear.a,
-                "protecao so aumenta quando a cena exige"
-            );
-            let painel = adjusted.over(branco);
-            // Limites superiores do tint da capa e do reflexo de Glass.
-            let painel = branco
-                .scale_alpha(spec.effects.artwork_tint_strength)
-                .over(painel);
-            let painel = branco.scale_alpha(0.1 * spec.effects.gloss).over(painel);
-            for estado in [Color::TRANSPARENT, spec.colors.hover, spec.colors.selected] {
-                assert_texto_legivel(
-                    &spec,
-                    estado.over(painel),
-                    "cena branca + tint + reflexo + estado",
-                );
-            }
-        }
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
     #[test]
     fn existing_themes_are_never_overwritten() {
         let dir = temp_dir("preserve");
         install_missing(&dir);
 
-        let edited = dir.join("travessia").join("theme.toml");
+        let edited = dir.join("lume").join("theme.toml");
         std::fs::write(&edited, "[color]\naccent = \"#123456\"\n").unwrap();
 
         let installed = install_missing(&dir);

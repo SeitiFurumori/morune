@@ -17,6 +17,7 @@ mod clipboard;
 mod crash;
 mod hotkeys;
 mod instance;
+mod material;
 mod notify;
 mod oculta;
 mod registro;
@@ -62,6 +63,10 @@ struct Motor {
     /// com a janela: fechar para a bandeja os derruba, reabrir os recria.
     barra: Option<taskbar::TaskbarControls>,
     barra_falhou: bool,
+    /// O `acrylic` do tema da ultima vez que o material foi aplicado.
+    material_pedido: Option<bool>,
+    /// O acrilico ficou ligado de fato (o tema pede e o Windows deixa).
+    vidro_ativo: bool,
     ultimo_progresso: Instant,
     ultima_tela_cheia: Instant,
 }
@@ -112,6 +117,8 @@ fn main() -> anyhow::Result<()> {
                 notificador: None,
                 barra: None,
                 barra_falhou: false,
+                material_pedido: None,
+                vidro_ativo: false,
                 ultimo_progresso: Instant::now(),
                 ultima_tela_cheia: Instant::now(),
             };
@@ -181,6 +188,9 @@ fn abrir_janela(app: &AppHandle) {
         .inner_size(largura as f64, altura as f64)
         .min_inner_size(720.0, 480.0)
         .maximized(maximizada)
+        // Sempre transparente: o tema decide se o que esta atras aparece
+        // (acrilico) ou se a tela pinta o fundo inteiro. Ver `material.rs`.
+        .transparent(true)
         .build();
     let janela = match janela {
         Ok(j) => j,
@@ -191,8 +201,34 @@ fn abrir_janela(app: &AppHandle) {
     };
     let app2 = app.clone();
     janela.on_window_event(move |evento| tratar_evento_janela(&app2, evento));
-    // A tela nova pede o estado inteiro ao carregar (`estado_inicial`).
-    com_motor(|m| m.enviado.clear());
+    com_motor(|m| {
+        // A tela nova pede o estado inteiro ao carregar (`estado_inicial`).
+        m.enviado.clear();
+        // Janela nova nasce sem efeito: o material e reaplicado.
+        m.material_pedido = None;
+    });
+}
+
+/// O tema para a tela, com o material da janela ja resolvido.
+///
+/// O acrilico e aplicado aqui, quando o tema muda, e a tela recebe
+/// `vidro_ativo` para saber se pinta o fundo solido ou deixa ver atras.
+fn tema_com_material(app: &AppHandle, m: &mut Motor) -> Value {
+    let mut tema = m.state.tema_json();
+    let pede = tema
+        .pointer("/spec/effects/acrylic")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if m.material_pedido != Some(pede) {
+        if let Some(w) = app.get_webview_window("main") {
+            m.vidro_ativo = material::aplicar(&w, pede);
+            m.material_pedido = Some(pede);
+        }
+    }
+    if let Value::Object(mapa) = &mut tema {
+        mapa.insert("vidro_ativo".into(), Value::Bool(m.vidro_ativo));
+    }
+    tema
 }
 
 fn tratar_evento_janela(app: &AppHandle, evento: &WindowEvent) {
@@ -460,7 +496,21 @@ fn giro(app: &AppHandle) {
         if progresso {
             m.ultimo_progresso = Instant::now();
         }
-        if mudou || progresso {
+        // O brilho que respira: o pulso vai para a tela a cada giro, mas so com
+        // a janela a vista. Minimizada ou na bandeja, ninguem le.
+        let a_vista = app
+            .get_webview_window("main")
+            .is_some_and(|w| !w.is_minimized().unwrap_or(true) && w.is_visible().unwrap_or(false));
+        let pulso = if a_vista && m.state.respirando() {
+            (m.state.pulso() * 20.0).round() / 20.0
+        } else {
+            0.0
+        };
+        let respira = (pulso - m.janela.estado.borrow().nivel).abs() > f32::EPSILON;
+        if respira {
+            m.janela.set_nivel(pulso);
+        }
+        if mudou || progresso || respira {
             enviar(app, m, mudou);
         }
     });
@@ -496,7 +546,7 @@ fn enviar(app: &AppHandle, m: &mut Motor, tudo: bool) {
     if !diferenca.is_empty() {
         let _ = w.emit("estado", Value::Object(diferenca));
     }
-    let tema = m.state.tema_json();
+    let tema = tema_com_material(app, m);
     if tema != m.tema_enviado {
         m.tema_enviado = tema.clone();
         let _ = w.emit("tema", tema);
@@ -506,7 +556,7 @@ fn enviar(app: &AppHandle, m: &mut Motor, tudo: bool) {
 // ---- comandos da tela ----
 
 #[tauri::command]
-fn estado_inicial() -> Value {
+fn estado_inicial(app: AppHandle) -> Value {
     com_motor(|m| {
         m.state.push_to_ui(&m.janela);
         m.state.push_playback(&m.janela);
@@ -514,7 +564,7 @@ fn estado_inicial() -> Value {
         if let Value::Object(mapa) = &estado {
             m.enviado = mapa.clone();
         }
-        let tema = m.state.tema_json();
+        let tema = tema_com_material(&app, m);
         m.tema_enviado = tema.clone();
         tracing::info!(campos = m.enviado.len(), "tela web carregou o estado inicial");
         // So no build de desenvolvimento: copia do estado para conferir a tela fora do app.

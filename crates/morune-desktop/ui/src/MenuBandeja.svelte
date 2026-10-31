@@ -63,7 +63,7 @@
   .bts { display: flex; align-items: center; justify-content: center; gap: var(--e-lg); padding: var(--e-xs) 0; }
   .ic { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 99px; color: var(--texto-suave); flex: none; transition: color var(--m-rapido); }
   .ic:hover { color: var(--texto); }
-  .pp { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 99px; background: var(--texto); color: var(--fundo); }
+  .pp { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 99px; background: var(--texto); color: var(--sobre-texto); }
   .vol { display: flex; align-items: center; gap: var(--e-sm); padding: 0 var(--e-xs); }
   .barra { flex: 1; height: 16px; display: flex; align-items: center; cursor: pointer; }
   .trilho { width: 100%; height: 4px; border-radius: 99px; background: color-mix(in srgb, var(--texto) 20%, transparent); overflow: hidden; }

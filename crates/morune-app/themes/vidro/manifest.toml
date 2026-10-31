@@ -1,0 +1,7 @@
+schema_version = 1
+id = "vidro"
+name = "Vidro"
+version = "1.0.4"
+author = "Morune"
+appearance = "dark"
+description = "Glassmorphism: paineis de vidro sobre o que esta atras da janela, com o acrilico do Windows."

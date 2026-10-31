@@ -1,6 +1,7 @@
 /* Base. Os valores vem do tema (tema.ts); estes sao so o ponto de partida. */
 :root {
   --fundo: #0b0d12;
+  --sobre-texto: #0b0d12;
   --superficie: #12151d;
   --superficie-alta: #1a1e29;
   --lateral: #0d1016;
@@ -58,7 +59,7 @@ img { display: block; }
   transition: background var(--m-rapido);
 }
 .chip:hover { background: var(--selecionado); }
-.chip.ativo { background: var(--texto); color: var(--fundo); }
+.chip.ativo { background: var(--texto); color: var(--sobre-texto); }
 .campo {
   display: flex; align-items: center; gap: var(--e-sm);
   height: 40px; padding: 0 var(--e-md); border-radius: 99px;
@@ -75,6 +76,6 @@ img { display: block; }
 }
 .botao:hover { background: var(--selecionado); }
 .botao:active { transform: scale(0.97); }
-.botao.primario { background: var(--texto); color: var(--fundo); }
+.botao.primario { background: var(--texto); color: var(--sobre-texto); }
 
 [data-parado="1"] * { transition: none !important; animation: none !important; }

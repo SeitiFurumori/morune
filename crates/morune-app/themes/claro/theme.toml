@@ -1,0 +1,66 @@
+# Claro -- para quem trabalha de dia ou nao gosta de escuro. Papel frio,
+# cartoes brancos e a capa tingindo o fundo de leve. O acento fica escuro e
+# fixo: a cor viva da capa, clareada para fundo escuro, sumiria aqui.
+
+[color]
+background         = "#e8ecf1"
+surface            = "#ffffff"
+sidebar_background = "#f6f8fa"
+player_background  = "#ffffff"
+surface_raised     = "#ffffff"
+text           = "#161a20"
+text_muted     = "#5f6875"
+text_on_accent = "#ffffff"
+accent         = "#161a20"
+accent_hover   = "#2b313b"
+border           = "#7a828e"
+border_highlight = "#161a2012"
+hover            = "#161a200a"
+selected         = "#161a2012"
+focus_ring       = "#161a20"
+success          = "#1f8a5b"
+warning          = "#a86b00"
+danger           = "#c62828"
+shadow           = "#1b2a4026"
+scrollbar        = "#77808c"
+
+[typography]
+family         = "Segoe UI Variable Text"
+display_family = "Segoe UI Variable Display"
+scale        = 1.0
+size_xs      = 12.0
+size_sm      = 13.0
+size_md      = 15.0
+size_lg      = 18.0
+size_xl      = 24.0
+size_display = 34.0
+weight_normal = 400
+weight_medium = 600
+weight_bold   = 700
+line_height    = 1.45
+letter_spacing = -0.1
+
+[shape]
+radius_sm      = 10.0
+radius_md      = 14.0
+radius_lg      = 18.0
+radius_artwork = 12.0
+radius_avatar  = 999.0
+border_width       = 0.0
+progress_thickness = 4.0
+
+[control]
+button_radius = 999.0
+
+[motion]
+spring_stiffness = 180.0
+spring_damping   = 13.0
+
+[effects]
+material              = "legacy"
+acrylic               = false
+artwork_tint          = true
+artwork_tint_strength = 0.18
+artwork_accent        = false
+artwork_glow          = 0.35
+breathe               = true

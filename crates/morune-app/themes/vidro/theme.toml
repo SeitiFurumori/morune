@@ -1,0 +1,68 @@
+# Vidro -- glassmorphism de verdade: a janela deixa ver o que esta atras dela,
+# desfocado pelo acrilico do Windows, e os paineis sao vidro claro com uma
+# aresta de luz. Com "Efeitos de transparencia" desligado no Windows, o fundo
+# vira solido sozinho.
+
+[color]
+background         = "#0e1218d6"
+surface            = "#ffffff12"
+sidebar_background = "#ffffff0d"
+player_background  = "#ffffff14"
+surface_raised     = "#262c36f5"
+text           = "#f7f9fc"
+text_muted     = "#e2e7ee"
+text_on_accent = "#121722"
+accent         = "#ffffff"
+accent_hover   = "#ffffff"
+border           = "#ffffff80"
+border_highlight = "#ffffff2e"
+hover            = "#ffffff14"
+selected         = "#ffffff18"
+focus_ring       = "#ffffff"
+success          = "#8fe0b6"
+warning          = "#f5cf7a"
+danger           = "#ff9a90"
+shadow           = "#00000033"
+scrollbar        = "#ffffff80"
+
+[typography]
+family         = "Segoe UI Variable Text"
+display_family = "Segoe UI Variable Display"
+scale        = 1.0
+size_xs      = 12.0
+size_sm      = 13.0
+size_md      = 15.0
+size_lg      = 18.0
+size_xl      = 24.0
+size_display = 34.0
+weight_normal = 400
+weight_medium = 600
+weight_bold   = 700
+line_height    = 1.45
+letter_spacing = 0.0
+
+[shape]
+radius_sm      = 12.0
+radius_md      = 16.0
+radius_lg      = 22.0
+radius_artwork = 14.0
+radius_avatar  = 999.0
+border_width       = 1.0
+progress_thickness = 4.0
+
+[control]
+button_radius = 999.0
+
+[motion]
+# Media, com um pouco mais de balanco.
+spring_stiffness = 200.0
+spring_damping   = 11.0
+
+[effects]
+material              = "liquid"
+acrylic               = true
+artwork_tint          = true
+artwork_tint_strength = 0.08
+artwork_accent        = true
+artwork_glow          = 0.45
+breathe               = true

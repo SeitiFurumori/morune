@@ -242,6 +242,10 @@ pub struct MotionTokens {
     /// Transicoes grandes (abrir "tocando agora").
     pub duration_slow: i32,
     pub easing: Easing,
+    /// Rigidez da mola da troca de faixa. Mais alto chega mais rapido.
+    pub spring_stiffness: f32,
+    /// Atrito da mola. Baixo balanca mais; alto assenta sem passar do ponto.
+    pub spring_damping: f32,
 }
 
 impl Default for MotionTokens {
@@ -253,6 +257,8 @@ impl Default for MotionTokens {
             duration_normal: 200,
             duration_slow: 320,
             easing: Easing::EaseInOut,
+            spring_stiffness: 200.0,
+            spring_damping: 14.0,
         }
     }
 }
@@ -335,6 +341,11 @@ pub struct EffectTokens {
     /// antes de chegar na tela, e uma capa sem cor (preta, cinza, branca) cai de
     /// volta no `accent` do tema -- o contraste nunca depende da capa.
     pub artwork_accent: bool,
+    /// Brilho da cor da capa em volta dela no player, em `[0.0, 1.0]`. `0` desliga.
+    pub artwork_glow: f32,
+    /// O brilho da capa pulsa de leve com o volume da musica. Para com jogo em
+    /// tela cheia e com movimento reduzido, como todo movimento.
+    pub breathe: bool,
 }
 
 impl Default for EffectTokens {
@@ -350,6 +361,8 @@ impl Default for EffectTokens {
             artwork_tint: true,
             artwork_tint_strength: 0.35,
             artwork_accent: false,
+            artwork_glow: 0.45,
+            breathe: false,
         }
     }
 }

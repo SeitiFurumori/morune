@@ -2,8 +2,17 @@
   import Capa from './Capa.svelte'
   import Icone from './Icone.svelte'
   import { acao, motor, Pagina } from './motor.svelte'
+  import { entrarComMola } from './tema'
 
   const e = $derived(motor.e)
+  let agoraEl: HTMLElement | undefined = $state()
+  // A faixa trocou: a capa e o nome entram com a mola do tema.
+  let ultimaFaixa = ''
+  $effect(() => {
+    const id = e.now_id
+    if (id && ultimaFaixa && id !== ultimaFaixa && agoraEl) entrarComMola(agoraEl)
+    ultimaFaixa = id || ''
+  })
   let arrastando = $state<number | null>(null)
   const progresso = $derived(arrastando ?? e.progress ?? 0)
 
@@ -36,9 +45,10 @@
 </script>
 
 <footer class="player">
-  <div class="agora">
+  <div class="agora" bind:this={agoraEl}>
     {#if e.has_track}
-      <div class="capa-agora" style:--brilho={e.live_accent}>
+      <div class="capa-agora" style:--brilho={e.capa_viva || e.live_accent}
+        style:--respira={motor.tema?.spec?.effects?.breathe ? (e.nivel ?? 0) : 1}>
         <Capa src={e.now_cover} inicial={e.now_cover_initial} matiz={e.now_cover_hue} pendente={e.now_cover_pending} tamanho="56px" />
       </div>
       <div class="txt">
@@ -94,7 +104,17 @@
 <style>
   .player { display: grid; grid-template-columns: 1fr minmax(360px, 600px) 1fr; align-items: center; gap: var(--e-lg); padding: 0 var(--e-md); height: 100%; }
   .agora { display: flex; align-items: center; gap: var(--e-md); min-width: 0; }
-  .capa-agora { border-radius: var(--r-capa); box-shadow: 0 0 26px color-mix(in srgb, var(--brilho, transparent) 45%, transparent); transition: box-shadow var(--m-lento); }
+  /* `isolation` segura o brilho (z-index -1) atras da capa, e nao atras do painel. */
+  .capa-agora { position: relative; isolation: isolate; border-radius: var(--r-capa); }
+  /* O brilho da capa: a cor viva dela, desfocada por tras. Parado; so muda de cor com a faixa. */
+  /* Um halo curto: sombra colorida, sem camada desfocada. Ao respirar, so a
+     opacidade muda (`--respira`, de 0 a 1), o que nao repinta nada. */
+  .capa-agora::before {
+    content: ''; position: absolute; inset: 0; border-radius: inherit; z-index: -1;
+    box-shadow: 0 0 16px 2px var(--brilho, transparent);
+    opacity: calc(var(--brilho-capa, 0.45) * (0.55 + 0.45 * var(--respira, 1)));
+    transition: box-shadow var(--m-lento), opacity 90ms linear;
+  }
   .txt { min-width: 0; }
   .t { font-weight: var(--peso-medio); font-size: var(--t-sm); }
   .a { font-size: var(--t-xs); }
@@ -107,12 +127,12 @@
   .ic-bt:active, .pp:active { transform: scale(0.92); }
   .ic-bt.on { color: var(--acento); }
   .rep b { position: absolute; right: 2px; bottom: 2px; font-size: 9px; }
-  .pp { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 99px; background: var(--texto); color: var(--fundo); transition: transform var(--m-rapido); }
+  .pp { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-botao, 99px); background: var(--texto); color: var(--sobre-texto); transition: transform var(--m-rapido); }
   .pp:hover { transform: scale(1.05); }
   .tempo { display: flex; align-items: center; gap: var(--e-sm); width: 100%; font-size: var(--t-xs); color: var(--texto-suave); font-variant-numeric: tabular-nums; }
   .barra, .vol { flex: 1; height: 16px; display: flex; align-items: center; cursor: pointer; }
   .vol { flex: none; width: 110px; }
-  .trilho { position: relative; width: 100%; height: 4px; border-radius: 99px; background: color-mix(in srgb, var(--texto) 20%, transparent); overflow: hidden; }
+  .trilho { position: relative; width: 100%; height: var(--trilho, 4px); border-radius: 99px; background: color-mix(in srgb, var(--texto) 20%, transparent); overflow: hidden; }
   .cheio { height: 100%; background: var(--texto); border-radius: 99px; }
   .barra:hover .cheio, .vol:hover .cheio { background: var(--acento); }
   .direita { display: flex; align-items: center; justify-content: flex-end; gap: var(--e-sm); }

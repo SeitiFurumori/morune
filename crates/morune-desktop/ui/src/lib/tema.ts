@@ -10,17 +10,44 @@ function opaca(c: string) {
   return c.length === 9 ? c.slice(0, 7) : c
 }
 
+/** Parametros da mola da troca de faixa, vindos do tema. */
+export const mola = { rigidez: 200, atrito: 14, ligada: true }
+
+/**
+ * Faz `el` entrar com mola: sai de `x0` px e assenta em zero, passando um
+ * pouco do ponto conforme o atrito. So `transform`, que roda na GPU.
+ */
+export function entrarComMola(el: HTMLElement, x0 = -24) {
+  if (!mola.ligada || document.documentElement.dataset.quieta === '1') return
+  let x = x0, v = 0, antes = performance.now()
+  const passo = (agora: number) => {
+    const dt = Math.min(0.032, (agora - antes) / 1000)
+    antes = agora
+    v += (-mola.rigidez * x - mola.atrito * v) * dt
+    x += v * dt
+    if (Math.abs(x) > 0.05 || Math.abs(v) > 0.05) {
+      el.style.transform = `translateX(${x.toFixed(2)}px)`
+      requestAnimationFrame(passo)
+    } else el.style.transform = ''
+  }
+  requestAnimationFrame(passo)
+}
+
 export function aplicarTema(t: any) {
   const s = t?.spec
   if (!s) return
   const r = document.documentElement.style
   const c = s.color ?? {}
-  // A janela ainda e opaca (o acrilico nao foi ligado): um fundo transparente
-  // mostraria o branco da janela por tras. Quando ligar, usar `s.effects.acrylic`.
-  const vidro = false
+  // Com o acrilico do Windows ligado, o fundo do tema deixa ver o que esta
+  // atras da janela. Sem ele (tema opaco, ou transparencia desligada no
+  // Windows), o fundo vai solido -- senao apareceria o vazio da janela.
+  const vidro = !!t.vidro_ativo
   const set = (k: string, v: string | number) => r.setProperty(k, String(v))
 
   set('--fundo', vidro ? cor(c.background, '#0b0d12') : opaca(cor(c.background, '#0b0d12')))
+  // Texto em cima de um botao cheio com a cor do texto: a cor do fundo, mas
+  // sempre solida (no Vidro o fundo e translucido e o texto sumiria).
+  set('--sobre-texto', opaca(cor(c.background, '#0b0d12')))
   set('--superficie', cor(c.surface, '#12151d'))
   set('--superficie-alta', cor(c.surface_raised, '#1a1e29'))
   set('--lateral', cor(c.sidebar_background, '#0d1016'))
@@ -31,6 +58,8 @@ export function aplicarTema(t: any) {
   set('--acento-tema', cor(c.accent, '#8b63f6'))
   set('--acento-hover', cor(c.accent_hover, '#a383ff'))
   set('--borda', cor(c.border, '#ffffff22'))
+  set('--borda-destaque', cor(c.border_highlight, cor(c.border, '#ffffff22')))
+  r.colorScheme = s.manifest?.appearance === 'light' ? 'light' : 'dark'
   set('--hover', cor(c.hover, '#ffffff0f'))
   set('--selecionado', cor(c.selected, '#ffffff18'))
   set('--foco', cor(c.focus_ring, '#ffffff'))
@@ -61,6 +90,11 @@ export function aplicarTema(t: any) {
   set('--e-md', `${sh.spacing_md ?? 14}px`)
   set('--e-lg', `${sh.spacing_lg ?? 22}px`)
   set('--e-xl', `${sh.spacing_xl ?? 34}px`)
+  // Forma: o mesmo app com outro desenho, nao so outra cor.
+  set('--borda-painel', `${sh.border_width ?? 0}px`)
+  set('--trilho', `${sh.progress_thickness ?? 4}px`)
+  const ct = s.control ?? {}
+  set('--r-botao', `${Math.min(ct.button_radius ?? 999, 999)}px`)
 
   const m = s.motion ?? {}
   const parado = t.reduce_motion || m.enabled === false
@@ -68,8 +102,15 @@ export function aplicarTema(t: any) {
   set('--m-rapido', parado ? '0ms' : `${(m.duration_fast ?? 120) / vel}ms`)
   set('--m-normal', parado ? '0ms' : `${(m.duration_normal ?? 200) / vel}ms`)
   set('--m-lento', parado ? '0ms' : `${(m.duration_slow ?? 320) / vel}ms`)
+  // Mola da troca de faixa, lida pelo player. Parado = sem mola.
+  mola.rigidez = m.spring_stiffness || 200
+  mola.atrito = m.spring_damping || 14
+  mola.ligada = !parado
 
   const e = s.effects ?? {}
+  // A capa manda: o brilho em volta dela e o fundo tirado dela.
+  set('--brilho-capa', Math.max(0, Math.min(1, e.artwork_glow ?? 0.45)))
+  set('--fundo-capa', e.artwork_tint ? Math.max(0, Math.min(1, e.artwork_tint_strength ?? 0)) : 0)
   set('--vidro-desfoque', `${Math.max(0, t.vidro_desfoque ?? e.backdrop_blur ?? 0)}px`)
   document.documentElement.dataset.material = String(e.material ?? 'legacy').toLowerCase()
   document.documentElement.dataset.vidro = vidro ? '1' : '0'

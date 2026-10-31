@@ -142,6 +142,75 @@ impl Estado {
     }
 }
 
+/// Nivel do som, para o brilho que "respira" com a musica.
+///
+/// Cada pacote e medido **quando entra na fila**, mas so sai na caixa meio
+/// segundo depois (ver [`MAX_QUEUED`]). Por isso a medida guarda a hora em que
+/// aquele pedaco vai tocar, e quem le recebe o nivel do que esta saindo agora --
+/// sem isso o brilho pulsaria adiantado em relacao a batida.
+pub(crate) type NivelCompartilhado = Arc<Mutex<Nivel>>;
+
+#[derive(Debug)]
+pub(crate) struct Nivel {
+    /// `(quando toca, volume RMS do pacote)`, em ordem.
+    fila: std::collections::VecDeque<(Instant, f32)>,
+    /// Quando acaba o ultimo pacote enfileirado.
+    fim: Instant,
+    /// Volume do pedaco que esta saindo agora.
+    atual: f32,
+    /// Media lenta do volume: o pulso e o atual comparado a ela, para uma
+    /// musica baixinha pulsar tanto quanto uma alta.
+    media: f32,
+}
+
+impl Default for Nivel {
+    fn default() -> Self {
+        Self { fila: Default::default(), fim: Instant::now(), atual: 0.0, media: 0.0 }
+    }
+}
+
+impl Nivel {
+    fn enfileirar(&mut self, rms: f32, duracao: Duration) {
+        let agora = Instant::now();
+        let inicio = self.fim.max(agora);
+        self.fim = inicio + duracao;
+        // Teto folgado: a fila do rodio tem 26 pacotes; isto nunca deveria encher.
+        if self.fila.len() < 256 {
+            self.fila.push_back((inicio, rms));
+        }
+    }
+
+    /// O audio enfileirado foi descartado ou parou: o nivel some com ele.
+    fn limpar(&mut self) {
+        self.fila.clear();
+        self.fim = Instant::now();
+        self.atual = 0.0;
+    }
+
+    /// Pulso de 0 a 1 do que esta tocando agora.
+    pub(crate) fn pulso(&mut self) -> f32 {
+        let agora = Instant::now();
+        while self.fila.front().is_some_and(|(t, _)| *t <= agora) {
+            self.atual = self.fila.pop_front().map(|(_, v)| v).unwrap_or(0.0);
+        }
+        if self.fila.is_empty() && agora > self.fim {
+            self.atual = 0.0;
+        }
+        // Lida ~10 vezes por segundo: 0.03 por leitura da uma media de ~3 s.
+        // A primeira leitura com som comeca a media nela mesma; partindo de
+        // zero, o pulso ficaria preso no maximo ate a media alcancar.
+        if self.media < 1e-4 {
+            self.media = self.atual;
+        }
+        self.media += (self.atual - self.media) * 0.03;
+        if self.media < 1e-4 {
+            return 0.0;
+        }
+        // Zero no volume de sempre; cheio quando a batida passa 60% da media.
+        ((self.atual / self.media - 1.0) / 0.6).clamp(0.0, 1.0)
+    }
+}
+
 /// Decide se o dispositivo ja pode fechar.
 ///
 /// Separado do vigia para poder ser testado sem placa de som.
@@ -154,6 +223,7 @@ pub(crate) struct MoruneSink {
     flush: FlushRequest,
     /// Os dois lados tocam o mesmo audio. Ver [`misturar_em_mono`].
     mono: bool,
+    nivel: NivelCompartilhado,
 }
 
 impl MoruneSink {
@@ -161,6 +231,9 @@ impl MoruneSink {
     fn take_flush(&self, saida: &mut Saida, volume: &SharedVolume) {
         if self.flush.swap(false, Ordering::AcqRel) {
             saida.reset_queue(volume);
+            if let Ok(mut nivel) = self.nivel.lock() {
+                nivel.limpar();
+            }
         }
     }
 }
@@ -194,6 +267,10 @@ impl Sink for MoruneSink {
             saida.sink.pause();
         }
         estado.parado_desde = Some(Instant::now());
+        drop(estado);
+        if let Ok(mut nivel) = self.nivel.lock() {
+            nivel.limpar();
+        }
         Ok(())
     }
 
@@ -208,6 +285,19 @@ impl Sink for MoruneSink {
             misturar_em_mono(&mut samples_f32);
         }
         let samples_f32: &[f32] = &samples_f32;
+
+        // Volume do pacote antes do volume do usuario: o pulso compara com a
+        // media da propria musica, entao baixar o volume nao apaga o brilho.
+        if !samples_f32.is_empty() {
+            let soma: f32 = samples_f32.iter().map(|s| s * s).sum();
+            let rms = (soma / samples_f32.len() as f32).sqrt();
+            let duracao = Duration::from_secs_f64(
+                samples_f32.len() as f64 / NUM_CHANNELS as f64 / SAMPLE_RATE as f64,
+            );
+            if let Ok(mut nivel) = self.nivel.lock() {
+                nivel.enfileirar(rms, duracao);
+            }
+        }
 
         {
             let mut estado = self.estado.lock().expect(ENVENENADO);
@@ -398,6 +488,7 @@ pub(crate) fn open(
     flush: FlushRequest,
     preferido: &str,
     mono: bool,
+    nivel: NivelCompartilhado,
 ) -> Result<MoruneSink, String> {
     let saida = abrir_saida(preferido, &volume)?;
     tracing::info!(
@@ -423,6 +514,7 @@ pub(crate) fn open(
         estado,
         flush,
         mono,
+        nivel,
     })
 }
 
@@ -442,6 +534,40 @@ fn misturar_em_mono(amostras: &mut [f32]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Pacote que ja devia estar tocando: hora no passado.
+    fn tocando(n: &mut Nivel, rms: f32) {
+        n.fila.push_back((Instant::now() - Duration::from_millis(1), rms));
+        n.fim = Instant::now() + Duration::from_millis(50);
+    }
+
+    #[test]
+    fn o_pulso_sobe_na_batida_e_fica_baixo_no_volume_de_sempre() {
+        let mut n = Nivel::default();
+        // Volume constante: a media alcanca, e o pulso fica perto de zero.
+        for _ in 0..200 {
+            tocando(&mut n, 0.1);
+            n.pulso();
+        }
+        tocando(&mut n, 0.1);
+        assert!(n.pulso() < 0.2, "volume constante nao deveria pulsar");
+        // Uma batida com o dobro do volume: pulso alto.
+        tocando(&mut n, 0.2);
+        assert!(n.pulso() > 0.8, "a batida deveria pulsar");
+        // Silencio: zero.
+        tocando(&mut n, 0.0);
+        assert_eq!(n.pulso(), 0.0);
+    }
+
+    #[test]
+    fn audio_que_ainda_nao_tocou_nao_conta() {
+        let mut n = Nivel::default();
+        n.enfileirar(0.5, Duration::from_millis(20));
+        // O primeiro pacote comeca agora; um segundo pacote, so depois dele.
+        n.enfileirar(0.9, Duration::from_millis(20));
+        n.pulso();
+        assert!((n.atual - 0.5).abs() < f32::EPSILON, "so o pacote da vez vale");
+    }
 
     #[test]
     fn mono_poe_a_media_nos_dois_lados() {
