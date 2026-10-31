@@ -151,6 +151,11 @@ pub struct AudioSettings {
     /// oferece para escolher e o que a pessoa reconhece na tela. Um nome que
     /// sumiu (fone desconectado) volta ao padrao em vez de calar a musica.
     pub output_device: String,
+    /// Os dois lados tocam o mesmo audio.
+    ///
+    /// Para quem joga com um fone so, ou com um lado do headset afastado para
+    /// ouvir a sala: sem isto, o que a mixagem pos so num canal some.
+    pub mono: bool,
 }
 
 impl Default for AudioSettings {
@@ -160,6 +165,7 @@ impl Default for AudioSettings {
             normalize: true,
             cache_mb: 1024,
             output_device: String::new(),
+            mono: false,
         }
     }
 }

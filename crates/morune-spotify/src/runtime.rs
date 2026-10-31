@@ -224,6 +224,7 @@ mod tests {
             normalize: false,
             cache_mb: 0,
             output_device: "Fone".into(),
+            mono: true,
         };
         backend.set_audio(novo.clone());
         assert_eq!(*backend.audio.lock().unwrap(), novo);

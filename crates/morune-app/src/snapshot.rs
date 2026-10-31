@@ -78,6 +78,8 @@ pub fn dados_de_exemplo(w: &ui::AppWindow, pasta: &Path) {
             playable: true,
             playing: id == "4",
             favorite: true,
+            artist_id: Default::default(),
+            album_id: Default::default(),
         };
     let cartao = |id: &str, titulo: &str, sub: &str, n: Option<usize>| ui::CardItem {
         id: id.into(),

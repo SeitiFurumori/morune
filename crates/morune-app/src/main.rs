@@ -27,6 +27,8 @@ mod crash;
 mod hotkeys;
 #[cfg(windows)]
 mod instance;
+#[cfg(windows)]
+mod notify;
 mod optics;
 mod quadros;
 mod session;
@@ -1121,6 +1123,9 @@ fn wire_taskbar(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState>>
     // criterio do projeto e nao aparecer no perfil de quem esta jogando.
     let mut media: Option<smtc::MediaControls> = None;
     let mut media_failed = false;
+    // Mesmo giro tambem: le o mesmo `media_status` que o painel acabou de ler.
+    let mut track_notifier: Option<notify::TrackNotifier> = None;
+    let mut notifier_failed = false;
     // Atalhos globais leem no mesmo giro: a thread deles dorme em
     // `GetMessageW`, e quem entrega o comando a interface e este temporizador.
     let hotkeys = hotkeys::GlobalHotkeys::start();
@@ -1210,6 +1215,20 @@ fn wire_taskbar(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState>>
                 // (o servico de midia reiniciando), e a proxima passagem
                 // reescreve tudo, porque o estado guardado nao foi atualizado.
                 tracing::warn!(%error, "painel de midia recusou a atualizacao");
+            }
+
+            if track_notifier.is_none() && !notifier_failed {
+                match notify::TrackNotifier::new() {
+                    Ok(created) => track_notifier = Some(created),
+                    Err(error) => {
+                        notifier_failed = true;
+                        tracing::warn!(%error, "notificacoes do Windows indisponiveis");
+                    }
+                }
+            }
+            if let Some(notifier) = track_notifier.as_mut() {
+                let ligada = state.borrow().track_notifications();
+                notifier.update(status.as_ref(), ligada, window.window());
             }
         }
     });
@@ -1427,6 +1446,16 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
         s.push_to_ui(&w);
     });
 
+    on!(on_set_mono, |w, s, on: bool| {
+        s.set_mono(on);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_clear_cache, |w, s| {
+        s.clear_cache();
+        s.push_to_ui(&w);
+    });
+
     on!(on_set_normalize, |w, s, on: bool| {
         s.set_normalize(on);
         s.push_to_ui(&w);
@@ -1496,6 +1525,26 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
 
     // Filtrar nao vai a rede: a lista inteira ja esta em memoria, e responder
     // a cada tecla e o que faz o filtro parecer instantaneo.
+    on!(on_set_search_kind, |w, s, kind: i32| {
+        s.set_search_kind(kind);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_set_library_kind, |w, s, kind: i32| {
+        s.set_library_kind(kind);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_set_library_sort, |w, s, sort: i32| {
+        s.set_library_sort(sort);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_filter_library, |w, s, texto: slint::SharedString| {
+        s.set_library_filter(texto.as_str());
+        s.push_to_ui(&w);
+    });
+
     on!(on_filter_playlists, |w, s, texto: slint::SharedString| {
         s.set_playlist_filter(texto.as_str());
         s.push_to_ui(&w);
@@ -1572,6 +1621,30 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
             let Some(w) = weak.upgrade() else { return };
             let mut s = st.borrow_mut();
             s.toggle_hidden(tag.as_str());
+            s.push_to_ui(&w);
+        });
+        let weak = window.as_weak();
+        let st = state.clone();
+        acoes.on_open(move |tag| {
+            let Some(w) = weak.upgrade() else { return };
+            let mut s = st.borrow_mut();
+            s.play_track(tag.as_str());
+            s.push_to_ui(&w);
+        });
+        let weak = window.as_weak();
+        let st = state.clone();
+        acoes.on_start_radio(move |tag| {
+            let Some(w) = weak.upgrade() else { return };
+            let mut s = st.borrow_mut();
+            s.start_radio(tag.as_str());
+            s.push_to_ui(&w);
+        });
+        let weak = window.as_weak();
+        let st = state.clone();
+        acoes.on_remove_from_playlist(move |tag| {
+            let Some(w) = weak.upgrade() else { return };
+            let mut s = st.borrow_mut();
+            s.remove_track_from_open_playlist(tag.as_str());
             s.push_to_ui(&w);
         });
         let weak = window.as_weak();
@@ -1699,6 +1772,11 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
         s.push_playback(&w);
     });
 
+    on!(on_seek_by, |w, s, seconds: f32| {
+        s.seek_by(seconds);
+        s.push_playback(&w);
+    });
+
     on!(on_set_volume, |w, s, volume: f32| {
         s.set_volume(volume);
         s.push_playback(&w);
@@ -1726,6 +1804,11 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
 
     on!(on_set_close_to_tray, |w, s, on: bool| {
         s.set_close_to_tray(on);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_set_track_notifications, |w, s, on: bool| {
+        s.set_track_notifications(on);
         s.push_to_ui(&w);
     });
 
@@ -1785,6 +1868,12 @@ fn wire_callbacks(window: &ui::AppWindow, state: &Rc<std::cell::RefCell<AppState
 
     on!(on_set_font_scale, |w, s, v: f32| {
         s.set_font_scale(v);
+        s.apply_theme_to(&w);
+        s.push_to_ui(&w);
+    });
+
+    on!(on_zoom, |w, s, passo: i32| {
+        s.zoom(passo);
         s.apply_theme_to(&w);
         s.push_to_ui(&w);
     });

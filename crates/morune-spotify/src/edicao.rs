@@ -170,6 +170,40 @@ impl Edicao {
         .map(|_| ())
     }
 
+    /// Tira faixas da playlist, todas as ocorrencias de cada uma.
+    ///
+    /// **Inferido**, como renomear: e a mesma remocao por URI que o rootlist
+    /// aceita (`itemsAsKey`), mandada para as mudancas da playlist. O player
+    /// web usa `removeFromPlaylist`, que pede o `uid` de cada linha -- dado que
+    /// o Morune nao guarda. Se o Spotify recusar, o erro volta para a tela.
+    pub(crate) async fn remover_faixas(
+        &self,
+        id: &PlaylistId,
+        faixas: &[TrackId],
+    ) -> CoreResult<()> {
+        let id = so_spotify(id.provider, &id.id)?;
+        let itens: Vec<serde_json::Value> = faixas
+            .iter()
+            .filter(|t| t.provider == Provider::Spotify)
+            .map(|t| serde_json::json!({ "uri": format!("spotify:track:{}", t.id) }))
+            .collect();
+        if itens.is_empty() {
+            return Err(CoreError::Unsupported("remover faixa de outro provedor"));
+        }
+        let corpo = serde_json::json!({
+            "deltas": [{
+                "ops": [{ "kind": 3, "rem": { "items": itens, "itemsAsKey": true } }],
+                "info": { "source": { "client": 5 } }
+            }],
+            "wantResultingRevisions": false,
+            "wantSyncResult": false,
+            "nonces": []
+        });
+        self.spclient_post(&format!("/playlist/v2/playlist/{id}/changes"), &corpo)
+            .await
+            .map(|_| ())
+    }
+
     /// Troca o nome. Ver a nota de "inferido" no cabecalho.
     pub(crate) async fn renomear(&self, id: &PlaylistId, nome: &str) -> CoreResult<()> {
         let id = so_spotify(id.provider, &id.id)?;

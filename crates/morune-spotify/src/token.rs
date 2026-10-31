@@ -344,9 +344,9 @@ impl PendingAuth {
     async fn wait_for_code(&self) -> CoreResult<String> {
         match tokio::time::timeout(AUTH_TIMEOUT, self.accept_code()).await {
             Ok(resultado) => resultado,
-            // Estourou o prazo: para quem esta na frente da tela isso e um
-            // login cancelado, que e a frase que a interface ja sabe mostrar.
-            Err(_) => Err(CoreError::Cancelled),
+            // Estourou o prazo. Nao e `Cancelled`: ninguem cancelou, e a
+            // interface precisa dizer que basta clicar de novo.
+            Err(_) => Err(CoreError::TimedOut),
         }
     }
 

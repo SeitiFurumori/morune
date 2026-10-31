@@ -44,6 +44,14 @@ pub enum CoreError {
 
     #[error("cancelado")]
     Cancelled,
+
+    /// A espera por uma acao do usuario passou do prazo.
+    ///
+    /// Separado de [`CoreError::Cancelled`] porque a frase e outra: quem deixou
+    /// o login correr ate o fim do prazo nao cancelou nada, e ouvir "login
+    /// cancelado" faz parecer que o clique dele falhou.
+    #[error("tempo esgotado")]
+    TimedOut,
 }
 
 pub type CoreResult<T> = Result<T, CoreError>;
@@ -63,9 +71,10 @@ impl CoreError {
     pub fn kind(&self) -> ErrorKind {
         match self {
             CoreError::NotAuthenticated | CoreError::AuthExpired => ErrorKind::Auth,
-            CoreError::Network(_) | CoreError::AudioDevice(_) | CoreError::Cancelled => {
-                ErrorKind::Transient
-            }
+            CoreError::Network(_)
+            | CoreError::AudioDevice(_)
+            | CoreError::Cancelled
+            | CoreError::TimedOut => ErrorKind::Transient,
             CoreError::AccountPlan(_)
             | CoreError::NotFound(_)
             | CoreError::Unsupported(_)

@@ -180,6 +180,17 @@ pub struct Artist {
     pub top_tracks: Vec<Track>,
     #[serde(default)]
     pub albums: Vec<AlbumRef>,
+    /// Singles e EPs, separados dos albuns como no Spotify.
+    #[serde(default)]
+    pub singles: Vec<AlbumRef>,
+    #[serde(default)]
+    pub compilations: Vec<AlbumRef>,
+    /// Lancamentos de outros em que este artista participa.
+    #[serde(default)]
+    pub appears_on: Vec<AlbumRef>,
+    /// "Os fãs também curtem". So nome, id e foto: e o que o cartao desenha.
+    #[serde(default)]
+    pub related: Vec<Artist>,
 }
 
 /// Que tipo de playlist e esta.

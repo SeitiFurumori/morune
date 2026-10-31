@@ -151,6 +151,16 @@ struct PlaybackRequest {
     desired_generation: Option<u64>,
     pending_generations: VecDeque<u64>,
     active_request_id: Option<u64>,
+    /// A faixa atual acabou sozinha e nada mexeu na reproducao desde entao.
+    ///
+    /// Quando a librespot avisa o fim, o decodificador terminou, mas a saida
+    /// ainda tem ate meio segundo do final da musica na fila (ver
+    /// `MAX_QUEUED` em [`crate::sink`]). O `Load` da proxima faixa que vem em
+    /// seguida e uma **emenda**: descartar a fila ali cortava esse final e
+    /// abria um silencio ate a faixa nova chegar. Com a fila preservada, a
+    /// proxima entra atras do final da anterior, sem intervalo -- a librespot
+    /// ja mantem a saida aberta entre faixas (`gapless` ligado por padrao).
+    ended_naturally: bool,
 }
 
 impl PlaybackRequest {
@@ -258,8 +268,13 @@ impl SpotifyEngine {
         // esta em [`crate::sink`]. Abrir aqui, e nao dentro do construtor do
         // `Player`, e o que permite reportar falha de dispositivo como falha de
         // dispositivo -- a librespot chamaria `unwrap` e derrubaria o processo.
-        let sink = crate::sink::open(volume.clone(), flush.clone(), &audio.output_device)
-            .map_err(CoreError::AudioDevice)?;
+        let sink = crate::sink::open(
+            volume.clone(),
+            flush.clone(),
+            &audio.output_device,
+            audio.mono,
+        )
+        .map_err(CoreError::AudioDevice)?;
 
         // Registrado porque e invisivel de outro jeito: nada na tela nem no
         // audio diz em qual qualidade a faixa chegou, e "mudei e nao senti
@@ -267,6 +282,7 @@ impl SpotifyEngine {
         tracing::info!(
             kbps = audio.bitrate_kbps,
             nivelamento = audio.normalize,
+            mono = audio.mono,
             cache_mb = audio.cache_mb,
             dispositivo = %audio.output_device,
             "preferencias de audio aplicadas"
@@ -313,11 +329,11 @@ impl PlaybackEngine for SpotifyEngine {
         EngineCapabilities {
             seek: true,
             volume: true,
-            // A librespot pre-carrega a proxima faixa, mas quem decide qual e a
-            // proxima e a fila do Morune, e ela so avisa no fim da atual. Sem
-            // isso nao ha reproducao sem intervalo de verdade, e prometer o que
-            // nao se cumpre e pior do que nao oferecer.
-            gapless: false,
+            // A fila do Morune escolhe a proxima so no fim da atual, mas a
+            // faixa ja foi adiantada (`Preload`) e o final da anterior continua
+            // na saida enquanto a escolha acontece: a emenda nao abre silencio.
+            // Ver `PlaybackRequest::ended_naturally`.
+            gapless: true,
             precise_position: true,
         }
     }
@@ -445,8 +461,15 @@ fn apply(
             Err(e) => tracing::debug!(error = %e, "faixa nao pode ser adiantada"),
         },
         PlayerCommand::Play => player.play(),
-        PlayerCommand::Pause => player.pause(),
+        PlayerCommand::Pause => {
+            // Pausar depois do fim deixa o final da faixa parado na fila; o
+            // proximo `Load` ja nao e emenda, e esse final nao pode tocar
+            // na frente da faixa que a pessoa escolher depois.
+            playback_request.ended_naturally = false;
+            player.pause()
+        }
         PlayerCommand::TogglePlay => {
+            playback_request.ended_naturally = false;
             let playing = shared.snapshot.lock().unwrap().state == PlaybackState::Playing;
             if playing {
                 player.pause()
@@ -455,6 +478,7 @@ fn apply(
             }
         }
         PlayerCommand::Stop => {
+            playback_request.ended_naturally = false;
             shared.request_flush();
             player.stop()
         }
@@ -466,6 +490,7 @@ fn apply(
             // O audio ja enfileirado e do trecho antigo. Sem descartar, ele
             // tocaria inteiro antes de o novo comecar -- a librespot nao mexe na
             // fila ao mover a posicao.
+            playback_request.ended_naturally = false;
             shared.request_flush();
             player.seek(position.as_millis() as u32);
             shared.clock.lock().unwrap().set(position, true);
@@ -501,14 +526,21 @@ fn load(
         }
     };
 
+    // Lido antes de `begin_load`, que comeca outra requisicao.
+    let emenda = std::mem::take(&mut playback_request.ended_naturally);
     playback_request.begin_load();
 
     // A duracao vem do modelo, e nao de uma consulta de metadados: quem pediu
     // para tocar ja tinha a faixa em maos, e uma requisicao a mais aqui atrasa
     // o inicio do som sem acrescentar nada.
-    // A faixa anterior ainda tem audio enfileirado, e ele nao pode ser ouvido
-    // depois da troca. A librespot pausa o sink aqui, mas nao esvazia a fila.
-    shared.request_flush();
+    //
+    // Numa troca escolhida pela pessoa, o audio enfileirado e da faixa antiga
+    // e nao pode ser ouvido depois da troca. Na emenda do fim natural, e o
+    // final da musica que acabou: descartar cortaria esse final e abriria um
+    // silencio. Ver `ended_naturally`.
+    if !emenda {
+        shared.request_flush();
+    }
 
     shared.update(|s| {
         s.track = Some(Arc::new(track.clone()));
@@ -619,6 +651,7 @@ fn translate(
                 .as_ref()
                 .map(|t| t.id.clone());
             shared.clock.lock().unwrap().pause();
+            playback_request.ended_naturally = true;
             if let Some(id) = ended {
                 let _ = events.send(PlayerEvent::EndOfTrack(id));
             }

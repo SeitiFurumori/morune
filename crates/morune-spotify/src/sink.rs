@@ -152,6 +152,8 @@ fn ja_pode_fechar(parado_desde: Option<Instant>, aberta: bool, agora: Instant) -
 pub(crate) struct MoruneSink {
     estado: Arc<Mutex<Estado>>,
     flush: FlushRequest,
+    /// Os dois lados tocam o mesmo audio. Ver [`misturar_em_mono`].
+    mono: bool,
 }
 
 impl MoruneSink {
@@ -200,7 +202,12 @@ impl Sink for MoruneSink {
         let samples = packet
             .samples()
             .map_err(|e| SinkError::OnWrite(e.to_string()))?;
-        let samples_f32: &[f32] = &converter.f64_to_f32(samples);
+        let mut samples_f32 = converter.f64_to_f32(samples);
+        // A librespot entrega sempre estereo intercalado (`NUM_CHANNELS` = 2).
+        if self.mono {
+            misturar_em_mono(&mut samples_f32);
+        }
+        let samples_f32: &[f32] = &samples_f32;
 
         {
             let mut estado = self.estado.lock().expect(ENVENENADO);
@@ -390,6 +397,7 @@ pub(crate) fn open(
     volume: Arc<SharedVolume>,
     flush: FlushRequest,
     preferido: &str,
+    mono: bool,
 ) -> Result<MoruneSink, String> {
     let saida = abrir_saida(preferido, &volume)?;
     tracing::info!(
@@ -411,12 +419,36 @@ pub(crate) fn open(
     }));
     vigiar(&estado);
 
-    Ok(MoruneSink { estado, flush })
+    Ok(MoruneSink {
+        estado,
+        flush,
+        mono,
+    })
+}
+
+/// Junta os dois canais em cada par de amostras intercaladas (E, D).
+///
+/// Media, e nao soma: somar estouraria o volume quando os dois lados tem o
+/// mesmo som, que e o caso comum. Custa uma soma por amostra, no mesmo laco
+/// que ja converte o pacote.
+fn misturar_em_mono(amostras: &mut [f32]) {
+    for par in amostras.chunks_exact_mut(2) {
+        let media = (par[0] + par[1]) * 0.5;
+        par[0] = media;
+        par[1] = media;
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mono_poe_a_media_nos_dois_lados() {
+        let mut amostras = [1.0, 0.0, 0.5, 0.5, -1.0, 1.0];
+        misturar_em_mono(&mut amostras);
+        assert_eq!(amostras, [0.5, 0.5, 0.5, 0.5, 0.0, 0.0]);
+    }
 
     #[test]
     fn a_saida_fechada_nao_fecha_de_novo() {

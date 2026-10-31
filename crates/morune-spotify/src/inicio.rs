@@ -140,6 +140,10 @@ fn item(conteudo: &Value) -> Option<FeedItem> {
                 genres: Vec::new(),
                 top_tracks: Vec::new(),
                 albums: Vec::new(),
+                singles: Vec::new(),
+                compilations: Vec::new(),
+                appears_on: Vec::new(),
+                related: Vec::new(),
             }))
         }
         // Episodio, colecao de curtidas e o que vier de novo.

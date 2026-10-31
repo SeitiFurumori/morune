@@ -1,4 +1,4 @@
-﻿import { Theme, Layout } from "theme.slint";
+import { Theme, Layout } from "theme.slint";
 import { CenaTravessia, CenaChuva, Realce, Vidro, SceneGlass, Material, MaterialRedondo, Aurora, MolduraAero, GlassEdge, Gloss, Glass, ScrollFade, Icon, IconSwap, IconRef, IconButton, PrimaryButton, GhostButton, SearchField, Slider, Artwork, PressableArea, Toggle, Logo, MenuRow, AccountAvatar } from "components.slint";
 import { ListView } from "std-widgets.slint";
 
@@ -24,6 +24,10 @@ export struct TrackRow {
     playable: bool,
     playing: bool,
     favorite: bool,
+    // Para "Ir para o artista" e "Ir para o álbum". Vazio quando a faixa nao
+    // traz o dado; o item do menu some em vez de levar a lugar nenhum.
+    artist-id: string,
+    album-id: string,
 }
 
 export struct CardItem {
@@ -168,6 +172,15 @@ export global Icons {
 export global Acoes {
     callback copy-link(string);
     callback toggle-hidden(string);
+    // Abre a tela de um artista, album ou playlist pela tag.
+    callback open(string);
+    // Toca a faixa e continua com a radio dela.
+    callback start-radio(string);
+    // Tira a faixa da playlist aberta no Detalhe.
+    callback remove-from-playlist(string);
+    // Ha uma playlist da pessoa aberta no Detalhe: "Remover desta playlist"
+    // so aparece nela. Escrito pelo Rust.
+    in-out property <bool> editable-playlist-open;
     // Playlists da pessoa, para "Adicionar a playlist". Escrito pelo Rust.
     in-out property <[CardItem]> playlists;
     callback add-to-playlist(string, string);
@@ -379,6 +392,8 @@ component WindowControl inherits Rectangle {
 
 component AppTitleBar inherits Rectangle {
     in property <bool> maximized;
+    // A conexao caiu e o Morune esta tentando voltar sozinho.
+    in property <bool> offline;
     callback move-window(float, float);
     callback toggle-maximize();
     callback minimize();
@@ -448,6 +463,30 @@ component AppTitleBar inherits Rectangle {
         // title bar fica deliberadamente silenciosa: arraste a esquerda,
         // controles de janela previsiveis a direita.
         Rectangle { horizontal-stretch: 1; }
+
+        // A unica excecao ao silencio da barra: estado da conexao, como o
+        // "Você está offline" do Spotify no alto. Fica enquanto durar, e nao
+        // na barra de status, que some em seis segundos -- quem volta do jogo
+        // precisa ver que a musica parou por falta de internet.
+        if root.offline: HorizontalLayout {
+            spacing: Theme.space-xs;
+            padding-right: Theme.space-md;
+            alignment: end;
+            Rectangle {
+                width: 8px;
+                height: 8px;
+                y: (parent.height - self.height) / 2;
+                border-radius: 4px;
+                background: Theme.text-muted;
+            }
+            Text {
+                text: "Sem conexão. Tentando de novo…";
+                color: Theme.text-muted;
+                font-size: Theme.size-xs;
+                font-family: Theme.font-family;
+                vertical-alignment: center;
+            }
+        }
 
         WindowControl {
             label: "Minimizar janela";
@@ -596,6 +635,9 @@ component TrackListRow inherits Rectangle {
     in property <bool> quiet-favorite: false;
     // "Nao tocar no radio": so na lista que o radio alimenta (a fila).
     in property <bool> hide-action: false;
+    // A linha esta na lista de uma playlist da pessoa: o menu oferece tira-la.
+    in property <bool> in-own-playlist: false;
+    private property <bool> pode-remover: root.in-own-playlist && Acoes.editable-playlist-open;
     callback hide();
     callback play-next();
     callback enqueue();
@@ -857,7 +899,14 @@ component TrackListRow inherits Rectangle {
         x: min(root.menu-x, root.width - self.width);
         y: root.menu-y;
         width: 232px;
-        height: (root.queue-actions ? 6 : 4) * 34px + Theme.space-xs * 2;
+        // Uma conta por linha que pode aparecer: a altura acompanha o que o
+        // menu de fato mostra, sem sobra embaixo nem item cortado.
+        height: (4
+            + (root.queue-actions ? 2 : 0)
+            + (root.track.artist-id != "" ? 1 : 0)
+            + (root.track.album-id != "" ? 1 : 0)
+            + 1
+            + (root.pode-remover ? 1 : 0)) * 34px + Theme.space-xs * 2;
         close-policy: PopupClosePolicy.close-on-click-outside;
 
         Rectangle {
@@ -889,6 +938,21 @@ component TrackListRow inherits Rectangle {
                     glyph: Icons.plus;
                     clicked => { menu-faixa.close(); menu-playlists.show(); }
                 }
+                if root.track.artist-id != "": MenuRow {
+                    text: "Ir para o artista";
+                    glyph: Icons.chevron-right;
+                    clicked => { menu-faixa.close(); Acoes.open(root.track.artist-id); }
+                }
+                if root.track.album-id != "": MenuRow {
+                    text: "Ir para o álbum";
+                    glyph: Icons.chevron-right;
+                    clicked => { menu-faixa.close(); Acoes.open(root.track.album-id); }
+                }
+                MenuRow {
+                    text: "Tocar rádio desta música";
+                    glyph: Icons.queue;
+                    clicked => { menu-faixa.close(); Acoes.start-radio(root.track.id); }
+                }
                 MenuRow {
                     text: "Copiar link";
                     glyph: Icons.link;
@@ -898,6 +962,11 @@ component TrackListRow inherits Rectangle {
                     text: "Não tocar no rádio";
                     glyph: Icons.hide;
                     clicked => { menu-faixa.close(); Acoes.toggle-hidden(root.track.id); }
+                }
+                if root.pode-remover: MenuRow {
+                    text: "Remover desta playlist";
+                    glyph: Icons.close;
+                    clicked => { menu-faixa.close(); Acoes.remove-from-playlist(root.track.id); }
                 }
             }
         }
@@ -1213,6 +1282,8 @@ component TrackList inherits ListView {
     in property <length> row-gap: 2px;
     in property <bool> quiet-favorite: false;
     in property <bool> hide-action: false;
+    // So a lista do Detalhe: ali a linha e de uma playlist que pode ser sua.
+    in property <bool> in-own-playlist: false;
     callback hide(string);
 
     scrolled => {
@@ -1235,6 +1306,7 @@ component TrackList inherits ListView {
             queue-management: root.queue-management;
             quiet-favorite: root.quiet-favorite;
             hide-action: root.hide-action;
+            in-own-playlist: root.in-own-playlist;
             hide => { root.hide(track.id); }
             can-move-up: i > 0;
             can-move-down: i + 1 < root.tracks.length;
@@ -1741,8 +1813,10 @@ component Sidebar inherits Rectangle {
             clicked => { root.navigate(3); }
         }
 
+        // Com login em andamento, clicar de novo recomeca do zero: e a saida
+        // de quem fechou a aba do navegador antes de concluir.
         if Layout.sidebar-labels-shown && !root.logged-in: GhostButton {
-            label: "Entrar no Spotify";
+            label: root.auth-url != "" ? "Abrir de novo" : "Entrar no Spotify";
             clicked => { root.login(); }
         }
 
@@ -2420,6 +2494,10 @@ component HomePage inherits Rectangle {
     in property <[TrackRow]> recent;
     in property <bool> logged-in;
     in property <bool> loaded;
+    // Ha um login esperando o navegador voltar.
+    in property <bool> logging-in;
+    // Saudacao pela hora. Vazia: sem titulo.
+    in property <string> greeting;
     callback activated(string);
     callback favorite-toggled(string);
     callback play-next(string);
@@ -2465,11 +2543,18 @@ component HomePage inherits Rectangle {
             // O ar que o conteiner perdeu, agora rolando junto.
             padding-bottom: Theme.space-lg;
 
+        // "Bom dia" / "Boa tarde" / "Boa noite", como o Spotify abre o Inicio.
+        // So com conteudo: em cima do estado vazio seria um titulo a mais para
+        // a mesma tela que ja diz o que fazer.
+        if !root.empty && root.greeting != "": PageTitle { text: root.greeting; }
+
         if root.empty && !root.logged-in: EmptyState {
             altura-util: rolagem.height;
             title: "Nada por aqui ainda";
-            hint: "Entre na sua conta para ver suas músicas curtidas, o que você mais ouve e suas playlists.";
-            action-label: "Entrar no Spotify";
+            hint: root.logging-in
+                ? "Conclua o login no navegador. Se a aba sumiu, abra de novo."
+                : "Entre na sua conta para ver suas músicas curtidas, o que você mais ouve e suas playlists.";
+            action-label: root.logging-in ? "Abrir de novo" : "Entrar no Spotify";
             action => { root.login(); }
         }
 
@@ -2565,6 +2650,8 @@ component SortChip inherits Rectangle {
     // Pilula sempre visivel, mesmo inativa: para a lista de buscas recentes,
     // onde cada chip e um botao e nao um criterio escolhido entre cinco.
     in property <bool> filled: false;
+    // A seta diz o sentido da ordem; num filtro de tipo ela nao significa nada.
+    in property <bool> arrow: true;
     callback clicked();
 
     height: 28px;
@@ -2583,7 +2670,7 @@ component SortChip inherits Rectangle {
     rotulo := Text {
         // A seta so aparece no criterio ativo: repetida em todos, viraria
         // ruido, e num criterio inativo ela nao significa nada.
-        text: root.active
+        text: root.active && root.arrow
             ? (root.descending ? root.label + " \u{2193}" : root.label + " \u{2191}")
             : root.label;
         color: root.active ? Theme.text : Theme.text-muted;
@@ -2608,7 +2695,12 @@ component SearchPage inherits VerticalLayout {
     in property <string> query;
     in property <bool> searching;
     in property <bool> logged-in;
+    // Ha um login esperando o navegador voltar.
+    in property <bool> logging-in;
     in property <[string]> recent-searches;
+    // Tipo mostrado: 0 tudo, 1 musicas, 2 albuns, 3 artistas, 4 playlists.
+    in property <int> kind;
+    callback set-kind(int);
     callback clear-recent();
     callback search(string);
     callback login();
@@ -2660,6 +2752,21 @@ component SearchPage inherits VerticalLayout {
         }
     }
 
+    // Filtro por tipo, como as pastilhas do Spotify. Filtra o que ja chegou:
+    // a busca do Spotify devolve todos os tipos numa resposta so, entao trocar
+    // de pastilha nao custa outra viagem a rede.
+    if !root.searching && root.logged-in && root.query != "": HorizontalLayout {
+        spacing: Theme.space-sm;
+        alignment: start;
+        for rotulo[i] in ["Tudo", "Músicas", "Álbuns", "Artistas", "Playlists"]: SortChip {
+            label: rotulo;
+            active: root.kind == i;
+            filled: true;
+            arrow: false;
+            clicked => { root.set-kind(i); }
+        }
+    }
+
     if root.searching: EmptyState {
         vertical-stretch: 1;
         title: "Buscando";
@@ -2705,8 +2812,10 @@ component SearchPage inherits VerticalLayout {
     if !root.searching && !root.logged-in && root.tracks.length == 0 && root.items.length == 0 && root.query != "": EmptyState {
         vertical-stretch: 1;
         title: "Entre para buscar";
-        hint: "Conecte sua conta do Spotify para pesquisar faixas, álbuns, artistas e playlists.";
-        action-label: "Entrar no Spotify";
+        hint: root.logging-in
+            ? "Conclua o login no navegador. Se a aba sumiu, abra de novo."
+            : "Conecte sua conta do Spotify para pesquisar faixas, álbuns, artistas e playlists.";
+        action-label: root.logging-in ? "Abrir de novo" : "Entrar no Spotify";
         action => { root.login(); }
     }
 
@@ -2755,7 +2864,12 @@ component SearchPage inherits VerticalLayout {
             }
 
             if root.items.length > 0: Prateleira {
-                SectionTitle { text: "Álbuns, artistas e playlists"; }
+                SectionTitle {
+                    text: root.kind == 2 ? "Álbuns"
+                        : root.kind == 3 ? "Artistas"
+                        : root.kind == 4 ? "Playlists"
+                        : "Álbuns, artistas e playlists";
+                }
                 CardCollection {
                     items: root.items;
                     activated(id) => { root.activated(id); }
@@ -2775,6 +2889,17 @@ component LibraryPage inherits Rectangle {
     property <bool> tem-algo: root.items.length > 0 || root.playlists.length > 0;
     in property <bool> logged-in;
     in property <bool> loaded;
+    // Ha um login esperando o navegador voltar.
+    in property <bool> logging-in;
+    // Ha texto no campo de busca da Biblioteca, ou um tipo escolhido.
+    in property <bool> filtering;
+    callback filter(string);
+    // 0 tudo, 1 playlists, 2 albuns, 3 artistas.
+    in property <int> kind;
+    callback set-kind(int);
+    // 0 recentes (ordem do Spotify), 1 alfabetica.
+    in property <int> sort;
+    callback set-sort(int);
     callback login();
     callback cancel-login();
     callback copy-auth-url();
@@ -2810,23 +2935,65 @@ component LibraryPage inherits Rectangle {
         // recebe a altura da pagina INTEIRA e o viewport passa a ser maior que
         // a area visivel: a tela vazia rolava. E o proprio estado vazio ja diz
         // onde voce esta -- "Sua biblioteca comeca aqui".
-        if root.tem-algo: PageTitle { text: "Biblioteca"; }
+        // Com filtro ativo o titulo e o campo ficam mesmo sem resultado: sumir
+        // com o campo quando nada casa deixaria a pessoa sem como apagar o
+        // que digitou.
+        if root.tem-algo || root.filtering: HorizontalLayout {
+            spacing: Theme.space-md;
+            PageTitle { text: "Biblioteca"; horizontal-stretch: 1; }
+            SearchField {
+                width: 240px;
+                placeholder: "Buscar na Biblioteca";
+                edited(q) => { root.filter(q); }
+            }
+        }
 
-        if !root.tem-algo && !root.logged-in: EmptyState {
+        // Tipo e ordem, como no Spotify. A ordem "Recentes" e a que o Spotify
+        // entrega; "A–Z" e por titulo.
+        if root.tem-algo || root.filtering: HorizontalLayout {
+            spacing: Theme.space-sm;
+            alignment: start;
+            for rotulo[i] in ["Tudo", "Playlists", "Álbuns", "Artistas"]: SortChip {
+                label: rotulo;
+                active: root.kind == i;
+                filled: true;
+                arrow: false;
+                clicked => { root.set-kind(i); }
+            }
+            Rectangle { width: Theme.space-md; }
+            for rotulo[i] in ["Recentes", "A–Z"]: SortChip {
+                label: rotulo;
+                active: root.sort == i;
+                filled: true;
+                arrow: false;
+                clicked => { root.set-sort(i); }
+            }
+        }
+
+        if !root.tem-algo && root.filtering: Text {
+            text: "Nada na sua biblioteca com esse nome.";
+            color: Theme.text-muted;
+            font-size: Theme.size-sm;
+            font-family: Theme.font-family;
+        }
+
+        if !root.tem-algo && !root.filtering && !root.logged-in: EmptyState {
             altura-util: rolagem.height;
             title: "Sua biblioteca começa aqui";
-            hint: "Entre no Spotify para ver sua biblioteca e suas Músicas curtidas.";
-            action-label: "Entrar no Spotify";
+            hint: root.logging-in
+                ? "Conclua o login no navegador. Se a aba sumiu, abra de novo."
+                : "Entre no Spotify para ver sua biblioteca e suas Músicas curtidas.";
+            action-label: root.logging-in ? "Abrir de novo" : "Entrar no Spotify";
             action => { root.login(); }
         }
 
-        if !root.tem-algo && root.logged-in && !root.loaded: EmptyState {
+        if !root.tem-algo && !root.filtering && root.logged-in && !root.loaded: EmptyState {
             altura-util: rolagem.height;
             title: "Carregando sua biblioteca";
             hint: "Suas músicas salvas aparecem aqui em instantes.";
         }
 
-        if !root.tem-algo && root.logged-in && root.loaded: EmptyState {
+        if !root.tem-algo && !root.filtering && root.logged-in && root.loaded: EmptyState {
             altura-util: rolagem.height;
             title: "Sua biblioteca está vazia";
             hint: "Use o coração para salvar no Spotify. Suas Músicas curtidas ficam na barra lateral.";
@@ -2876,6 +3043,8 @@ component DetailPage inherits VerticalLayout {
     in property <bool> cover-pending;
     in property <[TrackRow]> tracks;
     in property <[CardItem]> items;
+    // Artistas parecidos, so na tela de artista.
+    in property <[CardItem]> related;
     in property <int> sort;
     in property <bool> descending;
     in property <bool> filtered;
@@ -3068,6 +3237,14 @@ component DetailPage inherits VerticalLayout {
         activated(id) => { root.activated(id); }
     }
 
+    // Uma fileira que rola para o lado, como a discografia: nao toma altura
+    // da lista de faixas, que e o que a pagina existe para mostrar.
+    if root.related.length > 0: ScrollableCardShelf {
+        title: "Os fãs também curtem";
+        items: root.related;
+        activated(id) => { root.activated(id); }
+    }
+
     Rectangle {
         vertical-stretch: 1;
         border-radius: root.modulo ? Theme.radius-lg : 0px;
@@ -3178,6 +3355,7 @@ component DetailPage inherits VerticalLayout {
                 tracks: root.tracks;
                 has-more: root.has-more;
                 loading: root.loading;
+                in-own-playlist: true;
                 nearing-end => { root.load-more(); }
                 activated(id) => { root.activated(id); }
                 favorite-toggled(id) => { root.favorite-toggled(id); }
@@ -3224,6 +3402,8 @@ component ManagedQueueShelf inherits Prateleira {
 component QueuePage inherits Rectangle {
     in property <[TrackRow]> manual-tracks;
     in property <[TrackRow]> context-tracks;
+    // De onde vem o resto da fila ("Próximas de: X"), como no Spotify.
+    in property <string> context-name;
     // A faixa tocando, para a Fila comecar por ela. "Da lista atual" sem a
     // atual e uma lista de proximas sem o ponto de partida.
     in property <bool> has-track;
@@ -3351,7 +3531,9 @@ component QueuePage inherits Rectangle {
         }
 
         if root.context-tracks.length > 0: TrackShelf {
-            title: root.manual-tracks.length > 0 ? "Depois, da lista atual" : "Da lista atual";
+            title: root.context-name == ""
+                ? (root.manual-tracks.length > 0 ? "Depois, da lista atual" : "Da lista atual")
+                : (root.manual-tracks.length > 0 ? "Depois, de " : "Próximas de ") + root.context-name;
             tracks: root.context-tracks;
             queue-actions: false;
             hide-action: true;
@@ -3730,9 +3912,11 @@ component SettingsPage inherits VerticalLayout {
     in property <string> auth-url;
     in property <image> account-avatar;
     in property <bool> close-to-tray;
+    in property <bool> track-notifications;
     in property <bool> autoplay;
     in property <int> bitrate;
     in property <bool> normalize;
+    in property <bool> mono;
     in property <[string]> output-devices;
     in property <string> output-device;
     in property <bool> start-with-windows;
@@ -3773,9 +3957,12 @@ component SettingsPage inherits VerticalLayout {
     callback open-releases-page();
 
     callback set-close-to-tray(bool);
+    callback set-track-notifications(bool);
     callback set-autoplay(bool);
     callback set-bitrate(int);
     callback set-normalize(bool);
+    callback set-mono(bool);
+    callback clear-cache();
     callback set-output-device(string);
     callback set-start-with-windows(bool);
     callback select-theme(string);
@@ -3876,6 +4063,8 @@ component SettingsPage inherits VerticalLayout {
                         Text {
                             text: root.logged-in
                                 ? "Conectado ao Spotify"
+                                : root.auth-url != ""
+                                ? "Esperando o navegador. Se a aba sumiu, abra de novo."
                                 : "Entre para ouvir sua biblioteca.";
                             color: Theme.text-muted;
                             font-size: Theme.size-xs;
@@ -3884,15 +4073,15 @@ component SettingsPage inherits VerticalLayout {
                         }
                     }
 
-                    if !root.logged-in && root.auth-url == "": PrimaryButton {
-                        label: "Entrar no Spotify";
+                    // Com login em andamento, o mesmo botao recomeca do zero:
+                    // e a saida de quem fechou a aba antes de concluir. Ao
+                    // lado, desistir e levar o link para outro navegador.
+                    if !root.logged-in: PrimaryButton {
+                        label: root.auth-url != "" ? "Abrir de novo" : "Entrar no Spotify";
                         y: (parent.height - self.height) / 2;
                         clicked => { root.login(); }
                     }
 
-                    // Enquanto ha login em andamento, entrar de novo nao e o
-                    // que ajuda -- desistir e levar o link para outro navegador
-                    // sao.
                     if root.auth-url != "": GhostButton {
                         label: "Cancelar";
                         y: (parent.height - self.height) / 2;
@@ -4084,6 +4273,13 @@ component SettingsPage inherits VerticalLayout {
                     }
 
                     SettingRow {
+                        label: "Avisar quando a música mudar";
+                        hint: "Notificação do Windows, sem som, quando o Morune está fora de vista. Em tela cheia exclusiva o Windows segura o aviso.";
+                        checked: root.track-notifications;
+                        toggled(v) => { root.set-track-notifications(v); }
+                    }
+
+                    SettingRow {
                         label: "Iniciar com o Windows";
                         hint: "Abre em segundo plano na bandeja quando você entra no Windows.";
                         checked: root.start-with-windows;
@@ -4139,6 +4335,37 @@ component SettingsPage inherits VerticalLayout {
                         hint: "Deixa músicas gravadas em volumes diferentes no mesmo nível. Vale ao reabrir.";
                         checked: root.normalize;
                         toggled(v) => { root.set-normalize(v); }
+                    }
+
+                    SettingRow {
+                        label: "Áudio mono";
+                        hint: "Os dois lados do fone tocam o mesmo som. Para quem joga com um lado só. Vale ao reabrir.";
+                        checked: root.mono;
+                        toggled(v) => { root.set-mono(v); }
+                    }
+
+                    Rectangle {
+                        height: 44px;
+                        HorizontalLayout {
+                            spacing: Theme.space-sm;
+                            VerticalLayout {
+                                alignment: center;
+                                horizontal-stretch: 1;
+                                Text { text: "Cache de áudio"; color: Theme.text; font-size: Theme.size-md; font-family: Theme.font-family; }
+                                Text {
+                                    text: "Músicas guardadas para tocar mais rápido. Limpar não apaga nada da sua conta.";
+                                    color: Theme.text-muted;
+                                    font-size: Theme.size-xs;
+                                    font-family: Theme.font-family;
+                                    overflow: elide;
+                                }
+                            }
+                            GhostButton {
+                                label: "Limpar cache";
+                                y: (parent.height - self.height) / 2;
+                                clicked => { root.clear-cache(); }
+                            }
+                        }
                     }
 
                     Rectangle {
@@ -4613,6 +4840,8 @@ export component AppWindow inherits Window {
     callback set-sleep(int);
     in property <[string]> recent-searches;
     callback clear-recent-searches();
+    in property <int> search-kind;
+    callback set-search-kind(int);
     callback toggle-hidden(string);
     in property <bool> home-loaded: false;
     in property <[TrackRow]> search-tracks;
@@ -4623,6 +4852,8 @@ export component AppWindow inherits Window {
     in property <bool> library-loaded: false;
     in property <[TrackRow]> queue-manual-tracks;
     in property <[TrackRow]> queue-context-tracks;
+    // Nome da lista de onde vem o resto da fila. Vazio: sem nome para mostrar.
+    in property <string> queue-context-name;
     in property <[ThemeItem]> themes;
     in property <[Diagnostic]> diagnostics;
 
@@ -4645,6 +4876,7 @@ export component AppWindow inherits Window {
     in property <bool> detail-cover-pending;
     in property <[TrackRow]> detail-tracks;
     in property <[CardItem]> detail-items;
+    in property <[CardItem]> detail-related;
     in property <int> detail-sort;
     in property <bool> detail-descending;
     in property <bool> detail-filtered;
@@ -4665,9 +4897,11 @@ export component AppWindow inherits Window {
     in property <bool> dev-mode: false;
     in property <string> perf-text;
     in property <bool> close-to-tray: true;
+    in property <bool> track-notifications: true;
     in property <bool> autoplay: true;
     in property <int> bitrate;
     in property <bool> normalize;
+    in property <bool> mono;
     in property <[string]> output-devices;
     in property <string> output-device;
     in property <bool> start-with-windows: false;
@@ -4735,6 +4969,10 @@ export component AppWindow inherits Window {
     callback next-track();
     callback previous-track();
     callback seek(float);
+    // Anda segundos na faixa atual; negativo volta. So os atalhos usam.
+    callback seek-by(float);
+    // Tamanho do texto pelo teclado: 1 aumenta, -1 diminui, 0 volta ao do tema.
+    callback zoom(int);
     callback set-volume(float);
     callback toggle-mute();
     callback nudge-volume(float);
@@ -4756,6 +4994,14 @@ export component AppWindow inherits Window {
     callback reload-theme();
     callback toggle-sidebar();
     callback filter-playlists(string);
+    callback filter-library(string);
+    in property <bool> library-filtering;
+    in property <string> home-greeting;
+    in property <int> library-kind;
+    callback set-library-kind(int);
+    in property <int> library-sort;
+    callback set-library-sort(int);
+    in property <bool> offline;
     callback toggle-pin-playlist(string);
     callback detail-back();
     // Volta da Fila para a pagina de onde ela foi aberta.
@@ -4766,9 +5012,12 @@ export component AppWindow inherits Window {
     callback detail-activate(string);
     callback detail-load-more();
     callback set-close-to-tray(bool);
+    callback set-track-notifications(bool);
     callback set-autoplay(bool);
     callback set-bitrate(int);
     callback set-normalize(bool);
+    callback set-mono(bool);
+    callback clear-cache();
     callback set-output-device(string);
     callback set-start-with-windows(bool);
     callback login();
@@ -4853,6 +5102,7 @@ export component AppWindow inherits Window {
     VerticalLayout {
         AppTitleBar {
             maximized: root.maximized;
+            offline: root.offline;
             move-window(dx, dy) => { root.move-window(dx, dy); }
             toggle-maximize => { root.maximized = !root.maximized; }
             minimize => { root.minimized = true; }
@@ -4992,6 +5242,8 @@ export component AppWindow inherits Window {
                         liked: root.home-liked;
                         recent: root.home-recent;
                         logged-in: root.logged-in;
+                        logging-in: root.auth-url != "";
+                        greeting: root.home-greeting;
                         loaded: root.home-loaded;
                         login => { root.login(); }
                         cancel-login => { root.cancel-login(); }
@@ -5015,7 +5267,10 @@ export component AppWindow inherits Window {
                         query: root.search-query;
                         searching: root.searching;
                         logged-in: root.logged-in;
+                        logging-in: root.auth-url != "";
                         recent-searches: root.recent-searches;
+                        kind: root.search-kind;
+                        set-kind(k) => { root.set-search-kind(k); }
                         clear-recent => { root.clear-recent-searches(); }
                         search(q) => { root.search(q); }
                         login => { root.login(); }
@@ -5035,6 +5290,13 @@ export component AppWindow inherits Window {
                         items: root.library-items;
                         playlists: root.library-playlists;
                         logged-in: root.logged-in;
+                        logging-in: root.auth-url != "";
+                        filtering: root.library-filtering;
+                        filter(q) => { root.filter-library(q); }
+                        kind: root.library-kind;
+                        set-kind(k) => { root.set-library-kind(k); }
+                        sort: root.library-sort;
+                        set-sort(k) => { root.set-library-sort(k); }
                         loaded: root.library-loaded;
                         login => { root.login(); }
                         cancel-login => { root.cancel-login(); }
@@ -5063,9 +5325,11 @@ export component AppWindow inherits Window {
                         auth-url: root.auth-url;
                         account-avatar: root.account-avatar;
                         close-to-tray: root.close-to-tray;
+                        track-notifications: root.track-notifications;
                         autoplay: root.autoplay;
                         bitrate: root.bitrate;
                         normalize: root.normalize;
+                        mono: root.mono;
                         output-devices: root.output-devices;
                         output-device: root.output-device;
                         start-with-windows: root.start-with-windows;
@@ -5100,9 +5364,12 @@ export component AppWindow inherits Window {
                         set-reduce-motion(v) => { root.set-reduce-motion(v); }
                         set-hot-reload(v) => { root.set-hot-reload(v); }
                         set-close-to-tray(v) => { root.set-close-to-tray(v); }
+                        set-track-notifications(v) => { root.set-track-notifications(v); }
                         set-autoplay(v) => { root.set-autoplay(v); }
                         set-bitrate(v) => { root.set-bitrate(v); }
                         set-normalize(v) => { root.set-normalize(v); }
+                        set-mono(v) => { root.set-mono(v); }
+                        clear-cache => { root.clear-cache(); }
                         set-output-device(v) => { root.set-output-device(v); }
                         set-start-with-windows(v) => { root.set-start-with-windows(v); }
                         select-theme(id) => { root.select-theme(id); }
@@ -5137,6 +5404,7 @@ export component AppWindow inherits Window {
                         cover-pending: root.detail-cover-pending;
                         tracks: root.detail-tracks;
                         items: root.detail-items;
+                        related: root.detail-related;
                         sort: root.detail-sort;
                         descending: root.detail-descending;
                         filtered: root.detail-filtered;
@@ -5170,6 +5438,7 @@ export component AppWindow inherits Window {
                         width: paginas.largura; height: paginas.altura;
                         manual-tracks: root.queue-manual-tracks;
                         context-tracks: root.queue-context-tracks;
+                        context-name: root.queue-context-name;
                         explore => { root.navigate(1); }
                         activated(id) => { root.play-track(id); }
                         favorite-toggled(id) => { root.toggle-favorite(id); }
@@ -5386,6 +5655,10 @@ export component AppWindow inherits Window {
                 ShortcutRow { keys: "Ctrl + ,"; action: "Configurações"; }
                 ShortcutRow { keys: "Espaço"; action: "Tocar ou pausar"; }
                 ShortcutRow { keys: "Ctrl + → / ←"; action: "Próxima / anterior"; }
+                ShortcutRow { keys: "Shift + → / ←"; action: "Avançar / voltar 10 segundos"; }
+                ShortcutRow { keys: "Ctrl + S"; action: "Aleatório"; }
+                ShortcutRow { keys: "Ctrl + R"; action: "Repetir"; }
+                ShortcutRow { keys: "Ctrl + = / − / 0"; action: "Texto maior / menor / do tema"; }
                 ShortcutRow { keys: "Ctrl + ↑ / ↓"; action: "Volume"; }
                 ShortcutRow { keys: "Ctrl + M"; action: "Silenciar"; }
                 ShortcutRow { keys: "Ctrl + L"; action: "Curtir a faixa"; }
@@ -5461,6 +5734,37 @@ export component AppWindow inherits Window {
             }
             if (event.text == Key.LeftArrow && event.modifiers.control) {
                 root.previous-track();
+                return EventResult.accept;
+            }
+            if (event.text == Key.RightArrow && event.modifiers.shift && root.has-track) {
+                root.seek-by(10);
+                return EventResult.accept;
+            }
+            if (event.text == Key.LeftArrow && event.modifiers.shift && root.has-track) {
+                root.seek-by(-10);
+                return EventResult.accept;
+            }
+            // "=" e "+" sao a mesma tecla sem e com Shift no teclado ABNT e no
+            // americano; aceitar os dois evita exigir Shift para aumentar.
+            if (event.modifiers.control && (event.text == "=" || event.text == "+")) {
+                root.zoom(1);
+                return EventResult.accept;
+            }
+            if (event.modifiers.control && event.text == "-") {
+                root.zoom(-1);
+                return EventResult.accept;
+            }
+            if (event.modifiers.control && event.text == "0") {
+                root.zoom(0);
+                return EventResult.accept;
+            }
+            // Mesmas letras do Spotify: S de shuffle, R de repeat.
+            if (event.text == Key.S && event.modifiers.control) {
+                root.toggle-shuffle();
+                return EventResult.accept;
+            }
+            if (event.text == Key.R && event.modifiers.control) {
+                root.cycle-repeat();
                 return EventResult.accept;
             }
             EventResult.reject

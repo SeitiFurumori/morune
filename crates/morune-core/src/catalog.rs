@@ -222,6 +222,18 @@ pub trait Library: Send + Sync + 'static {
         Box::pin(async { Err(CoreError::Unsupported("alterar musicas curtidas")) })
     }
 
+    /// Ids de todas as faixas de uma playlist, sem metadado.
+    ///
+    /// Serve para avisar que a faixa ja esta la antes de adicionar de novo.
+    /// So ids, e nao faixas: conferir uma playlist de mil musicas nao pode
+    /// custar mil consultas de metadado.
+    fn playlist_track_ids<'a>(
+        &'a self,
+        _playlist: &'a PlaylistId,
+    ) -> BoxFuture<'a, CoreResult<Vec<TrackId>>> {
+        Box::pin(async { Err(CoreError::Unsupported("conteudo da playlist")) })
+    }
+
     /// Poe faixas no fim de uma playlist.
     fn add_to_playlist<'a>(
         &'a self,
@@ -229,6 +241,15 @@ pub trait Library: Send + Sync + 'static {
         _tracks: &'a [TrackId],
     ) -> BoxFuture<'a, CoreResult<()>> {
         Box::pin(async { Err(CoreError::Unsupported("adicionar a playlist")) })
+    }
+
+    /// Tira faixas de uma playlist.
+    fn remove_from_playlist<'a>(
+        &'a self,
+        _playlist: &'a PlaylistId,
+        _tracks: &'a [TrackId],
+    ) -> BoxFuture<'a, CoreResult<()>> {
+        Box::pin(async { Err(CoreError::Unsupported("remover da playlist")) })
     }
 
     /// Cria uma playlist e devolve o id dela.

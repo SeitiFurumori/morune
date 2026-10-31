@@ -191,6 +191,15 @@ pub struct AppState {
     retry: Option<Retry>,
     /// O que a requisicao em voo repetiria, se ela falhar.
     pending_retry: Option<RetryTarget>,
+    /// Ultimo pedido de adicionar a playlist, como `(playlist, faixa)`.
+    ultima_adicao: Option<(String, String)>,
+    /// Pedido que voltou como "ja esta la", e quando. Repetir o mesmo pedido
+    /// dentro de [`REPETIDA_JANELA`] adiciona assim mesmo.
+    repetida_avisada: Option<((String, String), Instant)>,
+    /// Faixa cujo radio foi pedido pelo menu, esperando a lista chegar.
+    radio_pedido: Option<Track>,
+    /// Limpeza do cache em andamento; o resultado sao os bytes liberados.
+    limpeza: Option<std::sync::mpsc::Receiver<u64>>,
     start_with_windows: bool,
     queue: Queue,
     engine: Arc<dyn PlaybackEngine>,
@@ -250,6 +259,15 @@ pub struct AppState {
     /// estao na memoria, e ir a rede a cada tecla seria gastar requisicao
     /// para responder o que ja se sabe.
     playlist_filter: String,
+    /// Busca da Biblioteca, ja em minusculas. Vazia mostra tudo.
+    library_filter: String,
+    /// Pastilha escolhida na Busca: 0 tudo, 1 musicas, 2 albuns, 3 artistas,
+    /// 4 playlists. Sobrevive a uma busca nova, como no Spotify.
+    search_kind: i32,
+    /// Pastilhas da Biblioteca: tipo (0 tudo, 1 playlists, 2 albuns,
+    /// 3 artistas) e ordem (0 recentes, 1 alfabetica).
+    library_kind: i32,
+    library_sort: i32,
     /// Cartao fixo das curtidas, sempre no topo da barra lateral.
     ///
     /// Nao vem do `rootlist`: curtidas nao sao playlist para o Spotify. Mas
@@ -436,6 +454,10 @@ impl AppState {
             undo: None,
             retry: None,
             pending_retry: None,
+            ultima_adicao: None,
+            repetida_avisada: None,
+            radio_pedido: None,
+            limpeza: None,
             start_with_windows,
             queue,
             // Sem backend real ate haver login: o motor nulo aceita
@@ -467,6 +489,10 @@ impl AppState {
             liked_ids: HashSet::new(),
             liked_pending: HashSet::new(),
             playlist_filter: String::new(),
+            library_filter: String::new(),
+            search_kind: 0,
+            library_kind: 0,
+            library_sort: 0,
             detail: None,
             detail_filter: String::new(),
             detail_sort: SortBy::Original,
@@ -554,6 +580,7 @@ impl AppState {
             cover_path: None,
             tracks,
             cards: Vec::new(),
+            related: Vec::new(),
             total_tracks: Some(719),
             source: Some(Target::Liked),
             has_more: true,
@@ -692,6 +719,14 @@ impl AppState {
             .and_then(|b| b.poll_playlist_edit())
         {
             self.status = outcome.mensagem;
+            if outcome.repetida {
+                self.repetida_avisada = self.ultima_adicao.take().map(|p| (p, Instant::now()));
+            }
+            if !outcome.removidas.is_empty() {
+                if let Some(detail) = self.detail.as_mut() {
+                    detail.tracks.retain(|t| !outcome.removidas.contains(&t.id));
+                }
+            }
             if outcome.recarregar {
                 // A barra lateral sai das playlists do Inicio; pedir de novo e
                 // o que faz a criada aparecer e a apagada sumir.
@@ -729,6 +764,7 @@ impl AppState {
         }
 
         changed |= self.poll_covers();
+        changed |= self.poll_limpeza();
 
         // Sai daqui sem custo quando ninguem clicou em verificar: `poll` so
         // olha um `Option` vazio.
@@ -1040,6 +1076,33 @@ impl AppState {
 
     fn apply_autoplay(&mut self, outcome: AutoplayOutcome) {
         match outcome {
+            // "Tocar rádio desta música": a semente toca primeiro e a rádio
+            // vira a fila inteira, como no Spotify.
+            AutoplayOutcome::Ready { seed, tracks }
+                if self.radio_pedido.as_ref().is_some_and(|t| t.id == seed) =>
+            {
+                let Some(semente) = self.radio_pedido.take() else {
+                    return;
+                };
+                let mut lista = vec![semente.clone()];
+                lista.extend(
+                    tracks
+                        .into_iter()
+                        .filter(|t| t.id != semente.id && !self.history.is_hidden(&t.id)),
+                );
+                self.autoplay_seed = None;
+                self.queue.set_context(
+                    QueueOrigin::Custom(format!("Rádio de {}", semente.name)),
+                    lista,
+                    Some(0),
+                );
+                self.play_current();
+                self.resolve_track_covers();
+                self.status = format!("Tocando o rádio de {}.", semente.name);
+            }
+            AutoplayOutcome::Failed(message) if self.radio_pedido.take().is_some() => {
+                self.status = format!("Não foi possível montar o rádio. {message}");
+            }
             AutoplayOutcome::Ready { seed, tracks }
                 if self.autoplay_seed.as_ref() == Some(&seed) && self.queue.current().is_none() =>
             {
@@ -1107,6 +1170,52 @@ impl AppState {
     /// Guarda o texto digitado no filtro da barra lateral.
     pub fn set_playlist_filter(&mut self, texto: &str) {
         self.playlist_filter = texto.trim().to_lowercase();
+    }
+
+    /// Guarda o texto digitado na busca da Biblioteca.
+    pub fn set_library_filter(&mut self, texto: &str) {
+        self.library_filter = texto.trim().to_lowercase();
+    }
+
+    /// O cartao casa com a busca e com o tipo escolhido na Biblioteca.
+    ///
+    /// Texto: titulo ou subtitulo, sem diferenciar maiuscula; vazio casa com
+    /// tudo. As curtidas (`liked`) contam como playlist, que e onde o Spotify
+    /// as poe.
+    fn na_busca_da_biblioteca(&self, card: &Card) -> bool {
+        let tipo_ok = match self.library_kind {
+            1 => card.tag.starts_with("playlist/") || card.tag == "liked",
+            2 => card.tag.starts_with("album/"),
+            3 => card.tag.starts_with("artist/"),
+            _ => true,
+        };
+        tipo_ok
+            && (self.library_filter.is_empty()
+                || card.title.to_lowercase().contains(&self.library_filter)
+                || card.subtitle.to_lowercase().contains(&self.library_filter))
+    }
+
+    /// Cartoes da Biblioteca filtrados e na ordem escolhida.
+    fn biblioteca_visivel<'a>(&self, cards: impl Iterator<Item = &'a Card>) -> Vec<ui::CardItem> {
+        let mut lista: Vec<&Card> = cards.filter(|c| self.na_busca_da_biblioteca(c)).collect();
+        // Curtidas ficam no topo em qualquer ordem: e onde o Spotify as fixa.
+        if self.library_sort == 1 {
+            let posicao = lista.iter().position(|c| c.tag == "liked");
+            let liked = posicao.map(|i| lista.remove(i));
+            lista.sort_by_key(|c| c.title.to_lowercase());
+            if let Some(l) = liked {
+                lista.insert(0, l);
+            }
+        }
+        lista.into_iter().map(card_item).collect()
+    }
+
+    pub fn set_library_kind(&mut self, kind: i32) {
+        self.library_kind = kind.clamp(0, 3);
+    }
+
+    pub fn set_library_sort(&mut self, sort: i32) {
+        self.library_sort = sort.clamp(0, 1);
     }
 
     /// Playlists da barra lateral: fixadas primeiro, depois as abertas
@@ -1639,6 +1748,7 @@ impl AppState {
             return;
         };
         browse.resolve_covers(&mut detail.cards);
+        browse.resolve_covers(&mut detail.related);
     }
 
     /// Resolve as capas pequenas das listas sem bloquear a interface.
@@ -2579,6 +2689,33 @@ impl AppState {
         self.save_config();
     }
 
+    /// Ctrl + / Ctrl - / Ctrl 0, como no Spotify: `passo` 1 aumenta, -1
+    /// diminui, 0 volta ao tamanho do tema.
+    ///
+    /// De 10 em 10%, dentro da mesma faixa do controle deslizante. Zerar a
+    /// preferencia, e nao gravar 100%, e o que faz um tema com letra maior por
+    /// natureza voltar ao tamanho dele.
+    pub fn zoom(&mut self, passo: i32) {
+        let atual = if self.config.appearance.font_scale_override > 0.0 {
+            self.config.appearance.font_scale_override
+        } else {
+            self.spec().typography.scale
+        };
+        let nova = match passo {
+            0 => 0.0,
+            p => ((atual * 10.0).round() / 10.0 + p.signum() as f32 * 0.1).clamp(0.8, 1.6),
+        };
+        self.config.appearance.font_scale_override = nova;
+        self.overrides.font_scale = nova;
+        self.save_config();
+        let mostrada = if nova > 0.0 {
+            nova
+        } else {
+            self.spec().typography.scale
+        };
+        self.status = format!("Texto em {}%.", (mostrada * 100.0).round() as i32);
+    }
+
     /// A escala corrente de volta para `[0, 1]`, para o slider.
     pub fn font_scale_slider(&self) -> f32 {
         let scale = if self.config.appearance.font_scale_override > 0.0 {
@@ -2632,6 +2769,20 @@ impl AppState {
             "Fechar a janela vai manter o Morune tocando na bandeja.".into()
         } else {
             "Fechar a janela vai encerrar o Morune.".into()
+        };
+        self.save_config();
+    }
+
+    pub fn track_notifications(&self) -> bool {
+        self.config.window.track_notifications
+    }
+
+    pub fn set_track_notifications(&mut self, on: bool) {
+        self.config.window.track_notifications = on;
+        self.status = if on {
+            "O Windows vai avisar quando a música mudar com o Morune fora de vista.".into()
+        } else {
+            "O Windows não vai mais avisar quando a música mudar.".into()
         };
         self.save_config();
     }
@@ -2715,6 +2866,66 @@ impl AppState {
         self.config.playback.normalize = on;
         self.apply_audio_settings();
         self.status = "O nivelamento vale a partir da próxima vez que o Morune abrir.".into();
+    }
+
+    pub fn mono(&self) -> bool {
+        self.config.playback.mono
+    }
+
+    pub fn set_mono(&mut self, on: bool) {
+        self.config.playback.mono = on;
+        self.apply_audio_settings();
+        self.status = "O áudio mono vale a partir da próxima vez que o Morune abrir.".into();
+    }
+
+    /// Apaga o audio guardado, numa thread a parte.
+    ///
+    /// E copia do que o Spotify ja tem: nada da conta se perde, so a proxima
+    /// vez de cada faixa volta a baixar. Fora da thread da interface porque o
+    /// cache chega a 1 GB em milhares de arquivos.
+    ///
+    /// **So o audio, e nao as capas.** As capas ja na tela guardam o caminho do
+    /// arquivo na memoria; apaga-las deixaria quadrados vazios ate reabrir. E
+    /// sao o lado pequeno: o peso do cache e o audio.
+    pub fn clear_cache(&mut self) {
+        if self.limpeza.is_some() {
+            return;
+        }
+        let pastas = [self.paths.audio_cache_dir()];
+        let (tx, rx) = std::sync::mpsc::channel();
+        let iniciada = std::thread::Builder::new()
+            .name("morune-limpeza".into())
+            .spawn(move || {
+                let liberado: u64 = pastas.iter().map(|p| apagar_conteudo(p)).sum();
+                let _ = tx.send(liberado);
+            });
+        match iniciada {
+            Ok(_) => {
+                self.limpeza = Some(rx);
+                self.status = "Limpando o cache...".into();
+            }
+            Err(e) => self.status = format!("Não foi possível limpar o cache: {e}"),
+        }
+    }
+
+    /// Recolhe o fim da limpeza, quando houver. Devolve `true` se a tela muda.
+    fn poll_limpeza(&mut self) -> bool {
+        let Some(rx) = self.limpeza.as_ref() else {
+            return false;
+        };
+        match rx.try_recv() {
+            Ok(bytes) => {
+                self.limpeza = None;
+                self.status = format!("Cache limpo: {} liberados.", tamanho_legivel(bytes));
+                true
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => false,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                self.limpeza = None;
+                self.status = "A limpeza do cache foi interrompida.".into();
+                true
+            }
+        }
     }
 
     /// Guarda as preferencias e as entrega ao backend.
@@ -3348,6 +3559,25 @@ impl AppState {
         self.send(PlayerCommand::Seek(target));
     }
 
+    /// Anda `seconds` para frente (ou para tras, se negativo) na faixa atual.
+    ///
+    /// Parte da posicao mostrada, e nao da do motor: dois toques seguidos no
+    /// atalho precisam somar, e o motor ainda nao confirmou o primeiro.
+    pub fn seek_by(&mut self, seconds: f32) {
+        let Some(duration) = self.queue.current().map(|t| t.duration) else {
+            return;
+        };
+        let from = self.shown_position(&self.engine.snapshot());
+        let step = Duration::from_secs_f32(seconds.abs());
+        let target = if seconds < 0.0 {
+            from.saturating_sub(step)
+        } else {
+            (from + step).min(duration)
+        };
+        self.seek_target = Some(target);
+        self.send(PlayerCommand::Seek(target));
+    }
+
     pub fn set_volume(&mut self, volume: f32) {
         self.volume = volume.clamp(0.0, 1.0);
         self.config.playback.volume = self.volume;
@@ -3496,10 +3726,12 @@ impl AppState {
         window.set_account_avatar(cover_image(self.account_avatar.1.as_deref()));
         window.set_dev_mode(self.config.developer.enabled);
         window.set_close_to_tray(self.config.window.close_to_tray);
+        window.set_track_notifications(self.config.window.track_notifications);
         window.set_start_with_windows(self.start_with_windows);
         window.set_autoplay(self.config.playback.autoplay);
         window.set_bitrate(self.bitrate_code());
         window.set_normalize(self.normalize());
+        window.set_mono(self.mono());
         // **So as listas da pagina visivel sao refeitas.** Montar as linhas de
         // todas as paginas -- curtidas inteiras, fila, busca, biblioteca -- a
         // cada capa que chega era trabalho na thread da interface para telas
@@ -3549,6 +3781,9 @@ impl AppState {
             &self.sidebar_playlists(),
             &self.config.navigation.pinned_playlists,
         );
+        window
+            .global::<ui::Acoes>()
+            .set_editable_playlist_open(self.playlist_aberta_editavel().is_some());
         // "Adicionar a playlist" oferece as mesmas da barra lateral, menos as
         // curtidas, que nao sao playlist do Spotify.
         window.global::<ui::Acoes>().set_playlists(
@@ -3595,6 +3830,11 @@ impl AppState {
                     .detail_items
                     .sincronizar_se(pagina == Page::Detail, || card_items(&detail.cards)),
             );
+            window.set_detail_related(
+                self.listas
+                    .detail_related
+                    .sincronizar_se(pagina == Page::Detail, || card_items(&detail.related)),
+            );
         }
         let l = &self.listas;
         let na_fila = pagina == Page::Queue;
@@ -3606,6 +3846,9 @@ impl AppState {
                 &self.liked_ids,
             )
         }));
+        if na_fila {
+            window.set_queue_context_name(self.queue_context_name().into());
+        }
         window.set_queue_context_tracks(l.queue_context_tracks.sincronizar_se(na_fila, || {
             track_rows(
                 self.queue.upcoming_context(200),
@@ -3663,12 +3906,16 @@ impl AppState {
                 if self.home_playlists.is_empty() {
                     return Vec::new();
                 }
-                std::iter::once(&self.liked_card)
-                    .chain(&self.home_playlists)
-                    .map(card_item)
-                    .collect()
+                self.biblioteca_visivel(
+                    std::iter::once(&self.liked_card).chain(&self.home_playlists),
+                )
             },
         ));
+        window.set_library_filtering(!self.library_filter.is_empty() || self.library_kind != 0);
+        window.set_library_kind(self.library_kind);
+        window.set_library_sort(self.library_sort);
+        window.set_offline(self.session.is_offline());
+        window.set_home_greeting(saudacao(theme_bridge::hora_local()).into());
         window.set_home_feed(l.home_feed.sincronizar_se(na_home, || {
             // Cada secao guarda o proprio modelo de cartoes entre
             // espelhamentos: um `ModelRc` novo a cada clique faria o Slint
@@ -3693,16 +3940,30 @@ impl AppState {
             l.home_retrospectives
                 .sincronizar_se(na_home, || card_items(&self.home_retrospectives)),
         );
-        window.set_library_items(
-            l.library_items
-                .sincronizar_se(pagina == Page::Library, || card_items(&self.library)),
-        );
+        window.set_library_items(l.library_items.sincronizar_se(pagina == Page::Library, || {
+            self.biblioteca_visivel(self.library.iter())
+        }));
         let na_busca = pagina == Page::Search;
-        window.set_search_items(
-            l.search_items
-                .sincronizar_se(na_busca, || card_items(&self.search_cards)),
-        );
+        window.set_search_kind(self.search_kind);
+        window.set_search_items(l.search_items.sincronizar_se(na_busca, || {
+            let prefixo = match self.search_kind {
+                1 => Some("-"), // Musicas: nenhum cartao casa com isto.
+                2 => Some("album/"),
+                3 => Some("artist/"),
+                4 => Some("playlist/"),
+                _ => None,
+            };
+            self.search_cards
+                .iter()
+                .filter(|c| prefixo.is_none_or(|p| c.tag.starts_with(p)))
+                .map(card_item)
+                .collect()
+        }));
+        let mostra_faixas = matches!(self.search_kind, 0 | 1);
         window.set_search_tracks(l.search_tracks.sincronizar_se(na_busca, || {
+            if !mostra_faixas {
+                return Vec::new();
+            }
             track_rows(
                 self.search.tracks.iter().collect(),
                 current,
@@ -3710,6 +3971,11 @@ impl AppState {
                 &self.liked_ids,
             )
         }));
+    }
+
+    /// Pastilha de tipo na Busca. Ver `search_kind`.
+    pub fn set_search_kind(&mut self, kind: i32) {
+        self.search_kind = kind.clamp(0, 4);
     }
 
     /// Espelha so a barra de reproducao.
@@ -3783,19 +4049,85 @@ impl AppState {
         Some((id, nome))
     }
 
-    pub fn add_track_to_playlist(&mut self, playlist: &str, track: &str) {
+    pub fn add_track_to_playlist(&mut self, playlist_tag: &str, track_tag: &str) {
         let (Some((playlist, nome)), Some(Target::Track(faixa))) =
-            (self.playlist_de(playlist), Target::parse(track))
+            (self.playlist_de(playlist_tag), Target::parse(track_tag))
         else {
             return;
         };
+        // Pedir de novo, logo depois do aviso, e o "adicionar mesmo assim".
+        let pedido = (playlist_tag.to_string(), track_tag.to_string());
+        let mesmo_repetida = self
+            .repetida_avisada
+            .take()
+            .is_some_and(|(avisada, quando)| {
+                avisada == pedido && quando.elapsed() < REPETIDA_JANELA
+            });
+        self.ultima_adicao = Some(pedido);
         self.pedir_edicao(
             crate::browse::PlaylistEdit::Add {
                 playlist,
                 tracks: vec![faixa],
                 nome,
+                mesmo_repetida,
             },
             "Adicionando...",
+        );
+    }
+
+    /// Toca a faixa e monta a radio dela como fila.
+    pub fn start_radio(&mut self, tag: &str) {
+        let Some(track) = self.track_from_tag(tag) else {
+            return;
+        };
+        let Some(browse) = self.session.browse_mut() else {
+            self.status = "Entre no Spotify para tocar o rádio.".into();
+            return;
+        };
+        if !browse.autoplay(track.id.clone()) {
+            self.status = "Um rádio já está sendo preparado. Tente em instantes.".into();
+            return;
+        }
+        self.status = format!("Preparando o rádio de {}...", track.name);
+        self.radio_pedido = Some(track);
+    }
+
+    /// A playlist aberta no Detalhe, quando e uma da biblioteca da pessoa.
+    ///
+    /// E a condicao para "Remover desta playlist": mix do Spotify e playlist
+    /// de outra pessoa nao aceitam a edicao, e oferecer o item ali seria um
+    /// clique que sempre falha.
+    fn playlist_aberta_editavel(&self) -> Option<(morune_core::PlaylistId, String)> {
+        let detail = self.detail.as_ref()?;
+        let QueueOrigin::Playlist(canonico) = &detail.origin else {
+            return None;
+        };
+        let tag = format!("playlist/{canonico}");
+        self.home_playlists
+            .iter()
+            .any(|c| c.tag == tag)
+            .then_some(())?;
+        self.playlist_de(&tag)
+    }
+
+    pub fn remove_track_from_open_playlist(&mut self, track_tag: &str) {
+        let Some(Target::Track(faixa)) = Target::parse(track_tag) else {
+            return;
+        };
+        let Some((playlist, nome)) = self.playlist_aberta_editavel() else {
+            self.status = "Só dá para remover faixas de uma playlist sua.".into();
+            return;
+        };
+        // A linha so sai da tela quando o Spotify confirmar (ver
+        // `PlaylistEditOutcome::removidas`): playlist seguida de outra pessoa
+        // recusa a edicao, e tirar antes faria a faixa sumir sem ter saido.
+        self.pedir_edicao(
+            crate::browse::PlaylistEdit::Remove {
+                playlist,
+                tracks: vec![faixa],
+                nome,
+            },
+            "Removendo...",
         );
     }
 
@@ -3839,6 +4171,41 @@ impl AppState {
             crate::browse::PlaylistEdit::Delete { playlist, nome },
             "Apagando...",
         );
+    }
+
+    /// Nome da lista de onde vem o resto da fila, para "Próximas de: X".
+    ///
+    /// Vazio quando nao ha nome que valha mostrar: a fila montada a mao, ou um
+    /// album que ja nao esta aberto e cujo nome a fila nao guarda. Melhor o
+    /// titulo generico que um identificador cru do Spotify.
+    fn queue_context_name(&self) -> String {
+        let detalhe_igual = |origin: &QueueOrigin| {
+            self.detail
+                .as_ref()
+                .filter(|d| d.origin == *origin)
+                .map(|d| d.title.clone())
+        };
+        let origin = self.queue.origin();
+        match origin {
+            QueueOrigin::None => String::new(),
+            QueueOrigin::Custom(nome) if nome == "Fila manual" || nome == "Snapshot" => {
+                String::new()
+            }
+            QueueOrigin::Custom(nome) => nome.clone(),
+            QueueOrigin::Search(busca) => format!("busca \u{201c}{busca}\u{201d}"),
+            QueueOrigin::Playlist(canonico) => {
+                let tag = format!("playlist/{canonico}");
+                self.sidebar_playlists()
+                    .iter()
+                    .find(|c| c.tag == tag)
+                    .map(|c| c.title.clone())
+                    .or_else(|| detalhe_igual(origin))
+                    .unwrap_or_default()
+            }
+            QueueOrigin::Album(_) | QueueOrigin::Artist(_) => {
+                detalhe_igual(origin).unwrap_or_default()
+            }
+        }
     }
 
     /// Album ou artista aberto no Detalhe: `(tag, uri, tipo)`.
@@ -4086,6 +4453,7 @@ fn audio_settings(config: &morune_storage::config::PlaybackConfig) -> AudioSetti
         normalize: config.normalize,
         cache_mb: config.audio_cache_mb,
         output_device: config.output_device.clone(),
+        mono: config.mono,
     }
 }
 
@@ -4198,6 +4566,20 @@ fn track_rows(
                 playable: t.playable,
                 playing: current.is_some_and(|c| c.id == t.id),
                 favorite: liked_ids.contains(&t.id),
+                // So o primeiro artista: "Ir para o artista" leva a um lugar,
+                // e o Spotify faz o mesmo quando a faixa tem participacao.
+                artist_id: t
+                    .artists
+                    .first()
+                    .map(|a| Target::Artist(a.id.clone()).tag())
+                    .unwrap_or_default()
+                    .into(),
+                album_id: t
+                    .album
+                    .as_ref()
+                    .map(|a| Target::Album(a.id.clone()).tag())
+                    .unwrap_or_default()
+                    .into(),
             }
         })
         .collect()
@@ -4377,6 +4759,7 @@ struct Listas {
     acoes_playlists: Lista<ui::CardItem>,
     detail_tracks: Lista<ui::TrackRow>,
     detail_items: Lista<ui::CardItem>,
+    detail_related: Lista<ui::CardItem>,
     queue_manual_tracks: Lista<ui::TrackRow>,
     queue_context_tracks: Lista<ui::TrackRow>,
     themes: Lista<ui::ThemeItem>,
@@ -4409,6 +4792,61 @@ struct Listas {
 /// todas seriam 81 MB retidos -- num aplicativo cujo orcamento inteiro em
 /// repouso e de 78,8 MB.
 const COVER_CACHE_MAX_BYTES: usize = 32 * 1024 * 1024;
+
+/// "Bom dia" das 5h ao meio-dia, "Boa tarde" ate as 18h, "Boa noite" no resto,
+/// os mesmos cortes do Spotify. `hora` em horas decimais.
+fn saudacao(hora: f32) -> &'static str {
+    match hora {
+        h if (5.0..12.0).contains(&h) => "Bom dia",
+        h if (12.0..18.0).contains(&h) => "Boa tarde",
+        _ => "Boa noite",
+    }
+}
+
+/// Apaga tudo dentro de `pasta`, mantendo a pasta. Devolve os bytes apagados.
+///
+/// Arquivo que nao sai (aberto pela librespot naquele instante) fica para a
+/// proxima: o cache e descartavel, e falhar um arquivo nao e motivo para parar
+/// os outros.
+fn apagar_conteudo(pasta: &std::path::Path) -> u64 {
+    let Ok(itens) = std::fs::read_dir(pasta) else {
+        return 0;
+    };
+    let mut liberado = 0;
+    for item in itens.flatten() {
+        let caminho = item.path();
+        let Ok(tipo) = item.file_type() else { continue };
+        if tipo.is_dir() {
+            liberado += apagar_conteudo(&caminho);
+            let _ = std::fs::remove_dir(&caminho);
+        } else {
+            let tamanho = item.metadata().map(|m| m.len()).unwrap_or(0);
+            if std::fs::remove_file(&caminho).is_ok() {
+                liberado += tamanho;
+            }
+        }
+    }
+    liberado
+}
+
+/// "312 MB", "4,1 GB": o que a mensagem de cache limpo mostra.
+fn tamanho_legivel(bytes: u64) -> String {
+    const MB: f64 = 1024.0 * 1024.0;
+    let mb = bytes as f64 / MB;
+    if mb >= 1024.0 {
+        format!("{:.1} GB", mb / 1024.0).replace('.', ",")
+    } else {
+        format!("{} MB", mb.round() as u64)
+    }
+}
+
+/// Quanto tempo depois do aviso de repetida o mesmo pedido vale como
+/// "adicionar mesmo assim".
+///
+/// O aviso fica na tela uns segundos; um minuto cobre quem leu, pensou e
+/// voltou ao menu, e e curto o bastante para que adicionar a mesma faixa
+/// horas depois volte a ser conferido.
+const REPETIDA_JANELA: Duration = Duration::from_secs(60);
 
 /// Timer para dormir.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -4764,6 +5202,30 @@ fn opacidade_para_slider(opacidade: f32) -> f32 {
 }
 
 #[cfg(test)]
+mod lote_spotify_tests {
+    use super::{saudacao, tamanho_legivel};
+
+    #[test]
+    fn a_saudacao_segue_os_cortes_do_spotify() {
+        assert_eq!(saudacao(4.9), "Boa noite");
+        assert_eq!(saudacao(5.0), "Bom dia");
+        assert_eq!(saudacao(11.99), "Bom dia");
+        assert_eq!(saudacao(12.0), "Boa tarde");
+        assert_eq!(saudacao(18.0), "Boa noite");
+    }
+
+    #[test]
+    fn o_tamanho_liberado_sai_em_mb_ou_gb() {
+        assert_eq!(tamanho_legivel(0), "0 MB");
+        assert_eq!(tamanho_legivel(312 * 1024 * 1024), "312 MB");
+        assert_eq!(
+            tamanho_legivel(4 * 1024 * 1024 * 1024 + 100 * 1024 * 1024),
+            "4,1 GB"
+        );
+    }
+}
+
+#[cfg(test)]
 mod cover_cache_tests {
     use super::LruCache;
 
@@ -4973,6 +5435,7 @@ mod tests {
             cover_path: None,
             tracks: vec![playback_track(id)],
             cards: Vec::new(),
+            related: Vec::new(),
             total_tracks: Some(1),
             source: None,
             has_more: false,

@@ -137,6 +137,8 @@ pub struct PlaybackConfig {
     pub audio_cache_mb: u32,
     /// Nome do dispositivo de saida. Vazio = padrao do sistema.
     pub output_device: String,
+    /// Os dois lados tocam o mesmo audio.
+    pub mono: bool,
 }
 
 impl Default for PlaybackConfig {
@@ -150,6 +152,7 @@ impl Default for PlaybackConfig {
             bitrate: 160,
             audio_cache_mb: 1024,
             output_device: String::new(),
+            mono: false,
         }
     }
 }
@@ -169,6 +172,11 @@ pub struct WindowConfig {
     pub close_to_tray: bool,
     /// Evita repetir a explicacao da bandeja depois que ela ja foi vista.
     pub tray_hint_shown: bool,
+    /// Notificacao do Windows quando a faixa muda com a janela fora de vista.
+    ///
+    /// Padrao ligado, como no Spotify: quem troca de musica pelo atalho dentro
+    /// do jogo nao tem outro jeito de saber o que entrou.
+    pub track_notifications: bool,
 }
 
 impl Default for WindowConfig {
@@ -179,6 +187,7 @@ impl Default for WindowConfig {
             maximized: false,
             close_to_tray: true,
             tray_hint_shown: false,
+            track_notifications: true,
         }
     }
 }

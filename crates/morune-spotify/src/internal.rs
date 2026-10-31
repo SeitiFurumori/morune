@@ -294,6 +294,13 @@ impl Internal {
         Some(conteudo.clone())
     }
 
+    /// Descarta o conteudo guardado de uma playlist que acabou de mudar.
+    pub(crate) fn forget_playlist(&self, id: &str) {
+        if let Ok(mut cache) = self.playlists.lock() {
+            cache.remove(id);
+        }
+    }
+
     /// Guarda o conteudo lido, descartando o mais antigo quando lota.
     fn playlist_store(&self, id: &str, conteudo: Arc<PlaylistContents>) {
         let Ok(mut cache) = self.playlists.lock() else {
@@ -825,6 +832,11 @@ pub(crate) struct ArtistMeta {
     pub genres: Vec<String>,
     pub top_tracks: Vec<TrackMeta>,
     pub albums: Vec<(String, String, ImageSet)>,
+    pub singles: Vec<(String, String, ImageSet)>,
+    pub compilations: Vec<(String, String, ImageSet)>,
+    pub appears_on: Vec<(String, String, ImageSet)>,
+    /// Artistas parecidos: `(id, nome, foto)`.
+    pub related: Vec<(String, String, ImageSet)>,
 }
 
 impl ArtistMeta {
@@ -850,21 +862,40 @@ impl ArtistMeta {
             })
             .unwrap_or_default();
 
+        // Um `seen` para os quatro grupos: o mesmo lancamento as vezes vem em
+        // dois (single que tambem esta em compilacao), e na tela ele aparece
+        // so no primeiro, na ordem em que o Spotify os mostra.
         let mut seen = HashSet::new();
-        let albums = msg
-            .album_group
-            .iter()
-            .chain(msg.single_group.iter())
-            .filter_map(|group| group.album.first())
-            .filter_map(|album| {
-                let id = base62(album.gid())?;
-                seen.insert(id.clone()).then(|| {
-                    (
-                        id,
-                        album.name().to_string(),
-                        covers(album.cover_group.as_ref()),
-                    )
+        let mut grupo = |grupos: &[librespot_protocol::metadata::AlbumGroup]| {
+            grupos
+                .iter()
+                .filter_map(|group| group.album.first())
+                .filter_map(|album| {
+                    let id = base62(album.gid())?;
+                    seen.insert(id.clone()).then(|| {
+                        (
+                            id,
+                            album.name().to_string(),
+                            covers(album.cover_group.as_ref()),
+                        )
+                    })
                 })
+                .collect::<Vec<(String, String, ImageSet)>>()
+        };
+        let albums = grupo(msg.album_group.as_slice());
+        let singles = grupo(msg.single_group.as_slice());
+        let compilations = grupo(msg.compilation_group.as_slice());
+        let appears_on = grupo(msg.appears_on_group.as_slice());
+
+        let related = msg
+            .related
+            .iter()
+            .filter_map(|artista| {
+                Some((
+                    base62(artista.gid())?,
+                    artista.name().to_string(),
+                    covers(artista.portrait_group.as_ref()),
+                ))
             })
             .collect();
 
@@ -877,6 +908,10 @@ impl ArtistMeta {
             genres: Vec::new(),
             top_tracks,
             albums,
+            singles,
+            compilations,
+            appears_on,
+            related,
         })
     }
 }

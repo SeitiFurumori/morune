@@ -380,6 +380,10 @@ impl ArtistDto {
             genres: Vec::new(),
             top_tracks: Vec::new(),
             albums: Vec::new(),
+            singles: Vec::new(),
+            compilations: Vec::new(),
+            appears_on: Vec::new(),
+            related: Vec::new(),
         })
     }
 }

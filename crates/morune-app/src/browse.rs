@@ -177,6 +177,8 @@ pub struct Detail {
     pub tracks: Vec<Track>,
     /// Recursos relacionados, hoje a discografia na tela de artista.
     pub cards: Vec<Card>,
+    /// "Os fãs também curtem", so na tela de artista.
+    pub related: Vec<Card>,
     /// Total informado pelo provedor, antes do teto local da tela.
     pub total_tracks: Option<u32>,
     /// Origem paginavel. Album e artista ja chegam completos e usam `None`.
@@ -241,6 +243,13 @@ pub enum PlaylistEdit {
         playlist: PlaylistId,
         tracks: Vec<TrackId>,
         nome: String,
+        /// A pessoa ja foi avisada de que a faixa esta la e pediu de novo.
+        mesmo_repetida: bool,
+    },
+    Remove {
+        playlist: PlaylistId,
+        tracks: Vec<TrackId>,
+        nome: String,
     },
     Create {
         nome: String,
@@ -260,6 +269,10 @@ pub enum PlaylistEdit {
 pub struct PlaylistEditOutcome {
     pub mensagem: String,
     pub recarregar: bool,
+    /// Nada foi adicionado porque tudo ja estava na playlist.
+    pub repetida: bool,
+    /// Faixas que o Spotify confirmou ter tirado. Vazio em qualquer outro caso.
+    pub removidas: Vec<TrackId>,
 }
 
 /// Resultado de salvar album ou seguir artista. `tag` e o `Target::tag()`.
@@ -469,14 +482,49 @@ impl Browse {
         let library = self.library.clone();
         let tx = self.edit_tx.clone();
         self.handle.spawn(async move {
+            // Antes de adicionar, o que o Spotify tambem faz: avisar que a
+            // faixa ja esta la. Se a conferencia falhar, adiciona assim mesmo --
+            // o aviso e cortesia, e nao pode impedir a acao que foi pedida.
+            if let PlaylistEdit::Add {
+                playlist,
+                tracks,
+                nome,
+                mesmo_repetida: false,
+            } = &pedido
+            {
+                if let Ok(existentes) = library.playlist_track_ids(playlist).await {
+                    if tracks.iter().all(|t| existentes.contains(t)) {
+                        let _ = tx.send(PlaylistEditOutcome {
+                            mensagem: format!(
+                                "Essa música já está em \"{nome}\". Adicione de novo para pôr outra vez."
+                            ),
+                            recarregar: false,
+                            repetida: true,
+                            removidas: Vec::new(),
+                        });
+                        return;
+                    }
+                }
+            }
+
             let (resultado, ok, recarregar) = match &pedido {
                 PlaylistEdit::Add {
                     playlist,
                     tracks,
                     nome,
+                    ..
                 } => (
                     library.add_to_playlist(playlist, tracks).await,
                     format!("Adicionada a \"{nome}\"."),
+                    false,
+                ),
+                PlaylistEdit::Remove {
+                    playlist,
+                    tracks,
+                    nome,
+                } => (
+                    library.remove_from_playlist(playlist, tracks).await,
+                    format!("Removida de \"{nome}\"."),
                     false,
                 ),
                 PlaylistEdit::Create { nome } => (
@@ -499,10 +547,17 @@ impl Browse {
                 Ok(()) => PlaylistEditOutcome {
                     mensagem: ok,
                     recarregar,
+                    repetida: false,
+                    removidas: match pedido {
+                        PlaylistEdit::Remove { tracks, .. } => tracks,
+                        _ => Vec::new(),
+                    },
                 },
                 Err(e) => PlaylistEditOutcome {
                     mensagem: format!("O Spotify não aceitou: {}", describe(&e)),
                     recarregar: false,
+                    repetida: false,
+                    removidas: Vec::new(),
                 },
             };
             let _ = tx.send(saida);
@@ -778,6 +833,7 @@ async fn resolve(
                 has_more: false,
                 tracks: album.tracks,
                 cards: Vec::new(),
+                related: Vec::new(),
             }))
         }
         Target::Playlist(id) => {
@@ -802,6 +858,7 @@ async fn resolve(
                 source: Some(Target::Playlist(id)),
                 has_more,
                 cards: Vec::new(),
+                related: Vec::new(),
             }))
         }
         // Diferente das outras, esta nao vem do catalogo: curtidas sao da
@@ -822,11 +879,38 @@ async fn resolve(
                 source: Some(Target::Liked),
                 has_more,
                 cards: Vec::new(),
+                related: Vec::new(),
             }))
         }
         Target::Artist(id) => {
             let artist = catalog.artist(&id).await?;
-            let cards = artist.albums.iter().map(album_ref_card).collect();
+            // Na ordem e com o rotulo do Spotify. Uma prateleira so, com o
+            // tipo embaixo de cada capa: quatro prateleiras quase vazias para
+            // artista pequeno pesavam mais do que separavam.
+            let cards = artist
+                .albums
+                .iter()
+                .map(|a| release_card(a, "Álbum"))
+                .chain(
+                    artist
+                        .singles
+                        .iter()
+                        .map(|a| release_card(a, "Single ou EP")),
+                )
+                .chain(
+                    artist
+                        .compilations
+                        .iter()
+                        .map(|a| release_card(a, "Compilação")),
+                )
+                .chain(
+                    artist
+                        .appears_on
+                        .iter()
+                        .map(|a| release_card(a, "Aparece em")),
+                )
+                .collect();
+            let related = artist.related.iter().map(artist_card).collect();
             Outcome::Detail(Box::new(Detail {
                 origin: QueueOrigin::Artist(artist.id.canonical()),
                 title: artist.name.to_string(),
@@ -839,6 +923,7 @@ async fn resolve(
                 source: None,
                 has_more: false,
                 cards,
+                related,
             }))
         }
     })
@@ -906,11 +991,12 @@ fn feed_card(item: &morune_core::model::FeedItem) -> Card {
     }
 }
 
-fn album_ref_card(a: &morune_core::model::AlbumRef) -> Card {
+/// Cartao de lancamento com o tipo embaixo: "Álbum", "Single ou EP"...
+fn release_card(a: &morune_core::model::AlbumRef, tipo: &str) -> Card {
     Card {
         tag: Target::Album(a.id.clone()).tag(),
         title: a.name.to_string(),
-        subtitle: "Álbum".into(),
+        subtitle: tipo.into(),
         cover: cover(&a.images),
         cover_path: None,
     }
@@ -1137,6 +1223,10 @@ mod tests {
             genres: Vec::new(),
             top_tracks: Vec::new(),
             albums: Vec::new(),
+            singles: Vec::new(),
+            compilations: Vec::new(),
+            appears_on: Vec::new(),
+            related: Vec::new(),
         };
         assert_eq!(artist_card(&artist).subtitle, "Artista");
 

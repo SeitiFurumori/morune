@@ -15,13 +15,15 @@
 //!   maior risco de RAM do aplicativo e o motivo de `playlist_tracks` existir
 //!   separado de `playlist`.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use morune_core::catalog::{
     BoxFuture, Catalog, Library, Page, SearchKind, SearchResults, TopRange,
 };
 use morune_core::model::{
-    Album, AlbumId, Artist, ArtistId, Playlist, PlaylistId, PlaylistKind, Provider, Track, TrackId,
+    Album, AlbumId, Artist, ArtistId, ImageSet, Playlist, PlaylistId, PlaylistKind, Provider,
+    Track, TrackId,
 };
 use morune_core::{CoreError, CoreResult};
 
@@ -80,6 +82,51 @@ impl SpotifyCatalog {
             .into_iter()
             .map(meta_to_track)
             .collect())
+    }
+
+    /// Faixas que vieram so com o id ganham o metadado completo.
+    ///
+    /// **O defeito que isto conserta.** O protobuf do artista traz as faixas
+    /// populares como referencia: so o `gid`, sem nome, artista, album nem
+    /// duracao. O mesmo vale para as faixas dentro dos discos de um album. Elas
+    /// iam direto para a tela, e a pagina do artista mostrava uma lista de
+    /// linhas sem nome com 0:00 de duracao.
+    ///
+    /// Uma requisicao so para as que faltam, pelo mesmo caminho em lote de
+    /// [`Self::tracks_by_id`]. Se ela falhar, ficam as referencias -- melhor
+    /// uma linha sem nome que a pagina inteira em erro. A ordem e a original.
+    async fn completar(&self, faixas: Vec<crate::internal::TrackMeta>) -> Vec<Track> {
+        let faltando: Vec<String> = faixas
+            .iter()
+            .filter(|f| f.name.is_empty())
+            .map(|f| f.id.clone())
+            .collect();
+        let mut completas: HashMap<String, crate::internal::TrackMeta> = if faltando.is_empty() {
+            HashMap::new()
+        } else {
+            match self.internal.tracks(&faltando).await {
+                Ok(lista) => lista.into_iter().map(|f| (f.id.clone(), f)).collect(),
+                Err(e) => {
+                    tracing::warn!(error = %e, faixas = faltando.len(), "metadado das faixas nao veio");
+                    HashMap::new()
+                }
+            }
+        };
+        faixas
+            .into_iter()
+            .map(|referencia| {
+                let mut faixa = match completas.remove(&referencia.id) {
+                    Some(completa) => completa,
+                    None => referencia.clone(),
+                };
+                // A faixa completa nem sempre traz o album; o da referencia
+                // (o album aberto) e o que da capa a fila.
+                if faixa.album.is_none() {
+                    faixa.album = referencia.album;
+                }
+                meta_to_track(faixa)
+            })
+            .collect()
     }
 
     /// Playlist pelo caminho interno, quando o Web API recusa.
@@ -170,6 +217,8 @@ impl Catalog for SpotifyCatalog {
         Box::pin(async move {
             let id = spotify_id(id.provider, &id.id)?;
             let meta = self.internal.album(id).await?;
+            let total = meta.tracks.len() as u32;
+            let tracks = self.completar(meta.tracks).await;
 
             Ok(Album {
                 id: AlbumId::spotify(meta.id.as_str()),
@@ -177,22 +226,24 @@ impl Catalog for SpotifyCatalog {
                 artists: artist_refs(meta.artists),
                 images: meta.images,
                 release_date: meta.year.map(|y| Arc::from(y.to_string().as_str())),
-                total_tracks: Some(meta.tracks.len() as u32),
-                tracks: meta.tracks.into_iter().map(meta_to_track).collect(),
+                total_tracks: Some(total),
+                tracks,
             })
         })
     }
 
-    /// Artista, sem discografia nem faixas populares.
+    /// Artista pelo protobuf do protocolo interno.
     ///
-    /// As duas vinham de `/v1/artists/{id}/albums` e `/top-tracks`, que morreram
-    /// com o resto do Web API. O protobuf do artista traz os grupos de album,
-    /// mas so como referencia -- montar a discografia exigiria um pedido de
-    /// metadado por album, e isso ainda nao foi medido. Ver docs/HANDOFF.md.
+    /// As faixas populares chegam so como referencia e sao completadas aqui,
+    /// numa requisicao em lote -- ver [`Self::completar`].
     fn artist<'a>(&'a self, id: &'a ArtistId) -> BoxFuture<'a, CoreResult<Artist>> {
         Box::pin(async move {
             let id = spotify_id(id.provider, &id.id)?;
-            Ok(meta_to_artist(self.internal.artist(id).await?))
+            let mut meta = self.internal.artist(id).await?;
+            let populares = std::mem::take(&mut meta.top_tracks);
+            let mut artista = meta_to_artist(meta);
+            artista.top_tracks = self.completar(populares).await;
+            Ok(artista)
         })
     }
 
@@ -366,12 +417,50 @@ impl Library for SpotifyCatalog {
         Box::pin(async move { self.pathfinder.set_uri_saved(uri, saved).await })
     }
 
+    fn playlist_track_ids<'a>(
+        &'a self,
+        playlist: &'a PlaylistId,
+    ) -> BoxFuture<'a, CoreResult<Vec<TrackId>>> {
+        Box::pin(async move {
+            let id = spotify_id(playlist.provider, &playlist.id)?;
+            let contents = self.internal.playlist(id).await?;
+            Ok(contents
+                .track_ids
+                .iter()
+                .cloned()
+                .map(TrackId::spotify)
+                .collect())
+        })
+    }
+
     fn add_to_playlist<'a>(
         &'a self,
         playlist: &'a PlaylistId,
         tracks: &'a [TrackId],
     ) -> BoxFuture<'a, CoreResult<()>> {
-        Box::pin(async move { self.pathfinder.add_to_playlist(playlist, tracks).await })
+        Box::pin(async move {
+            self.pathfinder.add_to_playlist(playlist, tracks).await?;
+            // A lista guardada ficou velha: sem esquecer, a conferencia de
+            // repetida logo em seguida nao veria a faixa que acabou de entrar.
+            if let Ok(id) = spotify_id(playlist.provider, &playlist.id) {
+                self.internal.forget_playlist(id);
+            }
+            Ok(())
+        })
+    }
+
+    fn remove_from_playlist<'a>(
+        &'a self,
+        playlist: &'a PlaylistId,
+        tracks: &'a [TrackId],
+    ) -> BoxFuture<'a, CoreResult<()>> {
+        Box::pin(async move {
+            self.edicao.remover_faixas(playlist, tracks).await?;
+            if let Ok(id) = spotify_id(playlist.provider, &playlist.id) {
+                self.internal.forget_playlist(id);
+            }
+            Ok(())
+        })
     }
 
     fn create_playlist<'a>(&'a self, name: &'a str) -> BoxFuture<'a, CoreResult<PlaylistId>> {
@@ -518,19 +607,40 @@ fn artist_refs(pares: Vec<(String, String)>) -> Vec<morune_core::model::ArtistRe
 /// buscar as duas para cada linha custaria dezenas de requisicoes numa tela que
 /// nao as mostra. A tela do artista as pede quando abre.
 fn meta_to_artist(meta: ArtistMeta) -> Artist {
+    let refs = |lista: Vec<(String, String, ImageSet)>| {
+        lista
+            .into_iter()
+            .map(|(id, name, images)| morune_core::model::AlbumRef {
+                id: AlbumId::spotify(id.as_str()),
+                name: Arc::from(name.as_str()),
+                images,
+            })
+            .collect()
+    };
     Artist {
         id: ArtistId::spotify(meta.id.as_str()),
         name: Arc::from(meta.name.as_str()),
         images: meta.images,
         genres: meta.genres.iter().map(|g| Arc::from(g.as_str())).collect(),
         top_tracks: meta.top_tracks.into_iter().map(meta_to_track).collect(),
-        albums: meta
-            .albums
+        albums: refs(meta.albums),
+        singles: refs(meta.singles),
+        compilations: refs(meta.compilations),
+        appears_on: refs(meta.appears_on),
+        related: meta
+            .related
             .into_iter()
-            .map(|(id, name, images)| morune_core::model::AlbumRef {
-                id: AlbumId::spotify(id.as_str()),
+            .map(|(id, name, images)| Artist {
+                id: ArtistId::spotify(id.as_str()),
                 name: Arc::from(name.as_str()),
                 images,
+                genres: Vec::new(),
+                top_tracks: Vec::new(),
+                albums: Vec::new(),
+                singles: Vec::new(),
+                compilations: Vec::new(),
+                appears_on: Vec::new(),
+                related: Vec::new(),
             })
             .collect(),
     }

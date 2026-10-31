@@ -316,6 +316,8 @@ Section "un.${APP_NAME}" UnCore
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_NAME}"
     DeleteRegKey HKCU "${REG_UNINST}"
     DeleteRegKey HKCU "${REG_APP}"
+    ; Nome das notificacoes de troca de faixa. Ver `AUMID` em `notify.rs`.
+    DeleteRegKey HKCU "Software\Classes\AppUserModelId\Morune.Player"
 SectionEnd
 
 Section /o "un.Configuracoes e temas" UnUserData
