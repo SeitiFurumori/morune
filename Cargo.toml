@@ -6,6 +6,7 @@ members = [
     "crates/morune-storage",
     "crates/morune-app",
     "crates/morune-spotify",
+    "crates/morune-desktop",
 ]
 
 [workspace.package]

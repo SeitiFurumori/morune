@@ -1,0 +1,84 @@
+[package]
+name = "morune-desktop"
+description = "Morune com a tela em web (Tauri) sobre o mesmo motor em Rust. Ver docs/adr/0007-tela-em-tauri.md."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "morune-web"
+path = "src/main.rs"
+
+[features]
+# `custom-protocol` serve a tela de `ui/dist`, embutida. Sem ela o Tauri procura
+# o servidor de desenvolvimento (`npm run dev`), para recarregar a tela na hora.
+default = ["hot-reload", "custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+hot-reload = ["morune-theme/hot-reload"]
+# Restos do app em Slint (captura de tela); sem efeito aqui.
+snapshot = []
+
+[dependencies]
+morune-core = { workspace = true }
+morune-theme = { workspace = true }
+morune-storage = { workspace = true }
+morune-spotify = { workspace = true }
+tokio = { workspace = true }
+
+tauri = { version = "2", features = ["tray-icon"] }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+rfd = "0.15"
+# Cor dominante da capa (`tint.rs`). So os decodificadores que as capas usam.
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+reqwest = { version = "0.12", default-features = false, features = [
+    "blocking",
+    "json",
+    "default-tls",
+] }
+sha2 = "0.10"
+
+[target.'cfg(windows)'.dependencies]
+raw-window-handle = "0.6"
+# Suspender a tela minimizada (`ICoreWebView2_3::TrySuspend`).
+webview2-com = "0.39"
+# Mesma versao que o webview2-com usa, para o `cast` entre interfaces COM.
+windows-core-webview = { package = "windows-core", version = "0.62" }
+windows = { version = "0.61.3", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Registry",
+    "Win32_System_Threading",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_Graphics_Dwm",
+    "Win32_System_SystemInformation",
+    "Win32_System_DataExchange",
+    "Win32_System_Memory",
+    "Win32_System_ProcessStatus",
+    "Win32_System_Ole",
+    "Win32_System_LibraryLoader",
+    "Media",
+    "Foundation",
+    "Storage_Streams",
+    "Win32_System_WinRT",
+    "UI_Notifications",
+    "Data_Xml_Dom",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_Kernel",
+    "Win32_Storage_FileSystem",
+] }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

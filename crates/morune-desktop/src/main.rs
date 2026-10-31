@@ -1,0 +1,577 @@
+//! Morune com a tela em web. O motor (`AppState`) e o mesmo do app em Slint;
+//! aqui ele roda na thread principal do Tauri, e a tela recebe o estado em JSON.
+//!
+//! Regras de segundo plano (ADR-0007):
+//! - na bandeja a tela e destruida e sobra so o motor;
+//! - minimizada, a tela e suspensa;
+//! - com jogo em tela cheia, o movimento vai a zero (`set_tela_cheia`).
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// O motor veio do app em Slint, que tem metodos que esta tela ainda nao usa.
+#![allow(dead_code)]
+
+mod artwork;
+mod browse;
+mod bundled;
+mod capas;
+mod clipboard;
+mod crash;
+mod hotkeys;
+mod instance;
+mod notify;
+mod oculta;
+mod registro;
+mod session;
+mod smtc;
+mod startup;
+mod state;
+mod taskbar;
+mod tela_cheia;
+mod tema;
+mod tint;
+mod ui;
+mod update;
+mod vista_tipos;
+
+use std::cell::RefCell;
+use std::time::{Duration, Instant};
+
+use serde_json::{Map, Value};
+use state::AppState;
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+
+/// Intervalo do giro do motor: ler eventos do Spotify, do audio e das teclas.
+const GIRO: Duration = Duration::from_millis(100);
+/// A barra de progresso anda neste ritmo enquanto toca.
+const PROGRESSO: Duration = Duration::from_millis(250);
+/// A conferencia de jogo em tela cheia.
+const VIGIA_TELA_CHEIA: Duration = Duration::from_secs(1);
+
+struct Motor {
+    state: AppState,
+    /// O "estado da janela" que o motor escreve com os `set_*` de sempre.
+    janela: ui::AppWindow,
+    /// O ultimo estado mandado para a tela, campo a campo. Vazio quando nao ha tela.
+    enviado: Map<String, Value>,
+    tema_enviado: Value,
+    hotkeys: Option<hotkeys::GlobalHotkeys>,
+    oculta: Option<oculta::JanelaOculta>,
+    media: Option<smtc::MediaControls>,
+    notificador: Option<notify::TrackNotifier>,
+    ultimo_progresso: Instant,
+    ultima_tela_cheia: Instant,
+}
+
+thread_local! {
+    static MOTOR: RefCell<Option<Motor>> = const { RefCell::new(None) };
+}
+
+fn com_motor<R>(f: impl FnOnce(&mut Motor) -> R) -> Option<R> {
+    MOTOR.with(|m| m.borrow_mut().as_mut().map(f))
+}
+
+fn main() -> anyhow::Result<()> {
+    #[cfg(windows)]
+    let Some(_instancia) = instance::SingleInstance::acquire()? else {
+        return Ok(());
+    };
+
+    let iniciou_com_windows = std::env::args_os().any(|arg| arg == "--startup");
+    let paths = morune_storage::AppPaths::discover();
+    let _ = paths.ensure();
+    registro::init_logging(&paths);
+    registro::log_panics();
+    crash::instalar(paths.data_dir());
+    tracing::info!(versao = env!("MORUNE_RELEASE"), log = %paths.log_file().display(), "Morune iniciando (tela web)");
+
+    capas::permitir(vec![
+        paths.cache_dir().to_path_buf(),
+        paths.data_dir().to_path_buf(),
+        paths.themes_dir().to_path_buf(),
+        paths.config_dir().to_path_buf(),
+    ]);
+
+    tauri::Builder::default()
+        .register_uri_scheme_protocol("capa", |_ctx, req| servir_capa(req))
+        .invoke_handler(tauri::generate_handler![acao, estado_inicial, pronta])
+        .setup(move |app| {
+            let mut state = AppState::load();
+            state.restore_session();
+            let motor = Motor {
+                state,
+                janela: ui::AppWindow::default(),
+                enviado: Map::new(),
+                tema_enviado: Value::Null,
+                hotkeys: hotkeys::GlobalHotkeys::start(),
+                oculta: oculta::JanelaOculta::criar(),
+                media: None,
+                notificador: None,
+                ultimo_progresso: Instant::now(),
+                ultima_tela_cheia: Instant::now(),
+            };
+            MOTOR.with(|m| *m.borrow_mut() = Some(motor));
+            com_motor(|m| {
+                if let Some(janela) = m.oculta.as_ref() {
+                    match smtc::MediaControls::new(janela) {
+                        Ok(media) => m.media = Some(media),
+                        Err(error) => tracing::warn!(%error, "painel de midia do Windows indisponivel"),
+                    }
+                }
+                match notify::TrackNotifier::new() {
+                    Ok(n) => m.notificador = Some(n),
+                    Err(error) => tracing::warn!(%error, "notificacoes do Windows indisponiveis"),
+                }
+            });
+
+            criar_bandeja(app.handle())?;
+            if !iniciou_com_windows {
+                abrir_janela(app.handle());
+            }
+
+            // O giro do motor: uma thread so marca o tempo; o trabalho roda na
+            // thread principal, onde o motor mora.
+            let handle = app.handle().clone();
+            std::thread::Builder::new()
+                .name("giro".into())
+                .spawn(move || loop {
+                    std::thread::sleep(GIRO);
+                    let h = handle.clone();
+                    if handle.run_on_main_thread(move || giro(&h)).is_err() {
+                        break;
+                    }
+                })?;
+            Ok(())
+        })
+        .build(tauri::generate_context!())?
+        .run(|app, event| match event {
+            tauri::RunEvent::ExitRequested { api, code, .. } => {
+                // Fechar a ultima janela nao encerra: o motor fica na bandeja.
+                if code.is_none() {
+                    api.prevent_exit();
+                }
+            }
+            tauri::RunEvent::Exit => {
+                com_motor(|m| m.state.save_config());
+                let _ = app;
+            }
+            _ => {}
+        });
+    Ok(())
+}
+
+// ---- tela ----
+
+fn abrir_janela(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+        return;
+    }
+    let (largura, altura, maximizada) =
+        com_motor(|m| m.state.tamanho_inicial()).unwrap_or((1280.0, 800.0, false));
+    let janela = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+        .title("Morune")
+        .inner_size(largura as f64, altura as f64)
+        .min_inner_size(720.0, 480.0)
+        .maximized(maximizada)
+        .build();
+    let janela = match janela {
+        Ok(j) => j,
+        Err(e) => {
+            tracing::error!(error = %e, "nao foi possivel abrir a janela");
+            return;
+        }
+    };
+    let app2 = app.clone();
+    janela.on_window_event(move |evento| tratar_evento_janela(&app2, evento));
+    // A tela nova pede o estado inteiro ao carregar (`estado_inicial`).
+    com_motor(|m| m.enviado.clear());
+}
+
+fn tratar_evento_janela(app: &AppHandle, evento: &WindowEvent) {
+    match evento {
+        WindowEvent::CloseRequested { api, .. } => {
+            let para_bandeja = com_motor(|m| m.state.close_to_tray()).unwrap_or(true);
+            com_motor(|m| m.state.save_config());
+            if !para_bandeja {
+                api.prevent_close();
+                app.exit(0);
+            }
+            // Para a bandeja: a janela fecha de verdade e a tela e destruida.
+        }
+        WindowEvent::Destroyed => {
+            com_motor(|m| {
+                m.enviado.clear();
+                m.tema_enviado = Value::Null;
+            });
+            tracing::info!("tela destruida; motor segue na bandeja");
+        }
+        WindowEvent::Resized(_) => {
+            if let Some(w) = app.get_webview_window("main") {
+                let minimizada = w.is_minimized().unwrap_or(false);
+                suspender_tela(&w, minimizada);
+                if !minimizada {
+                    let maximizada = w.is_maximized().unwrap_or(false);
+                    let escala = w.scale_factor().unwrap_or(1.0);
+                    if let Ok(t) = w.inner_size() {
+                        let t = t.to_logical::<f32>(escala);
+                        com_motor(|m| m.state.remember_window_state(t.width, t.height, maximizada));
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Minimizada, a tela para de rodar script e de desenhar.
+fn suspender_tela(w: &tauri::WebviewWindow, suspender: bool) {
+    let _ = w.emit("visibilidade", !suspender);
+    #[cfg(windows)]
+    {
+        let _ = w.with_webview(move |webview| {
+            use webview2_com::Microsoft::Web::WebView2::Win32::{ICoreWebView2_3, ICoreWebView2Controller};
+            use windows_core_webview::Interface;
+            // SAFETY: chamadas COM no controlador vivo, na thread da tela.
+            unsafe {
+                let controller: ICoreWebView2Controller = webview.controller();
+                let _ = controller.SetIsVisible(!suspender);
+                if suspender {
+                    if let Ok(core) = controller.CoreWebView2() {
+                        if let Ok(core3) = core.cast::<ICoreWebView2_3>() {
+                            let _ = core3.TrySuspend(None);
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+fn criar_bandeja(app: &AppHandle) -> tauri::Result<()> {
+    let abrir = MenuItem::with_id(app, "abrir", "Abrir Morune", true, None::<&str>)?;
+    let tocar = MenuItem::with_id(app, "tocar", "Tocar / pausar", true, None::<&str>)?;
+    let proxima = MenuItem::with_id(app, "proxima", "Próxima", true, None::<&str>)?;
+    let anterior = MenuItem::with_id(app, "anterior", "Anterior", true, None::<&str>)?;
+    let sep = PredefinedMenuItem::separator(app)?;
+    let sair = MenuItem::with_id(app, "sair", "Sair do Morune", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&abrir, &tocar, &proxima, &anterior, &sep, &sair])?;
+    TrayIconBuilder::with_id("morune")
+        .icon(app.default_window_icon().cloned().expect("icone embutido"))
+        .tooltip("Morune")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, e| {
+            match e.id.as_ref() {
+                "abrir" => abrir_janela(app),
+                "tocar" => {
+                    com_motor(|m| m.state.toggle_play());
+                }
+                "proxima" => {
+                    com_motor(|m| m.state.next_track());
+                }
+                "anterior" => {
+                    com_motor(|m| m.state.previous_track());
+                }
+                "sair" => {
+                    com_motor(|m| m.state.save_config());
+                    app.exit(0);
+                }
+                _ => {}
+            }
+            com_motor(|m| enviar(app, m, true));
+        })
+        .on_tray_icon_event(|tray, e| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = e
+            {
+                abrir_janela(tray.app_handle());
+            }
+        })
+        .build(app)?;
+    Ok(())
+}
+
+// ---- giro do motor ----
+
+fn giro(app: &AppHandle) {
+    com_motor(|m| {
+        let mut mudou = m.state.poll_backend();
+
+        if let Some(hk) = m.hotkeys.as_ref() {
+            for c in hk.poll() {
+                let s = &mut m.state;
+                match c {
+                    hotkeys::HotkeyCommand::TogglePlay => s.toggle_play(),
+                    hotkeys::HotkeyCommand::Next => s.next_track(),
+                    hotkeys::HotkeyCommand::Previous => s.previous_track(),
+                    hotkeys::HotkeyCommand::VolumeUp => s.nudge_volume(0.05),
+                    hotkeys::HotkeyCommand::VolumeDown => s.nudge_volume(-0.05),
+                    hotkeys::HotkeyCommand::ToggleLike => {
+                        let id = m.janela.get_now_id();
+                        if !id.is_empty() {
+                            s.toggle_favorite(&id);
+                        }
+                    }
+                }
+                mudou = true;
+            }
+        }
+
+        if let Some(media) = m.media.as_mut() {
+            for c in media.poll() {
+                let s = &mut m.state;
+                match c {
+                    smtc::MediaCommand::Play => s.play(),
+                    smtc::MediaCommand::Pause => s.pause(),
+                    smtc::MediaCommand::TogglePlay => s.toggle_play(),
+                    smtc::MediaCommand::Next => s.next_track(),
+                    smtc::MediaCommand::Previous => s.previous_track(),
+                }
+                mudou = true;
+            }
+            let status = m.state.media_status();
+            if let Err(error) = media.update(status.as_ref()) {
+                tracing::warn!(%error, "painel de midia recusou a atualizacao");
+            }
+            if let Some(n) = m.notificador.as_mut() {
+                let ligada = m.state.track_notifications();
+                match app.get_webview_window("main") {
+                    Some(w) => n.update(status.as_ref(), ligada, &w),
+                    None => {
+                        if let Some(o) = m.oculta.as_ref() {
+                            n.update(status.as_ref(), ligada, o);
+                        }
+                    }
+                }
+            }
+        }
+
+        if m.ultima_tela_cheia.elapsed() >= VIGIA_TELA_CHEIA {
+            m.ultima_tela_cheia = Instant::now();
+            let cheia = tela_cheia::app_em_tela_cheia();
+            if m.state.set_tela_cheia(cheia) {
+                mudou = true;
+                let _ = app.emit("tela_cheia", cheia);
+            }
+        }
+
+        let progresso = m.state.is_playing() && m.ultimo_progresso.elapsed() >= PROGRESSO;
+        if progresso {
+            m.ultimo_progresso = Instant::now();
+        }
+        if mudou || progresso {
+            enviar(app, m, mudou);
+        }
+    });
+}
+
+/// Manda para a tela so os campos que mudaram. Sem tela, nao monta nada.
+fn enviar(app: &AppHandle, m: &mut Motor, tudo: bool) {
+    let Some(w) = app.get_webview_window("main") else {
+        return;
+    };
+    if tudo {
+        m.state.push_to_ui(&m.janela);
+    }
+    m.state.push_playback(&m.janela);
+    let Ok(Value::Object(atual)) = serde_json::to_value(&*m.janela.estado.borrow()) else {
+        return;
+    };
+    #[cfg(debug_assertions)]
+    if let Some(destino) = std::env::var_os("MORUNE_WEB_DUMP") {
+        let _ = std::fs::write(destino, serde_json::json!({ "estado": &atual, "tema": m.state.tema_json() }).to_string());
+    }
+    let mut diferenca = Map::new();
+    for (k, v) in atual {
+        if m.enviado.get(&k) != Some(&v) {
+            m.enviado.insert(k.clone(), v.clone());
+            diferenca.insert(k, v);
+        }
+    }
+    if !diferenca.is_empty() {
+        let _ = w.emit("estado", Value::Object(diferenca));
+    }
+    let tema = m.state.tema_json();
+    if tema != m.tema_enviado {
+        m.tema_enviado = tema.clone();
+        let _ = w.emit("tema", tema);
+    }
+}
+
+// ---- comandos da tela ----
+
+#[tauri::command]
+fn estado_inicial() -> Value {
+    com_motor(|m| {
+        m.state.push_to_ui(&m.janela);
+        m.state.push_playback(&m.janela);
+        let estado = serde_json::to_value(&*m.janela.estado.borrow()).unwrap_or(Value::Null);
+        if let Value::Object(mapa) = &estado {
+            m.enviado = mapa.clone();
+        }
+        let tema = m.state.tema_json();
+        m.tema_enviado = tema.clone();
+        tracing::info!(campos = m.enviado.len(), "tela web carregou o estado inicial");
+        // So no build de desenvolvimento: copia do estado para conferir a tela fora do app.
+        #[cfg(debug_assertions)]
+        if let Some(destino) = std::env::var_os("MORUNE_WEB_DUMP") {
+            let _ = std::fs::write(destino, serde_json::json!({ "estado": &estado, "tema": &tema }).to_string());
+        }
+        serde_json::json!({ "estado": estado, "tema": tema, "acoes": ui::ACOES })
+    })
+    .unwrap_or(Value::Null)
+}
+
+/// A tela terminou de montar: confere o tamanho e libera a abertura.
+#[tauri::command]
+fn pronta() {}
+
+#[tauri::command]
+fn acao(app: AppHandle, nome: String, args: Vec<Value>) -> Result<(), String> {
+    let resultado = com_motor(|m| {
+        let r = executar(&app, m, &nome, &args);
+        enviar(&app, m, true);
+        r
+    });
+    let resultado = resultado.unwrap_or_else(|| Err("motor indisponivel".into()));
+    if let Err(erro) = &resultado {
+        tracing::warn!(%erro, "acao da tela recusada");
+    }
+    resultado
+}
+
+fn texto(args: &[Value], i: usize) -> String {
+    args.get(i).and_then(Value::as_str).unwrap_or_default().to_string()
+}
+fn inteiro(args: &[Value], i: usize) -> i32 {
+    args.get(i).and_then(Value::as_i64).unwrap_or_default() as i32
+}
+fn real(args: &[Value], i: usize) -> f32 {
+    args.get(i).and_then(Value::as_f64).unwrap_or_default() as f32
+}
+fn logico(args: &[Value], i: usize) -> bool {
+    args.get(i).and_then(Value::as_bool).unwrap_or_default()
+}
+
+/// As acoes da tela, com os mesmos nomes dos callbacks do app em Slint.
+fn executar(app: &AppHandle, m: &mut Motor, nome: &str, a: &[Value]) -> Result<(), String> {
+    let s = &mut m.state;
+    match nome {
+        "navigate" => s.navigate(inteiro(a, 0)),
+        "search" => s.search(&texto(a, 0)),
+        "play-track" | "open" => s.play_track(&texto(a, 0)),
+        "toggle-play" => s.toggle_play(),
+        "stop-playback" => s.stop(),
+        "next-track" => s.next_track(),
+        "previous-track" => s.previous_track(),
+        "seek" => s.seek(real(a, 0)),
+        "seek-by" => s.seek_by(real(a, 0)),
+        "set-volume" => s.set_volume(real(a, 0)),
+        "toggle-mute" => s.toggle_mute(),
+        "nudge-volume" => s.nudge_volume(real(a, 0)),
+        "toggle-shuffle" => s.toggle_shuffle(),
+        "cycle-repeat" => s.cycle_repeat(),
+        "toggle-favorite" => s.toggle_favorite(&texto(a, 0)),
+        "queue-play-next" => s.queue_play_next(&texto(a, 0)),
+        "queue-enqueue" => s.queue_enqueue(&texto(a, 0)),
+        "queue-remove" => s.queue_remove(inteiro(a, 0)),
+        "queue-play-manual" => s.queue_play_manual(inteiro(a, 0)),
+        "queue-move" => s.queue_move(inteiro(a, 0), inteiro(a, 1)),
+        "queue-clear" => s.queue_clear(),
+        "close-queue" => s.close_queue(),
+        "select-theme" => s.select_theme(&texto(a, 0)),
+        "import-theme" => s.import_theme_via_dialog(),
+        "export-theme" => s.export_theme_via_dialog(&texto(a, 0)),
+        "duplicate-theme" => s.duplicate_theme(&texto(a, 0)),
+        "reset-theme" => s.reset_theme(),
+        "open-theme-folder" => s.open_theme_folder(),
+        "reload-theme" => s.reload_theme(),
+        "toggle-sidebar" => s.toggle_sidebar(),
+        "filter-playlists" => s.set_playlist_filter(&texto(a, 0)),
+        "filter-library" => s.set_library_filter(&texto(a, 0)),
+        "set-library-kind" => s.set_library_kind(inteiro(a, 0)),
+        "set-library-sort" => s.set_library_sort(inteiro(a, 0)),
+        "set-search-kind" => s.set_search_kind(inteiro(a, 0)),
+        "toggle-pin-playlist" => s.toggle_pin_playlist(&texto(a, 0)),
+        "detail-back" => s.close_detail(),
+        "detail-play" => s.play_detail(),
+        "detail-filter" => s.set_detail_filter(&texto(a, 0)),
+        "detail-sort-by" => s.set_detail_sort(inteiro(a, 0)),
+        "detail-activate" => s.activate_detail(&texto(a, 0)),
+        "detail-load-more" => s.load_more_detail(),
+        "toggle-detail-save" => s.toggle_detail_saved(),
+        "set-sleep" => s.set_sleep_timer(inteiro(a, 0)),
+        "clear-recent-searches" => s.clear_recent_searches(),
+        "toggle-hidden" => s.toggle_hidden(&texto(a, 0)),
+        "copy-link" => s.copy_link(&texto(a, 0)),
+        "start-radio" => s.start_radio(&texto(a, 0)),
+        "remove-from-playlist" => s.remove_track_from_open_playlist(&texto(a, 0)),
+        "add-to-playlist" => s.add_track_to_playlist(&texto(a, 0), &texto(a, 1)),
+        "create-playlist" => s.create_playlist(&texto(a, 0)),
+        "rename-playlist" => s.rename_playlist(&texto(a, 0), &texto(a, 1)),
+        "delete-playlist" => s.delete_playlist(&texto(a, 0)),
+        "set-close-to-tray" => s.set_close_to_tray(logico(a, 0)),
+        "set-track-notifications" => s.set_track_notifications(logico(a, 0)),
+        "set-start-with-windows" => s.set_start_with_windows(logico(a, 0)),
+        "set-autoplay" => s.set_autoplay(logico(a, 0)),
+        "set-bitrate" => s.set_bitrate(inteiro(a, 0)),
+        "set-normalize" => s.set_normalize(logico(a, 0)),
+        "set-mono" => s.set_mono(logico(a, 0)),
+        "clear-cache" => s.clear_cache(),
+        "set-output-device" => s.set_output_device(&texto(a, 0)),
+        "check-update" => s.check_for_update(),
+        "download-update" => s.download_update(),
+        "open-releases-page" => s.open_releases_page(),
+        "install-update" => {
+            if s.install_update() {
+                app.exit(0);
+            }
+        }
+        "login" => s.login(),
+        "cancel-login" => s.cancel_login(),
+        "copy-auth-url" => s.copy_auth_url(),
+        "logout" => s.logout(),
+        "dismiss-status" => s.clear_status(),
+        "undo-last" => s.undo_last(),
+        "retry-last" => s.retry_last(),
+        "dismiss-undo" => {
+            s.dismiss_recovery();
+            s.clear_status();
+        }
+        "choose-background" => s.choose_background_via_dialog(),
+        "clear-background" => s.clear_background(),
+        "set-background-fit" => s.set_background_fit(inteiro(a, 0)),
+        "set-background-opacity" => s.set_background_opacity(real(a, 0)),
+        "set-background-tint" => s.set_background_tint(real(a, 0)),
+        "set-background-blur" => s.set_background_blur(real(a, 0)),
+        "set-glass-blur" => s.set_glass_blur(real(a, 0)),
+        "set-font-scale" => s.set_font_scale(real(a, 0)),
+        "zoom" => s.zoom(inteiro(a, 0)),
+        "set-window-opacity" => s.set_window_opacity(real(a, 0)),
+        "set-reduce-motion" => s.set_reduce_motion(logico(a, 0)),
+        "set-hot-reload" => s.set_hot_reload(logico(a, 0)),
+        outro => return Err(format!("acao desconhecida: {outro}")),
+    }
+    Ok(())
+}
+
+// ---- protocolo das capas ----
+
+fn servir_capa(req: tauri::http::Request<Vec<u8>>) -> tauri::http::Response<Vec<u8>> {
+    use tauri::http::Response;
+    let consulta = req.uri().query().unwrap_or_default();
+    match capas::resolver(consulta).and_then(|p| std::fs::read(&p).ok().map(|b| (p, b))) {
+        Some((p, bytes)) => Response::builder()
+            .header("Content-Type", capas::tipo(&p))
+            .header("Cache-Control", "max-age=31536000, immutable")
+            .body(bytes)
+            .unwrap_or_default(),
+        None => Response::builder().status(404).body(Vec::new()).unwrap_or_default(),
+    }
+}

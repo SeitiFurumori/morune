@@ -1,0 +1,17 @@
+{
+  "productName": "Morune",
+  "version": "1.0.0",
+  "identifier": "com.morune.desktop",
+  "build": {
+    "frontendDist": "ui/dist",
+    "devUrl": "http://localhost:5173"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' data: http://capa.localhost; media-src 'self' http://capa.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost ws://localhost:5173"
+    }
+  },
+  "bundle": { "active": false, "icon": ["icons/icon.ico"] }
+}

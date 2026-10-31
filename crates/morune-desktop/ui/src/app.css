@@ -1,0 +1,80 @@
+/* Base. Os valores vem do tema (tema.ts); estes sao so o ponto de partida. */
+:root {
+  --fundo: #0b0d12;
+  --superficie: #12151d;
+  --superficie-alta: #1a1e29;
+  --lateral: #0d1016;
+  --player: #0f1219;
+  --texto: #eceff4;
+  --texto-suave: #939cb0;
+  --texto-no-acento: #111;
+  --acento-tema: #8b63f6;
+  --acento: var(--acento-tema);
+  --borda: #ffffff22;
+  --hover: #ffffff0f;
+  --selecionado: #ffffff18;
+  --foco: #fff;
+  --perigo: #ff7b7b;
+  --fonte: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --fonte-titulo: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --t-xs: 12px; --t-sm: 13px; --t-md: 15px; --t-lg: 18px; --t-xl: 24px; --t-display: 34px;
+  --peso-normal: 400; --peso-medio: 600; --peso-forte: 700;
+  --r-sm: 8px; --r-md: 12px; --r-lg: 18px; --r-capa: 8px;
+  --e-xs: 4px; --e-sm: 8px; --e-md: 14px; --e-lg: 22px; --e-xl: 34px;
+  --m-rapido: 120ms; --m-normal: 200ms; --m-lento: 320ms;
+  --saida: cubic-bezier(0, 0, 0, 1);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; margin: 0; }
+html, body, #app { height: 100%; }
+body {
+  background: var(--fundo);
+  color: var(--texto);
+  font: var(--peso-normal) var(--t-md) / var(--altura-linha, 1.45) var(--fonte);
+  letter-spacing: var(--espaco-letra, 0);
+  overflow: hidden;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
+input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; border-radius: var(--r-sm); }
+img { display: block; }
+
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--texto) 18%, transparent); border-radius: 99px; border: 3px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--texto) 30%, transparent); background-clip: padding-box; }
+
+.ic { width: 20px; height: 20px; flex: none; }
+.titulo-pagina { font: var(--peso-forte) var(--t-display) / 1.1 var(--fonte-titulo); letter-spacing: -0.02em; }
+.secao-titulo { font: var(--peso-forte) var(--t-xl) / 1.2 var(--fonte-titulo); letter-spacing: -0.01em; }
+.suave { color: var(--texto-suave); }
+.corta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip {
+  padding: 6px 14px; border-radius: 99px; background: var(--hover);
+  font-size: var(--t-sm); white-space: nowrap;
+  transition: background var(--m-rapido);
+}
+.chip:hover { background: var(--selecionado); }
+.chip.ativo { background: var(--texto); color: var(--fundo); }
+.campo {
+  display: flex; align-items: center; gap: var(--e-sm);
+  height: 40px; padding: 0 var(--e-md); border-radius: 99px;
+  background: var(--hover); color: var(--texto-suave);
+  transition: background var(--m-rapido);
+}
+.campo:focus-within { background: var(--selecionado); color: var(--texto); }
+.campo input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--texto); }
+.botao {
+  display: inline-flex; align-items: center; gap: var(--e-sm);
+  height: 36px; padding: 0 var(--e-md); border-radius: 99px;
+  background: var(--hover); font-weight: var(--peso-medio); font-size: var(--t-sm);
+  transition: background var(--m-rapido), transform var(--m-rapido);
+}
+.botao:hover { background: var(--selecionado); }
+.botao:active { transform: scale(0.97); }
+.botao.primario { background: var(--texto); color: var(--fundo); }
+
+[data-parado="1"] * { transition: none !important; animation: none !important; }
