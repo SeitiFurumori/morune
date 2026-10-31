@@ -42,7 +42,7 @@ librespot-playback = { version = "0.8", default-features = false, features = ["r
 # ver `src/sink.rs`. Versao e features iguais as que a librespot ja pede, para
 # ser a mesma instancia do crate e o mesmo `cpal` -- que o rodio reexporta,
 # dispensando depender dele aqui.
-rodio = { version = "0.21", default-features = false, features = ["playback"] }
+rodio = { version = "0.22", default-features = false, features = ["playback"] }
 # So para ligar `audio_thread_priority`: sem ele, o cpal 0.16 tenta subir a
 # prioridade da thread de saida passando o ID da thread onde o Windows espera um
 # HANDLE -- a chamada falha calada e a thread de audio roda em prioridade normal.
