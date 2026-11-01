@@ -30,11 +30,12 @@ use crate::error::from_librespot;
 /// gerada), `blend-playlist-covers` e `wrapped-images` -- e nao ha razao para
 /// crer que a lista acabou.
 ///
-/// Entao a regra e por dominio: `i.scdn.co` exato, ou qualquer subdominio de
-/// `spotifycdn.com`. Ver [`host_permitido`] para o que impede
+/// Entao a regra e por dominio: qualquer subdominio de `scdn.co` (`i.`, e
+/// tambem `misc.` das curtidas e `mosaic.` das playlists sem capa propria,
+/// que ficavam sem imagem) ou de `spotifycdn.com`. Ver [`host_permitido`] para o que impede
 /// `spotifycdn.com.exemplo.invalido` de passar.
 const DOMINIO_CDN: &str = "spotifycdn.com";
-const HOST_IMAGENS: &str = "i.scdn.co";
+const DOMINIO_IMAGENS: &str = "scdn.co";
 
 /// Teto de bytes por capa.
 ///
@@ -107,10 +108,10 @@ fn host_permitido(url: &str) -> bool {
     };
     let host = resto.split('/').next().unwrap_or_default();
 
-    host == HOST_IMAGENS
-        || host
-            .strip_suffix(DOMINIO_CDN)
-            .is_some_and(|prefixo| prefixo.ends_with('.'))
+    [DOMINIO_IMAGENS, DOMINIO_CDN].iter().any(|dominio| {
+        host.strip_suffix(dominio)
+            .is_some_and(|prefixo| prefixo.len() > 1 && prefixo.ends_with('.'))
+    })
 }
 
 #[cfg(test)]
@@ -125,6 +126,8 @@ mod tests {
         // Todos vistos numa conta real. Listar host a host quebrava a cada tipo
         // novo de playlist.
         assert!(aceita("https://i.scdn.co/image/ab67"));
+        assert!(aceita("https://misc.scdn.co/liked-songs/liked-songs-300.jpg"));
+        assert!(aceita("https://mosaic.scdn.co/300/ab67616d0000b273"));
         assert!(aceita(
             "https://pickasso.spotifycdn.com/image/ab67c0de/dt/v1/img"
         ));
@@ -146,6 +149,9 @@ mod tests {
         assert!(!aceita("https://exemplo.invalido/x.jpg"));
         // `spotifycdn.com` sem subdominio tambem nao: o Spotify sempre usa um.
         assert!(!aceita("https://spotifycdn.com/x"));
+        assert!(!aceita("https://scdn.co/x"));
+        assert!(!aceita("https://.scdn.co/x"));
+        assert!(!aceita("https://exemploscdn.co/x"));
         // Sem TLS nao passa.
         assert!(!aceita("http://i.scdn.co/image/ab67"));
     }

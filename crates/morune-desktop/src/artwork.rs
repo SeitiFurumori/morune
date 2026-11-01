@@ -51,9 +51,10 @@ const ALVO_APOS_LIMPEZA: u64 = TETO_BYTES * 4 / 5;
 
 /// Extensoes que o cache usa, e as unicas que ele procura em disco.
 ///
-/// Sao as duas que o Spotify serve. A ordem importa so na busca: JPEG e o
+/// Sao as que o Spotify serve; WebP vem do `image-cdn-*.spotifycdn.com`, nas
+/// capas de playlist feitas pela pessoa. A ordem importa so na busca: JPEG e o
 /// caso comum, entao vem primeiro.
-const EXTENSOES: [&str; 2] = ["jpg", "png"];
+const EXTENSOES: [&str; 3] = ["jpg", "png", "webp"];
 
 /// Esperas antes de refazer um download que falhou de forma transitoria.
 ///
@@ -213,6 +214,7 @@ fn formato(bytes: &[u8]) -> Option<&'static str> {
     match bytes {
         [0xff, 0xd8, 0xff, ..] => Some("jpg"),
         [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, ..] => Some("png"),
+        [b'R', b'I', b'F', b'F', _, _, _, _, b'W', b'E', b'B', b'P', ..] => Some("webp"),
         _ => None,
     }
 }
@@ -407,7 +409,9 @@ mod tests {
             formato(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0]),
             Some("png")
         );
-        // Formato que o Slint nao desenha nao vira arquivo: ocuparia teto do
+        // WebP: as capas de playlist que a pessoa subiu vem assim.
+        assert_eq!(formato(b"RIFF$'  WEBPVP8 "), Some("webp"));
+        // Formato que a tela nao desenha nao vira arquivo: ocuparia teto do
         // cache para nunca abrir.
         assert_eq!(formato(b"GIF89a..."), None);
         assert_eq!(formato(b""), None);

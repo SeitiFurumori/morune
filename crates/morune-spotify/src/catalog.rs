@@ -74,6 +74,28 @@ impl SpotifyCatalog {
     /// Vai pelo `extended-metadata` do protocolo interno. O `/v1/tracks?ids=`
     /// do Web API fazia o mesmo e morreu -- ver `crate::pathfinder` para a
     /// medicao.
+    /// Playlist sem capa propria chega do Inicio com a lista de imagens vazia:
+    /// o app do Spotify monta a capa com os albuns das primeiras faixas. Aqui
+    /// vale a capa do album da primeira, que e o que a capa montada mostra no
+    /// canto. Um pedido por playlist sem capa, e so delas.
+    async fn capas_que_faltam(&self, secoes: &mut [morune_core::model::FeedSection]) {
+        use morune_core::model::FeedItem;
+        for item in secoes.iter_mut().flat_map(|s| s.items.iter_mut()) {
+            let FeedItem::Playlist(p) = item else { continue };
+            if !p.images.0.is_empty() {
+                continue;
+            }
+            let Ok(id) = spotify_id(p.id.provider, &p.id.id) else { continue };
+            let Ok(conteudo) = self.internal.playlist(id).await else { continue };
+            let Some(primeira) = conteudo.track_ids.first() else { continue };
+            if let Ok(faixas) = self.tracks_by_id(std::slice::from_ref(primeira)).await {
+                if let Some(album) = faixas.into_iter().next().and_then(|t| t.album) {
+                    p.images = album.images;
+                }
+            }
+        }
+    }
+
     async fn tracks_by_id(&self, ids: &[String]) -> CoreResult<Vec<Track>> {
         Ok(self
             .internal
@@ -580,7 +602,11 @@ impl Library for SpotifyCatalog {
     }
 
     fn home_feed<'a>(&'a self) -> BoxFuture<'a, CoreResult<Vec<morune_core::model::FeedSection>>> {
-        Box::pin(self.pathfinder.home())
+        Box::pin(async move {
+            let mut secoes = self.pathfinder.home().await?;
+            self.capas_que_faltam(&mut secoes).await;
+            Ok(secoes)
+        })
     }
 
     /// Tocadas recentemente -- **sem caminho conhecido**.
