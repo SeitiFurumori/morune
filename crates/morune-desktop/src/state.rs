@@ -746,6 +746,12 @@ impl AppState {
                     detail.tracks.retain(|t| !outcome.removidas.contains(&t.id));
                 }
             }
+            if let (Some((faixa, de)), Some(detail)) = (outcome.desfazer, self.detail.as_mut()) {
+                if let Some(agora) = detail.tracks.iter().position(|t| t.id == faixa) {
+                    let t = detail.tracks.remove(agora);
+                    detail.tracks.insert(de.min(detail.tracks.len()), t);
+                }
+            }
             if outcome.recarregar {
                 // A barra lateral sai das playlists do Inicio; pedir de novo e
                 // o que faz a criada aparecer e a apagada sumir.
@@ -1354,27 +1360,33 @@ impl AppState {
             || nome_do_album(track).to_lowercase().contains(alvo)
     }
 
-    /// `true` quando a lista aberta aceita arrastar: as curtidas, na ordem da
-    /// lista e sem filtro. Ordenada por titulo ou filtrada, a posicao na tela
-    /// nao e a posicao na lista, e soltar ali nao teria lugar certo.
+    /// `true` quando a lista aberta aceita arrastar: as curtidas ou uma
+    /// playlist sua, na ordem da lista e sem filtro. Ordenada por titulo ou
+    /// filtrada, a posicao na tela nao e a posicao na lista, e soltar ali nao
+    /// teria lugar certo.
     fn detail_reordenavel(&self) -> bool {
-        self.detail
+        let curtidas = self
+            .detail
             .as_ref()
-            .is_some_and(|d| d.source == Some(Target::Liked))
+            .is_some_and(|d| d.source == Some(Target::Liked));
+        (curtidas || self.playlist_aberta_editavel().is_some())
             && self.detail_sort == SortBy::Original
             && self.detail_filter.is_empty()
     }
 
-    /// Arrastou uma curtida para a posicao `para`.
+    /// Arrastou uma faixa da lista aberta para a posicao `para`.
     ///
-    /// A tela muda na hora; a ordem inteira e gravada em segundo plano.
-    pub fn mover_curtida(&mut self, tag: &str, para: i32) {
+    /// A tela muda na hora. Nas curtidas, a ordem e do Morune e e gravada em
+    /// segundo plano; numa playlist sua, vai para o Spotify, e volta atras na
+    /// tela se ele recusar.
+    pub fn mover_faixa(&mut self, tag: &str, para: i32) {
         if !self.detail_reordenavel() {
             return;
         }
         let Some(Target::Track(id)) = Target::parse(tag) else {
             return;
         };
+        let playlist = self.playlist_aberta_editavel();
         let Some(detail) = &mut self.detail else {
             return;
         };
@@ -1385,8 +1397,21 @@ impl AppState {
         if de == para {
             return;
         }
+        let vizinho = detail.tracks[para].id.clone();
         let faixa = detail.tracks.remove(de);
         detail.tracks.insert(para, faixa);
+
+        if let Some((playlist, _)) = playlist {
+            if let Some(browse) = self.session.browse_mut() {
+                browse.edit_playlist(crate::browse::PlaylistEdit::Move {
+                    playlist,
+                    track: id,
+                    vizinho,
+                    de,
+                });
+            }
+            return;
+        }
         // A prateleira do Inicio e o comeco desta mesma lista.
         self.liked.tracks = detail
             .tracks

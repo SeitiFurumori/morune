@@ -727,7 +727,7 @@ fn executar(app: &AppHandle, m: &mut Motor, nome: &str, a: &[Value]) -> Result<(
         "queue-remove" => s.queue_remove(inteiro(a, 0)),
         "queue-play-manual" => s.queue_play_manual(inteiro(a, 0)),
         "queue-move" => s.queue_move(inteiro(a, 0), inteiro(a, 1)),
-        "liked-move" => s.mover_curtida(&texto(a, 0), inteiro(a, 1)),
+        "liked-move" => s.mover_faixa(&texto(a, 0), inteiro(a, 1)),
         "queue-clear" => s.queue_clear(),
         "close-queue" => s.close_queue(),
         "select-theme" => s.select_theme(&texto(a, 0)),

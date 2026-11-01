@@ -474,6 +474,29 @@ impl Library for SpotifyCatalog {
         })
     }
 
+    fn move_in_playlist<'a>(
+        &'a self,
+        playlist: &'a PlaylistId,
+        track: &'a TrackId,
+        vizinho: &'a TrackId,
+    ) -> BoxFuture<'a, CoreResult<()>> {
+        Box::pin(async move {
+            let id = spotify_id(playlist.provider, &playlist.id)?;
+            let (revisao, itens) = self.internal.playlist_itens(id).await?;
+            let posicao = |t: &TrackId| {
+                itens
+                    .iter()
+                    .position(|item| item.as_deref() == Some(&*t.id))
+                    .ok_or_else(|| CoreError::NotFound("a faixa saiu da playlist".into()))
+            };
+            let de = posicao(track)?;
+            let para = posicao(vizinho)?;
+            self.edicao.mover(playlist, &revisao, de, para).await?;
+            self.internal.forget_playlist(id);
+            Ok(())
+        })
+    }
+
     fn create_playlist<'a>(&'a self, name: &'a str) -> BoxFuture<'a, CoreResult<PlaylistId>> {
         Box::pin(async move { self.edicao.criar(name).await })
     }

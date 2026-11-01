@@ -204,6 +204,42 @@ impl Edicao {
             .map(|_| ())
     }
 
+    /// Leva o item da posicao `de` para a posicao `para` (contada na lista ja
+    /// com o item no lugar novo).
+    ///
+    /// **Inferido**, como renomear: e a operacao `MOV` (4) do `playlist4`,
+    /// mandada para as mudancas da playlist. O `toIndex` dela conta na lista
+    /// de antes da mudanca, como o `insert_before` do Web API -- descer exige
+    /// somar um.
+    /// Diferente de adicionar e remover (por URI), mover e por posicao, e o
+    /// Spotify so aceita com a `baseRevision` da lista a que a posicao se
+    /// refere.
+    pub(crate) async fn mover(
+        &self,
+        id: &PlaylistId,
+        revisao: &[u8],
+        de: usize,
+        para: usize,
+    ) -> CoreResult<()> {
+        let id = so_spotify(id.provider, &id.id)?;
+        if de == para {
+            return Ok(());
+        }
+        let corpo = serde_json::json!({
+            "baseRevision": base64(revisao),
+            "deltas": [{
+                "ops": [{ "kind": 4, "mov": mov(de, para) }],
+                "info": { "source": { "client": 5 } }
+            }],
+            "wantResultingRevisions": false,
+            "wantSyncResult": false,
+            "nonces": []
+        });
+        self.spclient_post(&format!("/playlist/v2/playlist/{id}/changes"), &corpo)
+            .await
+            .map(|_| ())
+    }
+
     /// Troca o nome. Ver a nota de "inferido" no cabecalho.
     pub(crate) async fn renomear(&self, id: &PlaylistId, nome: &str) -> CoreResult<()> {
         let id = so_spotify(id.provider, &id.id)?;
@@ -228,6 +264,31 @@ impl Edicao {
             .await
             .map(|_| ())
     }
+}
+
+/// Corpo do `MOV`: um item, de `de` para a posicao final `para`.
+fn mov(de: usize, para: usize) -> serde_json::Value {
+    let to = if para > de { para + 1 } else { para };
+    serde_json::json!({ "fromIndex": de, "length": 1, "toIndex": to })
+}
+
+/// Base64 padrao, com `=`: e como bytes viajam no JSON do protobuf.
+fn base64(bytes: &[u8]) -> String {
+    const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut s = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for bloco in bytes.chunks(3) {
+        let n = (u32::from(bloco[0]) << 16)
+            | (u32::from(*bloco.get(1).unwrap_or(&0)) << 8)
+            | u32::from(*bloco.get(2).unwrap_or(&0));
+        for i in 0..4 {
+            if i <= bloco.len() {
+                s.push(A[(n >> (18 - 6 * i) & 63) as usize] as char);
+            } else {
+                s.push('=');
+            }
+        }
+    }
+    s
 }
 
 /// Variaveis de `addToPlaylist`: as faixas vao para o fim, como no Spotify.
@@ -270,6 +331,24 @@ mod tests {
         let d = rootlist_delta("spotify:playlist:x", false);
         assert_eq!(d["deltas"][0]["ops"][0]["kind"], 3);
         assert_eq!(d["deltas"][0]["ops"][0]["rem"]["itemsAsKey"], true);
+    }
+
+    #[test]
+    fn base64_como_o_padrao() {
+        assert_eq!(base64(b""), "");
+        assert_eq!(base64(b"f"), "Zg==");
+        assert_eq!(base64(b"fo"), "Zm8=");
+        assert_eq!(base64(b"foo"), "Zm9v");
+        assert_eq!(base64(&[0xff, 0xfe, 0x01, 0x00]), "//4BAA==");
+    }
+
+    #[test]
+    fn mover_conta_o_destino_na_lista_de_antes() {
+        // Subir: o destino nao muda com a saida do item.
+        assert_eq!(mov(3, 0)["toIndex"], 0);
+        // Descer: o item ainda ocupa um lugar antes do destino.
+        assert_eq!(mov(0, 3)["toIndex"], 4);
+        assert_eq!(mov(0, 3)["length"], 1);
     }
 
     #[test]

@@ -261,6 +261,20 @@ pub trait Library: Send + Sync + 'static {
         Box::pin(async { Err(CoreError::Unsupported("remover da playlist")) })
     }
 
+    /// Muda a faixa de lugar: ela passa a ocupar a posicao em que `vizinho`
+    /// esta agora (antes dele quando sobe, depois dele quando desce).
+    ///
+    /// Por faixa e nao por indice: a tela pode nao mostrar todos os itens da
+    /// playlist (episodio, arquivo local), e so o provedor sabe o indice real.
+    fn move_in_playlist<'a>(
+        &'a self,
+        _playlist: &'a PlaylistId,
+        _track: &'a TrackId,
+        _vizinho: &'a TrackId,
+    ) -> BoxFuture<'a, CoreResult<()>> {
+        Box::pin(async { Err(CoreError::Unsupported("mudar a ordem da playlist")) })
+    }
+
     /// Cria uma playlist e devolve o id dela.
     fn create_playlist<'a>(&'a self, _name: &'a str) -> BoxFuture<'a, CoreResult<PlaylistId>> {
         Box::pin(async { Err(CoreError::Unsupported("criar playlist")) })

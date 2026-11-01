@@ -252,6 +252,14 @@ pub enum PlaylistEdit {
         tracks: Vec<TrackId>,
         nome: String,
     },
+    /// Arrastou uma faixa: ela vai para onde `vizinho` esta. `de` e a posicao
+    /// dela na tela antes, para desfazer se o Spotify recusar.
+    Move {
+        playlist: PlaylistId,
+        track: TrackId,
+        vizinho: TrackId,
+        de: usize,
+    },
     Create {
         nome: String,
     },
@@ -274,6 +282,8 @@ pub struct PlaylistEditOutcome {
     pub repetida: bool,
     /// Faixas que o Spotify confirmou ter tirado. Vazio em qualquer outro caso.
     pub removidas: Vec<TrackId>,
+    /// Mudanca de ordem recusada: a faixa volta para esta posicao na tela.
+    pub desfazer: Option<(TrackId, usize)>,
 }
 
 /// Resultado de salvar album ou seguir artista. `tag` e o `Target::tag()`.
@@ -564,6 +574,7 @@ impl Browse {
                             recarregar: false,
                             repetida: true,
                             removidas: Vec::new(),
+                            desfazer: None,
                         });
                         return;
                     }
@@ -588,6 +599,18 @@ impl Browse {
                 } => (
                     library.remove_from_playlist(playlist, tracks).await,
                     format!("Removida de \"{nome}\"."),
+                    false,
+                ),
+                // Sem frase quando da certo: a lista na tela ja mostra a ordem
+                // nova, e um aviso a cada arraste seria ruido.
+                PlaylistEdit::Move {
+                    playlist,
+                    track,
+                    vizinho,
+                    ..
+                } => (
+                    library.move_in_playlist(playlist, track, vizinho).await,
+                    String::new(),
                     false,
                 ),
                 PlaylistEdit::Create { nome } => (
@@ -615,12 +638,17 @@ impl Browse {
                         PlaylistEdit::Remove { tracks, .. } => tracks,
                         _ => Vec::new(),
                     },
+                    desfazer: None,
                 },
                 Err(e) => PlaylistEditOutcome {
                     mensagem: format!("O Spotify não aceitou: {}", describe(&e)),
                     recarregar: false,
                     repetida: false,
                     removidas: Vec::new(),
+                    desfazer: match pedido {
+                        PlaylistEdit::Move { track, de, .. } => Some((track, de)),
+                        _ => None,
+                    },
                 },
             };
             let _ = tx.send(saida);

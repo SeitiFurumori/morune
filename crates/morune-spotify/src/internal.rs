@@ -388,6 +388,30 @@ impl Internal {
         self.playlist_store(id, conteudo.clone());
         Ok(conteudo)
     }
+    /// Revisao atual e todos os itens da playlist, direto do servidor e sem
+    /// cache: `None` no lugar de episodio e arquivo local. Para editar por
+    /// posicao, o indice tem de ser o do Spotify, e a lista guardada pode
+    /// estar velha; a revisao diz ao Spotify a que lista o indice se refere.
+    pub(crate) async fn playlist_itens(
+        &self,
+        id: &str,
+    ) -> CoreResult<(Vec<u8>, Vec<Option<String>>)> {
+        let session = self.session.get().ok_or(CoreError::NotAuthenticated)?;
+        let uri = SpotifyUri::from_uri(&format!("spotify:playlist:{id}"))
+            .map_err(|e| CoreError::NotFound(format!("playlist {id}: {e}")))?;
+        let playlist = librespot_metadata::Playlist::get(&session, &uri)
+            .await
+            .map_err(from_librespot)?;
+        let itens = playlist
+            .tracks()
+            .map(|uri| match uri {
+                SpotifyUri::Track { id } => id.to_base62().ok(),
+                _ => None,
+            })
+            .collect();
+        Ok((playlist.revision.clone(), itens))
+    }
+
     /// Ids da colecao da conta: curtidas, ou artistas seguidos.
     ///
     /// # Por que mercury, e nao `collection/v2/paging`
