@@ -24,9 +24,13 @@ use morune_core::model::{
 };
 use serde_json::Value;
 
-/// Hash de `home` no player web (`web-player.86442c64.js`, 23/09/2026).
-pub(crate) const HASH_HOME: &str =
-    "76243c78b0e20ecdbe41b794dec8cbe73f75e585b0a7201b8d2e84578412847a";
+/// Hashes de `home` no player web, o atual primeiro. O atual veio da lista do
+/// Meld em 01/11/2026 (trocado pelo Spotify em 05/10); o anterior e o medido
+/// no `web-player.86442c64.js` em 23/09/2026. Ver `pathfinder::com_reserva`.
+pub(crate) const HASHES_HOME: [&str; 2] = [
+    "5fb7da7a03ee2776c0670856609cb85a189a3cecc36cc160b91cde79063b9cf1",
+    "76243c78b0e20ecdbe41b794dec8cbe73f75e585b0a7201b8d2e84578412847a",
+];
 
 /// Itens por secao. E o padrao do player web; cada cartao e uma capa
 /// decodificada na memoria, e a prateleira rola para o lado de qualquer jeito.

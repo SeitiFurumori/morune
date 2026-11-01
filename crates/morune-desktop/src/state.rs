@@ -190,6 +190,16 @@ pub struct AppState {
     undo: Option<UndoAction>,
     /// Oferta de repetir a ultima requisicao que falhou.
     retry: Option<Retry>,
+    /// A conexao com o Spotify estava caida na volta anterior do relogio.
+    estava_offline: bool,
+    /// Pedido que falhou ou morreu com a queda, para refazer sozinho quando a
+    /// conexao voltar. O Spotify fecha conexoes antigas de tempos em tempos (no
+    /// registro, uma vez a cada 3 ou 4 dias de uso) e a volta leva ~2 s: quem
+    /// clicou nesse intervalo ficava parado em "Carregando...".
+    refazer_ao_voltar: Option<RetryTarget>,
+    /// A ultima falha e quando foi: a queda as vezes so e notada depois que o
+    /// pedido ja falhou por causa dela.
+    ultima_falha: Option<(RetryTarget, Instant)>,
     /// O que a requisicao em voo repetiria, se ela falhar.
     pending_retry: Option<RetryTarget>,
     /// Ultimo pedido de adicionar a playlist, como `(playlist, faixa)`.
@@ -469,6 +479,9 @@ impl AppState {
             status_seen: (String::new(), Instant::now()),
             undo: None,
             retry: None,
+            estava_offline: false,
+            refazer_ao_voltar: None,
+            ultima_falha: None,
             pending_retry: None,
             ultima_adicao: None,
             repetida_avisada: None,
@@ -684,6 +697,34 @@ impl AppState {
     /// nao ha nada -- e e: dois `try_recv` que falham.
     pub fn poll_backend(&mut self) -> bool {
         let mut changed = false;
+
+        let offline = self.session.is_offline();
+        if offline && !self.estava_offline {
+            // Caiu: o pedido em voo foi junto, e a resposta dele talvez nunca
+            // chegue. E tambem o que falhou logo antes de a queda ser notada.
+            let em_voo = self.session.browse_mut().is_some_and(|b| b.ocupado());
+            let recente = self
+                .ultima_falha
+                .as_ref()
+                .filter(|(_, quando)| quando.elapsed() < Duration::from_secs(10))
+                .map(|(alvo, _)| alvo.clone());
+            self.refazer_ao_voltar = em_voo
+                .then(|| self.pending_retry.clone())
+                .flatten()
+                .or(recente);
+        }
+        if !offline && self.estava_offline {
+            if let Some(alvo) = self.refazer_ao_voltar.take() {
+                tracing::info!("conexao de volta; refazendo o pedido que ficou no meio");
+                self.retry = Some(Retry {
+                    target: alvo,
+                    message: self.status.clone(),
+                });
+                self.retry_last();
+                changed = true;
+            }
+        }
+        self.estava_offline = offline;
 
         // Sem tentativa em andamento nao ha canal para ler: o caso comum sai
         // daqui sem tocar em nada.
@@ -1113,6 +1154,14 @@ impl AppState {
                 self.detail_silent = false;
                 self.pending_liked_play = None;
                 self.status = message;
+                if let Some(alvo) = &pendente {
+                    self.ultima_falha = Some((alvo.clone(), Instant::now()));
+                    if self.session.is_offline() {
+                        self.refazer_ao_voltar = Some(alvo.clone());
+                        self.status =
+                            "Sem conexão com o Spotify agora. Abro assim que ela voltar.".into();
+                    }
+                }
                 // A oferta nasce colada nesta frase: se outra mensagem a
                 // substituir antes do clique, o botao sai junto.
                 self.retry = pendente.map(|target| Retry {

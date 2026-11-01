@@ -27,9 +27,13 @@ use morune_core::{CoreError, CoreResult};
 use crate::auth::SharedSession;
 use crate::error::from_librespot;
 
-/// Hash da mutacao `addToPlaylist` (tambem `removeFromPlaylist`).
-pub(crate) const HASH_PLAYLIST_ITEMS: &str =
-    "47b2a1234b17748d332dd0431534f22450e9ecbb3d5ddcdacbd83368636a0990";
+/// Hashes da mutacao `addToPlaylist` (tambem `removeFromPlaylist`), o atual
+/// primeiro: o novo e da lista do Meld em 01/11/2026 (trocado em 08/10), o
+/// anterior e o medido em 23/09/2026.
+pub(crate) const HASHES_PLAYLIST_ITEMS: [&str; 2] = [
+    "b907ad6b088d5bf7680fa81198996d58398c2d55dfcdf59fcc959e0be98a418a",
+    "47b2a1234b17748d332dd0431534f22450e9ecbb3d5ddcdacbd83368636a0990",
+];
 
 fn so_spotify(provider: Provider, id: &str) -> CoreResult<&str> {
     if provider == Provider::Spotify {

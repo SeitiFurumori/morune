@@ -20,7 +20,7 @@
 //! identificada por um hash SHA-256 acordado entre cliente e servidor, que
 //! acompanha a versao do player web e **muda sem aviso**. Quando mudar, a
 //! operacao afetada para de responder ate alguem atualizar [`HASH_BUSCA`] ou
-//! [`HASH_LIBRARY`].
+//! [`HASHES_LIBRARY`].
 //!
 //! Nao ha alternativa medida, entao a divida e assumida. O que este modulo
 //! garante e que ela fique **contida**: quem chama recebe um erro comum, e
@@ -48,11 +48,14 @@ const HASH_ARTISTA: &str = "9f8134ef565e78621f1e1793555bd6633c5ac144ae0f89604ed3
 const MUTATION_ENDPOINT: &str = "https://api-partner.spotify.com/pathfinder/v2/query";
 
 /// A mesma operacao persistida atende adicionar e remover; o nome da mutacao
-/// decide o sentido. O anterior fica como fallback porque o web player gira
-/// hashes sem coordenar com clientes de terceiros.
-const HASH_LIBRARY: &str = "1ad0d40b3c09660d818b9e770eb1e84745dfbe941df159a64f8772b6fa2bfc3a";
-const HASH_LIBRARY_PREVIOUS: &str =
-    "7c5a69420e2bfae3da5cc4e14cbc8bb3f6090f80afc00ffc179177f19be3f33d";
+/// decide o sentido. Os anteriores ficam como reserva porque o web player gira
+/// hashes sem coordenar com clientes de terceiros. O primeiro e da lista do
+/// Meld em 01/11/2026.
+const HASHES_LIBRARY: [&str; 3] = [
+    "896ebcb47815681340860d121cb5d494e157e2a78d3950385cd54e0393c67148",
+    "1ad0d40b3c09660d818b9e770eb1e84745dfbe941df159a64f8772b6fa2bfc3a",
+    "7c5a69420e2bfae3da5cc4e14cbc8bb3f6090f80afc00ffc179177f19be3f33d",
+];
 
 /// Cabecalho que o pathfinder exige alem do `Authorization`.
 ///
@@ -135,18 +138,17 @@ impl Pathfinder {
 
     /// As secoes do Inicio como o Spotify as monta. Ver `crate::inicio`.
     pub(crate) async fn home(&self) -> CoreResult<Vec<morune_core::model::FeedSection>> {
-        let resposta: serde_json::Value = self
-            .query(
+        let resposta = self
+            .com_reserva(
+                ENDPOINT,
                 "home",
-                crate::inicio::HASH_HOME,
+                &crate::inicio::HASHES_HOME,
                 &crate::inicio::variaveis(),
             )
-            .await?;
-        if persisted_query_missing(&resposta) {
-            return Err(CoreError::Decode(
-                "o Spotify mudou a operacao do Inicio; atualize o Morune".into(),
-            ));
-        }
+            .await
+            .map_err(|_| {
+                CoreError::Decode("o Spotify mudou a operacao do Inicio; atualize o Morune".into())
+            })?;
         Ok(crate::inicio::secoes(&resposta))
     }
 
@@ -181,19 +183,23 @@ impl Pathfinder {
         faixas: &[TrackId],
     ) -> CoreResult<()> {
         let variables = crate::edicao::variaveis_adicionar(playlist, faixas)?;
-        let response: serde_json::Value = self
-            .request(
+        let response = match self
+            .com_reserva(
                 MUTATION_ENDPOINT,
                 "addToPlaylist",
-                crate::edicao::HASH_PLAYLIST_ITEMS,
+                &crate::edicao::HASHES_PLAYLIST_ITEMS,
                 &variables,
             )
-            .await?;
-        if persisted_query_missing(&response) {
-            return Err(CoreError::Decode(
-                "o Spotify mudou a operacao de adicionar a playlist; atualize o Morune".into(),
-            ));
-        }
+            .await
+        {
+            Ok(r) | Err(Recusa::Erro(r)) => r,
+            Err(Recusa::Vencida) => {
+                return Err(CoreError::Decode(
+                    "o Spotify mudou a operacao de adicionar a playlist; atualize o Morune".into(),
+                ))
+            }
+            Err(Recusa::Rede(e)) => return Err(e),
+        };
         if let Some(message) = graphql_error(&response) {
             return Err(CoreError::Network(format!(
                 "o Spotify recusou adicionar a playlist: {message}"
@@ -215,7 +221,7 @@ impl Pathfinder {
             "libraryItemUris": [uri],
         });
 
-        for hash in [HASH_LIBRARY, HASH_LIBRARY_PREVIOUS] {
+        for hash in HASHES_LIBRARY {
             let response: serde_json::Value = self
                 .request(MUTATION_ENDPOINT, operation, hash, &variables)
                 .await?;
@@ -248,6 +254,41 @@ impl Pathfinder {
         variaveis: &serde_json::Value,
     ) -> CoreResult<T> {
         self.request(ENDPOINT, operacao, hash, variaveis).await
+    }
+
+    /// Tenta os hashes em ordem, do atual ao mais antigo, e devolve a primeira
+    /// resposta sem erro.
+    ///
+    /// O Spotify troca os hashes quando publica o player web, e por um tempo
+    /// aceita os dois; ninguem avisa. Comecar pelo novo e cair no antigo e o
+    /// que impede uma troca de quebrar o Morune no dia: so quebra quando os
+    /// dois morrem. Hash novo com variavel diferente responde com erro, e nao
+    /// "nao encontrado" -- por isso erro tambem passa para o proximo.
+    async fn com_reserva(
+        &self,
+        endpoint: &str,
+        operacao: &str,
+        hashes: &[&str],
+        variaveis: &serde_json::Value,
+    ) -> Result<serde_json::Value, Recusa> {
+        let mut ultimo_erro = None;
+        for hash in hashes {
+            let resposta: serde_json::Value = self
+                .request(endpoint, operacao, hash, variaveis)
+                .await
+                .map_err(Recusa::Rede)?;
+            if persisted_query_missing(&resposta) {
+                tracing::debug!(operacao, hash, "hash recusado; tentando o anterior");
+                continue;
+            }
+            if graphql_error(&resposta).is_some() {
+                tracing::debug!(operacao, hash, "hash respondeu com erro; tentando o anterior");
+                ultimo_erro = Some(resposta);
+                continue;
+            }
+            return Ok(resposta);
+        }
+        Err(ultimo_erro.map_or(Recusa::Vencida, Recusa::Erro))
     }
 
     /// Consulta sem tipo, para as sondas. Ver `SpotifyBackend::sonda_pathfinder`.
@@ -324,6 +365,15 @@ impl Pathfinder {
             )
         })
     }
+}
+
+/// Por que [`Pathfinder::com_reserva`] nao trouxe resposta.
+enum Recusa {
+    /// Nenhum hash foi reconhecido.
+    Vencida,
+    /// Reconhecido, mas o Spotify recusou o pedido (a ultima resposta).
+    Erro(serde_json::Value),
+    Rede(CoreError),
 }
 
 fn persisted_query_missing(response: &serde_json::Value) -> bool {
