@@ -322,6 +322,7 @@ pub struct Browse {
     ordem: Arc<Mutex<OrdemCurtidas>>,
     /// Onde a ordem e gravada. Sem pasta (testes), arrastar vale so na sessao.
     pasta_dados: Option<std::path::PathBuf>,
+    onda_pendente: Option<Receiver<(TrackId, Vec<f32>)>>,
 }
 
 impl std::fmt::Debug for Browse {
@@ -364,6 +365,7 @@ impl Browse {
             art_rx,
             ordem: Arc::default(),
             pasta_dados: None,
+            onda_pendente: None,
         }
     }
 
@@ -478,6 +480,27 @@ impl Browse {
     }
 
     /// Pede uma continuacao para a fila sem competir com pedidos de tela.
+    /// Pede o desenho da musica; chega por [`Browse::poll_onda`]. Um pedido de
+    /// cada vez: trocar de faixa no meio descarta o anterior.
+    pub fn pedir_onda(&mut self, id: TrackId) {
+        let catalog = self.catalog.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.handle.spawn(async move {
+            let picos = catalog.waveform(&id).await.unwrap_or_else(|error| {
+                tracing::debug!(%error, "sem desenho da musica; a barra se desenha tocando");
+                Vec::new()
+            });
+            let _ = tx.send((id, picos));
+        });
+        self.onda_pendente = Some(rx);
+    }
+
+    pub fn poll_onda(&mut self) -> Option<(TrackId, Vec<f32>)> {
+        let resultado = self.onda_pendente.as_ref()?.try_recv().ok()?;
+        self.onda_pendente = None;
+        Some(resultado)
+    }
+
     pub fn autoplay(&mut self, seed: TrackId) -> bool {
         if self.autoplay_pending.is_some() {
             return false;

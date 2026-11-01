@@ -312,6 +312,13 @@ impl Catalog for SpotifyCatalog {
         })
     }
 
+    fn waveform<'a>(&'a self, id: &'a TrackId) -> BoxFuture<'a, CoreResult<Vec<f32>>> {
+        Box::pin(async move {
+            let id = spotify_id(id.provider, &id.id)?;
+            self.internal.onda(id).await
+        })
+    }
+
     fn radio<'a>(
         &'a self,
         seed: &'a TrackId,

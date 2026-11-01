@@ -179,6 +179,8 @@ pub struct Estado {
     pub detail_cor: Cor,
     /// A lista aberta aceita arrastar para mudar a ordem (curtidas).
     pub detail_reordenavel: bool,
+    /// Desenho da faixa tocando (picos de 0 a 1); vazio = desenhar tocando.
+    pub now_onda: Vec<f32>,
     /// Endereco da miniatura desfocada da capa atual (fundo da capa).
     pub now_fundo: String,
     /// Nivel do som tocando agora, de 0 a 1, ja no tempo em que sai na caixa.
@@ -405,6 +407,7 @@ impl AppWindow {
     pub fn set_capa_viva(&self, v: Cor) { self.estado.borrow_mut().capa_viva = v; }
     pub fn set_detail_cor(&self, v: Cor) { self.estado.borrow_mut().detail_cor = v; }
     pub fn set_detail_reordenavel(&self, v: bool) { self.estado.borrow_mut().detail_reordenavel = v; }
+    pub fn set_now_onda(&self, v: Vec<f32>) { self.estado.borrow_mut().now_onda = v; }
     pub fn set_now_fundo(&self, v: String) { self.estado.borrow_mut().now_fundo = v; }
     pub fn set_nivel(&self, v: f32) { self.estado.borrow_mut().nivel = v; }
     pub fn set_fundo(&self, v: Imagem) { self.estado.borrow_mut().fundo = v.into(); }

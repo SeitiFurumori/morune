@@ -329,6 +329,9 @@ pub struct AppState {
     retomada: Option<crate::retomar::Retomada>,
     /// Cor, paleta e paineis escolhidos (arquivo proprio, ver `aparencia.rs`).
     aparencia: crate::aparencia::Aparencia,
+    /// Desenho da faixa tocando, para a barra de progresso. Vazio enquanto
+    /// nao chega ou quando o Spotify nao tem; a tela desenha tocando.
+    onda: (Option<TrackId>, Vec<f32>),
     retomada_gravada: Instant,
     /// Miniatura desfocada da capa atual, para o fundo da capa (`tint::fundo`).
     now_fundo: Option<std::path::PathBuf>,
@@ -530,6 +533,7 @@ impl AppState {
             detail_tint: Default::default(),
             retomada,
             aparencia,
+            onda: (None, Vec::new()),
             retomada_gravada: Instant::now(),
             now_fundo: None,
             history,
@@ -724,6 +728,23 @@ impl AppState {
         if let Some(outcome) = self.session.browse_mut().and_then(|b| b.poll_detail_more()) {
             self.apply_browse(outcome);
             changed = true;
+        }
+
+        // Faixa nova: pede o desenho dela. A comparacao e pelo id pedido, e nao
+        // pelo que chegou, para nao pedir de novo a cada volta enquanto espera.
+        let atual = self.queue.current().map(|t| t.id.clone());
+        if let Some(id) = atual.filter(|id| self.onda.0.as_ref() != Some(id)) {
+            if let Some(browse) = self.session.browse_mut() {
+                browse.pedir_onda(id.clone());
+                self.onda = (Some(id), Vec::new());
+                changed = true;
+            }
+        }
+        if let Some((id, picos)) = self.session.browse_mut().and_then(|b| b.poll_onda()) {
+            if self.onda.0.as_ref() == Some(&id) {
+                self.onda.1 = picos;
+                changed = true;
+            }
         }
 
         if let Some(outcome) = self.session.browse_mut().and_then(|b| b.poll_autoplay()) {
@@ -4576,6 +4597,7 @@ impl AppState {
                 .into(),
         );
         window.set_now_favorite(current.is_some_and(|track| self.liked_ids.contains(&track.id)));
+        window.set_now_onda(self.onda.1.clone());
     }
 
     fn theme_items(&self) -> Vec<ui::ThemeItem> {

@@ -130,6 +130,12 @@ pub trait Catalog: Send + Sync + 'static {
         limit: u32,
     ) -> BoxFuture<'a, CoreResult<Page<Track>>>;
 
+    /// O desenho da musica: picos de 0 a 1 ao longo da faixa, para a barra de
+    /// progresso. Provedor sem isso recusa, e a tela desenha enquanto toca.
+    fn waveform<'a>(&'a self, _id: &'a TrackId) -> BoxFuture<'a, CoreResult<Vec<f32>>> {
+        Box::pin(async { Err(CoreError::Unsupported("desenho da musica")) })
+    }
+
     /// Sequencia recomendada a partir de uma faixa.
     ///
     /// O padrao explicito permite que provedores sem radio continuem

@@ -680,6 +680,23 @@ impl Internal {
     /// Este endpoint devolve JSON sem esquema publicado. A estrutura local e
     /// deliberadamente pequena e tolerante: campos extras e itens sem URI sao
     /// ignorados, mas a ausencia de uma playlist utilizavel vira erro claro.
+    /// O desenho da musica para a barra de progresso. Ver `crate::onda`.
+    pub(crate) async fn onda(&self, track_id: &str) -> CoreResult<Vec<f32>> {
+        let session = self.session.get().ok_or(CoreError::NotAuthenticated)?;
+        let corpo = session
+            .spclient()
+            .request(
+                &http::Method::GET,
+                &format!("/audio-attributes/v1/audio-analysis/{track_id}"),
+                None,
+                None,
+            )
+            .await
+            .map_err(from_librespot)?;
+        crate::onda::picos(&corpo)
+            .ok_or_else(|| CoreError::Decode("analise de audio sem segmentos".into()))
+    }
+
     pub(crate) async fn radio_playlist(&self, track_id: &str) -> CoreResult<String> {
         let session = self.session.get().ok_or(CoreError::NotAuthenticated)?;
         let uri =

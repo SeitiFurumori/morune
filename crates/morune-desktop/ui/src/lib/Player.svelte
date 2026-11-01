@@ -1,6 +1,7 @@
 <script lang="ts">
   import Capa from './Capa.svelte'
   import Icone from './Icone.svelte'
+  import Onda from './Onda.svelte'
   import { acao, motor, Pagina } from './motor.svelte'
   import { entrarComMola, estourar } from './tema'
 
@@ -82,7 +83,7 @@
       <div class="barra" role="slider" tabindex="0" aria-label="Posição" aria-valuenow={Math.round(progresso * 100)}
         onpointerdown={barraDown} onpointermove={barraMove} onpointerup={barraUp}
         onkeydown={(ev) => (ev.key === 'ArrowRight' ? acao('seek-by', 10) : ev.key === 'ArrowLeft' ? acao('seek-by', -10) : null)}>
-        <div class="trilho"><div class="cheio" style:width="{progresso * 100}%"></div></div>
+        <Onda {progresso} picos={e.now_onda ?? []} nivel={e.nivel ?? 0.5} tocando={!!e.playing} faixa={e.now_id ?? ''} />
       </div>
       <span>{e.total ?? '0:00'}</span>
     </div>
@@ -132,6 +133,7 @@
   .pp:hover { transform: scale(1.05); }
   .tempo { display: flex; align-items: center; gap: var(--e-sm); width: 100%; font-size: var(--t-xs); color: var(--texto-suave); font-variant-numeric: tabular-nums; }
   .barra, .vol { flex: 1; height: 16px; display: flex; align-items: center; cursor: pointer; }
+  .barra { height: 30px; }
   .vol { flex: none; width: 110px; }
   .trilho { position: relative; width: 100%; height: var(--trilho, 4px); border-radius: 99px; background: color-mix(in srgb, var(--texto) 20%, transparent); overflow: hidden; }
   /* A parte tocada e o botao de tocar levam a cor de destaque. */
