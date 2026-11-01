@@ -24,6 +24,9 @@ export const icones: Record<string, string> = {
   disco: 'M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18zM12 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4z',
   olho: 'M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12zM12 9.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z',
   lateral: 'M4 5h16v14H4zM9 5v14',
+  mini: 'M3 5h18v14H3zM12.5 12h6v4.5h-6z',
+  expandir: 'M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7',
+  fixar: 'M9 4h6l-1 6 3 3H7l3-3zM12 13v7',
 }
 export const cheios: Record<string, string> = {
   tocar: 'M8 5.5v13l11-6.5z',

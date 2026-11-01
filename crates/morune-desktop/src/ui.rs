@@ -148,6 +148,8 @@ pub struct Estado {
     pub start_with_windows: bool,
     pub shortcuts_visible: bool,
     pub mini_player: bool,
+    /// O mini player esta fixado na frente das outras janelas.
+    pub mini_fixo: bool,
     pub has_background: bool,
     pub background_name: String,
     pub background_fit: i32,
@@ -349,6 +351,7 @@ impl AppWindow {
     pub fn get_shortcuts_visible(&self) -> bool { self.estado.borrow().shortcuts_visible.clone() }
     pub fn set_mini_player(&self, v: bool) { self.estado.borrow_mut().mini_player = v.into(); }
     pub fn get_mini_player(&self) -> bool { self.estado.borrow().mini_player.clone() }
+    pub fn set_mini_fixo(&self, v: bool) { self.estado.borrow_mut().mini_fixo = v; }
     pub fn set_has_background(&self, v: bool) { self.estado.borrow_mut().has_background = v.into(); }
     pub fn get_has_background(&self) -> bool { self.estado.borrow().has_background.clone() }
     pub fn set_background_name(&self, v: String) { self.estado.borrow_mut().background_name = v.into(); }

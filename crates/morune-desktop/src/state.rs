@@ -4581,10 +4581,9 @@ struct TrackList {
 
 /// Largura em que a barra de reproducao desenha a capa.
 ///
-/// Bem menor que a das grades: e um quadrado de poucas dezenas de pixels no
-/// canto. Pedir a capa grande para desenhar isso seria baixar dez vezes mais
-/// bytes do que a tela usa.
-const PLAYER_ARTWORK_WIDTH: u32 = 64;
+/// O mini player desenha a capa com uns 210 px; a de 64 ficava borrada. A de
+/// 300 serve aos dois, e a de 640 seria baixar o dobro sem ganho visivel.
+const PLAYER_ARTWORK_WIDTH: u32 = 300;
 
 /// Largura pedida para capas desenhadas nas linhas de faixa.
 const TRACK_ROW_ARTWORK_WIDTH: u32 = 64;

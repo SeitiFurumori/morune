@@ -9,6 +9,7 @@
   import Detalhe from './paginas/Detalhe.svelte'
   import Fila from './paginas/Fila.svelte'
   import Configuracoes from './paginas/Configuracoes.svelte'
+  import Mini from './Mini.svelte'
   import { acao, motor, Pagina } from './lib/motor.svelte'
 
   const e = $derived(motor.e)
@@ -58,6 +59,9 @@
 {#if e.now_fundo}
   {#key e.now_fundo}<div class="fundo-capa" aria-hidden="true" style:background-image="url({e.now_fundo})"></div>{/key}
 {/if}
+{#if e.mini_player}
+  <Mini />
+{:else}
 <div class="app" class:carregando={!motor.pronto}>
   <div class="superficie lateral-wrap"><Lateral /></div>
   <main class="superficie conteudo" bind:this={conteudo}>
@@ -76,8 +80,10 @@
   </main>
   <div class="superficie player-wrap"><Player /></div>
 </div>
+{/if}
 
-{#if e.status_message}
+<!-- No mini player o aviso cobriria o nome da faixa. -->
+{#if e.status_message && !e.mini_player}
   <div class="aviso" role="status">
     <span>{e.status_message}</span>
     {#if e.undo_available}<button class="botao" onclick={() => acao('undo-last')}>Desfazer</button>{/if}

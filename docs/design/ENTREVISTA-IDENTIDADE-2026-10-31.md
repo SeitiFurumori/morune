@@ -110,6 +110,24 @@ Respondidas no celular, com quatro opções por eixo (sem meio-termo).
 
 **Falta nesta conversa:** o mapa dos concorrentes e o estudo de referências visuais atuais. Depois disso sai a página de direção, com 3 a 5 princípios.
 
+## Conversa 4 — estrutura
+
+Ele viu três esboços em cinza ([Estruturas do Morune](https://claude.ai/artifact/QNXtcKbqGKCdN6qWDpdP9n)):
+A (como hoje: lateral, página e player embaixo), B (tocando agora primeiro) e
+C (janela compacta que cresce).
+
+**Escolha: A, com a possibilidade de C,** "igual aqueles botões do YouTube de
+deixar menor o vídeo". A janela continua como hoje, e um botão a encolhe num
+mini player (capa, controles, busca rápida), que volta ao tamanho grande com
+outro clique.
+
+### O que isso diz (7)
+
+- **A organização fica a conhecida;** a identidade vem dos temas, do movimento e da capa, não de mudar o lugar das coisas. Bate com a lição do M3 (não reorganizar o que já é usado só por moda).
+- **O mini player é a resposta ao uso de "abrir, trocar, fechar"** e ao segundo monitor. Ele estava na lista do que faltava na tela web e agora tem forma: o botão de encolher da janela, como no YouTube.
+- **Pendências desta estrutura:** abrir a janela ainda cai nas prateleiras de recomendação, que ele quase não usa (conversa 2). Decidir o que a página inicial mostra fica para o desenho da tela.
+- **Falta o teste jogando,** que só faz sentido com a estrutura montada no app.
+
 ## Rascunho: o que o Morune é e o que não é
 
 **É:** um player leve que não atrapalha quem joga; uma base bonita e com volume; uma tela que cada um personaliza com a própria mídia, sem esforço.

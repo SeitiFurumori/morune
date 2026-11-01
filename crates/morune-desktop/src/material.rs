@@ -51,3 +51,27 @@ fn transparencia_do_windows() -> bool {
 fn transparencia_do_windows() -> bool {
     false
 }
+
+/// Cantos arredondados do Windows 11 numa janela sem barra de titulo (o
+/// menu da bandeja e o mini player). Sem isto elas ficam quadradas; no
+/// Windows 10 a chamada falha e nada muda.
+#[cfg(windows)]
+pub fn cantos_redondos(janela: &tauri::WebviewWindow) {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND};
+
+    let Ok(h) = janela.hwnd() else { return };
+    let preferencia = DWMWCP_ROUND;
+    // SAFETY: HWND vivo da propria janela; o valor e um i32 lido na chamada.
+    let _ = unsafe {
+        DwmSetWindowAttribute(
+            HWND(h.0),
+            DWMWA_WINDOW_CORNER_PREFERENCE,
+            &preferencia as *const _ as *const core::ffi::c_void,
+            std::mem::size_of_val(&preferencia) as u32,
+        )
+    };
+}
+
+#[cfg(not(windows))]
+pub fn cantos_redondos(_janela: &tauri::WebviewWindow) {}

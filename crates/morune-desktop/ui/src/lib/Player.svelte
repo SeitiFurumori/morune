@@ -90,6 +90,7 @@
 
   <div class="direita">
     {#if e.sleep_label}<span class="sono suave">{e.sleep_label}</span>{/if}
+    <button class="ic-bt" title="Mini player" onclick={() => acao('toggle-mini-player')}><Icone nome="mini" tamanho={18} /></button>
     <button class="ic-bt" class:on={e.page === Pagina.Fila} title="Fila" onclick={() => acao(e.page === Pagina.Fila ? 'close-queue' : 'navigate', Pagina.Fila)}><Icone nome="fila" tamanho={18} /></button>
     <button class="ic-bt" title={e.volume > 0 ? 'Silenciar' : 'Voltar o som'} onclick={() => acao('toggle-mute')}>
       <Icone nome={e.volume > 0 ? 'volume' : 'mudo'} tamanho={18} />

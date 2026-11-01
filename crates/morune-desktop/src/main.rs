@@ -5,7 +5,8 @@
 //! - na bandeja a tela e destruida e sobra so o motor;
 //! - minimizada, a tela e suspensa;
 //! - com jogo em tela cheia, o movimento vai a zero (`set_tela_cheia`).
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// Sem terminal tambem na versao de teste: o registro vai para o morune.log.
+#![windows_subsystem = "windows"]
 // O motor veio do app em Slint, que tem metodos que esta tela ainda nao usa.
 #![allow(dead_code)]
 
@@ -67,6 +68,8 @@ struct Motor {
     material_pedido: Option<bool>,
     /// O acrilico ficou ligado de fato (o tema pede e o Windows deixa).
     vidro_ativo: bool,
+    /// Tamanho e "maximizada" de antes do mini player. `Some` = mini aberto.
+    mini_antes: Option<(f64, f64, bool)>,
     ultimo_progresso: Instant,
     ultima_tela_cheia: Instant,
 }
@@ -75,8 +78,18 @@ thread_local! {
     static MOTOR: RefCell<Option<Motor>> = const { RefCell::new(None) };
 }
 
+/// Mexer na janela de dentro daqui (tamanho, maximizar) faz o Windows chamar
+/// o tratador de eventos na hora, que pede o motor de novo. Esse segundo
+/// pedido e recusado em vez de entrar em panico e travar a tela; quem mexe na
+/// janela deve faze-lo fora, com `run_on_main_thread`.
 fn com_motor<R>(f: impl FnOnce(&mut Motor) -> R) -> Option<R> {
-    MOTOR.with(|m| m.borrow_mut().as_mut().map(f))
+    MOTOR.with(|m| match m.try_borrow_mut() {
+        Ok(mut m) => m.as_mut().map(f),
+        Err(_) => {
+            tracing::warn!("motor pedido de novo enquanto ocupado; pedido ignorado");
+            None
+        }
+    })
 }
 
 fn main() -> anyhow::Result<()> {
@@ -119,6 +132,7 @@ fn main() -> anyhow::Result<()> {
                 barra_falhou: false,
                 material_pedido: None,
                 vidro_ativo: false,
+                mini_antes: None,
                 ultimo_progresso: Instant::now(),
                 ultima_tela_cheia: Instant::now(),
             };
@@ -251,6 +265,10 @@ fn tratar_evento_janela(app: &AppHandle, evento: &WindowEvent) {
             com_motor(|m| {
                 m.enviado.clear();
                 m.tema_enviado = Value::Null;
+                // A janela volta sempre no tamanho normal.
+                m.mini_antes = None;
+                m.janela.set_mini_player(false);
+                m.janela.set_mini_fixo(false);
             });
             tracing::info!("tela destruida; motor segue na bandeja");
         }
@@ -263,7 +281,12 @@ fn tratar_evento_janela(app: &AppHandle, evento: &WindowEvent) {
                     let escala = w.scale_factor().unwrap_or(1.0);
                     if let Ok(t) = w.inner_size() {
                         let t = t.to_logical::<f32>(escala);
-                        com_motor(|m| m.state.remember_window_state(t.width, t.height, maximizada));
+                        // O tamanho do mini player nao e o tamanho da janela.
+                        com_motor(|m| {
+                            if m.mini_antes.is_none() {
+                                m.state.remember_window_state(t.width, t.height, maximizada)
+                            }
+                        });
                     }
                 }
             }
@@ -336,8 +359,13 @@ fn abrir_menu_bandeja(app: &AppHandle, icone: tauri::Rect) {
         .inner_size(MENU_LARGURA, altura)
         .decorations(false)
         .resizable(false)
+        // Com a sombra do Windows, a borda invisivel de redimensionar aparece
+        // como faixa branca de 5 px nos lados e embaixo.
+        .shadow(false)
         .always_on_top(true)
         .skip_taskbar(true)
+        // Opaca, a janela pintava de branco a moldura em volta da tela.
+        .transparent(true)
         .visible(false)
         .build();
     let janela = match janela {
@@ -367,6 +395,7 @@ fn abrir_menu_bandeja(app: &AppHandle, icone: tauri::Rect) {
         y = y.clamp(ay + margem, ay + ah - alto - margem);
     }
     let _ = janela.set_position(tauri::PhysicalPosition::new(x.round() as i32, y.round() as i32));
+    material::cantos_redondos(&janela);
     let _ = janela.show();
     let _ = janela.set_focus();
 
@@ -392,6 +421,62 @@ fn abrir_menu_bandeja(app: &AppHandle, icone: tauri::Rect) {
             }
         }
     });
+}
+
+/// Roda `f` na linha principal depois que o motor for solto. Chamado da
+/// propria linha principal, `run_on_main_thread` executaria na hora; pedido de
+/// outra linha, entra na fila.
+fn depois(w: &tauri::WebviewWindow, f: impl FnOnce(tauri::WebviewWindow) + Send + 'static) {
+    let w = w.clone();
+    std::thread::spawn(move || {
+        let w2 = w.clone();
+        let _ = w.run_on_main_thread(move || f(w2));
+    });
+}
+
+/// Tamanho do mini player, em pixels logicos.
+const MINI: (f64, f64) = (340.0, 420.0);
+
+/// Encolhe a janela no mini player ou devolve o tamanho de antes, como o
+/// botao de mini player do YouTube. A mesma janela, so outro tamanho e sem
+/// barra de titulo: nada de segunda tela viva.
+fn alternar_mini(app: &AppHandle, m: &mut Motor) {
+    let Some(w) = app.get_webview_window("main") else {
+        return;
+    };
+    match m.mini_antes.take() {
+        None => {
+            let escala = w.scale_factor().unwrap_or(1.0);
+            let antes = w.inner_size().map(|t| t.to_logical::<f64>(escala)).ok();
+            let maximizada = w.is_maximized().unwrap_or(false);
+            let (largura, altura) = antes.map(|t| (t.width, t.height)).unwrap_or((1280.0, 800.0));
+            m.mini_antes = Some((largura, altura, maximizada));
+            m.janela.set_mini_player(true);
+            // Fora do motor: ver `com_motor`.
+            depois(&w, |w2| {
+                let _ = w2.unmaximize();
+                let _ = w2.set_decorations(false);
+                let _ = w2.set_min_size(Some(tauri::LogicalSize::new(MINI.0, MINI.1)));
+                let _ = w2.set_size(tauri::LogicalSize::new(MINI.0, MINI.1));
+                let _ = w2.set_resizable(false);
+                material::cantos_redondos(&w2);
+            });
+        }
+        Some((largura, altura, maximizada)) => {
+            m.janela.set_mini_player(false);
+            m.janela.set_mini_fixo(false);
+            depois(&w, move |w2| {
+                let _ = w2.set_always_on_top(false);
+                let _ = w2.set_resizable(true);
+                let _ = w2.set_decorations(true);
+                let _ = w2.set_min_size(Some(tauri::LogicalSize::new(720.0, 480.0)));
+                let _ = w2.set_size(tauri::LogicalSize::new(largura, altura));
+                if maximizada {
+                    let _ = w2.maximize();
+                }
+            });
+        }
+    }
 }
 
 fn fechar_menu_bandeja(app: &AppHandle) {
@@ -682,10 +767,48 @@ fn executar(app: &AppHandle, m: &mut Motor, nome: &str, a: &[Value]) -> Result<(
                 app.exit(0);
             }
         }
+        "toggle-mini-player" => {
+            alternar_mini(app, m);
+            return Ok(());
+        }
+        "toggle-mini-pin" => {
+            let fixo = !m.janela.estado.borrow().mini_fixo;
+            if let Some(w) = app.get_webview_window("main") {
+                depois(&w, move |w2| {
+                    let _ = w2.set_always_on_top(fixo);
+                });
+            }
+            m.janela.set_mini_fixo(fixo);
+            return Ok(());
+        }
+        // Buscar a partir do mini: a lista de resultados nao cabe nele, entao
+        // a janela volta ao tamanho normal ja na Busca.
+        "mini-search" => {
+            if m.mini_antes.is_some() {
+                alternar_mini(app, m);
+            }
+            m.state.navigate(1);
+            return Ok(());
+        }
         "fechar-bandeja" => fechar_menu_bandeja(app),
+        // O mini player nao tem barra de titulo, entao nem o X da janela.
+        "fechar-janela" => {
+            if let Some(w) = app.get_webview_window("main") {
+                depois(&w, |w| {
+                    let _ = w.close();
+                });
+            }
+        }
+        // Criar janela dentro de um comando sincrono trava no Windows (aviso
+        // do Tauri em `WebviewWindowBuilder::build`): a tela nunca aparecia e
+        // a linha principal parava. Vai para a fila, como o clique no icone.
         "abrir-janela" => {
             fechar_menu_bandeja(app);
-            abrir_janela(app);
+            let app = app.clone();
+            std::thread::spawn(move || {
+                let a = app.clone();
+                let _ = app.run_on_main_thread(move || abrir_janela(&a));
+            });
         }
         "sair" => {
             s.save_config();
