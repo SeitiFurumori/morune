@@ -9,11 +9,12 @@
 //! Guardar so um canal faz o anterior ser descartado sozinho, sem cancelamento
 //! explicito e sem resultado antigo pintando por cima do novo.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::artwork::{ArtworkCache, Ready};
+use crate::ordem_curtidas::OrdemCurtidas;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
 use morune_core::catalog::{Artwork, Catalog, Library, SearchKind};
@@ -306,6 +307,11 @@ pub struct Browse {
     /// pedido da tela nem cancela-lo.
     art_tx: UnboundedSender<Ready>,
     art_rx: UnboundedReceiver<Ready>,
+    /// Ordem que o usuario deu as curtidas arrastando. Compartilhada com as
+    /// tarefas porque toda pagina de curtidas passa por ela.
+    ordem: Arc<Mutex<OrdemCurtidas>>,
+    /// Onde a ordem e gravada. Sem pasta (testes), arrastar vale so na sessao.
+    pasta_dados: Option<std::path::PathBuf>,
 }
 
 impl std::fmt::Debug for Browse {
@@ -346,6 +352,63 @@ impl Browse {
             covers: ArtworkCache::new(covers_dir),
             art_tx,
             art_rx,
+            ordem: Arc::default(),
+            pasta_dados: None,
+        }
+    }
+
+    /// Le a ordem das curtidas gravada e passa a gravar nela.
+    pub fn usar_ordem_curtidas(&mut self, pasta_dados: &std::path::Path) {
+        *trava(&self.ordem) = crate::ordem_curtidas::ler(pasta_dados);
+        self.pasta_dados = Some(pasta_dados.to_path_buf());
+    }
+
+    /// Leva uma curtida para a posicao `para` da lista inteira e grava.
+    ///
+    /// A lista inteira e a ultima que veio do Spotify (so ids): a tela tem so
+    /// as paginas que ja rolou, e a ordem precisa valer para todas. Curtida
+    /// feita no celular depois disso nao fica de fora: sem lugar na ordem,
+    /// ela aparece no topo, como qualquer curtida nova.
+    pub fn mover_curtida(&self, id: TrackId, para: usize) {
+        let library = self.library.clone();
+        let ordem = self.ordem.clone();
+        let pasta = self.pasta_dados.clone();
+        self.handle.spawn(async move {
+            let mut atuais = trava(&ordem).conhecidas().to_vec();
+            if atuais.is_empty() {
+                atuais = match library.saved_track_ids().await {
+                    Ok(ids) => ids,
+                    Err(error) => {
+                        tracing::warn!(%error, "sem a lista de curtidas; ordem nao gravada");
+                        return;
+                    }
+                };
+            }
+            let copia = {
+                let mut ordem = trava(&ordem);
+                if !ordem.mover(&atuais, &id, para) {
+                    return;
+                }
+                ordem.clone()
+            };
+            if let Some(pasta) = pasta {
+                crate::ordem_curtidas::gravar(&pasta, &copia);
+            }
+        });
+    }
+
+    /// Descurtida no Morune: sai da ordem, para voltar ao topo se curtida de
+    /// novo.
+    pub fn esquecer_curtida(&self, id: &TrackId) {
+        let copia = {
+            let mut ordem = trava(&self.ordem);
+            if !ordem.esquecer(id) {
+                return;
+            }
+            ordem.clone()
+        };
+        if let Some(pasta) = &self.pasta_dados {
+            crate::ordem_curtidas::gravar(pasta, &copia);
         }
     }
 
@@ -605,6 +668,7 @@ impl Browse {
     /// nao sao nem pedidas.
     pub fn load_home(&mut self) {
         let library = self.library.clone();
+        let ordem = self.ordem.clone();
         self.spawn(move |tx| async move {
             let mut home = Home::default();
             let mut failure = None;
@@ -651,12 +715,15 @@ impl Browse {
                 Err(e) => failure = note(failure, &e, "playlists"),
             }
 
-            match library.saved_tracks(0, SHELF_TRACKS).await {
+            match curtidas(&library, &ordem, 0, SHELF_TRACKS).await {
                 Ok(page) => home.liked = page.items,
                 Err(e) => failure = note(failure, &e, "musicas curtidas"),
             }
             match library.saved_track_ids().await {
-                Ok(ids) => home.liked_ids = ids,
+                Ok(ids) => {
+                    trava(&ordem).lembrar(&ids);
+                    home.liked_ids = ids;
+                }
                 Err(e) => failure = note(failure, &e, "estado das curtidas"),
             }
 
@@ -707,8 +774,9 @@ impl Browse {
     pub fn open(&mut self, target: Target) {
         let catalog = self.catalog.clone();
         let library = self.library.clone();
+        let ordem = self.ordem.clone();
         self.spawn(move |tx| async move {
-            let _ = tx.send(match resolve(catalog, library, target).await {
+            let _ = tx.send(match resolve(catalog, library, ordem, target).await {
                 Ok(outcome) => outcome,
                 Err(e) => Outcome::Failed(describe(&e)),
             });
@@ -724,11 +792,12 @@ impl Browse {
         }
         let catalog = self.catalog.clone();
         let library = self.library.clone();
+        let ordem = self.ordem.clone();
         let (tx, rx) = std::sync::mpsc::channel();
         self.handle.spawn(async move {
             let result = match &source {
                 Target::Playlist(id) => catalog.playlist_tracks(id, offset, DETAIL_PAGE).await,
-                Target::Liked => library.saved_tracks(offset, DETAIL_PAGE).await,
+                Target::Liked => curtidas(&library, &ordem, offset, DETAIL_PAGE).await,
                 _ => Err(CoreError::Unsupported("esta lista nao possui continuacao")),
             };
             let outcome = match result {
@@ -797,9 +866,49 @@ fn poll_outcome(pending: &mut Option<Receiver<Outcome>>, interrupted: &str) -> O
     }
 }
 
+/// Uma pagina das curtidas, na ordem que o usuario deu.
+///
+/// Sem ordem propria, e o caminho de sempre do provedor. Com ela, os ids vem
+/// todos (um pedido, sem metadado), a ordem e aplicada e so a fatia da pagina
+/// vira pedido de metadado -- o mesmo custo de antes.
+async fn curtidas(
+    library: &Arc<dyn Library>,
+    ordem: &Arc<Mutex<OrdemCurtidas>>,
+    offset: u32,
+    limit: u32,
+) -> CoreResult<morune_core::catalog::Page<Track>> {
+    if trava(ordem).vazia() {
+        return library.saved_tracks(offset, limit).await;
+    }
+    let atuais = library.saved_track_ids().await?;
+    let ids = {
+        let mut ordem = trava(ordem);
+        ordem.lembrar(&atuais);
+        ordem.aplicar(&atuais)
+    };
+    let total = Some(ids.len() as u32);
+    let fatia: Vec<TrackId> = ids
+        .into_iter()
+        .skip(offset as usize)
+        .take(limit as usize)
+        .collect();
+    Ok(morune_core::catalog::Page {
+        items: library.tracks_by_ids(&fatia).await?,
+        offset,
+        total,
+    })
+}
+
+/// Trava sem propagar envenenamento: a ordem e uma lista de ids, e uma tarefa
+/// que caiu no meio nao a deixa inconsistente.
+fn trava(ordem: &Mutex<OrdemCurtidas>) -> std::sync::MutexGuard<'_, OrdemCurtidas> {
+    ordem.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 async fn resolve(
     catalog: Arc<dyn Catalog>,
     library: Arc<dyn Library>,
+    ordem: Arc<Mutex<OrdemCurtidas>>,
     target: Target,
 ) -> CoreResult<Outcome> {
     Ok(match target {
@@ -864,7 +973,7 @@ async fn resolve(
         // Diferente das outras, esta nao vem do catalogo: curtidas sao da
         // conta, e quem responde por elas e a biblioteca.
         Target::Liked => {
-            let page = library.saved_tracks(0, DETAIL_PAGE).await?;
+            let page = curtidas(&library, &ordem, 0, DETAIL_PAGE).await?;
             let total = page.total.unwrap_or(page.items.len() as u32);
             let has_more = !page.items.is_empty() && page.has_more();
             Outcome::Detail(Box::new(Detail {

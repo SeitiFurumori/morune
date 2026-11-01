@@ -543,6 +543,10 @@ impl AppState {
         };
 
         let mut loaded = loaded;
+        let pasta_dados = loaded.paths.data_dir().to_path_buf();
+        if let Some(browse) = loaded.session.browse_mut() {
+            browse.usar_ordem_curtidas(&pasta_dados);
+        }
         // Decodificar o fundo aqui, e nao na primeira pintura, e o que evita a
         // janela abrir com cor solida e trocar de aparencia meio segundo
         // depois.
@@ -1164,6 +1168,9 @@ impl AppState {
             }
             Ok(()) => {
                 self.liked_ids.remove(&outcome.id);
+                if let Some(browse) = self.session.browse_mut() {
+                    browse.esquecer_curtida(&outcome.id);
+                }
                 self.liked.tracks.retain(|item| item.id != outcome.id);
                 if let Some(detail) = &mut self.detail {
                     if detail.title == crate::browse::LIKED_TITLE {
@@ -1345,6 +1352,51 @@ impl AppState {
         track.name.to_lowercase().contains(alvo)
             || primeiro_artista(track).to_lowercase().contains(alvo)
             || nome_do_album(track).to_lowercase().contains(alvo)
+    }
+
+    /// `true` quando a lista aberta aceita arrastar: as curtidas, na ordem da
+    /// lista e sem filtro. Ordenada por titulo ou filtrada, a posicao na tela
+    /// nao e a posicao na lista, e soltar ali nao teria lugar certo.
+    fn detail_reordenavel(&self) -> bool {
+        self.detail
+            .as_ref()
+            .is_some_and(|d| d.source == Some(Target::Liked))
+            && self.detail_sort == SortBy::Original
+            && self.detail_filter.is_empty()
+    }
+
+    /// Arrastou uma curtida para a posicao `para`.
+    ///
+    /// A tela muda na hora; a ordem inteira e gravada em segundo plano.
+    pub fn mover_curtida(&mut self, tag: &str, para: i32) {
+        if !self.detail_reordenavel() {
+            return;
+        }
+        let Some(Target::Track(id)) = Target::parse(tag) else {
+            return;
+        };
+        let Some(detail) = &mut self.detail else {
+            return;
+        };
+        let Some(de) = detail.tracks.iter().position(|t| t.id == id) else {
+            return;
+        };
+        let para = (para.max(0) as usize).min(detail.tracks.len() - 1);
+        if de == para {
+            return;
+        }
+        let faixa = detail.tracks.remove(de);
+        detail.tracks.insert(para, faixa);
+        // A prateleira do Inicio e o comeco desta mesma lista.
+        self.liked.tracks = detail
+            .tracks
+            .iter()
+            .take(crate::browse::SHELF_TRACKS as usize)
+            .cloned()
+            .collect();
+        if let Some(browse) = self.session.browse_mut() {
+            browse.mover_curtida(id, para);
+        }
     }
 
     pub fn set_detail_filter(&mut self, texto: &str) {
@@ -3843,6 +3895,7 @@ impl AppState {
             window.set_detail_sort(self.detail_sort as i32);
             window.set_detail_descending(self.detail_desc);
             window.set_detail_filtered(!self.detail_filter.is_empty());
+            window.set_detail_reordenavel(self.detail_reordenavel());
             window.set_detail_has_more(detail.has_more);
             window.set_detail_loading(self.detail_loading);
             window.set_detail_loaded_count(detail.tracks.len() as i32);

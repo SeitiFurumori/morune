@@ -213,6 +213,15 @@ pub trait Library: Send + Sync + 'static {
         Box::pin(async { Err(CoreError::Unsupported("estado das musicas curtidas")) })
     }
 
+    /// Metadado de varias faixas, na ordem dos ids. Faixa que o provedor nao
+    /// devolver fica de fora.
+    ///
+    /// Serve a ordem propria das curtidas: o Morune decide a fatia, o provedor
+    /// so preenche.
+    fn tracks_by_ids<'a>(&'a self, _ids: &'a [TrackId]) -> BoxFuture<'a, CoreResult<Vec<Track>>> {
+        Box::pin(async { Err(CoreError::Unsupported("faixas por id")) })
+    }
+
     /// Adiciona ou remove uma faixa da biblioteca do provedor.
     fn set_track_saved<'a>(
         &'a self,

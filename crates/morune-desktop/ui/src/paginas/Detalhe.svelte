@@ -52,7 +52,8 @@
       {#each ordens as o, i}<option value={i}>{o}</option>{/each}
     </select>
   </div>
-  <Faixas faixas={e.detail_tracks ?? []} ativar={(f) => acao('detail-activate', f.id)} />
+  <Faixas faixas={e.detail_tracks ?? []} ativar={(f) => acao('detail-activate', f.id)}
+    reordenar={e.detail_reordenavel ? (f, para) => acao('liked-move', f.id, para) : undefined} />
   {#if e.detail_loading}<p class="suave mais">Carregando mais…</p>{/if}
 {/if}
 

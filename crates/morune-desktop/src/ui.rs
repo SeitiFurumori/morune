@@ -177,6 +177,8 @@ pub struct Estado {
     pub capa_viva: Cor,
     /// Cor viva da capa do detalhe aberto, para o cabecalho (`artwork_paints_ui`).
     pub detail_cor: Cor,
+    /// A lista aberta aceita arrastar para mudar a ordem (curtidas).
+    pub detail_reordenavel: bool,
     /// Endereco da miniatura desfocada da capa atual (fundo da capa).
     pub now_fundo: String,
     /// Nivel do som tocando agora, de 0 a 1, ja no tempo em que sai na caixa.
@@ -402,6 +404,7 @@ impl AppWindow {
     pub fn get_artwork_color(&self) -> Cor { self.estado.borrow().artwork_color.clone() }
     pub fn set_capa_viva(&self, v: Cor) { self.estado.borrow_mut().capa_viva = v; }
     pub fn set_detail_cor(&self, v: Cor) { self.estado.borrow_mut().detail_cor = v; }
+    pub fn set_detail_reordenavel(&self, v: bool) { self.estado.borrow_mut().detail_reordenavel = v; }
     pub fn set_now_fundo(&self, v: String) { self.estado.borrow_mut().now_fundo = v; }
     pub fn set_nivel(&self, v: f32) { self.estado.borrow_mut().nivel = v; }
     pub fn set_fundo(&self, v: Imagem) { self.estado.borrow_mut().fundo = v.into(); }
@@ -493,4 +496,5 @@ pub const ACOES: &[&str] = &[
     "dismiss-undo", // ()
     "move-window", // (f32, f32)
     "toggle-mini-player", // ()
+    "liked-move", // (String, i32)
 ];

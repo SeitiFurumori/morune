@@ -405,6 +405,17 @@ impl Library for SpotifyCatalog {
         })
     }
 
+    fn tracks_by_ids<'a>(&'a self, ids: &'a [TrackId]) -> BoxFuture<'a, CoreResult<Vec<Track>>> {
+        Box::pin(async move {
+            let crus: Vec<String> = ids
+                .iter()
+                .filter_map(|id| spotify_id(id.provider, &id.id).ok())
+                .map(str::to_owned)
+                .collect();
+            self.tracks_by_id(&crus).await
+        })
+    }
+
     fn set_track_saved<'a>(
         &'a self,
         id: &'a TrackId,
