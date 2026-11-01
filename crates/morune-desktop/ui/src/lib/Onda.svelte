@@ -47,7 +47,7 @@
       const b = Math.max(a + 1, Math.floor(((i + 1) / N) * picos.length))
       let m = 0
       for (let k = a; k < b; k++) m = Math.max(m, picos[k] ?? 0)
-      return 0.12 + 0.88 * m
+      return 0.06 + 0.94 * m
     }
     return vivo[i] || 0.12
   }
