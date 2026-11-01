@@ -262,6 +262,14 @@ impl Catalog for SpotifyCatalog {
         Box::pin(async move {
             let id = spotify_id(id.provider, &id.id)?;
             let mut meta = self.internal.artist(id).await?;
+            // O protobuf parou de trazer os relacionados; a pagina do player
+            // web ainda traz. Falhar aqui so deixa a prateleira vazia.
+            if meta.related.is_empty() {
+                match self.pathfinder.relacionados(id).await {
+                    Ok(lista) => meta.related = lista,
+                    Err(error) => tracing::debug!(%error, "sem artistas relacionados"),
+                }
+            }
             let populares = std::mem::take(&mut meta.top_tracks);
             let mut artista = meta_to_artist(meta);
             artista.top_tracks = self.completar(populares).await;

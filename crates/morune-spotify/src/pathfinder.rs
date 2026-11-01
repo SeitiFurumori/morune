@@ -38,6 +38,13 @@ use crate::error::from_librespot;
 use crate::graphql::SearchDataDto;
 
 const ENDPOINT: &str = "https://api-partner.spotify.com/pathfinder/v1/query";
+
+/// `queryArtistOverview`, a pagina do artista no player web. So os
+/// relacionados ("Fas tambem curtem") sao lidos: o protobuf do artista, que da
+/// o resto, parou de traze-los. Hash conferido em 01/11/2026 na lista publica
+/// do Meld (francescograzioso.github.io/Meld/spotify-gql-hashes.json), que o
+/// extrai do bundle do player todo dia -- e onde procurar quando vencer.
+const HASH_ARTISTA: &str = "9f8134ef565e78621f1e1793555bd6633c5ac144ae0f89604ed3ae3f80b3c8e6";
 const MUTATION_ENDPOINT: &str = "https://api-partner.spotify.com/pathfinder/v2/query";
 
 /// A mesma operacao persistida atende adicionar e remover; o nome da mutacao
@@ -141,6 +148,30 @@ impl Pathfinder {
             ));
         }
         Ok(crate::inicio::secoes(&resposta))
+    }
+
+    /// Artistas que os fas deste tambem ouvem. Ver [`HASH_ARTISTA`].
+    pub(crate) async fn relacionados(
+        &self,
+        artista: &str,
+    ) -> CoreResult<Vec<(String, String, morune_core::model::ImageSet)>> {
+        let resposta: serde_json::Value = self
+            .query(
+                "queryArtistOverview",
+                HASH_ARTISTA,
+                &serde_json::json!({
+                    "uri": format!("spotify:artist:{artista}"),
+                    "locale": "",
+                    "includePrerelease": true,
+                }),
+            )
+            .await?;
+        if persisted_query_missing(&resposta) {
+            return Err(CoreError::Decode(
+                "o Spotify mudou a pagina do artista; atualize o Morune".into(),
+            ));
+        }
+        Ok(crate::inicio::relacionados(&resposta))
     }
 
     /// Poe faixas no fim de uma playlist. Ver `crate::edicao`.

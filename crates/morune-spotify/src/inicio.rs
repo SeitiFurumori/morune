@@ -153,13 +153,13 @@ fn item(conteudo: &Value) -> Option<FeedItem> {
 
 /// `spotify:<tipo>:<id>` -> `<id>`, recusando id fora do base62 (ele vira
 /// caminho de URL depois).
-fn id_de<'a>(uri: &'a str, tipo: &str) -> Option<&'a str> {
+pub(crate) fn id_de<'a>(uri: &'a str, tipo: &str) -> Option<&'a str> {
     let resto = uri.strip_prefix("spotify:")?.strip_prefix(tipo)?;
     let id = resto.strip_prefix(':')?;
     (!id.is_empty() && id.bytes().all(|b| b.is_ascii_alphanumeric())).then_some(id)
 }
 
-fn imagens(fontes: Option<&Value>) -> ImageSet {
+pub(crate) fn imagens(fontes: Option<&Value>) -> ImageSet {
     let Some(fontes) = fontes.and_then(Value::as_array) else {
         return ImageSet::default();
     };
@@ -179,8 +179,28 @@ fn imagens(fontes: Option<&Value>) -> ImageSet {
     ImageSet(lista)
 }
 
-fn texto<'a>(valor: &'a Value, caminho: &str) -> Option<&'a str> {
+pub(crate) fn texto<'a>(valor: &'a Value, caminho: &str) -> Option<&'a str> {
     valor.pointer(caminho)?.as_str()
+}
+
+/// "Fas tambem curtem" de um artista, da resposta de `queryArtistOverview`.
+pub(crate) fn relacionados(resposta: &Value) -> Vec<(String, String, ImageSet)> {
+    resposta
+        .pointer("/data/artistUnion/relatedContent/relatedArtists/items")
+        .and_then(Value::as_array)
+        .map(|lista| {
+            lista
+                .iter()
+                .filter_map(|a| {
+                    Some((
+                        id_de(texto(a, "/uri")?, "artist")?.to_string(),
+                        texto(a, "/profile/name")?.to_string(),
+                        imagens(a.pointer("/visuals/avatarImage/sources")),
+                    ))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -214,6 +234,20 @@ mod tests {
                         "title": { "transformedLabel": "Episódios sugeridos" } },
               "sectionItems": { "items": [ { "content": { "__typename": "EpisodeOrChapterResponseWrapper", "data": {} } } ] } }
         ] } } } } })
+    }
+
+    #[test]
+    fn relacionados_saem_da_pagina_do_artista() {
+        let r = serde_json::json!({ "data": { "artistUnion": { "relatedContent": { "relatedArtists": { "items": [
+            { "uri": "spotify:artist:4tZwfgrHOc3mvqYlEYSvVi", "profile": { "name": "Daft Punk" },
+              "visuals": { "avatarImage": { "sources": [ { "url": "https://i.scdn.co/image/a", "width": 320, "height": 320 } ] } } },
+            { "uri": "spotify:track:x", "profile": { "name": "Nao e artista" } }
+        ] } } } } });
+        let lista = relacionados(&r);
+        assert_eq!(lista.len(), 1);
+        assert_eq!(lista[0].1, "Daft Punk");
+        assert_eq!(lista[0].2 .0.len(), 1);
+        assert!(relacionados(&serde_json::json!({})).is_empty());
     }
 
     #[test]
