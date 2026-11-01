@@ -70,14 +70,16 @@
   .logo { width: 22px; height: 22px; border-radius: 7px; background: linear-gradient(135deg, var(--acento-tema), color-mix(in srgb, var(--acento-tema) 50%, #fff)); }
   .item { display: flex; align-items: center; gap: var(--e-md); width: 100%; height: 42px; padding: 0 var(--e-sm); border-radius: var(--r-sm); color: var(--texto-suave); font-weight: var(--peso-medio); transition: background var(--m-rapido), color var(--m-rapido); }
   .item:hover { color: var(--texto); background: var(--hover); }
-  .item.ativo { color: var(--texto); background: var(--selecionado); }
+  /* O lugar onde a pessoa esta leva um fundo leve da cor de destaque. */
+  .item.ativo { color: var(--texto); background: color-mix(in srgb, var(--acento) 16%, transparent); }
+  .item.ativo :global(svg) { color: var(--acento); }
   nav { position: relative; display: flex; flex-direction: column; gap: var(--e-xs); }
   nav .item { position: relative; z-index: 1; }
   nav .item.ativo { background: none; }
   nav .item.ativo:hover { background: none; }
   .pilula {
     position: absolute; left: 0; right: 0; top: 0; height: 42px; border-radius: var(--r-sm);
-    background: var(--selecionado); pointer-events: none;
+    background: color-mix(in srgb, var(--acento) 16%, transparent); pointer-events: none;
     transform: translateY(calc(var(--ativo) * (42px + var(--e-xs))));
     transition: transform 460ms cubic-bezier(0.34, 1.3, 0.64, 1), opacity var(--m-rapido);
   }

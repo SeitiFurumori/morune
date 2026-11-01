@@ -128,14 +128,15 @@
   .ic-bt:active, .pp:active { transform: scale(0.92); }
   .ic-bt.on { color: var(--acento); }
   .rep b { position: absolute; right: 2px; bottom: 2px; font-size: 9px; }
-  .pp { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-botao, 99px); background: var(--texto); color: var(--sobre-texto); transition: transform var(--m-rapido); }
+  .pp { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-botao, 99px); background: var(--acento); color: var(--texto-no-acento); transition: transform var(--m-rapido); }
   .pp:hover { transform: scale(1.05); }
   .tempo { display: flex; align-items: center; gap: var(--e-sm); width: 100%; font-size: var(--t-xs); color: var(--texto-suave); font-variant-numeric: tabular-nums; }
   .barra, .vol { flex: 1; height: 16px; display: flex; align-items: center; cursor: pointer; }
   .vol { flex: none; width: 110px; }
   .trilho { position: relative; width: 100%; height: var(--trilho, 4px); border-radius: 99px; background: color-mix(in srgb, var(--texto) 20%, transparent); overflow: hidden; }
-  .cheio { height: 100%; background: var(--texto); border-radius: 99px; }
-  .barra:hover .cheio, .vol:hover .cheio { background: var(--acento); }
+  /* A parte tocada e o botao de tocar levam a cor de destaque. */
+  .cheio { height: 100%; background: var(--acento); border-radius: 99px; }
+  .barra:hover .cheio, .vol:hover .cheio { background: var(--acento-hover, var(--acento)); }
   .direita { display: flex; align-items: center; justify-content: flex-end; gap: var(--e-sm); }
   .sono { font-size: var(--t-xs); }
 </style>

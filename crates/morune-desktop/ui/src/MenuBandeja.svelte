@@ -63,11 +63,11 @@
   .bts { display: flex; align-items: center; justify-content: center; gap: var(--e-lg); padding: var(--e-xs) 0; }
   .ic { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 99px; color: var(--texto-suave); flex: none; transition: color var(--m-rapido); }
   .ic:hover { color: var(--texto); }
-  .pp { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 99px; background: var(--texto); color: var(--sobre-texto); }
+  .pp { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 99px; background: var(--acento); color: var(--texto-no-acento); }
   .vol { display: flex; align-items: center; gap: var(--e-sm); padding: 0 var(--e-xs); }
   .barra { flex: 1; height: 16px; display: flex; align-items: center; cursor: pointer; }
   .trilho { width: 100%; height: 4px; border-radius: 99px; background: color-mix(in srgb, var(--texto) 20%, transparent); overflow: hidden; }
-  .cheio { height: 100%; background: var(--texto); }
+  .cheio { height: 100%; background: var(--acento); }
   .barra:hover .cheio { background: var(--acento); }
   hr { border: 0; height: 1px; background: var(--borda); margin: var(--e-xs) 6px; }
   .item { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: var(--r-sm); font-size: var(--t-sm); text-align: left; }
