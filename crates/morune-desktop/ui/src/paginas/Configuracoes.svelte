@@ -1,6 +1,12 @@
 <script lang="ts">
   import { acao, motor } from '../lib/motor.svelte'
+  import { ACENTOS, PALETAS, amostraAcento, amostraPaleta } from '../lib/cores'
   const e = $derived(motor.e)
+  const t = $derived(motor.tema ?? {})
+  // `paineis` guardado e a opacidade (0 = a do tema); o controle mostra
+  // "quanta transparencia", de 0 a 1.
+  const paineis = $derived(t.paineis > 0 ? (1 - t.paineis) / 0.8 : 0)
+  const mexeu = $derived(!!(t.acento || t.paleta || t.paineis > 0 || t.janela_opacidade > 0))
   const qualidades = ['Normal (96 kbps)', 'Alta (160 kbps)', 'Muito alta (320 kbps)']
   const sono = [
     { m: 0, t: 'Desligado' }, { m: 15, t: '15 min' }, { m: 30, t: '30 min' }, { m: 60, t: '1 hora' }, { m: -1, t: 'No fim da faixa' },
@@ -31,6 +37,35 @@
       </button>
     {/each}
   </div>
+  <div class="bloco">
+    <span>Cor de destaque</span>
+    <div class="amostras" role="radiogroup" aria-label="Cor de destaque">
+      <button class="amostra tema-cor" class:ativo={!t.acento} role="radio" aria-checked={!t.acento} title="A do tema" onclick={() => acao('set-accent', '')}><span>Aa</span></button>
+      {#each ACENTOS as a (a.id)}
+        <button class="amostra" class:ativo={t.acento === a.id} role="radio" aria-checked={t.acento === a.id} title={a.nome}
+          style:background={amostraAcento(a.id)} onclick={() => acao('set-accent', a.id)}></button>
+      {/each}
+    </div>
+  </div>
+  <div class="bloco">
+    <span>Paleta</span>
+    <div class="paletas" role="radiogroup" aria-label="Paleta">
+      <button class="paleta" class:ativo={!t.paleta} role="radio" aria-checked={!t.paleta} onclick={() => acao('set-palette', '')}>
+        <i class="tema-cor"></i>Do tema</button>
+      {#each PALETAS as p (p.id)}
+        <button class="paleta" class:ativo={t.paleta === p.id} role="radio" aria-checked={t.paleta === p.id} onclick={() => acao('set-palette', p.id)}>
+          <i style:background={amostraPaleta(p.id)}></i>{p.nome}</button>
+      {/each}
+    </div>
+  </div>
+  <label class="linha"><span>Transparência da janela<small class="suave">Deixa ver a área de trabalho atrás, desfocada.</small></span>
+    <input type="range" min="0" max="1" step="0.01" value={e.window_opacity} oninput={(ev) => acao('set-window-opacity', Number(ev.currentTarget.value))} /></label>
+  <label class="linha"><span>Transparência dos painéis<small class="suave">Deixa ver a imagem de fundo e o que está atrás.</small></span>
+    <input type="range" min="0" max="1" step="0.01" value={paineis} oninput={(ev) => acao('set-panel-opacity', Number(ev.currentTarget.value))} /></label>
+  {#if mexeu}
+    <div class="linha"><span class="suave">Cor e transparência fora do padrão do tema.</span>
+      <button class="botao" onclick={() => acao('reset-appearance')}>Voltar ao tema</button></div>
+  {/if}
   <div class="linha"><span>Imagem de fundo {e.background_name ? `(${e.background_name})` : ''}</span>
     <span class="grupo"><button class="botao" onclick={() => acao('choose-background')}>Escolher…</button>
       {#if e.has_background}<button class="botao" onclick={() => acao('clear-background')}>Tirar</button>{/if}</span></div>
@@ -84,6 +119,17 @@
   .temas { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--e-sm); margin-bottom: var(--e-sm); }
   .tema { display: grid; gap: 6px; padding: 6px; border-radius: var(--r-md); text-align: left; font-size: var(--t-sm); outline: 2px solid transparent; }
   .tema.ativo { outline-color: var(--acento); }
+  .linha small { display: block; font-size: var(--t-xs, 12px); }
+  .linha > span:has(small) { padding: var(--e-sm) 0; }
+  .bloco { display: grid; gap: var(--e-sm); padding: var(--e-md); border-radius: var(--r-md); background: var(--hover); }
+  .amostras { display: flex; flex-wrap: wrap; gap: var(--e-sm); }
+  .amostra { width: 34px; height: 34px; border-radius: 99px; outline: 2px solid transparent; outline-offset: 3px; display: grid; place-items: center; }
+  .amostra.ativo, .paleta.ativo { outline-color: var(--texto); }
+  .tema-cor { background: var(--acento-tema); color: var(--texto-no-acento); font-size: 11px; font-weight: var(--peso-forte); }
+  .paletas { display: flex; flex-wrap: wrap; gap: var(--e-sm); }
+  .paleta { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px 0 6px; border-radius: 99px; background: var(--selecionado); font-size: var(--t-sm); outline: 2px solid transparent; outline-offset: 2px; }
+  .paleta i { width: 22px; height: 22px; border-radius: 99px; box-shadow: inset 0 0 0 1px #ffffff26; }
+  .paleta i.tema-cor { background: var(--fundo); }
   .previa { display: grid; grid-template-columns: 1fr 3fr; gap: 4px; height: 70px; padding: 6px; border-radius: var(--r-sm); }
   .previa span { border-radius: 4px; position: relative; }
   .previa i { position: absolute; left: 8px; bottom: 8px; width: 28px; height: 6px; border-radius: 3px; }

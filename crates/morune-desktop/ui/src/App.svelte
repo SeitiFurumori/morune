@@ -16,9 +16,11 @@
   const e = $derived(motor.e)
   let conteudo: HTMLElement | undefined = $state()
 
-  // A cor viva da capa vira o acento; sem capa, o do tema.
+  // A cor viva da capa vira o acento; sem capa, ou com cor escolhida pela
+  // pessoa, o do tema.
   $effect(() => {
-    document.documentElement.style.setProperty('--acento', e.live_accent || 'var(--acento-tema)')
+    const fixo = motor.tema?.acento
+    document.documentElement.style.setProperty('--acento', (!fixo && e.live_accent) || 'var(--acento-tema)')
   })
   // O pulso da musica (0 a 1) para quem quiser se mexer com ela: as barras da
   // faixa tocando. Pausado, zero; sem medicao (tema parado, jogo), meio-termo.

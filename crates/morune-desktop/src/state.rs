@@ -327,6 +327,8 @@ pub struct AppState {
     detail_tint: std::cell::RefCell<(Option<std::path::PathBuf>, Option<ui::Cor>)>,
     /// Onde a musica parou na ultima vez, esperando o motor para voltar la.
     retomada: Option<crate::retomar::Retomada>,
+    /// Cor, paleta e paineis escolhidos (arquivo proprio, ver `aparencia.rs`).
+    aparencia: crate::aparencia::Aparencia,
     retomada_gravada: Instant,
     /// Miniatura desfocada da capa atual, para o fundo da capa (`tint::fundo`).
     now_fundo: Option<std::path::PathBuf>,
@@ -435,6 +437,7 @@ impl AppState {
         };
 
         let retomada = crate::retomar::ler(paths.data_dir());
+        let aparencia = crate::aparencia::ler(paths.config_dir());
         let mut queue = Queue::new();
         queue.set_shuffle(config.playback.shuffle);
         queue.set_repeat(config.playback.repeat);
@@ -526,6 +529,7 @@ impl AppState {
             now_tint: (None, None),
             detail_tint: Default::default(),
             retomada,
+            aparencia,
             retomada_gravada: Instant::now(),
             now_fundo: None,
             history,
@@ -2076,6 +2080,51 @@ impl AppState {
         self.save_config();
     }
 
+    /// Liga o acrilico do Windows atras da janela.
+    ///
+    /// Com a transparencia da janela escolhida pela pessoa, vale ela: qualquer
+    /// valor abaixo de opaco pede o vidro, e opaco o desliga mesmo no Vidro.
+    /// Sem escolha, vale o que o tema pede.
+    pub fn vidro_pedido(&self) -> bool {
+        let (opacidade, acrilico) = self.window_effects();
+        if self.config.appearance.window_opacity_override > 0.0 {
+            opacidade < QUASE_OPACA
+        } else {
+            acrilico
+        }
+    }
+
+    pub fn set_accent(&mut self, nome: &str) {
+        self.aparencia.acento = nome.to_string();
+        self.gravar_aparencia();
+    }
+
+    pub fn set_palette(&mut self, nome: &str) {
+        self.aparencia.paleta = nome.to_string();
+        self.gravar_aparencia();
+    }
+
+    /// Posicao do controle: `0` como o tema pede, `1` o mais transparente.
+    pub fn set_panel_opacity(&mut self, valor: f32) {
+        let v = if valor.is_finite() { valor.clamp(0.0, 1.0) } else { 0.0 };
+        // `0` guardado e "o do tema"; qualquer outro valor multiplica a
+        // opacidade que o tema da aos paineis.
+        self.aparencia.paineis = if v <= 0.001 { 0.0 } else { 1.0 - v * 0.8 };
+        self.gravar_aparencia();
+    }
+
+    /// Volta cor, paleta e as duas transparencias ao que o tema pede.
+    pub fn reset_appearance(&mut self) {
+        self.aparencia = Default::default();
+        self.gravar_aparencia();
+        self.config.appearance.window_opacity_override = 0.0;
+        self.save_config();
+    }
+
+    fn gravar_aparencia(&self) {
+        crate::aparencia::gravar(self.paths.config_dir(), &self.aparencia);
+    }
+
     /// Recarregar o tema sozinho quando o arquivo mudar em disco.
     pub fn hot_reload(&self) -> bool {
         self.config.developer.hot_reload
@@ -2136,6 +2185,18 @@ impl AppState {
             "fundo_desfoque": self.config.appearance.background_blur,
             "fundo_tinta": self.config.appearance.background_tint_strength,
             "vidro_desfoque": self.config.appearance.glass_blur,
+            "acento": self.aparencia.acento,
+            "paleta": self.aparencia.paleta,
+            "paineis": self.aparencia.paineis,
+            // `0` = a do tema.
+            "janela_opacidade": if self.config.appearance.window_opacity_override > 0.0
+                && self.vidro_pedido()
+            {
+                self.window_effects().0
+            } else {
+                0.0
+            },
+            "acrilico": self.vidro_pedido(),
         })
     }
 
@@ -5103,6 +5164,12 @@ fn sidebar_order<'a>(
         .filter(|c| filtro.is_empty() || c.title.to_lowercase().contains(filtro))
         .collect()
 }
+
+/// Daqui para cima a janela conta como opaca e o acrilico fica desligado.
+///
+/// Um controle arrastado quase ate o fim (o Felipe tinha 0,98 guardado) nao
+/// pode ligar o vidro do Windows por uma diferenca que ninguem ve.
+const QUASE_OPACA: f32 = 0.97;
 
 /// Opacidade minima que a janela pode ter.
 ///

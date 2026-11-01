@@ -21,6 +21,7 @@ mod instance;
 mod material;
 mod notify;
 mod oculta;
+mod aparencia;
 mod ordem_curtidas;
 mod registro;
 mod retomar;
@@ -235,7 +236,7 @@ fn abrir_janela(app: &AppHandle) {
 fn tema_com_material(app: &AppHandle, m: &mut Motor) -> Value {
     let mut tema = m.state.tema_json();
     let pede = tema
-        .pointer("/spec/effects/acrylic")
+        .get("acrilico")
         .and_then(Value::as_bool)
         .unwrap_or(false);
     if m.material_pedido != Some(pede) {
@@ -847,6 +848,10 @@ fn executar(app: &AppHandle, m: &mut Motor, nome: &str, a: &[Value]) -> Result<(
         "set-font-scale" => s.set_font_scale(real(a, 0)),
         "zoom" => s.zoom(inteiro(a, 0)),
         "set-window-opacity" => s.set_window_opacity(real(a, 0)),
+        "set-accent" => s.set_accent(&texto(a, 0)),
+        "set-palette" => s.set_palette(&texto(a, 0)),
+        "set-panel-opacity" => s.set_panel_opacity(real(a, 0)),
+        "reset-appearance" => s.reset_appearance(),
         "set-reduce-motion" => s.set_reduce_motion(logico(a, 0)),
         "set-hot-reload" => s.set_hot_reload(logico(a, 0)),
         outro => return Err(format!("acao desconhecida: {outro}")),

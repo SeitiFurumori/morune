@@ -1,5 +1,6 @@
 // O tema chega como dados (tokens do theme.toml ja resolvidos) e vira
 // variaveis de CSS. Nada do tema roda como codigo.
+import { acento, tingir, vezesAlfa } from './cores'
 
 function cor(c: string | undefined, padrao: string) {
   return typeof c === 'string' && c.startsWith('#') ? c : padrao
@@ -50,20 +51,30 @@ export function aplicarTema(t: any) {
   // Windows), o fundo vai solido -- senao apareceria o vazio da janela.
   const vidro = !!t.vidro_ativo
   const set = (k: string, v: string | number) => r.setProperty(k, String(v))
+  const claro = s.manifest?.appearance === 'light'
 
-  set('--fundo', vidro ? cor(c.background, '#0b0d12') : opaca(cor(c.background, '#0b0d12')))
+  // O que a pessoa escolheu por cima do tema: paleta muda o tom dos fundos,
+  // paineis multiplica a opacidade deles, janela da a opacidade do fundo.
+  const tom = (hex: string) => (t.paleta ? tingir(hex, t.paleta) : hex)
+  const painel = (hex: string) => (t.paineis > 0 ? vezesAlfa(tom(hex), t.paineis) : tom(hex))
+  let fundo = tom(cor(c.background, '#0b0d12'))
+  if (t.janela_opacidade > 0) fundo = vezesAlfa(opaca(fundo), t.janela_opacidade)
+  set('--fundo', vidro ? fundo : opaca(fundo))
   // Texto em cima de um botao cheio com a cor do texto: a cor do fundo, mas
   // sempre solida (no Vidro o fundo e translucido e o texto sumiria).
-  set('--sobre-texto', opaca(cor(c.background, '#0b0d12')))
-  set('--superficie', cor(c.surface, '#12151d'))
-  set('--superficie-alta', cor(c.surface_raised, '#1a1e29'))
-  set('--lateral', cor(c.sidebar_background, '#0d1016'))
-  set('--player', cor(c.player_background, '#0f1219'))
+  set('--sobre-texto', opaca(fundo))
+  set('--superficie', painel(cor(c.surface, '#12151d')))
+  set('--superficie-alta', tom(cor(c.surface_raised, '#1a1e29')))
+  set('--lateral', painel(cor(c.sidebar_background, '#0d1016')))
+  set('--player', painel(cor(c.player_background, '#0f1219')))
   set('--texto', cor(c.text, '#eceff4'))
   set('--texto-suave', cor(c.text_muted, '#939cb0'))
-  set('--texto-no-acento', cor(c.text_on_accent, '#111111'))
-  set('--acento-tema', cor(c.accent, '#8b63f6'))
-  set('--acento-hover', cor(c.accent_hover, '#a383ff'))
+  const escolhido = t.acento ? acento(t.acento, claro) : null
+  set('--texto-no-acento', escolhido?.sobre ?? cor(c.text_on_accent, '#111111'))
+  set('--acento-tema', escolhido?.cor ?? cor(c.accent, '#8b63f6'))
+  set('--acento-hover', escolhido?.hover ?? cor(c.accent_hover, '#a383ff'))
+  // Cor escolhida vence a cor viva da capa (App.svelte).
+  document.documentElement.dataset.acentoFixo = escolhido ? '1' : '0'
   set('--borda', cor(c.border, '#ffffff22'))
   set('--borda-destaque', cor(c.border_highlight, cor(c.border, '#ffffff22')))
   r.colorScheme = s.manifest?.appearance === 'light' ? 'light' : 'dark'
