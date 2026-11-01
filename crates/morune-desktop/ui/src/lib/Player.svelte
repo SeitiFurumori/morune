@@ -2,7 +2,7 @@
   import Capa from './Capa.svelte'
   import Icone from './Icone.svelte'
   import { acao, motor, Pagina } from './motor.svelte'
-  import { entrarComMola } from './tema'
+  import { entrarComMola, estourar } from './tema'
 
   const e = $derived(motor.e)
   let agoraEl: HTMLElement | undefined = $state()
@@ -59,7 +59,7 @@
           <div class="a corta suave">{e.now_artist}</div>
         {/if}
       </div>
-      <button class="ic-bt" class:on={e.now_favorite} title="Curtir" onclick={() => acao('toggle-favorite', e.now_id)}>
+      <button class="ic-bt" class:on={e.now_favorite} title="Curtir" onclick={(ev) => { if (!e.now_favorite) estourar(ev.currentTarget as HTMLElement); acao('toggle-favorite', e.now_id) }}>
         <Icone nome="coracao" cheio={e.now_favorite} tamanho={18} />
       </button>
     {/if}

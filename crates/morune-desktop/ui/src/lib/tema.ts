@@ -33,6 +33,13 @@ export function entrarComMola(el: HTMLElement, x0 = -24) {
   requestAnimationFrame(passo)
 }
 
+/** Estouro curto ao curtir: reinicia a animacao `.estoura` do app.css. */
+export function estourar(el: HTMLElement) {
+  el.classList.remove('estoura')
+  void el.offsetWidth
+  el.classList.add('estoura')
+}
+
 export function aplicarTema(t: any) {
   const s = t?.spec
   if (!s) return
@@ -115,6 +122,7 @@ export function aplicarTema(t: any) {
   document.documentElement.dataset.material = String(e.material ?? 'legacy').toLowerCase()
   document.documentElement.dataset.vidro = vidro ? '1' : '0'
   document.documentElement.dataset.parado = parado ? '1' : '0'
+  document.documentElement.dataset.capaPinta = e.artwork_paints_ui ? '1' : '0'
 
   set('--fundo-imagem', t.fundo ? `url("${t.fundo}")` : 'none')
   set('--fundo-opacidade', t.fundo_opacidade ?? 1)

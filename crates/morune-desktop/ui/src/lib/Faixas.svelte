@@ -5,6 +5,7 @@
   import Icone from './Icone.svelte'
   import { acao } from './motor.svelte'
   import { abrirMenu } from './contexto.svelte'
+  import { estourar } from './tema'
 
   let {
     faixas = [],
@@ -19,9 +20,14 @@
     fila?: boolean
     numerar?: boolean
   } = $props()
+
+  // A regua desliza ate a linha tocando. Toda linha tem a mesma altura, entao
+  // a posicao e so o indice vezes a altura: nada de medir o DOM.
+  const tocando = $derived(faixas.findIndex((f) => f.playing))
 </script>
 
 <div class="lista" class:sem-album={!album}>
+  {#if tocando >= 0}<span class="regua" aria-hidden="true" style:--i={tocando}></span>{/if}
   {#each faixas as f, i (f.id + ':' + i)}
     <div class="linha" class:tocando={f.playing} class:indisponivel={!f.playable}
       role="button" tabindex="0"
@@ -57,7 +63,7 @@
         {/if}
       {/if}
       <button class="cor" class:on={f.favorite} title={f.favorite ? 'Remover das curtidas' : 'Curtir'}
-        onclick={() => acao('toggle-favorite', f.id)}>
+        onclick={(ev) => { if (!f.favorite) estourar(ev.currentTarget as HTMLElement); acao('toggle-favorite', f.id) }}>
         <Icone nome="coracao" cheio={f.favorite} tamanho={18} />
       </button>
       <div class="d suave">{f.duration}</div>
@@ -67,7 +73,14 @@
 </div>
 
 <style>
-  .lista { display: flex; flex-direction: column; }
+  .lista { position: relative; display: flex; flex-direction: column; }
+  /* Regua na cor da capa, na borda esquerda da linha tocando. */
+  .regua {
+    position: absolute; left: 0; top: 0; width: 3px; height: 28px; margin-top: 16px; border-radius: 3px;
+    background: var(--acento); box-shadow: 0 0 10px var(--acento); pointer-events: none; z-index: 1;
+    transform: translateY(calc(var(--i) * 60px));
+    transition: transform 520ms cubic-bezier(0.34, 1.35, 0.64, 1), background var(--m-lento);
+  }
   .linha {
     display: grid; grid-template-columns: 36px 44px minmax(0, 3fr) minmax(0, 2fr) 34px 52px 34px;
     align-items: center; gap: var(--e-md); height: 60px; padding: 0 var(--e-sm);
@@ -91,9 +104,17 @@
   .linha:hover .cor, .linha:hover .mais, .cor.on { opacity: 1; }
   .cor.on { color: var(--acento); }
   .cor:hover, .mais:hover { color: var(--texto); }
-  .onda { display: flex; gap: 2px; align-items: flex-end; height: 14px; }
-  .onda i { width: 3px; background: var(--acento); border-radius: 2px; animation: onda 0.9s ease-in-out infinite alternate; }
-  .onda i:nth-child(2) { animation-delay: -0.3s; }
-  .onda i:nth-child(3) { animation-delay: -0.6s; }
-  @keyframes onda { from { height: 3px; } to { height: 14px; } }
+  /* Barras de som: cada uma oscila no seu ritmo, e o conjunto cresce com o
+     pulso da musica. So `transform`. Pausado, ficam baixas e paradas. */
+  .onda {
+    display: flex; gap: 2px; align-items: flex-end; height: 14px;
+    transform-origin: bottom; transform: scaleY(calc(0.35 + 0.65 * var(--nivel, 0.5)));
+    transition: transform 110ms linear;
+  }
+  .onda i { width: 3px; height: 100%; background: var(--acento); border-radius: 2px; transform-origin: bottom; animation: onda 0.8s ease-in-out infinite alternate; }
+  .onda i:nth-child(2) { animation-duration: 0.62s; animation-delay: -0.3s; }
+  .onda i:nth-child(3) { animation-duration: 0.95s; animation-delay: -0.5s; }
+  @keyframes onda { from { transform: scaleY(0.25); } to { transform: scaleY(1); } }
+  :global([data-tocando='0']) .onda i { animation-play-state: paused; }
+  .tocando { background: color-mix(in srgb, var(--acento) 9%, transparent); }
 </style>

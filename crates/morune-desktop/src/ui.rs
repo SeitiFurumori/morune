@@ -175,6 +175,8 @@ pub struct Estado {
     pub artwork_color: Cor,
     /// Cor viva da capa atual, sempre (mesmo sem `artwork_accent`): e a do brilho.
     pub capa_viva: Cor,
+    /// Cor viva da capa do detalhe aberto, para o cabecalho (`artwork_paints_ui`).
+    pub detail_cor: Cor,
     /// Endereco da miniatura desfocada da capa atual (fundo da capa).
     pub now_fundo: String,
     /// Nivel do som tocando agora, de 0 a 1, ja no tempo em que sai na caixa.
@@ -399,6 +401,7 @@ impl AppWindow {
     pub fn set_artwork_color(&self, v: Cor) { self.estado.borrow_mut().artwork_color = v.into(); }
     pub fn get_artwork_color(&self) -> Cor { self.estado.borrow().artwork_color.clone() }
     pub fn set_capa_viva(&self, v: Cor) { self.estado.borrow_mut().capa_viva = v; }
+    pub fn set_detail_cor(&self, v: Cor) { self.estado.borrow_mut().detail_cor = v; }
     pub fn set_now_fundo(&self, v: String) { self.estado.borrow_mut().now_fundo = v; }
     pub fn set_nivel(&self, v: f32) { self.estado.borrow_mut().nivel = v; }
     pub fn set_fundo(&self, v: Imagem) { self.estado.borrow_mut().fundo = v.into(); }

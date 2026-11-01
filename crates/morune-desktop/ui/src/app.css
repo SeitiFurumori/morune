@@ -78,4 +78,29 @@ img { display: block; }
 .botao:active { transform: scale(0.97); }
 .botao.primario { background: var(--texto); color: var(--sobre-texto); }
 
+/* A capa pinta o app (token `artwork_paints_ui`, so em quem pede): selecao,
+   foco e rolagem na cor da musica tocando. A cor ja chega com contraste
+   ajustado pelo motor (`tint::accent`). */
+[data-capa-pinta="1"] {
+  --selecionado: color-mix(in srgb, var(--acento) 24%, transparent);
+  --foco: var(--acento);
+}
+[data-capa-pinta="1"] ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--acento) 45%, transparent); background-clip: padding-box; }
+[data-capa-pinta="1"] ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--acento) 70%, transparent); background-clip: padding-box; }
+
+/* Toque: todo botao afunda um pouco ao clicar e volta com mola. `:where`
+   deixa a especificidade zero, entao quem ja tem transform proprio manda. */
+:where(button):active:not(:disabled) { transform: scale(0.95); }
+:where(button) { transition: transform 260ms cubic-bezier(0.3, 1.6, 0.5, 1); }
+
+/* Capa que voa (voo.svelte.ts): a capa viaja com leve passada do ponto; o
+   resto da tela so troca rapido, sem chamar atencao. */
+::view-transition-group(capa-voo) { animation-duration: 420ms; animation-timing-function: cubic-bezier(0.3, 1.15, 0.5, 1); z-index: 2; }
+::view-transition-old(capa-voo), ::view-transition-new(capa-voo) { height: 100%; object-fit: cover; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 180ms; }
+
+/* Curtir: o coracao estoura e assenta. */
+.estoura { animation: estoura 420ms cubic-bezier(0.3, 1.6, 0.5, 1); }
+@keyframes estoura { 0% { transform: scale(1); } 35% { transform: scale(1.35); } 100% { transform: scale(1); } }
+
 [data-parado="1"] * { transition: none !important; animation: none !important; }

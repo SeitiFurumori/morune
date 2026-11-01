@@ -65,3 +65,4 @@ artwork_tint_strength = 0.55
 artwork_accent        = true
 artwork_glow          = 0.55
 breathe               = true
+artwork_paints_ui     = true

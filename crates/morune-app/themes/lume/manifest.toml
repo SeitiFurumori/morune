@@ -1,7 +1,7 @@
 schema_version = 1
 id = "lume"
 name = "Lume"
-version = "1.0.4"
+version = "1.0.5"
 author = "Morune"
 appearance = "dark"
 description = "O padrao: grafite neutro, e toda a cor vem da capa da musica que esta tocando."

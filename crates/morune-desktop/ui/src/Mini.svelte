@@ -4,7 +4,7 @@
   import Capa from './lib/Capa.svelte'
   import Icone from './lib/Icone.svelte'
   import { acao, motor } from './lib/motor.svelte'
-  import { entrarComMola } from './lib/tema'
+  import { entrarComMola, estourar } from './lib/tema'
 
   const e = $derived(motor.e)
   let capaEl: HTMLElement | undefined = $state()
@@ -78,7 +78,7 @@
   </div>
 
   <div class="bts">
-    <button class="ic" class:on={e.now_favorite} title="Curtir" onclick={() => acao('toggle-favorite', e.now_id)}>
+    <button class="ic" class:on={e.now_favorite} title="Curtir" onclick={(ev) => { if (!e.now_favorite) estourar(ev.currentTarget as HTMLElement); acao('toggle-favorite', e.now_id) }}>
       <Icone nome="coracao" cheio={e.now_favorite} tamanho={18} />
     </button>
     <button class="ic" title="Anterior" onclick={() => acao('previous-track')}><Icone nome="anterior" cheio tamanho={20} /></button>

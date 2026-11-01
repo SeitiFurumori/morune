@@ -346,6 +346,10 @@ pub struct EffectTokens {
     /// O brilho da capa pulsa de leve com o volume da musica. Para com jogo em
     /// tela cheia e com movimento reduzido, como todo movimento.
     pub breathe: bool,
+    /// A cor da capa tinge o resto do app: cabecalho do detalhe, selecao,
+    /// anel de foco e barra de rolagem. Desligado por padrao, para que um
+    /// tema feito por outra pessoa nao mude de cor sem ter pedido.
+    pub artwork_paints_ui: bool,
 }
 
 impl Default for EffectTokens {
@@ -363,6 +367,7 @@ impl Default for EffectTokens {
             artwork_accent: false,
             artwork_glow: 0.45,
             breathe: false,
+            artwork_paints_ui: false,
         }
     }
 }

@@ -1,13 +1,17 @@
 <script lang="ts">
   import Capa from './Capa.svelte'
   import Icone from './Icone.svelte'
-  import { acao } from './motor.svelte'
+  import { acao, motor, Pagina } from './motor.svelte'
+  import { abrirVoando, voo } from './voo.svelte'
   let { item, redonda = false }: { item: any; redonda?: boolean } = $props()
   const artista = $derived(redonda || String(item.id).startsWith('artist/'))
+  let arte: HTMLElement | undefined = $state()
+  // Na volta do detalhe, este cartao e o destino da capa que voou dele.
+  const destino = $derived(voo.alvo === item.id && motor.e.page !== Pagina.Detalhe)
 </script>
 
-<button class="cartao" onclick={() => acao('play-track', item.id)} title={item.title}>
-  <div class="arte">
+<button class="cartao" onclick={() => abrirVoando(String(item.id), arte ?? null, () => acao('play-track', item.id))} title={item.title}>
+  <div class="arte" bind:this={arte} style:view-transition-name={destino ? 'capa-voo' : undefined}>
     <Capa src={item.cover} inicial={item.initial} matiz={item.hue} pendente={item.cover_pending}
       redonda={artista} curtidas={item.id === 'liked'} />
     <span class="tocar" aria-hidden="true"><Icone nome="tocar" cheio tamanho={22} /></span>

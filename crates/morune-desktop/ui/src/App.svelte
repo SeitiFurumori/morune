@@ -11,6 +11,7 @@
   import Configuracoes from './paginas/Configuracoes.svelte'
   import Mini from './Mini.svelte'
   import { acao, motor, Pagina } from './lib/motor.svelte'
+  import { voltarVoando } from './lib/voo.svelte'
 
   const e = $derived(motor.e)
   let conteudo: HTMLElement | undefined = $state()
@@ -18,6 +19,13 @@
   // A cor viva da capa vira o acento; sem capa, o do tema.
   $effect(() => {
     document.documentElement.style.setProperty('--acento', e.live_accent || 'var(--acento-tema)')
+  })
+  // O pulso da musica (0 a 1) para quem quiser se mexer com ela: as barras da
+  // faixa tocando. Pausado, zero; sem medicao (tema parado, jogo), meio-termo.
+  $effect(() => {
+    const r = document.documentElement
+    r.style.setProperty('--nivel', String(e.playing ? (e.nivel ?? 0.5) : 0))
+    r.dataset.tocando = e.playing ? '1' : '0'
   })
   // Escondida ou com jogo em tela cheia: nada se mexe.
   $effect(() => {
@@ -43,11 +51,11 @@
     else if (ev.ctrlKey && ev.key.toLowerCase() === 'l') { ev.preventDefault(); acao('navigate', Pagina.Busca) }
     else if (ev.ctrlKey && ev.key.toLowerCase() === 's') { ev.preventDefault(); acao('toggle-shuffle') }
     else if (ev.ctrlKey && ev.key.toLowerCase() === 'r') { ev.preventDefault(); acao('cycle-repeat') }
-    else if (ev.key === 'Escape' && e.page === Pagina.Detalhe) acao('detail-back')
+    else if (ev.key === 'Escape' && e.page === Pagina.Detalhe) voltarVoando(() => acao('detail-back'))
   }
   // Botoes laterais do mouse voltam do Detalhe, como num navegador.
   function mouse(ev: MouseEvent) {
-    if (ev.button === 3 && e.page === Pagina.Detalhe) acao('detail-back')
+    if (ev.button === 3 && e.page === Pagina.Detalhe) voltarVoando(() => acao('detail-back'))
   }
 </script>
 
@@ -123,10 +131,11 @@
     backdrop-filter: blur(var(--vidro-desfoque));
   }
   .lateral-wrap { background: var(--lateral); display: flex; flex-direction: column; overflow: hidden; }
-  .conteudo { background: var(--superficie); overflow-y: auto; scroll-behavior: smooth; }
-  .pagina { padding: var(--e-xl); max-width: 1500px; }
+  .conteudo { background: var(--superficie); overflow-y: auto; overflow-x: hidden; scroll-behavior: smooth; }
+  /* `isolation`: a tinta do Detalhe fica atras do conteudo, nao do painel. */
+  .pagina { position: relative; isolation: isolate; padding: var(--e-xl); max-width: 1500px; }
   .player-wrap { grid-column: 1 / 3; background: var(--player); }
-  .entra { animation: entra var(--m-normal) var(--saida); }
+  .entra { position: relative; animation: entra var(--m-normal) var(--saida); }
   @keyframes entra { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
   .aviso {
     position: fixed; left: 50%; bottom: 104px; transform: translateX(-50%); z-index: 40;

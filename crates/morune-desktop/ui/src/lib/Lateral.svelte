@@ -21,7 +21,9 @@
 
 <aside class="lateral" class:recolhida>
   <div class="marca"><span class="logo"></span><span class="nome">Morune</span></div>
-  <nav>
+  <!-- A pilula do item ativo e uma so e desliza entre eles com mola. -->
+  <nav style:--ativo={nav.findIndex((n) => n.p === e.page)}>
+    <span class="pilula" class:some={!nav.some((n) => n.p === e.page)} aria-hidden="true"></span>
     {#each nav as n}
       <button class="item" class:ativo={e.page === n.p} onclick={() => acao('navigate', n.p)}>
         <Icone nome={n.icone} tamanho={22} /><span>{n.nome}</span>
@@ -69,6 +71,17 @@
   .item { display: flex; align-items: center; gap: var(--e-md); width: 100%; height: 42px; padding: 0 var(--e-sm); border-radius: var(--r-sm); color: var(--texto-suave); font-weight: var(--peso-medio); transition: background var(--m-rapido), color var(--m-rapido); }
   .item:hover { color: var(--texto); background: var(--hover); }
   .item.ativo { color: var(--texto); background: var(--selecionado); }
+  nav { position: relative; display: flex; flex-direction: column; gap: var(--e-xs); }
+  nav .item { position: relative; z-index: 1; }
+  nav .item.ativo { background: none; }
+  nav .item.ativo:hover { background: none; }
+  .pilula {
+    position: absolute; left: 0; right: 0; top: 0; height: 42px; border-radius: var(--r-sm);
+    background: var(--selecionado); pointer-events: none;
+    transform: translateY(calc(var(--ativo) * (42px + var(--e-xs))));
+    transition: transform 460ms cubic-bezier(0.34, 1.3, 0.64, 1), opacity var(--m-rapido);
+  }
+  .pilula.some { opacity: 0; }
   .cab { display: flex; align-items: center; gap: var(--e-xs); margin-top: var(--e-md); padding: 0 var(--e-xs); }
   .campo.pequeno { height: 34px; flex: 1; font-size: var(--t-sm); }
   .icone { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 99px; color: var(--texto-suave); }

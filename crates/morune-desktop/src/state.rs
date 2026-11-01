@@ -322,6 +322,12 @@ pub struct AppState {
     /// quando a capa muda -- recalcular ali dentro reabriria a imagem dez vezes
     /// por segundo.
     now_tint: (Option<std::path::PathBuf>, Option<ui::Cor>),
+    /// Cor da capa do detalhe, guardada por caminho: o detalhe e enviado a
+    /// cada mudanca, e abrir a imagem toda vez seria trabalho jogado fora.
+    detail_tint: std::cell::RefCell<(Option<std::path::PathBuf>, Option<ui::Cor>)>,
+    /// Onde a musica parou na ultima vez, esperando o motor para voltar la.
+    retomada: Option<crate::retomar::Retomada>,
+    retomada_gravada: Instant,
     /// Miniatura desfocada da capa atual, para o fundo da capa (`tint::fundo`).
     now_fundo: Option<std::path::PathBuf>,
     /// Historico local: tocadas recentemente, buscas recentes, escondidas.
@@ -428,6 +434,7 @@ impl AppState {
             sidebar_collapsed: false,
         };
 
+        let retomada = crate::retomar::ler(paths.data_dir());
         let mut queue = Queue::new();
         queue.set_shuffle(config.playback.shuffle);
         queue.set_repeat(config.playback.repeat);
@@ -517,6 +524,9 @@ impl AppState {
             account_avatar: (String::new(), None),
             now_cover: (String::new(), None),
             now_tint: (None, None),
+            detail_tint: Default::default(),
+            retomada,
+            retomada_gravada: Instant::now(),
             now_fundo: None,
             history,
             sleep: None,
@@ -676,6 +686,7 @@ impl AppState {
                 self.player_events = Some(engine.subscribe());
                 self.engine = engine;
                 self.restore_recreated_engine();
+                self.retomar();
             }
             if self.session.state().is_logged_in() {
                 // A tela aberta na hora do login precisa se preencher sozinha:
@@ -3655,6 +3666,51 @@ impl AppState {
 
     // ---- persistencia ----
 
+    /// Volta a faixa e a posicao da ultima vez, pausada. Uma vez so: depois
+    /// do primeiro motor, quem manda e a fila de agora.
+    fn retomar(&mut self) {
+        if !self.queue.is_empty() {
+            self.retomada = None;
+            return;
+        }
+        let Some(r) = self.retomada.take() else {
+            return;
+        };
+        let posicao = r.posicao();
+        self.queue.set_context(r.origem, r.faixas, Some(r.atual));
+        let Some(track) = self.queue.current().cloned() else {
+            return;
+        };
+        tracing::info!(faixa = %track.name, posicao_s = posicao.as_secs(), "retomando de onde parou");
+        self.playing = false;
+        self.seek_target = Some(posicao);
+        self.send(PlayerCommand::Load {
+            track,
+            start_paused: true,
+        });
+        self.send(PlayerCommand::Seek(posicao));
+        self.resolve_now_cover();
+        self.refresh_tint();
+    }
+
+    /// Grava onde a musica esta. Sem `forcar`, no maximo a cada 15 s e so
+    /// tocando: parado, o que esta gravado ja e o ponto certo.
+    pub fn gravar_retomada(&mut self, forcar: bool) {
+        if !forcar && (!self.playing || self.retomada_gravada.elapsed() < Duration::from_secs(15)) {
+            return;
+        }
+        let Some(atual) = self.queue.current_context_index() else {
+            return;
+        };
+        let posicao = self.shown_position(&self.engine.snapshot());
+        if let Some(r) =
+            crate::retomar::Retomada::de(self.queue.origin(), self.queue.tracks(), atual, posicao)
+        {
+            crate::retomar::gravar(self.paths.data_dir(), &r);
+        }
+        self.retomada_gravada = Instant::now();
+    }
+
     pub fn save_config(&self) {
         if let Err(e) = self.config.save(&self.paths.config_file()) {
             tracing::error!(error = %e, "falha ao salvar configuracao");
@@ -3753,6 +3809,21 @@ impl AppState {
             window.set_detail_kind(detail.kind.as_str().into());
             window.set_detail_save_label(self.detail_save_label().into());
             window.set_detail_cover(cover_image(detail.cover_path.as_deref()));
+            let cor = {
+                let mut cache = self.detail_tint.borrow_mut();
+                if cache.0 != detail.cover_path {
+                    let pinta = self.spec().effects.artwork_paints_ui;
+                    let cor = detail
+                        .cover_path
+                        .as_deref()
+                        .filter(|_| pinta)
+                        .and_then(crate::tint::dominant)
+                        .and_then(crate::tint::accent);
+                    *cache = (detail.cover_path.clone(), cor);
+                }
+                cache.1.clone()
+            };
+            window.set_detail_cor(cor.unwrap_or(self.spec().colors.accent.into()));
             let (initial, hue) = cover_badge(&detail.title);
             window.set_detail_cover_initial(initial);
             window.set_detail_cover_hue(hue);

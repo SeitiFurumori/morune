@@ -4,6 +4,7 @@
   import Icone from '../lib/Icone.svelte'
   import Prateleira from '../lib/Prateleira.svelte'
   import { acao, motor } from '../lib/motor.svelte'
+  import { voltarVoando } from '../lib/voo.svelte'
   const e = $derived(motor.e)
   let filtro = $state('')
   const ordens = ['Ordem da lista', 'Título', 'Artista', 'Álbum', 'Duração']
@@ -20,10 +21,13 @@
   })
 </script>
 
-<button class="voltar" onclick={() => acao('detail-back')}><Icone nome="voltar" />Voltar</button>
+<!-- Com `artwork_paints_ui`, o topo da pagina ganha a cor da capa aberta. -->
+<div class="tinta" aria-hidden="true" style:--cor-detalhe={e.detail_cor}></div>
+
+<button class="voltar" onclick={() => voltarVoando(() => acao('detail-back'))}><Icone nome="voltar" />Voltar</button>
 
 <header class="cab">
-  <div class="arte">
+  <div class="arte" style:view-transition-name="capa-voo">
     <Capa src={e.detail_cover} inicial={e.detail_cover_initial} matiz={e.detail_cover_hue}
       pendente={e.detail_cover_pending} redonda={artista} curtidas={e.detail_kind === 'liked'} />
   </div>
@@ -56,6 +60,15 @@
 <Prateleira titulo="Relacionados" itens={e.detail_related} />
 
 <style>
+  .tinta { display: none; }
+  :global([data-capa-pinta='1']) .tinta {
+    /* Por cima do respiro da pagina (`.pagina` tem padding --e-xl) e alem da
+       largura maxima dela, ate a borda do painel, que corta o que sobra. */
+    display: block; position: absolute; inset: calc(-1 * var(--e-xl)) -100vw auto calc(-1 * var(--e-xl)); height: 440px; pointer-events: none; z-index: -1;
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--cor-detalhe) 38%, transparent), transparent);
+    animation: aparece-tinta var(--m-lento) ease-out;
+  }
+  @keyframes aparece-tinta { from { opacity: 0; } }
   .voltar { display: inline-flex; align-items: center; gap: 6px; color: var(--texto-suave); font-weight: var(--peso-medio); margin-bottom: var(--e-md); }
   .voltar:hover { color: var(--texto); }
   .cab { display: flex; align-items: flex-end; gap: var(--e-xl); margin-bottom: var(--e-xl); }

@@ -22,6 +22,7 @@ mod material;
 mod notify;
 mod oculta;
 mod registro;
+mod retomar;
 mod session;
 mod smtc;
 mod startup;
@@ -178,7 +179,10 @@ fn main() -> anyhow::Result<()> {
                 }
             }
             tauri::RunEvent::Exit => {
-                com_motor(|m| m.state.save_config());
+                com_motor(|m| {
+                    m.state.gravar_retomada(true);
+                    m.state.save_config();
+                });
                 let _ = app;
             }
             _ => {}
@@ -490,6 +494,7 @@ fn fechar_menu_bandeja(app: &AppHandle) {
 fn giro(app: &AppHandle) {
     com_motor(|m| {
         let mut mudou = m.state.poll_backend();
+        m.state.gravar_retomada(false);
 
         if let Some(hk) = m.hotkeys.as_ref() {
             for c in hk.poll() {
@@ -700,7 +705,11 @@ fn executar(app: &AppHandle, m: &mut Motor, nome: &str, a: &[Value]) -> Result<(
         "navigate" => s.navigate(inteiro(a, 0)),
         "search" => s.search(&texto(a, 0)),
         "play-track" | "open" => s.play_track(&texto(a, 0)),
-        "toggle-play" => s.toggle_play(),
+        // Pausar grava o ponto: parado, o giro nao grava mais.
+        "toggle-play" => {
+            s.toggle_play();
+            s.gravar_retomada(true);
+        }
         "stop-playback" => s.stop(),
         "next-track" => s.next_track(),
         "previous-track" => s.previous_track(),
@@ -811,6 +820,7 @@ fn executar(app: &AppHandle, m: &mut Motor, nome: &str, a: &[Value]) -> Result<(
             });
         }
         "sair" => {
+            s.gravar_retomada(true);
             s.save_config();
             app.exit(0);
         }
