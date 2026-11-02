@@ -9,7 +9,7 @@ conhecer o aplicativo, comece pelo README ([inglês](../README.md) ou
 | Documento | Finalidade |
 |---|---|
 | [Roadmap](ROADMAP.md) | Próximos ciclos e ordem de prioridade |
-| [Auditoria de UX](UX_AUDIT.md) | Problemas encontrados, correções e pendências |
+| [Auditoria de UX da 1.0](archive/UX_AUDIT-1.0-slint.md) | Problemas encontrados na tela em Slint (1.0) |
 | [Performance](PERFORMANCE.md) | Metas, método e medições reais |
 
 ## Engenharia

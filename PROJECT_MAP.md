@@ -2,183 +2,123 @@
 
 ## 1. Visão geral
 
-- Morune é um cliente nativo de música para Windows, implementado em Rust.
-- A interface é declarativa e compilada com Slint; não há frontend web, CSS ou WebView.
-- O workspace separa contratos e modelos (morune-core), tema (morune-theme), persistência (morune-storage), integração Spotify (morune-spotify) e composição da aplicação (morune-app).
-- AppState é o orquestrador central da UI, sessão, navegação, dados, fila e reprodução.
-- A integração Spotify usa OAuth PKCE, librespot, protocolo interno Spotify e Pathfinder HTTP.
-- A reprodução é assíncrona: comandos entram em SpotifyEngine e eventos retornam por broadcast para a aplicação.
-- Temas e layouts são configuráveis por TOML, com suporte a packs .musicpack, herança e hot reload.
-- Configurações, credenciais, cache de artwork/áudio e estado de janela são tratados localmente.
-- A janela pode ser ocultada para a bandeja; o backend continua sendo processado enquanto a UI está oculta.
+- Otomori (até a 1.0, Morune) é um player de Spotify para Windows: motor em
+  Rust e tela web servida pelo WebView2 do Windows, via Tauri 2.
+- O workspace separa contratos e modelos (`morune-core`), tema
+  (`morune-theme`), persistência (`morune-storage`), integração Spotify
+  (`morune-spotify`) e o app (`morune-desktop`). Os nomes dos crates ficaram
+  como eram; só o produto mudou de nome.
+- `AppState` (`morune-desktop/src/state.rs`) é o motor da tela: sessão,
+  navegação, dados, fila e reprodução. A tela web só desenha o estado que
+  recebe e pede ações.
+- A integração Spotify usa OAuth PKCE, librespot, o protocolo interno do
+  Spotify e o Pathfinder do player web.
+- Temas são dados TOML (cores, fonte, forma, movimento, efeitos), aplicados
+  pela tela como variáveis CSS. Pacotes `.musicpack` para trocar temas.
+- Fechada para a bandeja, a tela é destruída e sobra o motor tocando; com jogo
+  ou vídeo em tela cheia, toda animação para.
 
 ## 2. Stack
 
 | Área | Tecnologia |
 |---|---|
-| Linguagem | Rust 2021; rust-version 1.92 |
-| Build e pacotes | Cargo; workspace com resolver 2; Cargo.lock |
-| UI | Slint 1.17, backend Winit, renderers FemtoVG/software, AccessKit |
-| Concorrência | Tokio multi-thread, futures, canais mpsc/broadcast |
-| Áudio | librespot, rodio/cpal e MoruneSink customizado |
-| Spotify | OAuth 2.0 PKCE, login5/librespot, Pathfinder GraphQL/JSON, protobuf |
-| HTTP | reqwest, http e cliente autenticado compartilhado |
-| Serialização | serde, serde_json, TOML |
-| Persistência | arquivos TOML, diretórios de aplicação e Windows Credential Manager |
-| Plataforma | Windows; toolchain GNU MinGW; tray, mídia, taskbar e startup integrados |
-| Empacotamento | scripts de build, recursos Windows e instalador em installer/ |
+| Linguagem | Rust 2021 (rust-version 1.92); TypeScript na tela |
+| Tela | Tauri 2 + WebView2; Svelte 5 + Vite 6 em `crates/morune-desktop/ui` |
+| Build | Cargo workspace; npm (`npm ci && npm run build` antes do cargo) |
+| Concorrência | Tokio multi-thread, canais mpsc/broadcast |
+| Áudio | librespot, rodio/cpal e sink próprio |
+| Spotify | OAuth 2.0 PKCE, login5, Pathfinder GraphQL, protobuf |
+| HTTP | reqwest |
+| Persistência | TOML em `%APPDATA%\otomori`, Gerenciador de Credenciais do Windows |
+| Plataforma | Windows; toolchain GNU MinGW; crate `windows` para painel de mídia, barra de tarefas, notificações, atalhos e acrílico |
+| Empacotamento | NSIS (`installer/otomori.nsi`) via `tools/build-installer.ps1`; release no GitHub Actions |
 
-Dependências locais:
-
-morune-app depende de morune-core, morune-theme, morune-storage e
-morune-spotify. morune-storage depende de morune-core e morune-theme;
-morune-spotify depende de morune-core; morune-core e morune-theme não
-dependem da UI.
-
-Dependências externas mais relevantes: slint, slint-build, tokio, serde, toml,
-reqwest, tracing, anyhow, thiserror, directories, rfd, tray-icon,
-raw-window-handle, windows, librespot-*, rodio, oauth2, protobuf, sha2 e open.
+Dependências locais: `morune-desktop` depende de todos os outros;
+`morune-storage` depende de `morune-core` e `morune-theme`; `morune-spotify`
+depende de `morune-core`; `morune-core` e `morune-theme` não conhecem a tela.
 
 ## 3. Estrutura principal
 
-    Cargo.toml / Cargo.lock
-    ├── crates/
-    │   ├── morune-core/src/
-    │   │   ├── lib.rs, model.rs, catalog.rs, playback.rs, queue.rs
-    │   │   ├── auth.rs
-    │   │   └── error.rs
-    │   ├── morune-theme/src/
-    │   │   ├── lib.rs, spec.rs, tokens.rs, layout.rs, loader.rs
-    │   │   ├── manifest.rs, pack.rs, icons.rs, color.rs
-    │   │   └── watch.rs
-    │   ├── morune-storage/src/
-    │   │   ├── lib.rs, paths.rs, config.rs
-    │   │   ├── credentials.rs
-    │   │   └── favorites.rs
-    │   ├── morune-spotify/src/
-    │   │   ├── lib.rs, runtime.rs, engine.rs, catalog.rs
-    │   │   ├── auth.rs, token.rs, internal.rs
-    │   │   ├── pathfinder.rs, graphql.rs, artwork.rs
-    │   │   └── sink.rs
-    │   └── morune-app/
-    │       ├── build.rs, Cargo.toml
-    │       ├── src/main.rs, state.rs, session.rs, browse.rs
-    │       ├── src/theme_bridge.rs, artwork.rs, wallpaper.rs, tint.rs
-    │       ├── src/tray.rs, tray_menu.rs, update.rs
-    │       ├── src/taskbar.rs, smtc.rs, startup.rs
-    │       └── ui/app.slint, components.slint, theme.slint
-    ├── assets/                         # recursos de marca e distribuição
-    ├── docs/                           # arquitetura e documentação
-    ├── installer/                      # empacotamento/instalador
-    ├── plans/                          # planos de trabalho
-    ├── tools/                          # ferramentas auxiliares
-    └── vendor/librespot-core/          # patch local do librespot
+```
+crates/
+  morune-core/       modelo, fila, contratos (sem UI, sem rede, sem disco)
+  morune-theme/      ThemeSpec, carregamento, validação, .musicpack
+  morune-storage/    caminhos (e cópia da pasta do Morune), config, cofre
+  morune-spotify/    login, reprodução, catálogo e biblioteca
+  morune-desktop/
+    src/             o motor: main.rs (fiação, laço, janelas), state.rs
+                     (AppState), ui.rs (retrato do estado em JSON), browse.rs,
+                     session.rs, módulos do Windows
+    ui/src/          a tela: App.svelte, Mini.svelte, MenuBandeja.svelte,
+                     paginas/, lib/
+    themes/          Lume, Vidro, Grade, Claro (gravados na primeira execução)
+    examples/        sondas que conferem dados reais da conta
+installer/           otomori.nsi
+tools/               build-installer, licenças, assinatura, env.ps1
+vendor/              librespot-core com patch local
+docs/                arquitetura, temas, ADRs, publicação
+```
 
-morune-app é o binário morune, com entrada em crates/morune-app/src/main.rs.
-O build script compila a UI Slint, injeta a tag de release e prepara recursos
-de bandeja/Windows. A compilação principal usa crates/morune-app/ui/app.slint.
+## 4. Janelas e páginas
 
-target/, dist/ e bench-out/ são saídas geradas e não fazem parte do mapa de
-implementação.
-
-## 4. Rotas e páginas
-
-Não há roteador por URL. A navegação usa o enum Page em state.rs, cujo valor
-numérico é contrato com a propriedade page do Slint.
-
-| Rota/Tela | Arquivo | Função |
+| Janela | Arquivo | Papel |
 |---|---|---|
-| page = 0 — Home | crates/morune-app/ui/app.slint | Prateleiras de recomendações, estações, retrospectivas, playlists e curtidas |
-| page = 1 — Search | crates/morune-app/ui/app.slint | Campo de busca, faixas e cards de álbuns/artistas/playlists |
-| page = 2 — Library | crates/morune-app/ui/app.slint | Álbuns salvos e artistas seguidos, com estados vazio/login |
-| page = 3 — Settings | crates/morune-app/ui/app.slint | Conta, áudio, aparência, janela, temas, diagnóstico e atualização |
-| page = 4 — Queue | crates/morune-app/ui/app.slint | Fila manual, contexto atual, reordenação, remoção, limpeza e undo |
-| page = 5 — Detail | crates/morune-app/ui/app.slint | Detalhe de álbum, playlist, artista ou curtidas; faixas paginadas |
-| Mini-player | crates/morune-app/ui/app.slint | Modo compacto da mesma janela/player, controlado pelo estado de janela |
-| Menu da bandeja | crates/morune-app/ui/app.slint | Janela separada com faixa atual, play/pause, anterior, próxima e volume |
+| Principal | `ui/src/App.svelte` | lateral, página atual, player |
+| Mini player | `ui/src/Mini.svelte` | capa, controles, fixar por cima, buscar |
+| Menu da bandeja | `ui/src/MenuBandeja.svelte` | faixa, controles e volume com a janela fechada |
 
-AppState abre detalhes a partir de tags de destino (track, album, playlist,
-artist e liked). Search, Home, Library, Detail e Context são solicitações
-internas de dados, não rotas independentes.
+Páginas (`ui/src/paginas/`): Início, Busca, Biblioteca, Detalhe (álbum,
+playlist, artista), Fila, Configurações. `MORUNE_START_PAGE` abre direto numa
+delas (0 Início, 1 Busca, 2 Biblioteca, 3 Configurações, 4 Fila, 5 Detalhe).
 
-## 5. Componentes principais
+## 5. Componentes da tela
 
-| Componente | Arquivo | Responsabilidade |
-|---|---|---|
-| AppWindow | crates/morune-app/ui/app.slint | Janela raiz, composição de páginas, callbacks e propriedades da UI |
-| SidebarShell / Sidebar | crates/morune-app/ui/app.slint | Navegação, conta, playlists, filtros e colapso da barra lateral |
-| PlayerBar | crates/morune-app/ui/app.slint | Artwork, faixa atual, transporte, seek, volume, shuffle/repeat e fila |
-| HomePage | crates/morune-app/ui/app.slint | Composição das prateleiras da Home |
-| SearchPage | crates/morune-app/ui/app.slint | Resultados de busca |
-| LibraryPage | crates/morune-app/ui/app.slint | Biblioteca e artistas seguidos |
-| DetailPage | crates/morune-app/ui/app.slint | Cabeçalho, filtros, ordenação e lista progressiva do detalhe |
-| QueuePage / ManagedQueueShelf | crates/morune-app/ui/app.slint | Fila gerenciável, próximos itens e ações de fila |
-| SettingsPage | crates/morune-app/ui/app.slint | Configurações e gerenciamento de temas |
-| Card / CardCollection | crates/morune-app/ui/app.slint | Cards e coleções de entidades |
-| TrackList / TrackListRow | crates/morune-app/ui/app.slint | Listas de faixas e ações por faixa |
-| ScrollableCardShelf / TrackShelf | crates/morune-app/ui/app.slint | Prateleiras horizontais de cards ou faixas |
-| TrayMenuWindow | crates/morune-app/ui/app.slint | Superfície compacta de controles da bandeja |
-| Controles compartilhados | crates/morune-app/ui/components.slint | Botões, toggles, slider, busca, artwork, materiais e superfícies |
-| Theme / Layout / Brand | crates/morune-app/ui/theme.slint | Globals visuais consumidos pelos componentes |
+`ui/src/lib/`: `Player` (barra de reprodução; `Onda` desenha a música),
+`Lateral`, `Faixas` (lista com arrastar para reordenar), `Prateleira` e
+`Cartao`, `Capa`, `Fundo` (imagem, GIF ou vídeo, que para com jogo), `Menu`,
+`Marca`, `Icone`. Estado e ajudas: `motor.svelte.ts` (recebe o estado),
+`tema.ts` (tema em variáveis CSS), `cores.ts`, `voo.svelte.ts` (capa que voa),
+`contexto.svelte.ts`.
 
-## 6. Estado global
+## 6. Estado e comunicação
 
-AppState em crates/morune-app/src/state.rs concentra o estado de aplicação e é
-manipulado no fluxo de callbacks da thread da UI. Não há Redux, store,
-Context ou hooks de frontend.
-
-Principais grupos de estado:
-
-- Navegação: Page, detalhe aberto, filtro/ordenação de detalhe, status, retry
-  e undo.
-- Sessão: Session, usuário, avatar, login/logout, falha e conexão perdida.
-- Player: Arc<dyn PlaybackEngine>, snapshot/event receiver, volume,
-  reprodução, seek otimista, artwork atual e cor dominante.
-- Fila: morune_core::Queue, origem/contexto, shuffle, repeat, histórico,
-  itens manuais e autoplay.
-- Conteúdo: resultados de busca, Home, Library, detalhes, cards, liked IDs,
-  carregamento progressivo e pendências.
-- Configuração: Config, tema carregado, overrides, wallpaper, janela,
-  dispositivos de saída e updater.
-
-Os dados são projetados para propriedades e modelos Slint por push_to_ui;
-atualizações rápidas do player usam push_playback. A comunicação assíncrona
-chega por canais e é coletada por polling no loop da aplicação.
-
-Session em crates/morune-app/src/session.rs mantém o ciclo de vida do backend
-Spotify e seleciona NullEngine antes do login ou quando não existe engine
-autenticado.
+- O motor mora num `RefCell` na linha principal (`com_motor` em `main.rs`).
+  Mexer em janela por dentro dele faz o Windows reentrar e travar a tela: isso
+  vai para `depois()`.
+- Uma linha de fundo acorda o motor a cada 100 ms (`GIRO`); o progresso vai a
+  cada 250 ms.
+- Comandos da tela: `estado_inicial`, `acao(nome, args)`, `pronta`.
+- Eventos para a tela: `estado` (só os campos que mudaram), `tema`,
+  `tela_cheia`, `visibilidade`.
 
 ## 7. Player
 
 ### Superfícies
 
-- PlayerBar concentra controles na janela principal.
-- TrayMenuWindow expõe controles reduzidos quando a aplicação está na bandeja.
-- A UI também recebe integração de mídia, teclas e taskbar pelos módulos Windows
-  de morune-app/src/.
+- `Player.svelte` na janela principal; `Mini.svelte`; `MenuBandeja.svelte`.
+- Painel de mídia do Windows (`smtc.rs`), botões na miniatura da barra de
+  tarefas (`taskbar.rs`), teclas de atalho (`hotkeys.rs`) e notificação de
+  troca de faixa (`notify.rs`).
 
 ### Fluxo de comandos e eventos
 
-    Slint callback
-      -> main.rs
+    clique na tela
+      -> acao(nome, args)  (comando Tauri)
       -> AppState
       -> PlaybackEngine::send
       -> canal Tokio
       -> SpotifyEngine
-      -> librespot Player / MoruneSink
+      -> librespot Player
 
     librespot
       -> SpotifyEngine traduz eventos
       -> broadcast PlayerEvent
-      -> AppState::poll_backend
-      -> push_playback / push_to_ui
-      -> PlayerBar e TrayMenuWindow
+      -> AppState::poll_backend (no GIRO)
+      -> evento `estado` com o que mudou
+      -> Player, Mini e MenuBandeja
 
-O polling do backend ocorre aproximadamente a cada 100 ms. O tick visual de
-posição ocorre aproximadamente a cada 250 ms, apenas quando a janela está
-visível e há reprodução. O backend continua sendo consultado quando a janela
-está oculta para preservar sessão, eventos e bandeja.
+Sem conexão, os comandos não vão para o motor morto: a intenção fica na fila
+e em `playing`, e `restore_recreated_engine` a refaz quando a sessão volta.
 
 ### Contratos
 
@@ -216,15 +156,15 @@ preload_next adianta o próximo item sem alterar a posição.
 
 | Área | Arquivo(s) | Função |
 |---|---|---|
-| Orquestração de conteúdo | morune-app/src/browse.rs | Busca, Home, Library, detalhes, páginas adicionais, artwork e autoplay |
-| Ciclo de sessão | morune-app/src/session.rs | Restore, login, logout, reconexão e criação do engine |
+| Orquestração de conteúdo | morune-desktop/src/browse.rs | Busca, Home, Library, detalhes, páginas adicionais, artwork e autoplay |
+| Ciclo de sessão | morune-desktop/src/session.rs | Restore, login, logout, reconexão e criação do engine |
 | Backend runtime | morune-spotify/src/runtime.rs | Runtime Tokio dedicado, sessão compartilhada, catalog/library/artwork e áudio |
 | Catálogo Spotify | morune-spotify/src/catalog.rs | Implementa Catalog e Library do core |
 | Protocolo interno | morune-spotify/src/internal.rs | Rootlist, playlists, coleções, metadados, artistas e rádio via librespot |
 | Busca e mutação | morune-spotify/src/pathfinder.rs, graphql.rs | searchDesktop, addToLibrary e removeFromLibrary |
 | Autenticação | morune-spotify/src/auth.rs, token.rs | OAuth PKCE, refresh token e sessão login5 |
 | Artwork remoto | morune-spotify/src/artwork.rs | Download autenticado/validado de imagens Spotify |
-| Cache de artwork | morune-app/src/artwork.rs | Download assíncrono e cache local de capas/avatar |
+| Cache de artwork | morune-desktop/src/artwork.rs | Download assíncrono e cache local de capas/avatar |
 | Persistência | morune-storage/src/paths.rs, config.rs, credentials.rs | Caminhos, TOML e credencial do sistema |
 
 ### Spotify e autenticação
@@ -263,130 +203,56 @@ preload_next adianta o próximo item sem alterar a posição.
 
 ### Persistência local
 
-| Dado | Local padrão | Responsável |
+Caminhos dentro de `%APPDATA%\otomori\Otomori`; o cache fica em
+`%LOCALAPPDATA%\otomori\Otomori`. Na primeira abertura da 2.0, config e dados
+vêm copiados de `%APPDATA%\morune\Morune` (`AppPaths::migrate_from_morune`).
+
+| Dado | Local | Responsável |
 |---|---|---|
 | Configuração | config/config.toml | morune-storage::Config |
 | Temas importados | config/themes/ | morune-theme::loader |
 | Refresh token | Windows Credential Manager | morune-storage::CredentialStore |
-| Artwork | cache/artwork/ | morune-app::ArtworkCache |
+| Artwork | cache/artwork/ | morune-desktop::ArtworkCache |
 | Áudio | cache/audio/ | Spotify/librespot |
 | Atualizações | cache/updates/ | updater da aplicação |
 | Backgrounds/owned assets | data/backgrounds/ | wallpaper/configuração |
-| Log | data/morune.log | inicialização/tracing |
+| Log | data/otomori.log | inicialização/tracing |
+| Ordem das curtidas, retomar, buscas recentes | data/ordem-curtidas.json, data/retomar.json, data/ | ordem_curtidas.rs, retomar.rs, recentes_busca.rs |
 | Favoritos locais | data/favorites.toml | morune-storage::Favorites, sem uso ativo identificado |
 
 ## 9. Sistema visual
 
-- A camada visual é composta por theme.slint, components.slint, app.slint e
-  morune-app/src/theme_bridge.rs.
-- Theme, Layout e Brand são globals Slint; os componentes consomem
-  propriedades semânticas, não cores fixas por página.
-- ThemeSpec combina manifest, cores, tipografia, formas, controles, motion,
-  efeitos, background e layout.
-- Tokens incluem cores semânticas, família/tamanho/peso de fonte, escala,
-  espaçamento, raios, bordas, progress/scrollbar, duração/easing, opacidade,
-  acrylic, blur, sombra, tint e background.
-- `effects.material` distingue `legacy`, `aero` e `liquid`, independentemente
-  de `gloss`. Pacotes sem esse campo preservam a seleção antiga. A ponte
-  `theme_bridge.rs` traduz a família para `Theme.material-kind` no Slint.
-- `morune-app/src/optics.rs` prepara lentes de borda sobre o wallpaper por
-  `Theme.refract-background` e `LensRegion`. O cache tem limite de 4 MiB/12
-  entradas e cada imagem tem no máximo 320 px por lado. `SceneGlass` usa essa
-  lente quando existe wallpaper interno. Sem imagem, `SceneGlass` mantém só
-  a orla e não repinta o fundo. Bruma pede Acrylic ao DWM; `main.rs` informa
-  `AppWindow.native-backdrop-active` e a janela usa uma tinta de 12% quando o
-  sistema aceita o material. Sem suporte ou com o portão de tela cheia ativo,
-  usa a base de fallback do tema. Não captura a tela nem refrata
-  conteúdo dinâmico da interface. Aquário usa gel vetorial e cena fotográfica;
-  O campo central permanece transparente nos dois temas. A proteção de leitura
-  fica nos itens, títulos e painéis; `Theme.glass-tint` ajusta a densidade do
-  vidro à imagem amostrada. A ponte reaplica a proteção ao mudar preferências.
-  As margens são consideradas pela grade.
-- Layouts configuram posição/largura/colapso da sidebar, posição/altura e
-  controles do player, densidade e modo de conteúdo (grid/list/compact).
-- Temas TOML podem herdar outro tema; o loader sanitiza, valida contraste,
-  aplica fallback para midnight e suporta packs .musicpack.
-- O build fornece fontes bundled opcionalmente; ícones podem ser substituídos
-  por arquivos do tema.
-- reduce_motion zera as durações de motion aplicadas pelo bridge.
-- Wallpaper suporta imagem, escala, opacidade, tint e blur; artwork atual pode
-  fornecer cor dominante para a superfície do player.
-- O build compila a UI com o estilo Slint fluent-dark, mas o visual efetivo é
-  definido pelo sistema próprio de tokens e componentes.
-- A responsividade não usa breakpoints CSS: AppWindow calcula colunas de cards
-  a partir da largura disponível, sidebar e Layout.card-width.
-- Tamanho mínimo documentado: 720x480 na janela normal e 600x120 no
-  mini-player; sidebar e layout podem ser reposicionados pelo tema.
+- O tema chega à tela como JSON (`AppState::tema_json`): o `ThemeSpec` já
+  validado, com os ajustes da pessoa (modo liberdade total) por cima.
+- `ui/src/lib/tema.ts` traduz o tema em variáveis CSS no `:root` (`--fundo`,
+  `--acento-tema`, `--r-md`, `--m-normal`...). Componentes só usam variáveis.
+- `effects.material` (`legacy`, `aero`, `liquid`) vira `data-material`; o
+  acrílico do Windows é pedido em `material.rs`, e com a transparência do
+  Windows desligada o fundo fica sólido.
+- A cor da capa entra como acento vivo, brilho e, se o tema pedir
+  (`artwork_paints_ui`), no resto da tela.
+- O movimento para (`data-parado`, `data-quieta`) com movimento reduzido, tema
+  sem movimento, janela minimizada ou algo em tela cheia.
 
 ## 10. Dependências entre áreas
 
-    AppWindow / callbacks Slint
-      -> main.rs
-      -> AppState
-         -> Session
-            -> SpotifyBackend
-               -> SpotifyAuthenticator / SpotifyCatalog / SpotifyArtwork
-               -> SpotifyEngine
-                  -> librespot + MoruneSink
-
-    AppState
-      -> Browse
-         -> Catalog / Library / Artwork
-            -> SpotifyCatalog
-               -> Internal + Pathfinder + SharedSession
-
-    AppState
-      -> morune_core::Queue
-      -> PlaybackEngine
-      -> PlayerEvent
-      -> push_playback
-      -> PlayerBar / TrayMenuWindow
-
-    Config / AppPaths / CredentialStore
-      -> AppState, Session, ArtworkCache, temas e áudio
-
-    ThemeSpec
-      -> theme_bridge.rs
-      -> Theme / Layout / Brand
-      -> Sidebar, páginas, cards, listas e PlayerBar
-
-Regra arquitetural documentada: morune-core contém modelos e contratos sem
-UI, Spotify ou I/O; morune-app faz a composição e wiring; o Spotify não acessa
-diretamente a interface.
+- A tela não conhece Spotify nem disco: só o estado em JSON e `acao`.
+- `morune-spotify` não conhece a tela; `AppState` junta os dois.
+- O tema é o único dado que vai da pasta do usuário até o CSS, e passa por
+  `sanitize` antes.
 
 ## 11. Arquivos críticos
 
-### Essenciais
-
-1. Cargo.toml — workspace, features, dependências e patch do librespot.
-2. crates/morune-app/src/main.rs — inicialização, timers e wiring da aplicação.
-3. crates/morune-app/src/state.rs — estado central e projeção para Slint.
-4. crates/morune-app/src/session.rs — ciclo de vida da sessão Spotify.
-5. crates/morune-app/src/browse.rs — orquestração de busca, conteúdo e artwork.
-6. crates/morune-app/src/theme_bridge.rs — ponte entre tema TOML e globals Slint.
-7. crates/morune-app/ui/app.slint — janela, páginas e composição estrutural.
-8. crates/morune-app/ui/components.slint — controles e superfícies compartilhados.
-9. crates/morune-app/ui/theme.slint — globals de tema/layout/marca.
-10. crates/morune-core/src/playback.rs — contrato de comandos/eventos do player.
-11. crates/morune-core/src/queue.rs — contexto, fila manual, shuffle e repeat.
-12. crates/morune-spotify/src/runtime.rs — runtime e recursos Spotify compartilhados.
-13. crates/morune-spotify/src/engine.rs — engine de áudio e tradução de eventos.
-14. crates/morune-spotify/src/catalog.rs — implementação de catálogo/biblioteca.
-15. crates/morune-storage/src/config.rs — configuração persistida da aplicação.
-
-### Secundários
-
-- Core: model.rs, catalog.rs, auth.rs, error.rs, lib.rs.
-- Spotify: auth.rs, token.rs, internal.rs, pathfinder.rs, graphql.rs,
-  artwork.rs, sink.rs, error.rs.
-- Storage: paths.rs, credentials.rs, favorites.rs, lib.rs.
-- Theme: spec.rs, tokens.rs, layout.rs, loader.rs, manifest.rs, pack.rs,
-  icons.rs, color.rs, watch.rs.
-- App: artwork.rs, wallpaper.rs, tint.rs, update.rs, tray.rs, tray_menu.rs,
-  taskbar.rs, smtc.rs, startup.rs, bundled.rs, build.rs e módulos específicos
-  de Windows/snapshot.
-- UI/documentação: docs/ARCHITECTURE.md, documentação de temas, temas
-  distribuídos em crates/morune-app/themes/ e recursos em assets/.
+| Arquivo | Por quê |
+|---|---|
+| `crates/morune-desktop/src/main.rs` | fiação, laço do motor, janelas, bandeja, comandos |
+| `crates/morune-desktop/src/state.rs` | todo o comportamento do app |
+| `crates/morune-desktop/src/ui.rs` | o que a tela recebe |
+| `crates/morune-desktop/ui/src/lib/motor.svelte.ts` | como a tela recebe |
+| `crates/morune-desktop/ui/src/lib/tema.ts` | como o tema vira CSS |
+| `crates/morune-storage/src/paths.rs` | pastas e cópia da pasta do Morune |
+| `crates/morune-spotify/src/catalog.rs` | de onde vêm os dados |
+| `installer/otomori.nsi` | instalar e substituir o Morune |
 
 ## 12. Pontos que precisam de investigação posterior
 
@@ -401,21 +267,8 @@ diretamente a interface.
   aplicadas ao engine existente.
 - Validar a semântica final de playlists classificadas como recomendações,
   estações e retrospectivas a partir do rootlist.
-- Investigar consumo efetivo de tokens de layout declarados no tema quando
-  houver trabalho visual futuro.
+- `layout.toml` e `[scene]` dos temas da 1.0 ainda sao lidos pelo
+  `morune-theme`, mas a tela nova os ignora.
 - Se houver upgrade do librespot, revisar a necessidade e o comportamento do
   patch em vendor/librespot-core.
 
-### Escopo deste mapeamento
-
-Foram mapeados: workspace e stack, crates, entrypoints, páginas, componentes
-estruturais, estado, sessão, player, fila, serviços Spotify, autenticação,
-persistência, cache, temas, layout e dependências entre áreas.
-
-Não foram abertos integralmente: arquivos gerados (target/, dist/,
-bench-out/), dependências vendorizadas em detalhe, lockfile completo,
-imagens/assets individualmente, testes e auxiliares não necessários para o
-fluxo estrutural, além dos módulos de plataforma e atualização que não alteram
-o desenho central descrito acima.
-
-Nenhuma alteração além deste arquivo foi realizada.

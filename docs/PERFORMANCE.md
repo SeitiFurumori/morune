@@ -1,5 +1,13 @@
 # Performance
 
+> **As medicoes abaixo sao da 1.0, com a tela em Slint.** A 2.0 (Otomori)
+> trocou a tela por web no WebView2, e nenhum numero da tela nova foi medido
+> com `tools/measure.ps1` ainda. O que se sabe dela, e de onde veio: rolagem a
+> 240 quadros por segundo (ADR-0007); fundo em video 1080p custa ~13% de
+> desenho e ~25% de decodificacao na placa, 4K ~58% de decodificacao; toda
+> animacao para com jogo ou video em tela cheia. Instalador de 2,9 MB e
+> executavel de 8,1 MB no build da 2.0.0 (GitHub Actions, 02/11/2026).
+
 ## Regra
 
 Nenhum numero aqui e estimativa. Todo valor desta pagina saiu de

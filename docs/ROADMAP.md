@@ -1,5 +1,10 @@
 # Roteiro
 
+> **Escrito para a 1.0.** A arvore abaixo descreve as camadas ate a tela em
+> Slint. Na 2.0 a tela virou web (ADR-0007) e o app virou Otomori; o motor, o
+> core e a integracao com o Spotify sao os mesmos, entao o que esta marcado
+> nessas camadas continua valendo.
+
 Ordenado por dependencia, nao por vontade. Uma camada dependente so comeca
 depois que o contrato dela para de mudar.
 
@@ -66,7 +71,7 @@ ver o [handoff histórico](archive/PROJECT_HANDOFF_2026-08.md).
 7. `[verificado]` **Fundacao de UX e acessibilidade**: arvore AccessKit exposta
    ao Windows, foco e teclado nos controles customizados, estados vazios com
    proxima acao e grades adaptativas. Evidencias e pendencias em
-   [UX_AUDIT.md](UX_AUDIT.md).
+   [UX_AUDIT-1.0-slint.md](archive/UX_AUDIT-1.0-slint.md).
 8. `[verificado]` **Fila gerenciavel**: insercoes manuais separadas do contexto,
    com tocar a seguir, adicionar ao fim, mover, remover e limpar.
 9. `[ferramenta pronta, medicao pendente]` **Medir o que importa**: CPU e GPU
