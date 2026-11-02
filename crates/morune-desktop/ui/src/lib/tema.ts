@@ -11,6 +11,12 @@ function opaca(c: string) {
   return c.length === 9 ? c.slice(0, 7) : c
 }
 
+/**
+ * As cores como estao na tela agora, ja com destaque, paleta e transparencia
+ * aplicados. "Salvar como tema" manda isto: so a tela sabe fazer essas contas.
+ */
+export const coresNaTela: Record<string, string> = {}
+
 /** Parametros da mola da troca de faixa, vindos do tema. */
 export const mola = { rigidez: 200, atrito: 14, ligada: true }
 
@@ -63,18 +69,26 @@ export function aplicarTema(t: any) {
   // Texto em cima de um botao cheio com a cor do texto: a cor do fundo, mas
   // sempre solida (no Vidro o fundo e translucido e o texto sumiria).
   set('--sobre-texto', opaca(fundo))
-  set('--superficie', painel(cor(c.surface, '#12151d')))
-  set('--superficie-alta', tom(cor(c.surface_raised, '#1a1e29')))
-  set('--lateral', painel(cor(c.sidebar_background, '#0d1016')))
-  set('--player', painel(cor(c.player_background, '#0f1219')))
+  coresNaTela.background = fundo
+  coresNaTela.surface = painel(cor(c.surface, '#12151d'))
+  coresNaTela.surface_raised = tom(cor(c.surface_raised, '#1a1e29'))
+  coresNaTela.sidebar_background = painel(cor(c.sidebar_background, '#0d1016'))
+  coresNaTela.player_background = painel(cor(c.player_background, '#0f1219'))
+  set('--superficie', coresNaTela.surface)
+  set('--superficie-alta', coresNaTela.surface_raised)
+  set('--lateral', coresNaTela.sidebar_background)
+  set('--player', coresNaTela.player_background)
   set('--texto', cor(c.text, '#eceff4'))
   set('--texto-suave', cor(c.text_muted, '#939cb0'))
   const escolhido = t.acento ? acento(t.acento, claro) : null
   set('--texto-no-acento', escolhido?.sobre ?? cor(c.text_on_accent, '#111111'))
   set('--acento-tema', escolhido?.cor ?? cor(c.accent, '#8b63f6'))
   set('--acento-hover', escolhido?.hover ?? cor(c.accent_hover, '#a383ff'))
+  coresNaTela.accent = escolhido?.cor ?? cor(c.accent, '#8b63f6')
+  coresNaTela.accent_hover = escolhido?.hover ?? cor(c.accent_hover, '#a383ff')
+  coresNaTela.text_on_accent = escolhido?.sobre ?? cor(c.text_on_accent, '#111111')
   // Cor escolhida vence a cor viva da capa (App.svelte).
-  document.documentElement.dataset.acentoFixo = escolhido ? '1' : '0'
+  document.documentElement.dataset.acentoFixo = escolhido || t.livre?.cores?.accent ? '1' : '0'
   set('--borda', cor(c.border, '#ffffff22'))
   set('--borda-destaque', cor(c.border_highlight, cor(c.border, '#ffffff22')))
   r.colorScheme = s.manifest?.appearance === 'light' ? 'light' : 'dark'
@@ -135,7 +149,10 @@ export function aplicarTema(t: any) {
   document.documentElement.dataset.parado = parado ? '1' : '0'
   document.documentElement.dataset.capaPinta = e.artwork_paints_ui ? '1' : '0'
 
-  set('--fundo-imagem', t.fundo ? `url("${t.fundo}")` : 'none')
+  // GIF e video vao num elemento proprio (Fundo.svelte), que para com jogo.
+  set('--fundo-imagem', t.fundo && t.fundo_tipo === 'imagem' ? `url("${t.fundo}")` : 'none')
+  set('--fundo-ajuste', ['cover', 'contain', 'auto', '100% 100%'][t.fundo_ajuste] ?? 'cover')
+  set('--fundo-encaixe', ['cover', 'contain', 'none', 'fill'][t.fundo_ajuste] ?? 'cover')
   set('--fundo-opacidade', t.fundo_opacidade ?? 1)
   set('--fundo-desfoque', `${t.fundo_desfoque ?? 0}px`)
 }

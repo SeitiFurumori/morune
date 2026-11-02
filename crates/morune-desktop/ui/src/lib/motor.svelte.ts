@@ -14,6 +14,8 @@ export const motor = $state({
   pronto: false,
   visivel: true,
   telaCheia: false,
+  /** Resolucao do video de fundo, lida pelo proprio video (Fundo.svelte). */
+  fundoVideo: { src: '', w: 0, h: 0 },
 })
 
 export async function iniciar() {

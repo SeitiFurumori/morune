@@ -852,6 +852,11 @@ fn executar(app: &AppHandle, m: &mut Motor, nome: &str, a: &[Value]) -> Result<(
         "set-palette" => s.set_palette(&texto(a, 0)),
         "set-panel-opacity" => s.set_panel_opacity(real(a, 0)),
         "reset-appearance" => s.reset_appearance(),
+        "set-livre-cor" => s.set_livre_cor(&texto(a, 0), &texto(a, 1)),
+        "set-livre-numero" => s.set_livre_numero(&texto(a, 0), a.get(1).and_then(Value::as_f64).map(|v| v as f32)),
+        "set-livre-fonte" => s.set_livre_fonte(logico(a, 0), &texto(a, 1)),
+        "reset-livre" => s.reset_livre(),
+        "salvar-tema" => s.salvar_como_tema(&texto(a, 0), a.get(1).unwrap_or(&Value::Null)),
         "set-reduce-motion" => s.set_reduce_motion(logico(a, 0)),
         "set-hot-reload" => s.set_hot_reload(logico(a, 0)),
         outro => return Err(format!("acao desconhecida: {outro}")),
@@ -864,6 +869,12 @@ fn executar(app: &AppHandle, m: &mut Motor, nome: &str, a: &[Value]) -> Result<(
 fn servir_capa(req: tauri::http::Request<Vec<u8>>) -> tauri::http::Response<Vec<u8>> {
     use tauri::http::Response;
     let consulta = req.uri().query().unwrap_or_default();
+    // Video de fundo vem em pedacos: o WebView pede `Range` e toca enquanto
+    // chega. Ler o arquivo inteiro a cada pedido seguraria centenas de MB na
+    // memoria durante o loop.
+    if let Some(p) = capas::resolver(consulta).filter(|p| capas::tipo(p).starts_with("video/")) {
+        return servir_video(&p, req.headers().get("range").and_then(|v| v.to_str().ok()));
+    }
     match capas::resolver(consulta).and_then(|p| std::fs::read(&p).ok().map(|b| (p, b))) {
         Some((p, bytes)) => Response::builder()
             .header("Content-Type", capas::tipo(&p))
@@ -872,4 +883,37 @@ fn servir_capa(req: tauri::http::Request<Vec<u8>>) -> tauri::http::Response<Vec<
             .unwrap_or_default(),
         None => Response::builder().status(404).body(Vec::new()).unwrap_or_default(),
     }
+}
+
+/// Um pedaco do video, no maximo 2 MB por pedido.
+fn servir_video(p: &std::path::Path, range: Option<&str>) -> tauri::http::Response<Vec<u8>> {
+    use std::io::{Read, Seek, SeekFrom};
+    use tauri::http::Response;
+    const PEDACO: u64 = 2 * 1024 * 1024;
+    let erro = || Response::builder().status(404).body(Vec::new()).unwrap_or_default();
+    let Ok(mut arquivo) = std::fs::File::open(p) else { return erro() };
+    let total = arquivo.metadata().map(|m| m.len()).unwrap_or(0);
+    if total == 0 {
+        return erro();
+    }
+    let (inicio, fim_pedido) = capas::faixa_pedida(range, total);
+    if inicio >= total {
+        return Response::builder()
+            .status(416)
+            .header("Content-Range", format!("bytes */{total}"))
+            .body(Vec::new())
+            .unwrap_or_default();
+    }
+    let fim = fim_pedido.min(inicio + PEDACO - 1).min(total - 1);
+    let mut bytes = vec![0; (fim - inicio + 1) as usize];
+    if arquivo.seek(SeekFrom::Start(inicio)).is_err() || arquivo.read_exact(&mut bytes).is_err() {
+        return erro();
+    }
+    Response::builder()
+        .status(206)
+        .header("Content-Type", capas::tipo(p))
+        .header("Accept-Ranges", "bytes")
+        .header("Content-Range", format!("bytes {inicio}-{fim}/{total}"))
+        .body(bytes)
+        .unwrap_or_default()
 }

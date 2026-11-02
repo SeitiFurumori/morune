@@ -25,8 +25,11 @@ use crate::manifest::ThemeManifest;
 pub const MAX_ENTRIES: usize = 512;
 /// Tamanho maximo de um arquivo apos descompactar (8 MiB).
 pub const MAX_FILE_SIZE: u64 = 8 * 1024 * 1024;
-/// Tamanho maximo do pacote inteiro apos descompactar (64 MiB).
-pub const MAX_TOTAL_SIZE: u64 = 64 * 1024 * 1024;
+/// Tamanho maximo de um video ou GIF de fundo (48 MiB): o modo liberdade
+/// total aceita fundo animado, e um video curto em boa qualidade passa de 8.
+pub const MAX_MEDIA_SIZE: u64 = 48 * 1024 * 1024;
+/// Tamanho maximo do pacote inteiro apos descompactar (96 MiB).
+pub const MAX_TOTAL_SIZE: u64 = 96 * 1024 * 1024;
 /// Razao maxima entre tamanho descompactado e compactado.
 ///
 /// Uma bomba de compressao classica passa de 1000:1. Texto e TOML raramente
@@ -40,7 +43,26 @@ pub const MAX_COMPRESSION_RATIO: u64 = 200;
 /// que se perde.
 const ALLOWED_EXTENSIONS: &[&str] = &[
     "toml", "json", "png", "jpg", "jpeg", "webp", "svg", "ttf", "otf", "woff2", "md", "txt",
+    "gif", "mp4", "webm",
 ];
+
+/// Video e GIF sao midia, nao codigo: o WebView so os toca. Ganham um limite
+/// maior que o resto, e so eles.
+const MEDIA_EXTENSIONS: &[&str] = &["gif", "mp4", "webm"];
+
+/// Limite de tamanho de um arquivo do pacote, conforme o tipo.
+fn file_limit(path: &Path) -> u64 {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    if MEDIA_EXTENSIONS.contains(&ext.as_str()) {
+        MAX_MEDIA_SIZE
+    } else {
+        MAX_FILE_SIZE
+    }
+}
 
 /// Arquivos aceitos na raiz do pacote.
 const ROOT_FILES: &[&str] = &[
@@ -228,11 +250,12 @@ pub fn import_pack(
         }
 
         let size = entry.size();
-        if size > MAX_FILE_SIZE {
+        let limit = file_limit(&relative);
+        if size > limit {
             return Err(PackError::TooLarge {
                 what: "arquivo",
                 value: size,
-                limit: MAX_FILE_SIZE,
+                limit,
             });
         }
         let packed = entry.compressed_size().max(1);
@@ -307,13 +330,14 @@ pub fn import_pack(
             let mut out = io::BufWriter::new(fs::File::create(&target)?);
             // Copia limitada: se o cabecalho do ZIP mentiu sobre o tamanho, o
             // limite corta antes de encher o disco.
-            let copied = io::copy(&mut entry.by_ref().take(MAX_FILE_SIZE + 1), &mut out)?;
+            let limit = file_limit(relative);
+            let copied = io::copy(&mut entry.by_ref().take(limit + 1), &mut out)?;
             out.flush()?;
-            if copied > MAX_FILE_SIZE {
+            if copied > limit {
                 return Err(PackError::TooLarge {
                     what: "arquivo",
                     value: copied,
-                    limit: MAX_FILE_SIZE,
+                    limit,
                 });
             }
             // O tamanho declarado no indice do ZIP e so uma pista: o que vale e

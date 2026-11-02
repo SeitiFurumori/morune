@@ -2183,9 +2183,168 @@ impl AppState {
         self.gravar_aparencia();
     }
 
+    // ---- modo liberdade total ----
+
+    /// Troca uma cor do tema. Vazio volta a do tema.
+    ///
+    /// Escolher uma cor peca por peca desliga a paleta (que tingiria a cor
+    /// escolhida) e, no destaque, a cor pronta: a escolha mais especifica vence.
+    pub fn set_livre_cor(&mut self, chave: &str, valor: &str) {
+        if !crate::aparencia::CORES_LIVRES.contains(&chave) {
+            return;
+        }
+        if valor.is_empty() {
+            self.aparencia.livre.cores.remove(chave);
+        } else if crate::aparencia::cor_valida(valor) {
+            self.aparencia.livre.cores.insert(chave.to_string(), valor.to_ascii_lowercase());
+            if chave == "accent" {
+                self.aparencia.acento.clear();
+            } else if chave != "text" && chave != "text_muted" && chave != "border" {
+                self.aparencia.paleta.clear();
+            }
+        }
+        self.gravar_aparencia();
+    }
+
+    /// Um numero do modo livre (cantos, espaco...). Fora do numero, volta o do tema.
+    pub fn set_livre_numero(&mut self, chave: &str, valor: Option<f32>) {
+        let Some((min, max)) = crate::aparencia::faixa(chave) else { return };
+        if let Some(n) = self.aparencia.livre.numero_mut(chave) {
+            *n = valor.filter(|v| v.is_finite()).map(|v| v.clamp(min, max));
+        }
+        self.gravar_aparencia();
+    }
+
+    /// Fonte do texto (`titulo = false`) ou dos titulos. Vazio = a do tema.
+    pub fn set_livre_fonte(&mut self, titulo: bool, nome: &str) {
+        let nome = if crate::aparencia::FONTES.contains(&nome) { nome } else { "" };
+        if titulo {
+            self.aparencia.livre.fonte_titulo = nome.to_string();
+        } else {
+            self.aparencia.livre.fonte = nome.to_string();
+        }
+        self.gravar_aparencia();
+    }
+
+    pub fn reset_livre(&mut self) {
+        self.aparencia.livre = Default::default();
+        self.gravar_aparencia();
+        self.status = "Ajustes do modo livre desfeitos.".into();
+    }
+
+    /// Guarda o que esta na tela como um tema novo, que aparece na lista e pode
+    /// ser exportado como pacote.
+    ///
+    /// `cores` sao as cores ja calculadas pela tela (destaque pronto, paleta,
+    /// transparencia dos paineis), que so ela sabe fazer; o resto vem do tema
+    /// com os ajustes do modo livre.
+    pub fn salvar_como_tema(&mut self, nome: &str, cores: &serde_json::Value) {
+        let nome: String = nome.trim().chars().take(40).collect();
+        let nome = if nome.is_empty() { "Meu tema".to_string() } else { nome };
+        let mut spec = self.spec().clone();
+        self.aparencia.livre.aplicar(&mut spec);
+        if let Some(cores) = cores.as_object() {
+            let c = &mut spec.colors;
+            for (chave, valor) in cores {
+                let Some(cor) = valor.as_str().and_then(|v| v.parse::<morune_theme::Color>().ok())
+                else {
+                    continue;
+                };
+                match chave.as_str() {
+                    "background" => c.background = cor,
+                    "surface" => c.surface = cor,
+                    "surface_raised" => c.surface_raised = cor,
+                    "sidebar_background" => c.sidebar_background = cor,
+                    "player_background" => c.player_background = cor,
+                    "accent" => c.accent = cor,
+                    "accent_hover" => c.accent_hover = cor,
+                    "text_on_accent" => c.text_on_accent = cor,
+                    _ => {}
+                }
+            }
+        }
+
+        let base: String = nome
+            .to_lowercase()
+            .chars()
+            .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '-' })
+            .collect::<String>()
+            .split('-')
+            .filter(|p| !p.is_empty())
+            .collect::<Vec<_>>()
+            .join("-");
+        let id = self.unique_theme_id(if base.is_empty() { "meu-tema" } else { &base });
+        spec.manifest.id = id.clone();
+        spec.manifest.name = nome.clone();
+        spec.manifest.based_on = None;
+        let conta = self.session.state().account_name().to_string();
+        if !conta.is_empty() {
+            spec.manifest.author = conta;
+        }
+        let destino = self.paths.theme_dir(&id);
+
+        // Imagens e fontes que o tema de origem traz vao junto: sem elas, o
+        // tema salvo perderia a fonte ou o fundo que tinha.
+        if let Some(origem) = self.theme.source.clone() {
+            for pasta in ["assets", "fonts"] {
+                if let Err(error) = copiar_pasta(&origem.join(pasta), &destino.join(pasta)) {
+                    tracing::warn!(%error, pasta, "copia do tema de origem falhou");
+                }
+            }
+        }
+
+        // O fundo escolhido pela pessoa vira o fundo do tema.
+        let mut aviso = String::new();
+        if let Some(fundo) = self.fundo.clone().filter(|_| !self.config.appearance.background_image.is_empty()) {
+            let ext = fundo
+                .extension()
+                .map(|e| e.to_string_lossy().to_lowercase())
+                .unwrap_or_else(|| "png".into());
+            let tamanho = std::fs::metadata(&fundo).map(|m| m.len()).unwrap_or(0);
+            if tamanho > morune_theme::pack::MAX_MEDIA_SIZE {
+                aviso = " O fundo ficou de fora: passa de 48 MB.".into();
+            } else {
+                let relativo = format!("assets/fundo.{ext}");
+                let _ = std::fs::create_dir_all(destino.join("assets"));
+                match std::fs::copy(&fundo, destino.join(&relativo)) {
+                    Ok(_) => {
+                        spec.background.image = relativo;
+                        spec.background.opacity = self.config.appearance.background_opacity;
+                        spec.background.blur = self.config.appearance.background_blur;
+                    }
+                    Err(error) => {
+                        tracing::warn!(%error, "fundo nao copiado para o tema");
+                        aviso = " O fundo nao foi copiado.".into();
+                    }
+                }
+            }
+        }
+
+        if let Err(e) = morune_theme::loader::write_theme(&destino, &spec) {
+            let _ = std::fs::remove_dir_all(&destino);
+            self.status = format!("Não foi possível salvar o tema: {e}");
+            return;
+        }
+
+        // O tema novo ja tem tudo; os ajustes por cima dele seriam aplicados
+        // duas vezes.
+        self.aparencia = Default::default();
+        self.gravar_aparencia();
+        self.config.appearance.window_opacity_override = 0.0;
+        if !spec.background.image.is_empty() {
+            self.config.appearance.background_image.clear();
+        }
+        self.refresh_themes();
+        self.select_theme(&id);
+        self.status = format!("Tema \"{nome}\" salvo. Dá para exportar e mandar para alguém.{aviso}");
+    }
+
     /// Volta cor, paleta e as duas transparencias ao que o tema pede.
     pub fn reset_appearance(&mut self) {
+        let livre = std::mem::take(&mut self.aparencia.livre);
         self.aparencia = Default::default();
+        // O modo livre tem o proprio botao de desfazer.
+        self.aparencia.livre = livre;
         self.gravar_aparencia();
         self.config.appearance.window_opacity_override = 0.0;
         self.save_config();
@@ -2246,8 +2405,27 @@ impl AppState {
     /// O tema para a tela: tokens resolvidos e ajustes do usuario. A tela monta
     /// as variaveis de CSS a partir disto; nada do tema roda como codigo.
     pub fn tema_json(&self) -> serde_json::Value {
+        let mut spec = self.spec().clone();
+        self.aparencia.livre.aplicar(&mut spec);
+        let fundo_tipo = match self
+            .fundo
+            .as_deref()
+            .and_then(|p| p.extension())
+            .map(|e| e.to_string_lossy().to_lowercase())
+            .as_deref()
+        {
+            Some("mp4" | "webm") => "video",
+            Some("gif") => "gif",
+            Some(_) => "imagem",
+            None => "",
+        };
         serde_json::json!({
-            "spec": self.spec(),
+            "spec": spec,
+            "livre": self.aparencia.livre,
+            "fontes": crate::aparencia::FONTES,
+            "fundo_tipo": fundo_tipo,
+            "fundo_ajuste": self.background_fit_code(),
+            "tema_proprio": self.paths.theme_dir(self.theme_id()).is_dir(),
             "font_scale": self.overrides.font_scale,
             "reduce_motion": self.overrides.reduce_motion,
             "fundo": self.fundo.as_deref().map(crate::capas::endereco).unwrap_or_default(),
@@ -2770,12 +2948,14 @@ impl AppState {
     /// custo de uma copia unica e menor que o de explicar isso.
     pub fn choose_background_via_dialog(&mut self) {
         let Some(file) = rfd::FileDialog::new()
-            .add_filter("Imagem", &["png", "jpg", "jpeg", "webp", "bmp"])
-            .set_title("Escolher imagem de fundo")
+            .add_filter("Imagem, GIF ou vídeo", &["png", "jpg", "jpeg", "webp", "bmp", "gif", "mp4", "webm"])
+            .set_title("Escolher fundo")
             .pick_file()
         else {
             return;
         };
+        // Sem limite de tamanho: o Morune nao traz fundo em video, e o que a
+        // pessoa escolhe e escolha dela. O peso de um 4K e avisado na tela.
 
         let dir = self.paths.backgrounds_dir();
         if let Err(error) = std::fs::create_dir_all(&dir) {
@@ -5665,4 +5845,22 @@ mod tests {
             AppState::STATUS_TIMEOUT
         ));
     }
+}
+
+/// Copia uma pasta inteira. Pasta de origem que nao existe nao e erro.
+fn copiar_pasta(de: &std::path::Path, para: &std::path::Path) -> std::io::Result<()> {
+    if !de.is_dir() {
+        return Ok(());
+    }
+    std::fs::create_dir_all(para)?;
+    for entrada in std::fs::read_dir(de)? {
+        let entrada = entrada?;
+        let alvo = para.join(entrada.file_name());
+        if entrada.file_type()?.is_dir() {
+            copiar_pasta(&entrada.path(), &alvo)?;
+        } else {
+            std::fs::copy(entrada.path(), alvo)?;
+        }
+    }
+    Ok(())
 }

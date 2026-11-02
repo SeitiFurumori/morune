@@ -12,6 +12,7 @@
   import Mini from './Mini.svelte'
   import { acao, motor, Pagina } from './lib/motor.svelte'
   import { voltarVoando } from './lib/voo.svelte'
+  import Fundo from './lib/Fundo.svelte'
 
   const e = $derived(motor.e)
   let conteudo: HTMLElement | undefined = $state()
@@ -19,7 +20,7 @@
   // A cor viva da capa vira o acento; sem capa, ou com cor escolhida pela
   // pessoa, o do tema.
   $effect(() => {
-    const fixo = motor.tema?.acento
+    const fixo = motor.tema?.acento || motor.tema?.livre?.cores?.accent
     document.documentElement.style.setProperty('--acento', (!fixo && e.live_accent) || 'var(--acento-tema)')
   })
   // O pulso da musica (0 a 1) para quem quiser se mexer com ela: as barras da
@@ -63,7 +64,7 @@
 
 <svelte:window onkeydown={teclas} onmouseup={mouse} />
 
-<div class="fundo" aria-hidden="true"></div>
+<Fundo />
 <!-- A capa vira um fundo desfocado: o motor grava uma miniatura ja borrada e a
      tela so a estica. Fica parado: so troca com a faixa. -->
 {#if e.now_fundo}
@@ -105,11 +106,6 @@
 <Menu />
 
 <style>
-  .fundo {
-    position: fixed; inset: 0; z-index: -1;
-    background: var(--fundo-imagem) center / cover no-repeat;
-    opacity: var(--fundo-opacidade, 1); filter: blur(var(--fundo-desfoque, 0));
-  }
   .app {
     display: grid; grid-template-columns: 280px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 88px;
     gap: var(--e-sm); height: 100vh; padding: var(--e-sm);
