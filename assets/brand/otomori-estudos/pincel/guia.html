@@ -1,0 +1,11 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face { font-family: 'Noto JP'; src: url('../fonte-noto/NotoSansJP-wght.ttf'); font-weight: 100 900; }
+html,body{margin:0;background:#fff} svg{display:block;width:2048px;height:2048px}
+</style></head><body><svg viewBox="0 0 512 512"><g id="g"></g></svg>
+<script>
+const C=256,TAU=Math.PI*2,f=n=>n.toFixed(1),pt=(r,a)=>[C+Math.cos(a)*r,C+Math.sin(a)*r]
+const n=480,p=[];for(let i=0;i<=n;i++){const a=i/n*TAU-Math.PI/2,v=.5+.3*Math.sin(3*a+.4)+.2*Math.sin(5*a+1.9);p.push(pt(200+40*Math.max(0,v),a))}
+const r=186
+document.getElementById('g').innerHTML=`<path fill="#e4e4e4" fill-rule="evenodd" d="M${p.map(([x,y])=>f(x)+' '+f(y)).join(' L')} Z M${C+r} ${C} A${r} ${r} 0 1 0 ${C-r} ${C} A${r} ${r} 0 1 0 ${C+r} ${C} Z"/>
+<text x="256" y="260" text-anchor="middle" dominant-baseline="central" font-family="Noto JP" font-weight="700" font-size="226" fill="#d6d6d6">森</text>`
+</script></body></html>

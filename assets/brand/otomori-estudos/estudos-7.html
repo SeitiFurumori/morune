@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Otomori — estudos de símbolo 7</title>
+<style>
+  @font-face { font-family: 'Noto JP'; src: url('fonte-noto/NotoSansJP-wght.ttf'); font-weight: 100 900; }
+  body { margin: 0; padding: 32px 40px; background: #f4f3ef; font: 15px/1.4 "Segoe UI", system-ui, sans-serif; color: #222; width: 1120px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 20px; color: #666; }
+  .linha { display: grid; grid-template-columns: 28px 200px 1fr 64px 48px 64px 48px; align-items: center; gap: 24px; padding: 12px 0; border-top: 1px solid #ddd; }
+  .letra { font-size: 22px; font-weight: 700; }
+  .grande svg { width: 176px; height: 176px; display: block; }
+  .nome { font-weight: 600; font-size: 17px; }
+  .desc { color: #555; font-size: 14px; margin-top: 4px; }
+  .p32 svg { width: 32px; height: 32px; display: block; }
+  .p16 svg { width: 16px; height: 16px; display: block; }
+  .escuro { background: #16181d; border-radius: 8px; padding: 10px; display: grid; place-items: center; }
+  .rot { font-size: 11px; color: #888; text-align: center; margin-top: 4px; }
+  svg { color: #111; } .escuro svg { color: #f2f2f2; }
+</style></head><body>
+<h1>Otomori — símbolo, estudos 7: o 森 da Noto Sans JP</h1>
+<p class="sub">O anel original em todas. A primeira linha é o original (Yu Gothic); as outras, a Noto Sans JP, que é liberada para logo.</p>
+<div id="lista"></div>
+<script>
+  const C = 256, TAU = Math.PI * 2
+  const f = (n) => n.toFixed(1)
+  const ponto = (r, a) => [C + Math.cos(a) * r, C + Math.sin(a) * r]
+  // O anel original (estudos 3, n. 1): por dentro um circulo, por fora duas ondas somadas.
+  function anel(dentro = 186, base = dentro + 14, amp = 40) {
+    const n = 480, pts = []
+    for (let i = 0; i <= n; i++) {
+      const a = (i / n) * TAU - Math.PI / 2
+      const v = 0.5 + 0.3 * Math.sin(3 * a + 0.4) + 0.2 * Math.sin(5 * a + 1.9)
+      pts.push(ponto(base + amp * Math.max(0, v), a))
+    }
+    const r = dentro
+    return `<path fill="currentColor" fill-rule="evenodd" d="M${pts.map(([x, y]) => `${f(x)} ${f(y)}`).join(' L')} Z M${C + r} ${C} A${r} ${r} 0 1 0 ${C - r} ${C} A${r} ${r} 0 1 0 ${C + r} ${C} Z"/>`
+  }
+  const fonte = `<text x="${C}" y="${C + 4}" text-anchor="middle" dominant-baseline="central" font-family="Yu Gothic UI, Yu Gothic, sans-serif" font-weight="700" font-size="226" fill="currentColor">森</text>`
+  // 森 desenhado: tres 木. No de baixo a esquerda, a perna direita vira um ponto curto, como na escrita.
+  const MORI = [
+    'M168 172 H344', 'M256 134 V256', 'M250 184 L180 242', 'M262 184 L334 242',
+    'M144 288 H248', 'M196 258 V380', 'M190 300 L144 356', 'M204 302 L234 330',
+    'M266 288 H370', 'M318 258 V380', 'M312 300 L266 356', 'M324 300 L372 356',
+  ].join(' ')
+  const mori = (w) => `<path d="${MORI}" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="butt" stroke-linejoin="miter"/>`
+  const svg = (corpo) => `<svg viewBox="0 0 512 512">${corpo}</svg>`
+
+  const noto = (peso) => `<text x="${C}" y="${C + 4}" text-anchor="middle" dominant-baseline="central" font-family="Noto JP" font-weight="${peso}" font-size="226" fill="currentColor">森</text>`
+  const itens = [
+    ['0', 'Original (Yu Gothic)', 'O que você escolheu, para comparar.', svg(fonte + anel())],
+    ['N7', 'Noto, negrito (700)', 'O mesmo peso do original.', svg(noto(700) + anel())],
+    ['N8', 'Noto, extranegrito (800)', 'Um passo mais pesado.', svg(noto(800) + anel())],
+    ['N9', 'Noto, black (900)', 'O mais pesado da fonte.', svg(noto(900) + anel())],
+    ['P', 'Versão pequena', 'Só o anel, para 16 e 32 px.', svg(anel(146, 192, 52))],
+  ]
+  const lista = document.getElementById('lista')
+  for (const [id, nome, desc, s] of itens) {
+    const l = document.createElement('div'); l.className = 'linha'
+    l.innerHTML = `<div class="letra">${id}</div><div class="grande">${s}</div>
+      <div><div class="nome">${nome}</div><div class="desc">${desc}</div></div>
+      <div class="p32">${s}<div class="rot">32</div></div><div class="p16">${s}<div class="rot">16</div></div>
+      <div class="escuro p32">${s}</div><div class="escuro p16">${s}</div>`
+    lista.append(l)
+  }
+</script>
+</body></html>

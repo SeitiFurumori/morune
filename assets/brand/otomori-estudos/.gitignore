@@ -1,0 +1,7 @@
+# Fontes baixadas para os estudos (~49 MB). Ficam fora do repositório; as
+# licenças (OFL*.txt) ficam. Para regerar os SVGs, baixe de github.com/google/fonts:
+#   fonte-pincel/YujiMai-Regular.ttf  <- ofl/yujimai/
+#   fonte-nome/Outfit-wght-.ttf       <- ofl/outfit/Outfit[wght].ttf
+#   fonte-noto/NotoSansJP-wght.ttf    <- ofl/notosansjp/NotoSansJP[wght].ttf
+*.ttf
+__pycache__/

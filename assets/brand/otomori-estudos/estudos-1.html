@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Otomori — estudos de símbolo 1</title>
+<style>
+  :root { --tinta: #111; --papel: #f4f3ef; }
+  body { margin: 0; padding: 32px 40px; background: var(--papel); font: 15px/1.4 "Segoe UI", system-ui, sans-serif; color: #222; width: 1120px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 24px; color: #666; }
+  .linha { display: grid; grid-template-columns: 28px 200px 1fr 64px 48px 64px 48px; align-items: center; gap: 24px; padding: 14px 0; border-top: 1px solid #ddd; }
+  .letra { font-size: 22px; font-weight: 700; }
+  .grande svg { width: 180px; height: 180px; display: block; }
+  .nome { font-weight: 600; font-size: 17px; }
+  .desc { color: #555; font-size: 14px; margin-top: 4px; }
+  .p32 svg { width: 32px; height: 32px; display: block; }
+  .p16 svg { width: 16px; height: 16px; display: block; }
+  .escuro { background: #16181d; border-radius: 8px; padding: 10px; display: grid; place-items: center; }
+  .escuro svg { --tinta: #f2f2f2; }
+  .rot { font-size: 11px; color: #888; text-align: center; margin-top: 4px; }
+  svg { color: var(--tinta); }
+</style></head><body>
+<h1>Otomori — símbolo, estudos 1</h1>
+<p class="sub">Floresta + som. Cada linha: grande, 32 px e 16 px no claro, 32 px e 16 px no escuro (barra de tarefas).</p>
+
+<template id="A"><svg viewBox="0 0 512 512" fill="currentColor"><rect x="76" y="298" width="56" height="150" rx="28"/><rect x="152" y="178" width="56" height="270" rx="28"/><rect x="228" y="64" width="56" height="384" rx="28"/><rect x="304" y="178" width="56" height="270" rx="28"/><rect x="380" y="298" width="56" height="150" rx="28"/></svg></template>
+<template id="B"><svg viewBox="0 0 512 512" fill="currentColor"><path d="M40 448 L136 448 L88 218 Z M152 448 L248 448 L200 78 Z M264 448 L360 448 L312 178 Z M376 448 L472 448 L424 48 Z" stroke="currentColor" stroke-width="12" stroke-linejoin="round"/></svg></template>
+<template id="C"><svg viewBox="0 0 512 512" fill="none" stroke="currentColor" stroke-width="30"><circle cx="256" cy="256" r="200"/><circle cx="246" cy="266" r="134"/><circle cx="238" cy="274" r="72"/><circle cx="232" cy="280" r="22" fill="currentColor" stroke="none"/></svg></template>
+<template id="D"><svg viewBox="0 0 512 512" fill="none" stroke="currentColor" stroke-width="36" stroke-linecap="round"><path d="M256 300 L256 440"/><path d="M186.7 250 A80 80 0 0 1 325.3 250"/><path d="M126.1 215 A150 150 0 0 1 385.9 215"/><path d="M65.5 180 A220 220 0 0 1 446.5 180"/></svg></template>
+<template id="E"><svg viewBox="0 0 512 512"><path fill="currentColor" d="M80 432 C80 210 250 80 432 80 C432 302 302 432 80 432 Z"/><path fill="none" stroke="var(--fundo, #f4f3ef)" stroke-width="30" stroke-linecap="round" d="M100 412 C170 330 190 380 240 300 S 300 250 330 210 S 380 170 412 100"/></svg></template>
+<template id="F"><svg viewBox="0 0 512 512" fill="currentColor"><circle cx="256" cy="256" r="200" fill="none" stroke="currentColor" stroke-width="40"/><rect x="170" y="230" width="44" height="140" rx="22"/><rect x="234" y="140" width="44" height="230" rx="22"/><rect x="298" y="190" width="44" height="180" rx="22"/></svg></template>
+
+<div id="lista"></div>
+<script>
+  const itens = [
+    ['A', 'Pinheiro-equalizador', 'Um pinheiro feito de barras de volume. Árvore e equalizador ao mesmo tempo.'],
+    ['B', 'Floresta-onda', 'Quatro árvores cuja altura segue uma onda sonora. A floresta é o gráfico do som.'],
+    ['C', 'Anéis', 'Os anéis do tronco cortado, que também são ondas se espalhando. Centro fora do meio, como na madeira de verdade.'],
+    ['D', 'Árvore-sinal', 'Um tronco cuja copa são ondas de som. Risco: lembra o ícone de podcast.'],
+    ['E', 'Folha-onda', 'Uma folha partida por uma onda. Sinal único, como o swoosh. Risco: folha lembra marca "eco".'],
+    ['F', 'O-floresta', 'O "O" de Otomori com três árvores-barra dentro. Funciona como ícone de app.'],
+  ]
+  const lista = document.getElementById('lista')
+  for (const [id, nome, desc] of itens) {
+    const svg = () => document.getElementById(id).content.cloneNode(true)
+    const l = document.createElement('div'); l.className = 'linha'
+    const cel = (cls, filho, rot) => { const d = document.createElement('div'); d.className = cls; if (filho) d.append(filho); if (rot) { const r = document.createElement('div'); r.className = 'rot'; r.textContent = rot; d.append(r) } return d }
+    l.append(cel('letra', document.createTextNode(id)))
+    l.append(cel('grande', svg()))
+    const t = document.createElement('div'); t.innerHTML = `<div class="nome">${nome}</div><div class="desc">${desc}</div>`; l.append(t)
+    l.append(cel('p32', svg(), '32'))
+    l.append(cel('p16', svg(), '16'))
+    const e32 = cel('escuro p32', svg(), null); e32.style.setProperty('--fundo', '#16181d'); l.append(e32)
+    const e16 = cel('escuro p16', svg(), null); e16.style.setProperty('--fundo', '#16181d'); l.append(e16)
+    lista.append(l)
+  }
+</script>
+</body></html>

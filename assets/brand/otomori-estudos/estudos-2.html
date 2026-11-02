@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Otomori — estudos de símbolo 2</title>
+<style>
+  body { margin: 0; padding: 32px 40px; background: #f4f3ef; font: 15px/1.4 "Segoe UI", system-ui, sans-serif; color: #222; width: 1120px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 20px; color: #666; }
+  .linha { display: grid; grid-template-columns: 28px 200px 1fr 64px 48px 64px 48px; align-items: center; gap: 24px; padding: 14px 0; border-top: 1px solid #ddd; }
+  .letra { font-size: 22px; font-weight: 700; }
+  .grande svg { width: 190px; height: 190px; display: block; }
+  .nome { font-weight: 600; font-size: 17px; }
+  .desc { color: #555; font-size: 14px; margin-top: 4px; }
+  .p32 svg { width: 32px; height: 32px; display: block; }
+  .p16 svg { width: 16px; height: 16px; display: block; }
+  .escuro { background: #16181d; border-radius: 8px; padding: 10px; display: grid; place-items: center; color: #f2f2f2; }
+  .rot { font-size: 11px; color: #888; text-align: center; margin-top: 4px; }
+  svg { color: #111; } .escuro svg { color: #f2f2f2; }
+</style></head><body>
+<h1>Otomori — símbolo, estudos 2</h1>
+<p class="sub">森 no meio, um O em volta feito de barras de equalizador desniveladas. Grande, 32 e 16 px no claro e no escuro.</p>
+<div id="lista"></div>
+<script>
+  const C = 256
+  // Alturas das barras: uma "onda" irregular, igual para todas as variações.
+  const altura = (i, n) => {
+    const t = (i / n) * Math.PI * 2
+    const v = 0.55 + 0.25 * Math.sin(3 * t + 0.6) + 0.2 * Math.sin(7 * t + 2.1) * Math.cos(2 * t)
+    return Math.max(0.12, Math.min(1, v))
+  }
+  // O de barras. modo 'dentro' = barras nascem de um anel e crescem para fora; 'solto' = só barras.
+  function anel({ n, r0, rmax, larg, aro }) {
+    let s = ''
+    if (aro) s += `<circle cx="${C}" cy="${C}" r="${r0}" fill="none" stroke="currentColor" stroke-width="${aro}"/>`
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 - Math.PI / 2
+      const ini = aro ? r0 : r0
+      const fim = ini + (rmax - ini) * altura(i, n)
+      const x1 = C + Math.cos(a) * ini, y1 = C + Math.sin(a) * ini
+      const x2 = C + Math.cos(a) * fim, y2 = C + Math.sin(a) * fim
+      s += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`
+    }
+    return `<g stroke="currentColor" stroke-width="${larg}" stroke-linecap="round">${s}</g>`
+  }
+  // 木 geometrico: barra, tronco e duas pernas.
+  function ki(cx, cy, s, w, curto) {
+    const h = s / 2
+    let p = `M${cx - h} ${cy - s * 0.22} H${cx + h} M${cx} ${cy - h} V${cy + h} `
+    p += `M${cx} ${cy - s * 0.14} L${cx - h} ${cy + s * 0.38} `
+    p += curto ? `M${cx + s * 0.08} ${cy + s * 0.02} L${cx + h * 0.7} ${cy + s * 0.3}` : `M${cx} ${cy - s * 0.14} L${cx + h} ${cy + s * 0.38}`
+    return p
+  }
+  function mori(esc, w) {
+    const s = 104 * esc, dx = 60 * esc, cy1 = C - 62 * esc, cy2 = C + 60 * esc
+    const d = ki(C, cy1, s, w) + ki(C - dx, cy2, s, w, true) + ki(C + dx, cy2, s, w)
+    return `<path d="${d}" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="square" stroke-linejoin="miter"/>`
+  }
+  const fonte = (tam, peso) => `<text x="${C}" y="${C}" text-anchor="middle" dominant-baseline="central" font-family="Yu Gothic UI, Yu Gothic, Meiryo, sans-serif" font-weight="${peso}" font-size="${tam}" fill="currentColor">森</text>`
+  const svg = (corpo) => `<svg viewBox="0 0 512 512">${corpo}</svg>`
+
+  const itens = [
+    ['A', 'Fonte + 48 barras finas', 'O 森 da fonte japonesa do Windows (só para o estudo). O de 48 barras finas, como um visualizador circular.',
+      svg(fonte(230, 700) + anel({ n: 48, r0: 168, rmax: 246, larg: 9 }))],
+    ['B', '森 desenhado + 32 barras', 'O 森 redesenhado em traços retos, do mesmo peso das barras. Mais marca, menos letra.',
+      svg(mori(1, 24) + anel({ n: 32, r0: 172, rmax: 246, larg: 16 }))],
+    ['C', '森 grosso + 20 barras grossas', 'Pensado para 16 px: menos barras e mais grossas, 森 mais pesado.',
+      svg(mori(1.04, 34) + anel({ n: 20, r0: 176, rmax: 248, larg: 28 }))],
+    ['D', 'Aro fechado + barras para fora', 'Um O inteiro cobrindo o 森, e o equalizador crescendo para fora dele.',
+      svg(mori(0.95, 26) + anel({ n: 36, r0: 168, rmax: 246, larg: 14, aro: 22 }))],
+    ['E', 'Fonte leve + barras médias', 'Mesma ideia do A com o 森 mais fino, para ver o contraste entre o peso do O e o da letra.',
+      svg(fonte(220, 400) + anel({ n: 36, r0: 168, rmax: 246, larg: 13 }))],
+  ]
+  const lista = document.getElementById('lista')
+  for (const [id, nome, desc, s] of itens) {
+    const l = document.createElement('div'); l.className = 'linha'
+    l.innerHTML = `<div class="letra">${id}</div><div class="grande">${s}</div>
+      <div><div class="nome">${nome}</div><div class="desc">${desc}</div></div>
+      <div class="p32">${s}<div class="rot">32</div></div><div class="p16">${s}<div class="rot">16</div></div>
+      <div class="escuro p32">${s}</div><div class="escuro p16">${s}</div>`
+    lista.append(l)
+  }
+</script>
+</body></html>
