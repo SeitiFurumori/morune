@@ -27,7 +27,7 @@ $out = Join-Path $root "THIRD-PARTY-LICENSES.txt"
 Push-Location $root
 try {
     Write-Host "resolvendo as dependencias que entram no binario..." -ForegroundColor DarkGray
-    $tree = cargo tree -e normal --target $Target -p morune-app --prefix none --format "{p}"
+    $tree = cargo tree -e normal --target $Target -p morune-desktop --prefix none --format "{p}"
     if ($LASTEXITCODE -ne 0) { Write-Error "cargo tree falhou" }
 
     Write-Host "lendo os caminhos dos pacotes..." -ForegroundColor DarkGray
@@ -104,8 +104,6 @@ $rule = "=" * 78
 [void]$sb.AppendLine("Este arquivo reune os avisos das bibliotecas de codigo aberto usadas na")
 [void]$sb.AppendLine("construcao do executavel, como as licencas delas exigem.")
 [void]$sb.AppendLine()
-[void]$sb.AppendLine("O Slint aparece abaixo com tres licencas alternativas. O Morune o usa sob a")
-[void]$sb.AppendLine("LicenseRef-Slint-Royalty-free-2.0, nao sob a GPL. Ver docs/adr/0005.")
 [void]$sb.AppendLine("priority-queue 2.7.0 e usado sob MPL-2.0, nao sob LGPL. O codigo-fonte")
 [void]$sb.AppendLine("exato esta em https://crates.io/crates/priority-queue/2.7.0. Ver docs/adr/0006.")
 [void]$sb.AppendLine()

@@ -11,7 +11,7 @@
 //!
 //! ```text
 //! . .\tools\env.ps1
-//! cargo run -p morune-app --example cache-playlist
+//! cargo run -p morune-desktop --example cache-playlist
 //! ```
 //!
 //! Cada abertura sao as duas chamadas que a tela faz: `playlist` (nome e

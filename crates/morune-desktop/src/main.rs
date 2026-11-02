@@ -10,6 +10,7 @@
 // O motor veio do app em Slint, que tem metodos que esta tela ainda nao usa.
 #![allow(dead_code)]
 
+mod aparencia;
 mod artwork;
 mod browse;
 mod bundled;
@@ -21,7 +22,6 @@ mod instance;
 mod material;
 mod notify;
 mod oculta;
-mod aparencia;
 mod ordem_curtidas;
 mod recentes_busca;
 mod registro;
@@ -97,8 +97,21 @@ fn com_motor<R>(f: impl FnOnce(&mut Motor) -> R) -> Option<R> {
 }
 
 fn main() -> anyhow::Result<()> {
+    // Checagem do `tools/build-installer.ps1`: o executavel roda numa pasta
+    // isolada, sem o PATH do MinGW. Chegar aqui ja prova que nenhuma DLL faltou;
+    // grava o comprovante e sai sem abrir janela (o runner do CI nao tem area
+    // de trabalho).
+    if let Some(arquivo) = std::env::var_os("MORUNE_BINARY_CHECK_FILE") {
+        std::fs::write(
+            arquivo,
+            format!("Otomori {} carregou", env!("MORUNE_RELEASE")),
+        )?;
+        return Ok(());
+    }
+
     #[cfg(windows)]
-    let Some(_instancia) = instance::SingleInstance::acquire()? else {
+    let Some(_instancia) = instance::SingleInstance::acquire()?
+    else {
         return Ok(());
     };
 
@@ -145,7 +158,9 @@ fn main() -> anyhow::Result<()> {
                 if let Some(janela) = m.oculta.as_ref() {
                     match smtc::MediaControls::new(janela) {
                         Ok(media) => m.media = Some(media),
-                        Err(error) => tracing::warn!(%error, "painel de midia do Windows indisponivel"),
+                        Err(error) => {
+                            tracing::warn!(%error, "painel de midia do Windows indisponivel")
+                        }
                     }
                 }
                 match notify::TrackNotifier::new() {
@@ -308,7 +323,9 @@ fn suspender_tela(w: &tauri::WebviewWindow, suspender: bool) {
     #[cfg(windows)]
     {
         let _ = w.with_webview(move |webview| {
-            use webview2_com::Microsoft::Web::WebView2::Win32::{ICoreWebView2_3, ICoreWebView2Controller};
+            use webview2_com::Microsoft::Web::WebView2::Win32::{
+                ICoreWebView2Controller, ICoreWebView2_3,
+            };
             use windows_core_webview::Interface;
             // SAFETY: chamadas COM no controlador vivo, na thread da tela.
             unsafe {
@@ -331,7 +348,13 @@ fn criar_bandeja(app: &AppHandle) -> tauri::Result<()> {
         .icon(app.default_window_icon().cloned().expect("icone embutido"))
         .tooltip("Otomori")
         .on_tray_icon_event(|tray, e| {
-            if let TrayIconEvent::Click { button, button_state: MouseButtonState::Up, rect, .. } = e {
+            if let TrayIconEvent::Click {
+                button,
+                button_state: MouseButtonState::Up,
+                rect,
+                ..
+            } = e
+            {
                 match button {
                     MouseButton::Left => abrir_janela(tray.app_handle()),
                     MouseButton::Right => abrir_menu_bandeja(tray.app_handle(), rect),
@@ -361,20 +384,21 @@ fn abrir_menu_bandeja(app: &AppHandle, icone: tauri::Rect) {
     let altura = if com_faixa { 240.0 } else { 184.0 };
 
     // A janela nasce escondida, vai para o lugar e so entao aparece.
-    let janela = WebviewWindowBuilder::new(app, "bandeja", WebviewUrl::App("index.html#bandeja".into()))
-        .title("Otomori")
-        .inner_size(MENU_LARGURA, altura)
-        .decorations(false)
-        .resizable(false)
-        // Com a sombra do Windows, a borda invisivel de redimensionar aparece
-        // como faixa branca de 5 px nos lados e embaixo.
-        .shadow(false)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        // Opaca, a janela pintava de branco a moldura em volta da tela.
-        .transparent(true)
-        .visible(false)
-        .build();
+    let janela =
+        WebviewWindowBuilder::new(app, "bandeja", WebviewUrl::App("index.html#bandeja".into()))
+            .title("Otomori")
+            .inner_size(MENU_LARGURA, altura)
+            .decorations(false)
+            .resizable(false)
+            // Com a sombra do Windows, a borda invisivel de redimensionar aparece
+            // como faixa branca de 5 px nos lados e embaixo.
+            .shadow(false)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            // Opaca, a janela pintava de branco a moldura em volta da tela.
+            .transparent(true)
+            .visible(false)
+            .build();
     let janela = match janela {
         Ok(j) => j,
         Err(e) => {
@@ -401,7 +425,10 @@ fn abrir_menu_bandeja(app: &AppHandle, icone: tauri::Rect) {
         x = x.clamp(ax + margem, ax + aw - largura - margem);
         y = y.clamp(ay + margem, ay + ah - alto - margem);
     }
-    let _ = janela.set_position(tauri::PhysicalPosition::new(x.round() as i32, y.round() as i32));
+    let _ = janela.set_position(tauri::PhysicalPosition::new(
+        x.round() as i32,
+        y.round() as i32,
+    ));
     material::cantos_redondos(&janela);
     let _ = janela.show();
     let _ = janela.set_focus();
@@ -456,7 +483,9 @@ fn alternar_mini(app: &AppHandle, m: &mut Motor) {
             let escala = w.scale_factor().unwrap_or(1.0);
             let antes = w.inner_size().map(|t| t.to_logical::<f64>(escala)).ok();
             let maximizada = w.is_maximized().unwrap_or(false);
-            let (largura, altura) = antes.map(|t| (t.width, t.height)).unwrap_or((1280.0, 800.0));
+            let (largura, altura) = antes
+                .map(|t| (t.width, t.height))
+                .unwrap_or((1280.0, 800.0));
             m.mini_antes = Some((largura, altura, maximizada));
             m.janela.set_mini_player(true);
             // Fora do motor: ver `com_motor`.
@@ -627,7 +656,10 @@ fn enviar(app: &AppHandle, m: &mut Motor, tudo: bool) {
     };
     #[cfg(debug_assertions)]
     if let Some(destino) = std::env::var_os("MORUNE_WEB_DUMP") {
-        let _ = std::fs::write(destino, serde_json::json!({ "estado": &atual, "tema": m.state.tema_json() }).to_string());
+        let _ = std::fs::write(
+            destino,
+            serde_json::json!({ "estado": &atual, "tema": m.state.tema_json() }).to_string(),
+        );
     }
     let mut diferenca = Map::new();
     for (k, v) in atual {
@@ -659,11 +691,17 @@ fn estado_inicial(app: AppHandle) -> Value {
         }
         let tema = tema_com_material(&app, m);
         m.tema_enviado = tema.clone();
-        tracing::info!(campos = m.enviado.len(), "tela web carregou o estado inicial");
+        tracing::info!(
+            campos = m.enviado.len(),
+            "tela web carregou o estado inicial"
+        );
         // So no build de desenvolvimento: copia do estado para conferir a tela fora do app.
         #[cfg(debug_assertions)]
         if let Some(destino) = std::env::var_os("MORUNE_WEB_DUMP") {
-            let _ = std::fs::write(destino, serde_json::json!({ "estado": &estado, "tema": &tema }).to_string());
+            let _ = std::fs::write(
+                destino,
+                serde_json::json!({ "estado": &estado, "tema": &tema }).to_string(),
+            );
         }
         serde_json::json!({ "estado": estado, "tema": tema, "acoes": ui::ACOES })
     })
@@ -689,7 +727,10 @@ fn acao(app: AppHandle, nome: String, args: Vec<Value>) -> Result<(), String> {
 }
 
 fn texto(args: &[Value], i: usize) -> String {
-    args.get(i).and_then(Value::as_str).unwrap_or_default().to_string()
+    args.get(i)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
 }
 fn inteiro(args: &[Value], i: usize) -> i32 {
     args.get(i).and_then(Value::as_i64).unwrap_or_default() as i32
@@ -857,7 +898,10 @@ fn executar(app: &AppHandle, m: &mut Motor, nome: &str, a: &[Value]) -> Result<(
         "set-panel-opacity" => s.set_panel_opacity(real(a, 0)),
         "reset-appearance" => s.reset_appearance(),
         "set-livre-cor" => s.set_livre_cor(&texto(a, 0), &texto(a, 1)),
-        "set-livre-numero" => s.set_livre_numero(&texto(a, 0), a.get(1).and_then(Value::as_f64).map(|v| v as f32)),
+        "set-livre-numero" => s.set_livre_numero(
+            &texto(a, 0),
+            a.get(1).and_then(Value::as_f64).map(|v| v as f32),
+        ),
         "set-livre-fonte" => s.set_livre_fonte(logico(a, 0), &texto(a, 1)),
         "reset-livre" => s.reset_livre(),
         "salvar-tema" => s.salvar_como_tema(&texto(a, 0), a.get(1).unwrap_or(&Value::Null)),
@@ -885,7 +929,10 @@ fn servir_capa(req: tauri::http::Request<Vec<u8>>) -> tauri::http::Response<Vec<
             .header("Cache-Control", "max-age=31536000, immutable")
             .body(bytes)
             .unwrap_or_default(),
-        None => Response::builder().status(404).body(Vec::new()).unwrap_or_default(),
+        None => Response::builder()
+            .status(404)
+            .body(Vec::new())
+            .unwrap_or_default(),
     }
 }
 
@@ -894,8 +941,15 @@ fn servir_video(p: &std::path::Path, range: Option<&str>) -> tauri::http::Respon
     use std::io::{Read, Seek, SeekFrom};
     use tauri::http::Response;
     const PEDACO: u64 = 2 * 1024 * 1024;
-    let erro = || Response::builder().status(404).body(Vec::new()).unwrap_or_default();
-    let Ok(mut arquivo) = std::fs::File::open(p) else { return erro() };
+    let erro = || {
+        Response::builder()
+            .status(404)
+            .body(Vec::new())
+            .unwrap_or_default()
+    };
+    let Ok(mut arquivo) = std::fs::File::open(p) else {
+        return erro();
+    };
     let total = arquivo.metadata().map(|m| m.len()).unwrap_or(0);
     if total == 0 {
         return erro();

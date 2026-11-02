@@ -140,11 +140,30 @@ jobs:
             choco install nsis --yes --no-progress
           }
 
+      # A tela (Svelte) e embutida no executavel pelo Tauri: `ui/dist` precisa
+      # existir antes de qualquer `cargo` que compile o app -- sem ela nem o
+      # clippy passa da macro que embute a tela.
+      - name: Preparar o Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: crates/morune-desktop/ui/package-lock.json
+
+      - name: Montar a tela
+        shell: pwsh
+        working-directory: crates/morune-desktop/ui
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { throw "npm ci falhou" }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw "npm run build falhou" }
+
       # `MORUNE_RELEASE_TAG` e o que permite ao binario saber de qual
       # lancamento ele saiu, sufixo de pre-lancamento incluido. Sem ela um
       # `v0.1.0-alpha.7` se apresentaria como `0.1.0` -- final, e portanto mais
       # novo que qualquer alpha -- e o botao "Procurar atualizações" nunca
-      # ofereceria nada. Ver `embed_release_tag` em crates/morune-app/build.rs.
+      # ofereceria nada. Ver `embed_release_tag` em crates/morune-desktop/build.rs.
       #
       # Nos ensaios a variavel fica vazia e o build cai na versao do Cargo.toml,
       # que e o comportamento certo: ensaio nao vira release.
@@ -152,7 +171,7 @@ jobs:
         shell: pwsh
         env:
           MORUNE_RELEASE_TAG: ${{ env.MORUNE_TAG }}
-        run: cargo build --locked --release -p morune-app
+        run: cargo build --locked --release -p morune-desktop
 
       - name: Gerar e verificar o instalador
         shell: pwsh
@@ -199,14 +218,13 @@ jobs:
 
           **Antes de instalar**
 
-          - requer Windows 10 ou 11 de 64 bits;
+          - requer Windows 10 ou 11 de 64 bits, com o WebView2 do Windows (ja vem no Windows 11 e chega ao 10 pelas atualizacoes do Edge);
           - a reproducao pelo Spotify requer uma conta Premium;
           - este build ainda nao possui assinatura digital, portanto o Windows SmartScreen pode mostrar "Editor desconhecido";
           - confira o arquivo `.sha256` publicado ao lado do instalador se quiser validar o download.
 
           Este instalador foi compilado automaticamente pelo GitHub Actions a partir do commit `${{ github.sha }}`.
 
-          <a href="https://slint.dev"><img alt="Made with Slint" src="https://github.com/slint-ui/slint/raw/master/logo/MadeWithSlint-logo-light.svg" width="140"></a>
           "@ | Set-Content release-notes.md -Encoding utf8
 
       - name: Criar a release do GitHub

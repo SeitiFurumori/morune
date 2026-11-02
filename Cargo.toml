@@ -4,7 +4,6 @@ members = [
     "crates/morune-core",
     "crates/morune-theme",
     "crates/morune-storage",
-    "crates/morune-app",
     "crates/morune-spotify",
     "crates/morune-desktop",
 ]

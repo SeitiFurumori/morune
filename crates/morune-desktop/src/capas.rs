@@ -16,7 +16,9 @@ pub fn endereco(path: &Path) -> String {
     let mut s = String::from("http://capa.localhost/?p=");
     for b in path.to_string_lossy().bytes() {
         match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => s.push(b as char),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                s.push(b as char)
+            }
             _ => s.push_str(&format!("%{b:02X}")),
         }
     }
@@ -44,7 +46,10 @@ pub fn resolver(query: &str) -> Option<PathBuf> {
     let p = query.strip_prefix("p=")?;
     let path = PathBuf::from(decodificar(p)?).canonicalize().ok()?;
     let ext = path.extension()?.to_string_lossy().to_lowercase();
-    if !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "webp" | "gif" | "bmp" | "mp4" | "webm") {
+    if !matches!(
+        ext.as_str(),
+        "jpg" | "jpeg" | "png" | "webp" | "gif" | "bmp" | "mp4" | "webm"
+    ) {
         return None;
     }
     let pastas = PASTAS.get()?;
@@ -59,8 +64,12 @@ pub fn resolver(query: &str) -> Option<PathBuf> {
 /// ou com um que nao se entende, o arquivo todo.
 pub fn faixa_pedida(range: Option<&str>, total: u64) -> (u64, u64) {
     let tudo = (0, total.saturating_sub(1));
-    let Some(r) = range.and_then(|r| r.trim().strip_prefix("bytes=")) else { return tudo };
-    let Some((a, b)) = r.split(',').next().and_then(|r| r.split_once('-')) else { return tudo };
+    let Some(r) = range.and_then(|r| r.trim().strip_prefix("bytes=")) else {
+        return tudo;
+    };
+    let Some((a, b)) = r.split(',').next().and_then(|r| r.split_once('-')) else {
+        return tudo;
+    };
     match (a.trim().parse::<u64>().ok(), b.trim().parse::<u64>().ok()) {
         (Some(a), Some(b)) if b >= a => (a, b),
         (Some(a), None) => (a, total.saturating_sub(1)),
@@ -71,7 +80,11 @@ pub fn faixa_pedida(range: Option<&str>, total: u64) -> (u64, u64) {
 }
 
 pub fn tipo(path: &Path) -> &'static str {
-    match path.extension().map(|e| e.to_string_lossy().to_lowercase()).as_deref() {
+    match path
+        .extension()
+        .map(|e| e.to_string_lossy().to_lowercase())
+        .as_deref()
+    {
         Some("png") => "image/png",
         Some("webp") => "image/webp",
         Some("gif") => "image/gif",

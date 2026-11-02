@@ -16,6 +16,9 @@ param(
 $ErrorActionPreference = "Stop"
 $root = (Resolve-Path "$PSScriptRoot\..").Path
 $exe = Join-Path $root "target\release\morune.exe"
+# A tela web roda no WebView2 do Windows, carregado por esta DLL: o build da
+# toolchain GNU nao a embute no executavel, entao ela vai ao lado dele.
+$loader = Join-Path $root "target\release\WebView2Loader.dll"
 $dist = Join-Path $root "dist"
 
 $makensis = @(
@@ -31,12 +34,21 @@ if (-not $SkipBuild) {
     Write-Host "compilando release..." -ForegroundColor DarkGray
     Push-Location $root
     try {
-        cargo build -p morune-app --release
+        # A tela e embutida no executavel: precisa estar montada antes.
+        Push-Location (Join-Path $root "crates\morune-desktop\ui")
+        try {
+            npm ci
+            if ($LASTEXITCODE -ne 0) { Write-Error "npm ci falhou" }
+            npm run build
+            if ($LASTEXITCODE -ne 0) { Write-Error "npm run build falhou" }
+        } finally { Pop-Location }
+        cargo build -p morune-desktop --release
         if ($LASTEXITCODE -ne 0) { Write-Error "cargo build falhou" }
     } finally { Pop-Location }
 }
 
 if (-not (Test-Path $exe)) { Write-Error "Binario nao encontrado: $exe" }
+if (-not (Test-Path $loader)) { Write-Error "WebView2Loader.dll nao encontrada: $loader" }
 
 # --- o binario precisa rodar sozinho ---
 # Copia para uma pasta isolada e executa com PATH reduzido ao Windows. Se
@@ -49,12 +61,20 @@ $stage = Join-Path $env:TEMP "morune-isolation-check"
 Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $stage | Out-Null
 Copy-Item $exe $stage
+Copy-Item $loader $stage
 
 $saved = $env:PATH
 try {
     $env:PATH = "$env:SystemRoot\system32;$env:SystemRoot"
     $env:MORUNE_BINARY_CHECK_FILE = "$stage\binary-check.txt"
-    $p = Start-Process -FilePath "$stage\morune.exe" -Wait -PassThru
+    # Com limite: DLL faltando faz o Windows abrir um aviso e esperar um
+    # clique que no runner nunca vem -- sem limite, o build so cairia no teto
+    # de 150 minutos, em vez de reprovar aqui.
+    $p = Start-Process -FilePath "$stage\morune.exe" -PassThru
+    if (-not $p.WaitForExit(60000)) {
+        Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+        Write-Error "O executavel nao respondeu em 60 s isolado -- provavelmente falta uma DLL."
+    }
     if ($p.ExitCode -ne 0 -or -not (Test-Path "$stage\binary-check.txt")) {
         Write-Error "O executavel nao carrega isolado (codigo $($p.ExitCode)). Verifique as DLLs de runtime do pacote."
     }

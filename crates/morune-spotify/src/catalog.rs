@@ -81,13 +81,21 @@ impl SpotifyCatalog {
     async fn capas_que_faltam(&self, secoes: &mut [morune_core::model::FeedSection]) {
         use morune_core::model::FeedItem;
         for item in secoes.iter_mut().flat_map(|s| s.items.iter_mut()) {
-            let FeedItem::Playlist(p) = item else { continue };
+            let FeedItem::Playlist(p) = item else {
+                continue;
+            };
             if !p.images.0.is_empty() {
                 continue;
             }
-            let Ok(id) = spotify_id(p.id.provider, &p.id.id) else { continue };
-            let Ok(conteudo) = self.internal.playlist(id).await else { continue };
-            let Some(primeira) = conteudo.track_ids.first() else { continue };
+            let Ok(id) = spotify_id(p.id.provider, &p.id.id) else {
+                continue;
+            };
+            let Ok(conteudo) = self.internal.playlist(id).await else {
+                continue;
+            };
+            let Some(primeira) = conteudo.track_ids.first() else {
+                continue;
+            };
             if let Ok(faixas) = self.tracks_by_id(std::slice::from_ref(primeira)).await {
                 if let Some(album) = faixas.into_iter().next().and_then(|t| t.album) {
                     p.images = album.images;

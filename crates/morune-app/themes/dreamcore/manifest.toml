@@ -1,8 +1,0 @@
-schema_version = 1
-id = "dreamcore"
-name = "Dreamcore"
-version = "1.0.0"
-author = "Morune"
-description = "Um corredor de escola liminar com nuvens por dentro e um planeta no ceu. Paineis de vidro ameixa para o olho descansar."
-license = "MIT"
-appearance = "dark"

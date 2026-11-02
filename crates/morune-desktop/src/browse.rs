@@ -1206,9 +1206,15 @@ fn cover(images: &morune_core::model::ImageSet) -> String {
 /// Categoria de podcast ou audiolivro, que o Otomori nao toca.
 fn fora_do_produto(titulo: &str) -> bool {
     let t = titulo.to_lowercase();
-    ["podcast", "audiolivro", "audiobook", "audiossérie", "audiosséries"]
-        .iter()
-        .any(|p| t.contains(p))
+    [
+        "podcast",
+        "audiolivro",
+        "audiobook",
+        "audiossérie",
+        "audiosséries",
+    ]
+    .iter()
+    .any(|p| t.contains(p))
 }
 
 fn playlist_card(p: &morune_core::model::Playlist) -> Card {
@@ -1328,7 +1334,9 @@ fn describe(error: &CoreError) -> String {
         CoreError::AccountPlan(message) => message.clone(),
         CoreError::Network(_) => "Sem conexão com o Spotify. Verifique a internet.".into(),
         CoreError::NotFound(_) => "Isso não existe mais no Spotify.".into(),
-        CoreError::Decode(_) => "O Spotify respondeu de um jeito que o Otomori não entendeu.".into(),
+        CoreError::Decode(_) => {
+            "O Spotify respondeu de um jeito que o Otomori não entendeu.".into()
+        }
         other => format!("Não foi possível consultar o Spotify: {other}"),
     }
 }

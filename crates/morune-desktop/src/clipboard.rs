@@ -82,7 +82,7 @@ mod tests {
     /// acabou de copiar. Rode a mao quando mexer neste modulo:
     ///
     /// ```text
-    /// cargo test -p morune-app -- --ignored copia_para_a_area_de_transferencia
+    /// cargo test -p morune-desktop -- --ignored copia_para_a_area_de_transferencia
     /// ```
     #[test]
     #[ignore = "sobrescreve a area de transferencia do sistema"]

@@ -126,7 +126,9 @@ mod tests {
         // Todos vistos numa conta real. Listar host a host quebrava a cada tipo
         // novo de playlist.
         assert!(aceita("https://i.scdn.co/image/ab67"));
-        assert!(aceita("https://misc.scdn.co/liked-songs/liked-songs-300.jpg"));
+        assert!(aceita(
+            "https://misc.scdn.co/liked-songs/liked-songs-300.jpg"
+        ));
         assert!(aceita("https://mosaic.scdn.co/300/ab67616d0000b273"));
         assert!(aceita(
             "https://pickasso.spotifycdn.com/image/ab67c0de/dt/v1/img"

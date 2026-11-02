@@ -1,9 +1,0 @@
-schema_version = 1
-id = "lofi"
-name = "Lo-fi"
-# Sem este campo a atualizacao do tema embutido nao compara versoes. Ver `bundled.rs`.
-version = "1.0.0"
-author = "Morune"
-description = "Quarto de estudo numa noite de chuva: luz ambar da luminaria e chuva caindo no vidro da janela."
-license = "MIT"
-appearance = "dark"

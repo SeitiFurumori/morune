@@ -147,7 +147,9 @@ impl Pathfinder {
             )
             .await
             .map_err(|_| {
-                CoreError::Decode("o Spotify mudou a operacao das categorias; atualize o Otomori".into())
+                CoreError::Decode(
+                    "o Spotify mudou a operacao das categorias; atualize o Otomori".into(),
+                )
             })?;
         Ok(crate::navegar::categorias(&resposta))
     }
@@ -166,7 +168,9 @@ impl Pathfinder {
             )
             .await
             .map_err(|_| {
-                CoreError::Decode("o Spotify mudou a operacao da categoria; atualize o Otomori".into())
+                CoreError::Decode(
+                    "o Spotify mudou a operacao da categoria; atualize o Otomori".into(),
+                )
             })?;
         Ok(crate::navegar::categoria(&resposta))
     }
@@ -317,7 +321,11 @@ impl Pathfinder {
                 continue;
             }
             if graphql_error(&resposta).is_some() {
-                tracing::debug!(operacao, hash, "hash respondeu com erro; tentando o anterior");
+                tracing::debug!(
+                    operacao,
+                    hash,
+                    "hash respondeu com erro; tentando o anterior"
+                );
                 ultimo_erro = Some(resposta);
                 continue;
             }

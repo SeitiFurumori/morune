@@ -80,4 +80,3 @@ fn commit_hash() -> String {
         .filter(|hash| !hash.is_empty() && hash.chars().all(|c| c.is_ascii_alphanumeric()))
         .unwrap_or_else(|| "local".into())
 }
-

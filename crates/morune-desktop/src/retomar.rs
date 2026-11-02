@@ -28,7 +28,12 @@ impl Retomada {
     /// Fotografa a fila. `None` quando nao ha faixa atual.
     ///
     /// Fila maior que [`MAX_FAIXAS`] guarda uma janela em volta da atual.
-    pub fn de(origem: &QueueOrigin, faixas: &[Track], atual: usize, posicao: Duration) -> Option<Self> {
+    pub fn de(
+        origem: &QueueOrigin,
+        faixas: &[Track],
+        atual: usize,
+        posicao: Duration,
+    ) -> Option<Self> {
         if atual >= faixas.len() {
             return None;
         }
@@ -109,7 +114,13 @@ mod tests {
         let pasta = std::env::temp_dir().join(format!("morune-retomar-{}", std::process::id()));
         std::fs::create_dir_all(&pasta).unwrap();
         let faixas: Vec<Track> = (0..3).map(faixa).collect();
-        let r = Retomada::de(&QueueOrigin::Playlist("p".into()), &faixas, 2, Duration::from_millis(1234)).unwrap();
+        let r = Retomada::de(
+            &QueueOrigin::Playlist("p".into()),
+            &faixas,
+            2,
+            Duration::from_millis(1234),
+        )
+        .unwrap();
         gravar(&pasta, &r);
         let lida = ler(&pasta).unwrap();
         assert_eq!(lida.atual, 2);

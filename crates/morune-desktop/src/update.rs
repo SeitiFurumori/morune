@@ -1195,7 +1195,7 @@ mod tests {
     /// quando algo neste modulo mudar:
     ///
     /// ```text
-    /// cargo test -p morune-app -- --ignored --nocapture atualizacao_de_verdade
+    /// cargo test -p morune-desktop -- --ignored --nocapture atualizacao_de_verdade
     /// ```
     #[test]
     #[ignore = "usa a rede e baixa o instalador"]

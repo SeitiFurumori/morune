@@ -350,7 +350,11 @@ impl PlaybackEngine for SpotifyEngine {
     }
 
     fn level(&self) -> f32 {
-        self.shared.nivel.lock().map(|mut n| n.pulso()).unwrap_or(0.0)
+        self.shared
+            .nivel
+            .lock()
+            .map(|mut n| n.pulso())
+            .unwrap_or(0.0)
     }
 
     fn snapshot(&self) -> PlayerSnapshot {

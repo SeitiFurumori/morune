@@ -517,12 +517,17 @@ impl Internal {
         // "Aparece em" vem antes cortado: e onde mora o volume (coletaneas de
         // terceiros), e o Spotify tambem so mostra o comeco dessa lista.
         meta.appears_on.truncate(APARECE_EM_MAX);
-        let faltam: Vec<String> = [&meta.albums, &meta.singles, &meta.compilations, &meta.appears_on]
-            .into_iter()
-            .flatten()
-            .filter(|(_, nome, _)| nome.is_empty())
-            .map(|(id, _, _)| id.clone())
-            .collect();
+        let faltam: Vec<String> = [
+            &meta.albums,
+            &meta.singles,
+            &meta.compilations,
+            &meta.appears_on,
+        ]
+        .into_iter()
+        .flatten()
+        .filter(|(_, nome, _)| nome.is_empty())
+        .map(|(id, _, _)| id.clone())
+        .collect();
         if !faltam.is_empty() {
             let achados = match self.album_refs(&faltam).await {
                 Ok(achados) => achados,
@@ -531,7 +536,12 @@ impl Internal {
                     HashMap::new()
                 }
             };
-            for grupo in [&mut meta.albums, &mut meta.singles, &mut meta.compilations, &mut meta.appears_on] {
+            for grupo in [
+                &mut meta.albums,
+                &mut meta.singles,
+                &mut meta.compilations,
+                &mut meta.appears_on,
+            ] {
                 for (id, nome, capas) in grupo.iter_mut() {
                     if let Some((n, c)) = achados.get(id) {
                         if nome.is_empty() {
@@ -598,7 +608,13 @@ impl Internal {
                         continue;
                     };
                     if let Some(id) = base62(message.gid()) {
-                        por_id.insert(id, (message.name().to_string(), covers(message.cover_group.as_ref())));
+                        por_id.insert(
+                            id,
+                            (
+                                message.name().to_string(),
+                                covers(message.cover_group.as_ref()),
+                            ),
+                        );
                     }
                 }
             }

@@ -87,7 +87,8 @@ mod tests {
 
     #[test]
     fn arquivo_estragado_vira_lista_vazia() {
-        let pasta = std::env::temp_dir().join(format!("otomori-recentes-ruim-{}", std::process::id()));
+        let pasta =
+            std::env::temp_dir().join(format!("otomori-recentes-ruim-{}", std::process::id()));
         std::fs::create_dir_all(&pasta).unwrap();
         std::fs::write(arquivo(&pasta), "{nao e json").unwrap();
         assert!(ler(&pasta).is_empty());

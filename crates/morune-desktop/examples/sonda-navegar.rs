@@ -5,7 +5,7 @@
 //! resposta crua para escrever o parser contra ela, e nao contra suposicao.
 //!
 //! ```text
-//! cargo run -p morune-app --example sonda-navegar
+//! cargo run -p morune-desktop --example sonda-navegar
 //! ```
 //!
 //! Usa a sessao guardada no cofre do Windows. Nao toca audio nem escreve nada
@@ -42,10 +42,18 @@ fn main() {
 
     // O mesmo caminho que a tela usa, para conferir o parser contra a conta.
     match backend.block_on(backend.library().categorias()) {
-        Ok(cats) => println!("categorias pelo parser: {} (primeira: {:?})", cats.len(), cats.first().map(|c| &c.titulo)),
+        Ok(cats) => println!(
+            "categorias pelo parser: {} (primeira: {:?})",
+            cats.len(),
+            cats.first().map(|c| &c.titulo)
+        ),
         Err(e) => println!("categorias FALHOU: {e}"),
     }
-    match backend.block_on(backend.library().categoria("spotify:page:0JQ5DAqbMKFDXXwE9BDJAr")) {
+    match backend.block_on(
+        backend
+            .library()
+            .categoria("spotify:page:0JQ5DAqbMKFDXXwE9BDJAr"),
+    ) {
         Ok((titulo, secoes)) => println!(
             "categoria pelo parser: {titulo}, {} prateleiras, {} itens",
             secoes.len(),

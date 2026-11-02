@@ -5,8 +5,8 @@
 //! janela; esta nunca aparece e nao desenha nada.
 
 use raw_window_handle::{
-    DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawWindowHandle, Win32WindowHandle,
-    WindowHandle,
+    DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawWindowHandle,
+    Win32WindowHandle, WindowHandle,
 };
 use std::num::NonZeroIsize;
 use windows::core::w;

@@ -44,11 +44,19 @@ macro_rules! tema_so_tokens {
             files: &[
                 BundledFile {
                     name: "manifest.toml",
-                    contents: BundledContents::Text(include_str!(concat!("../../morune-app/themes/", $id, "/manifest.toml"))),
+                    contents: BundledContents::Text(include_str!(concat!(
+                        "../themes/",
+                        $id,
+                        "/manifest.toml"
+                    ))),
                 },
                 BundledFile {
                     name: "theme.toml",
-                    contents: BundledContents::Text(include_str!(concat!("../../morune-app/themes/", $id, "/theme.toml"))),
+                    contents: BundledContents::Text(include_str!(concat!(
+                        "../themes/",
+                        $id,
+                        "/theme.toml"
+                    ))),
                 },
             ],
         }
@@ -69,8 +77,8 @@ const THEMES: &[BundledTheme] = &[
 /// Decidido em 25/09/2026: eram escuros e claros genericos, sem conceito, e
 /// deram lugar a Travessia e ao Dreamcore.
 /// Os seis da tela em Slint sairam em 31/10/2026, com a identidade nova: eram
-/// "o mesmo app com outra cor". Os originais (e as imagens) continuam em
-/// `crates/morune-app/themes`, que o app em Slint ainda usa.
+/// "o mesmo app com outra cor". Os arquivos deles sairam do projeto em
+/// 02/11/2026, junto com o app em Slint; ficam no historico do git.
 const APOSENTADOS: &[&str] = &[
     "paper",
     "cristal",
@@ -604,10 +612,14 @@ author = \"Fulano\"
             // `.fundo-capa`): a capa mais clara e a mais escura tingem o fundo,
             // e cada superficie vem por cima.
             let tintas: Vec<Color> = if spec.effects.artwork_tint {
-                [Color::TRANSPARENT, Color::rgb(0, 0, 0), Color::rgb(255, 255, 255)]
-                    .into_iter()
-                    .map(|capa| capa.scale_alpha(spec.effects.artwork_tint_strength))
-                    .collect()
+                [
+                    Color::TRANSPARENT,
+                    Color::rgb(0, 0, 0),
+                    Color::rgb(255, 255, 255),
+                ]
+                .into_iter()
+                .map(|capa| capa.scale_alpha(spec.effects.artwork_tint_strength))
+                .collect()
             } else {
                 vec![Color::TRANSPARENT]
             };

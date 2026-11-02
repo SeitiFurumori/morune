@@ -42,7 +42,12 @@ pub fn dominant(path: &Path) -> Option<Color> {
     let image = image::open(path).ok()?.thumbnail(64, 64).to_rgba8();
     let pixels: Vec<Rgba8Pixel> = image
         .pixels()
-        .map(|p| Rgba8Pixel { r: p[0], g: p[1], b: p[2], a: p[3] })
+        .map(|p| Rgba8Pixel {
+            r: p[0],
+            g: p[1],
+            b: p[2],
+            a: p[3],
+        })
         .collect();
     dominant_pixels(&pixels, image.width(), image.height())
 }

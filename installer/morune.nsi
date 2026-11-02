@@ -51,8 +51,8 @@ InstallDirRegKey HKCU "${REG_APP}" "InstallDir"
 !define MUI_ABORTWARNING
 ; Icone da marca, o mesmo que fica no executavel. As entradas pequenas sao DIB
 ; porque o NSIS nao le entradas comprimidas em PNG nesses tamanhos.
-!define MUI_ICON "..\assets\brand\morune.ico"
-!define MUI_UNICON "..\assets\brand\morune.ico"
+!define MUI_ICON "..\assets\brand\otomori.ico"
+!define MUI_UNICON "..\assets\brand\otomori.ico"
 
 !define MUI_WELCOMEPAGE_TITLE "Instalar o ${APP_NAME}"
 !define MUI_WELCOMEPAGE_TEXT "Cliente de musica nativo para Windows: leve, rapido e customizavel.$\r$\n$\r$\nNao e preciso instalar nada antes. Na proxima tela voce escolhe em qual disco e em qual pasta instalar."
@@ -198,9 +198,11 @@ Section "!${APP_NAME} (obrigatorio)" SecCore
     SectionIn RO
     SetOutPath "$INSTDIR"
 
-    ; O binario e autocontido: nao ha DLL de runtime para copiar junto,
-    ; verificado executando o .exe com um PATH minimo.
+    ; Alem do executavel, so a DLL que carrega o WebView2 do Windows (a tela
+    ; web); o resto e autocontido, verificado executando o .exe com um PATH
+    ; minimo em tools/build-installer.ps1.
     File "${SOURCE_EXE}"
+    File "..\target\release\WebView2Loader.dll"
     File /nonfatal "..\README.md"
     ; Exigido pelas licencas das bibliotecas embutidas, nao e cortesia: MIT,
     ; Apache-2.0, BSD e ISC pedem que o aviso de copyright acompanhe o binario.
@@ -300,6 +302,7 @@ Section "un.${APP_NAME}" UnCore
     SectionIn RO
 
     Delete "$INSTDIR\${APP_EXE}"
+    Delete "$INSTDIR\WebView2Loader.dll"
     Delete "$INSTDIR\README.md"
     Delete "$INSTDIR\LICENSE"
     Delete "$INSTDIR\THIRD-PARTY-LICENSES.txt"

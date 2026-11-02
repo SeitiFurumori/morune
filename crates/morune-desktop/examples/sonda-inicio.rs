@@ -7,7 +7,7 @@
 //! suposicao.
 //!
 //! ```text
-//! cargo run -p morune-app --example sonda-inicio
+//! cargo run -p morune-desktop --example sonda-inicio
 //! ```
 //!
 //! Usa a sessao guardada no cofre do Windows. Nao toca audio nem escreve nada

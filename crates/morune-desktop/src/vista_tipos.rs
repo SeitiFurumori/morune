@@ -60,6 +60,9 @@ impl From<morune_theme::Color> for Cor {
 
 impl Serialize for Cor {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.serialize_str(&format!("#{:02x}{:02x}{:02x}{:02x}", self.r, self.g, self.b, self.a))
+        s.serialize_str(&format!(
+            "#{:02x}{:02x}{:02x}{:02x}",
+            self.r, self.g, self.b, self.a
+        ))
     }
 }

@@ -2,7 +2,7 @@
 #
 # Semanal e agrupado de proposito: um PR por dependencia por dia transforma
 # manutencao em ruido, e num projeto de uma pessoa so o ruido vence. O que
-# importa aqui e nao ficar preso numa versao antiga de librespot ou de Slint
+# importa aqui e nao ficar preso numa versao antiga de librespot ou de Tauri
 # sem perceber.
 version: 2
 

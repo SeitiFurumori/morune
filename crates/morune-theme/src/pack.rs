@@ -42,8 +42,8 @@ pub const MAX_COMPRESSION_RATIO: u64 = 200;
 /// executavel, script ou biblioteca, e enumerar o que e perigoso e uma corrida
 /// que se perde.
 const ALLOWED_EXTENSIONS: &[&str] = &[
-    "toml", "json", "png", "jpg", "jpeg", "webp", "svg", "ttf", "otf", "woff2", "md", "txt",
-    "gif", "mp4", "webm",
+    "toml", "json", "png", "jpg", "jpeg", "webp", "svg", "ttf", "otf", "woff2", "md", "txt", "gif",
+    "mp4", "webm",
 ];
 
 /// Video e GIF sao midia, nao codigo: o WebView so os toca. Ganham um limite

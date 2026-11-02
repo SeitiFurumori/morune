@@ -80,7 +80,12 @@ impl TrackNotifier {
     /// `ligada` e a preferencia da pessoa; `janela` serve para nao anunciar o
     /// que ela esta vendo -- com o Morune em primeiro plano a barra de
     /// reproducao ja diz tudo.
-    pub fn update(&mut self, status: Option<&MediaStatus>, ligada: bool, janela: &impl HasWindowHandle) {
+    pub fn update(
+        &mut self,
+        status: Option<&MediaStatus>,
+        ligada: bool,
+        janela: &impl HasWindowHandle,
+    ) {
         let Some(status) = status else {
             self.esperando = None;
             return;
@@ -192,7 +197,8 @@ fn em_primeiro_plano(janela: &impl HasWindowHandle) -> bool {
     // SAFETY: sem parametros; devolve a janela em primeiro plano ou nula.
     let frente = unsafe { GetForegroundWindow() };
     // SAFETY: HWND valido enquanto a janela existir.
-    frente == nossa && unsafe { windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(nossa) }.as_bool()
+    frente == nossa
+        && unsafe { windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(nossa) }.as_bool()
 }
 
 /// Registra o nome que o Windows mostra no alto da notificacao.

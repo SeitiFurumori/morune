@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use crate::ui::{ModelRc, SharedString};
 use morune_core::playback::{
     AudioSettings, NullEngine, PlaybackEngine, PlayerCommand, PlayerEvent,
 };
@@ -16,7 +17,6 @@ use morune_core::queue::{Queue, QueueOrigin, RepeatMode};
 use morune_core::{Track, TrackId};
 use morune_storage::{AppPaths, Config};
 use morune_theme::{loader, ThemeSpec};
-use crate::ui::{ModelRc, SharedString};
 use tokio::sync::broadcast;
 
 use crate::browse::{AutoplayOutcome, Card, FeedShelf, Home, LibraryOutcome, Outcome, Target};
@@ -432,9 +432,7 @@ impl AppState {
             }
         }
         // So na medicao de quadros: comparar temas sem tocar na configuracao.
-        let tema_medicao = std::env::var("MORUNE_TEMA")
-            .ok()
-            .filter(|_| false);
+        let tema_medicao = std::env::var("MORUNE_TEMA").ok().filter(|_| false);
         let theme = loader::load(
             &paths.themes_dir(),
             tema_medicao.as_deref().unwrap_or(&config.appearance.theme),
@@ -2228,7 +2226,11 @@ impl AppState {
 
     /// Posicao do controle: `0` como o tema pede, `1` o mais transparente.
     pub fn set_panel_opacity(&mut self, valor: f32) {
-        let v = if valor.is_finite() { valor.clamp(0.0, 1.0) } else { 0.0 };
+        let v = if valor.is_finite() {
+            valor.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
         // `0` guardado e "o do tema"; qualquer outro valor multiplica a
         // opacidade que o tema da aos paineis.
         self.aparencia.paineis = if v <= 0.001 { 0.0 } else { 1.0 - v * 0.8 };
@@ -2248,7 +2250,10 @@ impl AppState {
         if valor.is_empty() {
             self.aparencia.livre.cores.remove(chave);
         } else if crate::aparencia::cor_valida(valor) {
-            self.aparencia.livre.cores.insert(chave.to_string(), valor.to_ascii_lowercase());
+            self.aparencia
+                .livre
+                .cores
+                .insert(chave.to_string(), valor.to_ascii_lowercase());
             if chave == "accent" {
                 self.aparencia.acento.clear();
             } else if chave != "text" && chave != "text_muted" && chave != "border" {
@@ -2260,7 +2265,9 @@ impl AppState {
 
     /// Um numero do modo livre (cantos, espaco...). Fora do numero, volta o do tema.
     pub fn set_livre_numero(&mut self, chave: &str, valor: Option<f32>) {
-        let Some((min, max)) = crate::aparencia::faixa(chave) else { return };
+        let Some((min, max)) = crate::aparencia::faixa(chave) else {
+            return;
+        };
         if let Some(n) = self.aparencia.livre.numero_mut(chave) {
             *n = valor.filter(|v| v.is_finite()).map(|v| v.clamp(min, max));
         }
@@ -2269,7 +2276,11 @@ impl AppState {
 
     /// Fonte do texto (`titulo = false`) ou dos titulos. Vazio = a do tema.
     pub fn set_livre_fonte(&mut self, titulo: bool, nome: &str) {
-        let nome = if crate::aparencia::FONTES.contains(&nome) { nome } else { "" };
+        let nome = if crate::aparencia::FONTES.contains(&nome) {
+            nome
+        } else {
+            ""
+        };
         if titulo {
             self.aparencia.livre.fonte_titulo = nome.to_string();
         } else {
@@ -2292,13 +2303,19 @@ impl AppState {
     /// com os ajustes do modo livre.
     pub fn salvar_como_tema(&mut self, nome: &str, cores: &serde_json::Value) {
         let nome: String = nome.trim().chars().take(40).collect();
-        let nome = if nome.is_empty() { "Meu tema".to_string() } else { nome };
+        let nome = if nome.is_empty() {
+            "Meu tema".to_string()
+        } else {
+            nome
+        };
         let mut spec = self.spec().clone();
         self.aparencia.livre.aplicar(&mut spec);
         if let Some(cores) = cores.as_object() {
             let c = &mut spec.colors;
             for (chave, valor) in cores {
-                let Some(cor) = valor.as_str().and_then(|v| v.parse::<morune_theme::Color>().ok())
+                let Some(cor) = valor
+                    .as_str()
+                    .and_then(|v| v.parse::<morune_theme::Color>().ok())
                 else {
                     continue;
                 };
@@ -2347,7 +2364,11 @@ impl AppState {
 
         // O fundo escolhido pela pessoa vira o fundo do tema.
         let mut aviso = String::new();
-        if let Some(fundo) = self.fundo.clone().filter(|_| !self.config.appearance.background_image.is_empty()) {
+        if let Some(fundo) = self
+            .fundo
+            .clone()
+            .filter(|_| !self.config.appearance.background_image.is_empty())
+        {
             let ext = fundo
                 .extension()
                 .map(|e| e.to_string_lossy().to_lowercase())
@@ -2388,7 +2409,8 @@ impl AppState {
         }
         self.refresh_themes();
         self.select_theme(&id);
-        self.status = format!("Tema \"{nome}\" salvo. Dá para exportar e mandar para alguém.{aviso}");
+        self.status =
+            format!("Tema \"{nome}\" salvo. Dá para exportar e mandar para alguém.{aviso}");
     }
 
     /// Volta cor, paleta e as duas transparencias ao que o tema pede.
@@ -3000,7 +3022,10 @@ impl AppState {
     /// custo de uma copia unica e menor que o de explicar isso.
     pub fn choose_background_via_dialog(&mut self) {
         let Some(file) = rfd::FileDialog::new()
-            .add_filter("Imagem, GIF ou vídeo", &["png", "jpg", "jpeg", "webp", "bmp", "gif", "mp4", "webm"])
+            .add_filter(
+                "Imagem, GIF ou vídeo",
+                &["png", "jpg", "jpeg", "webp", "bmp", "gif", "mp4", "webm"],
+            )
             .set_title("Escolher fundo")
             .pick_file()
         else {
@@ -4233,7 +4258,9 @@ impl AppState {
                         .collect(),
                     cat.carregando,
                 ),
-                None => window.set_categoria(false, String::new(), String::new(), Vec::new(), false),
+                None => {
+                    window.set_categoria(false, String::new(), String::new(), Vec::new(), false)
+                }
             }
         }
         window.set_home_loaded(self.home_loaded);
@@ -4286,7 +4313,7 @@ impl AppState {
                         .and_then(crate::tint::accent);
                     *cache = (detail.cover_path.clone(), cor);
                 }
-                cache.1.clone()
+                cache.1
             };
             window.set_detail_cor(cor.unwrap_or(self.spec().colors.accent.into()));
             let (initial, hue) = cover_badge(&detail.title);
@@ -4334,7 +4361,7 @@ impl AppState {
             )
         }));
         if na_fila {
-            window.set_queue_context_name(self.queue_context_name().into());
+            window.set_queue_context_name(self.queue_context_name());
         }
         window.set_queue_context_tracks(l.queue_context_tracks.sincronizar_se(na_fila, || {
             track_rows(
@@ -4815,7 +4842,12 @@ impl AppState {
                 Some(Card {
                     tag: tag.to_string(),
                     title: t.name.to_string(),
-                    subtitle: t.artists.iter().map(|a| a.name.as_ref()).collect::<Vec<_>>().join(", "),
+                    subtitle: t
+                        .artists
+                        .iter()
+                        .map(|a| a.name.as_ref())
+                        .collect::<Vec<_>>()
+                        .join(", "),
                     cover: t
                         .album
                         .as_ref()
@@ -4860,7 +4892,11 @@ impl AppState {
             }
         }
         contagem.sort_by(|a, b| b.1.cmp(&a.1).then(a.2.cmp(&b.2)));
-        contagem.into_iter().take(ARTISTAS_OUVIDOS).map(|(id, _, _)| id).collect()
+        contagem
+            .into_iter()
+            .take(ARTISTAS_OUVIDOS)
+            .map(|(id, _, _)| id)
+            .collect()
     }
 
     /// Abre uma categoria dentro da busca.
@@ -4972,7 +5008,12 @@ impl AppState {
                     .and_then(crate::tint::accent)
                     .unwrap_or(s.colors.accent.into()),
             );
-            window.set_fundo(self.fundo.as_deref().map(ui::Imagem::de_arquivo).unwrap_or_default());
+            window.set_fundo(
+                self.fundo
+                    .as_deref()
+                    .map(ui::Imagem::de_arquivo)
+                    .unwrap_or_default(),
+            );
         }
         let snapshot = self.engine.snapshot();
         let position = self.shown_position(&snapshot);
@@ -4980,7 +5021,7 @@ impl AppState {
         let duration = current.map(|t| t.duration).unwrap_or(snapshot.duration);
 
         window.set_has_track(current.is_some());
-        window.set_sleep_label(self.sleep_label().into());
+        window.set_sleep_label(self.sleep_label());
         window.set_now_cover(cover_image(self.now_cover.1.as_deref()));
         // A ficha da faixa tocando sai do album, igual a das linhas de lista.
         let (initial, hue) = cover_badge(
@@ -4998,8 +5039,8 @@ impl AppState {
         } else {
             (position.as_secs_f32() / duration.as_secs_f32()).clamp(0.0, 1.0)
         });
-        window.set_elapsed(format_time(position).into());
-        window.set_total(format_time(duration).into());
+        window.set_elapsed(format_time(position));
+        window.set_total(format_time(duration));
         window.set_volume(self.volume);
         window.set_shuffle(self.queue.shuffle());
         window.set_repeat(match self.queue.repeat() {
@@ -5008,7 +5049,7 @@ impl AppState {
             RepeatMode::One => 2,
         });
         window.set_now_title(current.map(|t| t.name.as_ref()).unwrap_or("").into());
-        window.set_now_artist(current.map(|t| t.artists_line()).unwrap_or_default().into());
+        window.set_now_artist(current.map(|t| t.artists_line()).unwrap_or_default());
         window.set_now_artist_id(
             current
                 .and_then(|t| t.artists.first())
@@ -5018,8 +5059,7 @@ impl AppState {
         window.set_now_id(
             current
                 .map(|track| Target::Track(track.id.clone()).tag())
-                .unwrap_or_default()
-                .into(),
+                .unwrap_or_default(),
         );
         window.set_now_favorite(current.is_some_and(|track| self.liked_ids.contains(&track.id)));
         window.set_now_onda(self.onda.1.clone());
@@ -5184,9 +5224,9 @@ fn track_rows(
                     .unwrap_or(t.name.as_ref()),
             );
             ui::TrackRow {
-                id: Target::Track(t.id.clone()).tag().into(),
+                id: Target::Track(t.id.clone()).tag(),
                 title: t.name.as_ref().into(),
-                artist: t.artists_line().into(),
+                artist: t.artists_line(),
                 album: t
                     .album
                     .as_ref()
@@ -5197,7 +5237,7 @@ fn track_rows(
                 initial,
                 hue,
                 cover_pending: url.is_some() && arquivo.is_none(),
-                duration: format_time(t.duration).into(),
+                duration: format_time(t.duration),
                 playable: t.playable,
                 playing: current.is_some_and(|c| c.id == t.id),
                 favorite: liked_ids.contains(&t.id),
@@ -5207,14 +5247,12 @@ fn track_rows(
                     .artists
                     .first()
                     .map(|a| Target::Artist(a.id.clone()).tag())
-                    .unwrap_or_default()
-                    .into(),
+                    .unwrap_or_default(),
                 album_id: t
                     .album
                     .as_ref()
                     .map(|a| Target::Album(a.id.clone()).tag())
-                    .unwrap_or_default()
-                    .into(),
+                    .unwrap_or_default(),
             }
         })
         .collect()
@@ -5400,7 +5438,6 @@ struct Listas {
     search_tracks: Lista<ui::TrackRow>,
 }
 
-
 /// "Bom dia" das 5h ao meio-dia, "Boa tarde" ate as 18h, "Boa noite" no resto,
 /// os mesmos cortes do Spotify. `hora` em horas decimais.
 fn saudacao(hora: f32) -> &'static str {
@@ -5534,7 +5571,7 @@ fn cover_badge(nome: &str) -> (SharedString, f32) {
         .map(|c| c.to_uppercase().to_string())
         .unwrap_or_default();
 
-    (inicial.into(), (hash % 360) as f32)
+    (inicial, (hash % 360) as f32)
 }
 
 /// Carrega a capa do arquivo, ou devolve uma imagem vazia.

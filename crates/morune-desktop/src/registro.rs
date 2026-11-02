@@ -115,4 +115,3 @@ fn open_log_file(paths: &morune_storage::AppPaths) -> (Option<std::fs::File>, Op
         Err(_) => (None, None),
     }
 }
-

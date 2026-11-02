@@ -74,7 +74,9 @@ pub(crate) fn categorias(resposta: &Value) -> Vec<Categoria> {
             }
             Some(Categoria {
                 titulo: texto(cartao, "/title/transformedLabel")?.trim().into(),
-                cor: texto(cartao, "/backgroundColor/hex").unwrap_or("#535353").into(),
+                cor: texto(cartao, "/backgroundColor/hex")
+                    .unwrap_or("#535353")
+                    .into(),
                 imagens: imagens(cartao.pointer("/artwork/sources")),
                 uri: uri.into(),
             })

@@ -1,8 +1,0 @@
-schema_version = 1
-id = "aquario"
-name = "Aquario"
-version = "3.4.0"
-author = "Morune"
-description = "Frutiger Aero claro: mar e grama ao sol, controles em vidro claro e marcas discretas em petrol."
-license = "MIT"
-appearance = "light"

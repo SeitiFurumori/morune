@@ -56,6 +56,25 @@ jobs:
           "C:\msys64\mingw64\bin" >> $env:GITHUB_PATH
           rustc --version --verbose
 
+      # A tela (Svelte) e embutida no executavel pelo Tauri: `ui/dist` precisa
+      # existir antes de qualquer `cargo` que compile o app -- sem ela nem o
+      # clippy passa da macro que embute a tela.
+      - name: Preparar o Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: crates/morune-desktop/ui/package-lock.json
+
+      - name: Montar a tela
+        shell: pwsh
+        working-directory: crates/morune-desktop/ui
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { throw "npm ci falhou" }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw "npm run build falhou" }
+
       # Guarda so o registro e as dependencias compiladas, nunca os artefatos
       # do proprio workspace -- esses recompilam de todo jeito. Pull requests
       # aproveitam o cache de main sem gravar o seu, para nao disputar o limite

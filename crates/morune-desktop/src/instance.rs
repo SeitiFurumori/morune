@@ -181,7 +181,8 @@ impl SingleInstance {
     fn ask(texto: windows::core::PCWSTR) -> bool {
         // SAFETY: ponteiros para literais estaticos terminados em nulo, sem
         // janela dona -- a nossa ainda nao existe.
-        let resposta = unsafe { MessageBoxW(None, texto, w!("Otomori"), MB_YESNO | MB_ICONWARNING) };
+        let resposta =
+            unsafe { MessageBoxW(None, texto, w!("Otomori"), MB_YESNO | MB_ICONWARNING) };
         resposta == IDYES
     }
 

@@ -165,7 +165,12 @@ pub(crate) struct Nivel {
 
 impl Default for Nivel {
     fn default() -> Self {
-        Self { fila: Default::default(), fim: Instant::now(), atual: 0.0, media: 0.0 }
+        Self {
+            fila: Default::default(),
+            fim: Instant::now(),
+            atual: 0.0,
+            media: 0.0,
+        }
     }
 }
 
@@ -537,7 +542,8 @@ mod tests {
 
     /// Pacote que ja devia estar tocando: hora no passado.
     fn tocando(n: &mut Nivel, rms: f32) {
-        n.fila.push_back((Instant::now() - Duration::from_millis(1), rms));
+        n.fila
+            .push_back((Instant::now() - Duration::from_millis(1), rms));
         n.fim = Instant::now() + Duration::from_millis(50);
     }
 
@@ -566,7 +572,10 @@ mod tests {
         // O primeiro pacote comeca agora; um segundo pacote, so depois dele.
         n.enfileirar(0.9, Duration::from_millis(20));
         n.pulso();
-        assert!((n.atual - 0.5).abs() < f32::EPSILON, "so o pacote da vez vale");
+        assert!(
+            (n.atual - 0.5).abs() < f32::EPSILON,
+            "so o pacote da vez vale"
+        );
     }
 
     #[test]

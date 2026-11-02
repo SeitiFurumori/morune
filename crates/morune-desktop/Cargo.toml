@@ -1,6 +1,6 @@
 [package]
 name = "morune-desktop"
-description = "Morune com a tela em web (Tauri) sobre o mesmo motor em Rust. Ver docs/adr/0007-tela-em-tauri.md."
+description = "Otomori: o app, com a tela em web (Tauri) sobre o motor em Rust. Ver docs/adr/0007-tela-em-tauri.md."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,8 +8,10 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+# `morune.exe`, e nao o nome do pacote: o instalador, a entrada de iniciar com
+# o Windows e a checagem de instancia unica procuram esse nome desde a 1.0.
 [[bin]]
-name = "morune-web"
+name = "morune"
 path = "src/main.rs"
 
 [features]
@@ -18,7 +20,7 @@ path = "src/main.rs"
 default = ["hot-reload", "custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 hot-reload = ["morune-theme/hot-reload"]
-# Restos do app em Slint (captura de tela); sem efeito aqui.
+# Capturas automaticas de tela herdadas do app em Slint; sem efeito aqui.
 snapshot = []
 
 [dependencies]

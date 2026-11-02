@@ -58,7 +58,9 @@ fn transparencia_do_windows() -> bool {
 #[cfg(windows)]
 pub fn cantos_redondos(janela: &tauri::WebviewWindow) {
     use windows::Win32::Foundation::HWND;
-    use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND};
+    use windows::Win32::Graphics::Dwm::{
+        DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
+    };
 
     let Ok(h) = janela.hwnd() else { return };
     let preferencia = DWMWCP_ROUND;

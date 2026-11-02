@@ -85,7 +85,14 @@ pub struct Livre {
     pub fundo_capa: Option<f32>,
 }
 
-const NUMEROS: [&str; 6] = ["cantos", "espaco", "borda", "velocidade", "brilho_capa", "fundo_capa"];
+const NUMEROS: [&str; 6] = [
+    "cantos",
+    "espaco",
+    "borda",
+    "velocidade",
+    "brilho_capa",
+    "fundo_capa",
+];
 
 /// Faixa aceita de cada numero do modo livre.
 pub fn faixa(chave: &str) -> Option<(f32, f32)> {
@@ -113,7 +120,8 @@ impl Livre {
     }
 
     fn limpa(mut self) -> Self {
-        self.cores.retain(|k, v| CORES_LIVRES.contains(&k.as_str()) && cor_valida(v));
+        self.cores
+            .retain(|k, v| CORES_LIVRES.contains(&k.as_str()) && cor_valida(v));
         for chave in NUMEROS {
             let (min, max) = faixa(chave).unwrap_or((0.0, 1.0));
             if let Some(n) = self.numero_mut(chave) {
@@ -134,7 +142,9 @@ impl Livre {
     pub fn aplicar(&self, spec: &mut ThemeSpec) {
         let c = &mut spec.colors;
         for (chave, valor) in &self.cores {
-            let Ok(nova) = valor.parse::<Color>() else { continue };
+            let Ok(nova) = valor.parse::<Color>() else {
+                continue;
+            };
             let alvo = match chave.as_str() {
                 "background" => &mut c.background,
                 "surface" => &mut c.surface,
@@ -154,7 +164,8 @@ impl Livre {
                     // Texto em cima do destaque: o que tiver mais contraste.
                     let preto = Color::rgb(0x11, 0x11, 0x11);
                     let branco = Color::rgb(255, 255, 255);
-                    c.text_on_accent = if nova.contrast_ratio(preto) >= nova.contrast_ratio(branco) {
+                    c.text_on_accent = if nova.contrast_ratio(preto) >= nova.contrast_ratio(branco)
+                    {
                         preto
                     } else {
                         branco
@@ -221,7 +232,8 @@ pub fn cor_valida(s: &str) -> bool {
 impl Aparencia {
     /// Tira o que um arquivo mexido a mao poderia trazer de estranho.
     fn limpa(mut self) -> Self {
-        let nome = |s: &str| s.len() <= 32 && s.bytes().all(|b| b.is_ascii_lowercase() || b == b'-');
+        let nome =
+            |s: &str| s.len() <= 32 && s.bytes().all(|b| b.is_ascii_lowercase() || b == b'-');
         if !nome(&self.acento) {
             self.acento.clear();
         }
@@ -278,7 +290,11 @@ mod tests {
             paleta: "Noite".into(),
             paineis: f32::NAN,
             livre: Livre {
-                cores: [("background".into(), "red; x".into()), ("outra".into(), "#ffffff".into())].into(),
+                cores: [
+                    ("background".into(), "red; x".into()),
+                    ("outra".into(), "#ffffff".into()),
+                ]
+                .into(),
                 fonte: "x\"; } body { color: red".into(),
                 cantos: Some(f32::INFINITY),
                 ..Default::default()
@@ -290,7 +306,11 @@ mod tests {
 
     #[test]
     fn paineis_nao_somem() {
-        let a = Aparencia { paineis: 0.01, ..Default::default() }.limpa();
+        let a = Aparencia {
+            paineis: 0.01,
+            ..Default::default()
+        }
+        .limpa();
         assert_eq!(a.paineis, 0.2);
     }
 
@@ -299,7 +319,11 @@ mod tests {
         let mut spec = ThemeSpec::default();
         spec.colors.surface = Color::rgba(0, 0, 0, 0x80);
         let livre = Livre {
-            cores: [("surface".into(), "#ff0000".into()), ("accent".into(), "#ffee00".into())].into(),
+            cores: [
+                ("surface".into(), "#ff0000".into()),
+                ("accent".into(), "#ffee00".into()),
+            ]
+            .into(),
             cantos: Some(0.0),
             ..Default::default()
         };

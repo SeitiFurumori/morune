@@ -152,7 +152,12 @@ mod tests {
             "segments":[{"start":0.0,"duration":10.0,"loudness_max":-4.0},
                         {"start":10.0,"duration":10.0,"loudness_max":-3.0}]}"#;
         let p = picos(json).unwrap();
-        assert!(p[PICOS - 1] - p[0] > 0.5, "verso {} refrao {}", p[0], p[PICOS - 1]);
+        assert!(
+            p[PICOS - 1] - p[0] > 0.5,
+            "verso {} refrao {}",
+            p[0],
+            p[PICOS - 1]
+        );
     }
 
     #[test]
