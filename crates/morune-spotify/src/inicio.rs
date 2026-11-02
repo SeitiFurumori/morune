@@ -89,7 +89,7 @@ pub(crate) fn secoes(resposta: &Value) -> Vec<FeedSection> {
         .collect()
 }
 
-fn item(conteudo: &Value) -> Option<FeedItem> {
+pub(crate) fn item(conteudo: &Value) -> Option<FeedItem> {
     let dados = conteudo.get("data")?;
     match texto(conteudo, "/__typename")? {
         "PlaylistResponseWrapper" => {

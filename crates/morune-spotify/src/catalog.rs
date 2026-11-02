@@ -624,6 +624,21 @@ impl Library for SpotifyCatalog {
         })
     }
 
+    fn categorias<'a>(&'a self) -> BoxFuture<'a, CoreResult<Vec<morune_core::model::Categoria>>> {
+        Box::pin(self.pathfinder.categorias())
+    }
+
+    fn categoria<'a>(
+        &'a self,
+        uri: &'a str,
+    ) -> BoxFuture<'a, CoreResult<(String, Vec<morune_core::model::FeedSection>)>> {
+        Box::pin(async move {
+            let (titulo, mut secoes) = self.pathfinder.categoria(uri).await?;
+            self.capas_que_faltam(&mut secoes).await;
+            Ok((titulo, secoes))
+        })
+    }
+
     /// Tocadas recentemente -- **sem caminho conhecido**.
     ///
     /// Vinha de `/v1/me/player/recently-played`. `play-history/v1` e

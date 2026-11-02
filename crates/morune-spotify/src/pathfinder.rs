@@ -136,6 +136,41 @@ impl Pathfinder {
             .await
     }
 
+    /// As categorias da busca. Ver `crate::navegar`.
+    pub(crate) async fn categorias(&self) -> CoreResult<Vec<morune_core::model::Categoria>> {
+        let resposta = self
+            .com_reserva(
+                ENDPOINT,
+                "browseAll",
+                &crate::navegar::HASHES_CATEGORIAS,
+                &crate::navegar::variaveis_categorias(),
+            )
+            .await
+            .map_err(|_| {
+                CoreError::Decode("o Spotify mudou a operacao das categorias; atualize o Otomori".into())
+            })?;
+        Ok(crate::navegar::categorias(&resposta))
+    }
+
+    /// A pagina de uma categoria. Ver `crate::navegar`.
+    pub(crate) async fn categoria(
+        &self,
+        uri: &str,
+    ) -> CoreResult<(String, Vec<morune_core::model::FeedSection>)> {
+        let resposta = self
+            .com_reserva(
+                ENDPOINT,
+                "browsePage",
+                &crate::navegar::HASHES_CATEGORIA,
+                &crate::navegar::variaveis_categoria(uri),
+            )
+            .await
+            .map_err(|_| {
+                CoreError::Decode("o Spotify mudou a operacao da categoria; atualize o Otomori".into())
+            })?;
+        Ok(crate::navegar::categoria(&resposta))
+    }
+
     /// As secoes do Inicio como o Spotify as monta. Ver `crate::inicio`.
     pub(crate) async fn home(&self) -> CoreResult<Vec<morune_core::model::FeedSection>> {
         let resposta = self

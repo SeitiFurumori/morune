@@ -286,6 +286,23 @@ pub struct PlaylistEditOutcome {
     pub desfazer: Option<(TrackId, usize)>,
 }
 
+/// O que a busca mostra antes de a pessoa digitar, carregado em segundo plano.
+///
+/// Canal proprio pelo mesmo motivo da biblioteca: abrir a busca pede as
+/// categorias e os artistas, e isso nao pode cancelar uma busca ou um detalhe
+/// que a pessoa abriu no mesmo instante.
+pub enum Descoberta {
+    /// As categorias do provedor. No cartao, `subtitle` leva a cor de fundo.
+    Categorias(Vec<Card>),
+    /// Uma categoria aberta: titulo e prateleiras, ou o erro.
+    Categoria {
+        uri: String,
+        resultado: Result<(String, Vec<FeedShelf>), String>,
+    },
+    /// Os artistas que a pessoa tem ouvido, com foto.
+    Artistas(Vec<Card>),
+}
+
 /// Resultado de salvar album ou seguir artista. `tag` e o `Target::tag()`.
 pub struct ItemSavedOutcome {
     pub tag: String,
@@ -323,6 +340,8 @@ pub struct Browse {
     /// Onde a ordem e gravada. Sem pasta (testes), arrastar vale so na sessao.
     pasta_dados: Option<std::path::PathBuf>,
     onda_pendente: Option<Receiver<(TrackId, Vec<f32>)>>,
+    descoberta_tx: UnboundedSender<Descoberta>,
+    descoberta_rx: UnboundedReceiver<Descoberta>,
 }
 
 impl std::fmt::Debug for Browse {
@@ -346,6 +365,7 @@ impl Browse {
         let (library_tx, library_rx) = tokio::sync::mpsc::unbounded_channel();
         let (item_tx, item_rx) = tokio::sync::mpsc::unbounded_channel();
         let (edit_tx, edit_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (descoberta_tx, descoberta_rx) = tokio::sync::mpsc::unbounded_channel();
         Self {
             catalog,
             library,
@@ -366,6 +386,8 @@ impl Browse {
             ordem: Arc::default(),
             pasta_dados: None,
             onda_pendente: None,
+            descoberta_tx,
+            descoberta_rx,
         }
     }
 
@@ -548,6 +570,85 @@ impl Browse {
                 .map_err(|error| describe(&error));
             let _ = tx.send(LibraryOutcome { id, saved, result });
         });
+    }
+
+    /// As categorias da busca. Chega por [`Browse::poll_descoberta`].
+    ///
+    /// Os cartoes de podcast e audiolivro ficam de fora: o Otomori so toca
+    /// musica, e a pagina deles abriria vazia.
+    pub fn carregar_categorias(&self) {
+        let library = self.library.clone();
+        let tx = self.descoberta_tx.clone();
+        self.handle.spawn(async move {
+            match library.categorias().await {
+                Ok(cats) => {
+                    let cards = cats
+                        .iter()
+                        .filter(|c| !fora_do_produto(&c.titulo))
+                        .map(|c| Card {
+                            tag: format!("categoria/{}", c.uri),
+                            title: c.titulo.to_string(),
+                            subtitle: c.cor.to_string(),
+                            cover: cover(&c.imagens),
+                            cover_path: None,
+                        })
+                        .collect();
+                    let _ = tx.send(Descoberta::Categorias(cards));
+                }
+                // Sem categorias a busca continua funcionando: so o log sabe.
+                Err(e) => tracing::warn!(error = %e, "categorias da busca nao carregaram"),
+            }
+        });
+    }
+
+    /// Abre uma categoria. Chega por [`Browse::poll_descoberta`].
+    pub fn carregar_categoria(&self, uri: String) {
+        let library = self.library.clone();
+        let tx = self.descoberta_tx.clone();
+        self.handle.spawn(async move {
+            let resultado = library
+                .categoria(&uri)
+                .await
+                .map(|(titulo, secoes)| {
+                    let feed = secoes
+                        .iter()
+                        .map(|s| FeedShelf {
+                            title: s.title.to_string(),
+                            cards: s.items.iter().map(feed_card).collect(),
+                        })
+                        .collect();
+                    (titulo, feed)
+                })
+                .map_err(|e| describe(&e));
+            let _ = tx.send(Descoberta::Categoria { uri, resultado });
+        });
+    }
+
+    /// Foto e nome dos artistas pedidos, um de cada vez.
+    ///
+    /// Sequencial de proposito, como o Inicio: sao poucos artistas numa tela
+    /// que abre de vez em quando, e disparar todos juntos arrisca o limite de
+    /// requisicoes do Spotify. Artista que falhar fica de fora.
+    pub fn carregar_artistas(&self, ids: Vec<ArtistId>) {
+        let catalog = self.catalog.clone();
+        let tx = self.descoberta_tx.clone();
+        self.handle.spawn(async move {
+            let mut cards = Vec::new();
+            for id in &ids {
+                match catalog.artist(id).await {
+                    Ok(artista) => cards.push(Card {
+                        subtitle: "Artista".into(),
+                        ..artist_card(&artista)
+                    }),
+                    Err(e) => tracing::debug!(error = %e, %id, "artista da busca nao carregou"),
+                }
+            }
+            let _ = tx.send(Descoberta::Artistas(cards));
+        });
+    }
+
+    pub fn poll_descoberta(&mut self) -> Option<Descoberta> {
+        self.descoberta_rx.try_recv().ok()
     }
 
     pub fn poll_library(&mut self) -> Option<LibraryOutcome> {
@@ -1100,6 +1201,14 @@ fn cover(images: &morune_core::model::ImageSet) -> String {
         .best_for_width(CARD_ARTWORK_WIDTH)
         .map(|i| i.url.to_string())
         .unwrap_or_default()
+}
+
+/// Categoria de podcast ou audiolivro, que o Otomori nao toca.
+fn fora_do_produto(titulo: &str) -> bool {
+    let t = titulo.to_lowercase();
+    ["podcast", "audiolivro", "audiobook", "audiossérie", "audiosséries"]
+        .iter()
+        .any(|p| t.contains(p))
 }
 
 fn playlist_card(p: &morune_core::model::Playlist) -> Card {

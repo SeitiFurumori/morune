@@ -255,6 +255,18 @@ pub struct FeedSection {
     pub items: Vec<FeedItem>,
 }
 
+/// Uma categoria da pagina de busca do provedor ("Rock", "Foco", "Anime").
+///
+/// `uri` e opaco: so serve para pedir a pagina da categoria de volta ao mesmo
+/// provedor. A cor e a do cartao, como o provedor a escolheu.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Categoria {
+    pub titulo: Arc<str>,
+    pub cor: Arc<str>,
+    pub imagens: ImageSet,
+    pub uri: Arc<str>,
+}
+
 fn default_true() -> bool {
     true
 }

@@ -23,6 +23,7 @@ mod notify;
 mod oculta;
 mod aparencia;
 mod ordem_curtidas;
+mod recentes_busca;
 mod registro;
 mod retomar;
 mod session;
@@ -754,6 +755,9 @@ fn executar(app: &AppHandle, m: &mut Motor, nome: &str, a: &[Value]) -> Result<(
         "toggle-detail-save" => s.toggle_detail_saved(),
         "set-sleep" => s.set_sleep_timer(inteiro(a, 0)),
         "clear-recent-searches" => s.clear_recent_searches(),
+        "esquecer-da-busca" => s.esquecer_da_busca(&texto(a, 0)),
+        "abrir-categoria" => s.abrir_categoria(&texto(a, 0)),
+        "fechar-categoria" => s.fechar_categoria(),
         "toggle-hidden" => s.toggle_hidden(&texto(a, 0)),
         "copy-link" => s.copy_link(&texto(a, 0)),
         "start-radio" => s.start_radio(&texto(a, 0)),

@@ -91,6 +91,17 @@ pub struct Estado {
     pub search_tracks: Vec<TrackRow>,
     pub search_items: Vec<CardItem>,
     pub search_query: String,
+    /// Busca vazia: o que foi aberto pela busca, artistas ouvidos e categorias.
+    pub busca_recentes: Vec<CardItem>,
+    pub busca_artistas: Vec<CardItem>,
+    /// Categorias do Spotify; `subtitle` leva a cor do cartao.
+    pub busca_categorias: Vec<CardItem>,
+    /// Categoria aberta dentro da busca.
+    pub categoria_aberta: bool,
+    pub categoria_titulo: String,
+    pub categoria_cor: String,
+    pub categoria_feed: Vec<FeedShelf>,
+    pub categoria_carregando: bool,
     pub searching: bool,
     pub library_items: Vec<CardItem>,
     pub library_loaded: bool,
@@ -245,6 +256,17 @@ impl AppWindow {
     pub fn set_search_items(&self, v: Vec<CardItem>) { self.estado.borrow_mut().search_items = v.into(); }
     pub fn get_search_items(&self) -> Vec<CardItem> { self.estado.borrow().search_items.clone() }
     pub fn set_search_query(&self, v: String) { self.estado.borrow_mut().search_query = v.into(); }
+    pub fn set_busca_recentes(&self, v: Vec<CardItem>) { self.estado.borrow_mut().busca_recentes = v; }
+    pub fn set_busca_artistas(&self, v: Vec<CardItem>) { self.estado.borrow_mut().busca_artistas = v; }
+    pub fn set_busca_categorias(&self, v: Vec<CardItem>) { self.estado.borrow_mut().busca_categorias = v; }
+    pub fn set_categoria(&self, aberta: bool, titulo: String, cor: String, feed: Vec<FeedShelf>, carregando: bool) {
+        let mut e = self.estado.borrow_mut();
+        e.categoria_aberta = aberta;
+        e.categoria_titulo = titulo;
+        e.categoria_cor = cor;
+        e.categoria_feed = feed;
+        e.categoria_carregando = carregando;
+    }
     pub fn get_search_query(&self) -> String { self.estado.borrow().search_query.clone() }
     pub fn set_searching(&self, v: bool) { self.estado.borrow_mut().searching = v.into(); }
     pub fn get_searching(&self) -> bool { self.estado.borrow().searching.clone() }
@@ -420,6 +442,9 @@ impl AppWindow {
 pub const ACOES: &[&str] = &[
     "set-sleep", // (i32)
     "clear-recent-searches", // ()
+    "esquecer-da-busca", // (String)
+    "abrir-categoria", // (String)
+    "fechar-categoria", // ()
     "set-search-kind", // (i32)
     "toggle-hidden", // (String)
     "toggle-detail-save", // ()

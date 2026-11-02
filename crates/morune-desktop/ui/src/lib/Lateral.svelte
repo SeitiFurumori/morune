@@ -14,6 +14,14 @@
     { p: Pagina.Biblioteca, nome: 'Biblioteca', icone: 'biblioteca' },
   ]
 
+  // Clique de mouse nao leva o foco para o item da lateral. Depois de qualquer
+  // tecla (um atalho de midia, por exemplo), o navegador passava a mostrar a
+  // marca de foco do teclado no item clicado, e ela ficava ali. O Tab continua
+  // focando normalmente.
+  function semFoco(ev: PointerEvent) {
+    if (ev.pointerType === 'mouse') ev.preventDefault()
+  }
+
   function novaPlaylist() {
     const nome = prompt('Nome da nova playlist')
     if (nome?.trim()) acao('create-playlist', nome.trim())
@@ -26,7 +34,7 @@
   <nav style:--ativo={nav.findIndex((n) => n.p === e.page)}>
     <span class="pilula" class:some={!nav.some((n) => n.p === e.page)} aria-hidden="true"></span>
     {#each nav as n}
-      <button class="item" class:ativo={e.page === n.p} onclick={() => acao('navigate', n.p)}>
+      <button class="item" class:ativo={e.page === n.p} onpointerdown={semFoco} onclick={() => acao('navigate', n.p)}>
         <Icone nome={n.icone} tamanho={22} /><span>{n.nome}</span>
       </button>
     {/each}
@@ -42,7 +50,7 @@
 
   <div class="playlists">
     {#each e.sidebar_playlists ?? [] as pl (pl.id)}
-      <button class="pl" onclick={() => acao('play-track', pl.id)} title={pl.title}>
+      <button class="pl" onpointerdown={semFoco} onclick={() => acao('play-track', pl.id)} title={pl.title}>
         <Capa src={pl.cover} inicial={pl.initial} matiz={pl.hue} pendente={pl.cover_pending} curtidas={pl.id === 'liked'} tamanho="44px" />
         <div class="pl-txt">
           <div class="corta">{pl.title}</div>
@@ -53,7 +61,7 @@
   </div>
 
   <div class="rodape">
-    <button class="item" class:ativo={e.page === Pagina.Configuracoes} onclick={() => acao('navigate', Pagina.Configuracoes)}>
+    <button class="item" class:ativo={e.page === Pagina.Configuracoes} onpointerdown={semFoco} onclick={() => acao('navigate', Pagina.Configuracoes)}>
       <Icone nome="config" tamanho={22} /><span>Configurações</span>
     </button>
     {#if e.logged_in}

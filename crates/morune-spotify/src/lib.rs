@@ -41,6 +41,7 @@ mod error;
 mod graphql;
 mod inicio;
 mod internal;
+mod navegar;
 mod onda;
 mod pathfinder;
 mod runtime;

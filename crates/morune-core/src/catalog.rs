@@ -349,6 +349,20 @@ pub trait Library: Send + Sync + 'static {
         Box::pin(async { Err(CoreError::Unsupported("inicio montado pelo provedor")) })
     }
 
+    /// As categorias da pagina de busca ("Rock", "Foco", "Anime"), na ordem do
+    /// provedor. E o que a busca mostra antes de a pessoa digitar.
+    fn categorias<'a>(&'a self) -> BoxFuture<'a, CoreResult<Vec<crate::model::Categoria>>> {
+        Box::pin(async { Err(CoreError::Unsupported("categorias de busca")) })
+    }
+
+    /// A pagina de uma categoria: o titulo e as prateleiras de playlists.
+    fn categoria<'a>(
+        &'a self,
+        _uri: &'a str,
+    ) -> BoxFuture<'a, CoreResult<(String, Vec<FeedSection>)>> {
+        Box::pin(async { Err(CoreError::Unsupported("pagina de categoria")) })
+    }
+
     /// Historico recente, da mais nova para a mais antiga.
     ///
     /// Sem deslocamento de proposito: o historico anda enquanto o usuario ouve,

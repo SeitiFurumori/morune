@@ -251,6 +251,15 @@ pub struct AppState {
     search_cards: Vec<Card>,
     search_query: String,
     searching: bool,
+    /// O que a busca mostra antes de digitar: categorias do Spotify, artistas
+    /// que a pessoa tem ouvido e o que ela abriu pela busca. Pedidos uma vez
+    /// por sessao, na primeira vez que a busca abre.
+    busca_categorias: Vec<Card>,
+    busca_artistas: Vec<Card>,
+    busca_recentes: Vec<Card>,
+    descoberta_pedida: bool,
+    /// Categoria aberta dentro da busca.
+    categoria: Option<CategoriaAberta>,
     liked: TrackList,
     /// O Inicio montado pelo Spotify. Vazio quando a consulta falhou -- e
     /// entao valem as prateleiras abaixo, separadas por tipo.
@@ -394,6 +403,7 @@ impl AppState {
     pub fn load() -> Self {
         let paths = AppPaths::discover();
         let history = morune_storage::History::load(&paths.history_file());
+        let busca_recentes = crate::recentes_busca::ler(paths.data_dir());
         if let Err(e) = paths.ensure() {
             tracing::warn!(error = %e, "nao foi possivel criar as pastas do aplicativo");
         }
@@ -508,6 +518,11 @@ impl AppState {
             search_cards: Vec::new(),
             search_query: String::new(),
             searching: false,
+            busca_categorias: Vec::new(),
+            busca_artistas: Vec::new(),
+            busca_recentes,
+            descoberta_pedida: false,
+            categoria: None,
             liked: TrackList::default(),
             home_feed: Vec::new(),
             home_made_for_you: Vec::new(),
@@ -768,6 +783,11 @@ impl AppState {
 
         if let Some(outcome) = self.session.browse_mut().and_then(|b| b.poll_detail_more()) {
             self.apply_browse(outcome);
+            changed = true;
+        }
+
+        while let Some(d) = self.session.browse_mut().and_then(|b| b.poll_descoberta()) {
+            self.aplicar_descoberta(d);
             changed = true;
         }
 
@@ -1781,6 +1801,14 @@ impl AppState {
         browse.resolve_covers(&mut self.home_playlists);
         browse.resolve_covers(&mut self.library);
         browse.resolve_covers(&mut self.search_cards);
+        browse.resolve_covers(&mut self.busca_categorias);
+        browse.resolve_covers(&mut self.busca_artistas);
+        browse.resolve_covers(&mut self.busca_recentes);
+        if let Some(cat) = &mut self.categoria {
+            for secao in &mut cat.feed {
+                browse.resolve_covers(&mut secao.cards);
+            }
+        }
     }
 
     /// Pede a capa da faixa que esta tocando, se ela mudou.
@@ -1896,8 +1924,21 @@ impl AppState {
                 &mut self.home_playlists,
                 &mut self.library,
                 &mut self.search_cards,
+                &mut self.busca_categorias,
+                &mut self.busca_artistas,
+                &mut self.busca_recentes,
             ] {
                 for card in lista.iter_mut().filter(|c| c.cover == ready.url) {
+                    card.cover_path = Some(ready.path.clone());
+                }
+            }
+            if let Some(cat) = &mut self.categoria {
+                for card in cat
+                    .feed
+                    .iter_mut()
+                    .flat_map(|s| s.cards.iter_mut())
+                    .filter(|c| c.cover == ready.url)
+                {
                     card.cover_path = Some(ready.path.clone());
                 }
             }
@@ -1956,6 +1997,17 @@ impl AppState {
     fn request_data_for(&mut self, page: Page) {
         if !self.session.state().is_logged_in() {
             return;
+        }
+
+        if page == Page::Search && !self.descoberta_pedida {
+            let ids = self.artistas_ouvidos();
+            if let Some(browse) = self.session.browse_mut() {
+                browse.carregar_categorias();
+                if !ids.is_empty() {
+                    browse.carregar_artistas(ids);
+                }
+                self.descoberta_pedida = true;
+            }
         }
 
         let (home_requested, library_requested) = (self.home_requested, self.library_requested);
@@ -3745,6 +3797,9 @@ impl AppState {
         if self.page == Page::Search && self.history.record_search(&self.search_query) {
             self.save_history();
         }
+        if self.page == Page::Search && !self.search_query.is_empty() {
+            self.lembrar_da_busca(tag);
+        }
         let Some(target) = Target::parse(tag) else {
             self.status = "Não reconheci o que você clicou.".into();
             return;
@@ -4159,6 +4214,28 @@ impl AppState {
         window.set_window_opacity(self.window_opacity_slider());
         window.set_search_query(self.search_query.as_str().into());
         window.set_searching(self.searching);
+        // So na busca: fora dela os cartoes ficam como estavam, sem remontar.
+        if self.page == Page::Search {
+            window.set_busca_recentes(card_items(&self.busca_recentes));
+            window.set_busca_artistas(card_items(&self.busca_artistas));
+            window.set_busca_categorias(card_items(&self.busca_categorias));
+            match &self.categoria {
+                Some(cat) => window.set_categoria(
+                    true,
+                    cat.titulo.clone(),
+                    cat.cor.clone(),
+                    cat.feed
+                        .iter()
+                        .map(|s| ui::FeedShelf {
+                            title: s.title.as_str().into(),
+                            items: card_items(&s.cards),
+                        })
+                        .collect(),
+                    cat.carregando,
+                ),
+                None => window.set_categoria(false, String::new(), String::new(), Vec::new(), false),
+            }
+        }
         window.set_home_loaded(self.home_loaded);
         window.set_library_loaded(self.library_loaded);
 
@@ -4711,11 +4788,130 @@ impl AppState {
         }
     }
 
-    /// Apaga as buscas recentes, a pedido.
+    /// Apaga as buscas recentes, a pedido -- as palavras e os cartoes.
     pub fn clear_recent_searches(&mut self) {
         if self.history.clear_searches() {
             self.save_history();
         }
+        if !self.busca_recentes.is_empty() {
+            self.busca_recentes.clear();
+            crate::recentes_busca::gravar(self.paths.data_dir(), &self.busca_recentes);
+        }
+    }
+
+    /// Guarda o que a pessoa abriu pela busca, com capa, para mostrar de novo
+    /// antes de ela digitar. O mais novo primeiro; repetido sobe para o topo.
+    fn lembrar_da_busca(&mut self, tag: &str) {
+        let cartao = self
+            .search_cards
+            .iter()
+            .find(|c| c.tag == tag)
+            .cloned()
+            .or_else(|| {
+                let Some(Target::Track(id)) = Target::parse(tag) else {
+                    return None;
+                };
+                let t = self.search.tracks.iter().find(|t| t.id == id)?;
+                Some(Card {
+                    tag: tag.to_string(),
+                    title: t.name.to_string(),
+                    subtitle: t.artists.iter().map(|a| a.name.as_ref()).collect::<Vec<_>>().join(", "),
+                    cover: t
+                        .album
+                        .as_ref()
+                        .and_then(|a| a.images.best_for_width(300))
+                        .map(|i| i.url.to_string())
+                        .unwrap_or_default(),
+                    cover_path: None,
+                })
+            });
+        let Some(cartao) = cartao else {
+            return;
+        };
+        self.busca_recentes.retain(|c| c.tag != cartao.tag);
+        self.busca_recentes.insert(0, cartao);
+        self.busca_recentes.truncate(crate::recentes_busca::MAXIMO);
+        crate::recentes_busca::gravar(self.paths.data_dir(), &self.busca_recentes);
+    }
+
+    /// Tira um cartao das buscas recentes.
+    pub fn esquecer_da_busca(&mut self, tag: &str) {
+        let antes = self.busca_recentes.len();
+        self.busca_recentes.retain(|c| c.tag != tag);
+        if self.busca_recentes.len() != antes {
+            crate::recentes_busca::gravar(self.paths.data_dir(), &self.busca_recentes);
+        }
+    }
+
+    /// Os artistas que a pessoa tem ouvido, pelo historico local: quem mais
+    /// aparece nas ultimas faixas, e o mais recente no empate.
+    fn artistas_ouvidos(&self) -> Vec<morune_core::model::ArtistId> {
+        let mut contagem: Vec<(morune_core::model::ArtistId, usize, usize)> = Vec::new();
+        for (posicao, faixa) in self.history.tracks().iter().enumerate() {
+            let Some(artista) = faixa.artists.first() else {
+                continue;
+            };
+            if artista.id.provider != morune_core::model::Provider::Spotify {
+                continue;
+            }
+            match contagem.iter_mut().find(|(id, _, _)| *id == artista.id) {
+                Some((_, n, _)) => *n += 1,
+                None => contagem.push((artista.id.clone(), 1, posicao)),
+            }
+        }
+        contagem.sort_by(|a, b| b.1.cmp(&a.1).then(a.2.cmp(&b.2)));
+        contagem.into_iter().take(ARTISTAS_OUVIDOS).map(|(id, _, _)| id).collect()
+    }
+
+    /// Abre uma categoria dentro da busca.
+    pub fn abrir_categoria(&mut self, tag: &str) {
+        let Some(uri) = tag.strip_prefix("categoria/") else {
+            return;
+        };
+        let (titulo, cor) = self
+            .busca_categorias
+            .iter()
+            .find(|c| c.tag == tag)
+            .map(|c| (c.title.clone(), c.subtitle.clone()))
+            .unwrap_or_default();
+        self.categoria = Some(CategoriaAberta {
+            uri: uri.to_string(),
+            titulo,
+            cor,
+            feed: Vec::new(),
+            carregando: true,
+        });
+        if let Some(browse) = self.session.browse_mut() {
+            browse.carregar_categoria(uri.to_string());
+        }
+    }
+
+    pub fn fechar_categoria(&mut self) {
+        self.categoria = None;
+    }
+
+    fn aplicar_descoberta(&mut self, d: crate::browse::Descoberta) {
+        use crate::browse::Descoberta;
+        match d {
+            Descoberta::Categorias(cards) => self.busca_categorias = cards,
+            Descoberta::Artistas(cards) => self.busca_artistas = cards,
+            Descoberta::Categoria { uri, resultado } => {
+                let Some(cat) = self.categoria.as_mut().filter(|c| c.uri == uri) else {
+                    return;
+                };
+                cat.carregando = false;
+                match resultado {
+                    Ok((titulo, feed)) => {
+                        if !titulo.is_empty() {
+                            cat.titulo = titulo;
+                        }
+                        cat.feed = feed;
+                    }
+                    Err(e) => self.status = format!("A categoria não abriu: {e}"),
+                }
+            }
+        }
+        self.resolve_covers();
     }
 
     /// Faixa escondida nao volta pelo radio. Devolve o estado novo.
@@ -5022,6 +5218,20 @@ fn track_rows(
             }
         })
         .collect()
+}
+
+/// Quantos artistas a busca mostra em "Você tem ouvido".
+const ARTISTAS_OUVIDOS: usize = 8;
+
+/// Uma categoria aberta na busca.
+#[derive(Debug, Clone)]
+struct CategoriaAberta {
+    uri: String,
+    titulo: String,
+    /// Cor do cartao, para o cabecalho da pagina.
+    cor: String,
+    feed: Vec<FeedShelf>,
+    carregando: bool,
 }
 
 fn track_cover_url(track: &Track) -> Option<String> {
