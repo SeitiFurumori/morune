@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use directories::ProjectDirs;
 
-/// Onde o Morune guarda cada tipo de dado.
+/// Onde o Otomori guarda cada tipo de dado.
 ///
 /// A separacao segue a convencao do Windows: configuracao e temas em
 /// `%APPDATA%` (acompanha o perfil itinerante), cache em `%LOCALAPPDATA%`
@@ -21,14 +21,82 @@ impl AppPaths {
     /// diretorios de usuario -- e o que permite rodar em modo portatil de um
     /// pendrive sem nenhuma configuracao.
     pub fn discover() -> Self {
-        match ProjectDirs::from("dev", "morune", "Morune") {
-            Some(dirs) => Self {
-                config_dir: dirs.config_dir().to_path_buf(),
-                cache_dir: dirs.cache_dir().to_path_buf(),
-                data_dir: dirs.data_dir().to_path_buf(),
-            },
+        match ProjectDirs::from("dev", "otomori", "Otomori") {
+            Some(dirs) => Self::from_dirs(&dirs),
             None => Self::portable(&std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))),
         }
+    }
+
+    /// Onde a 1.0, ainda com o nome Morune, guardava tudo.
+    fn legado() -> Option<Self> {
+        ProjectDirs::from("dev", "morune", "Morune").map(|dirs| Self::from_dirs(&dirs))
+    }
+
+    fn from_dirs(dirs: &ProjectDirs) -> Self {
+        Self {
+            config_dir: dirs.config_dir().to_path_buf(),
+            cache_dir: dirs.cache_dir().to_path_buf(),
+            data_dir: dirs.data_dir().to_path_buf(),
+        }
+    }
+
+    /// Traz configuracao e dados da pasta do Morune na primeira abertura.
+    ///
+    /// Copia, nao move: a pasta antiga fica intacta como reserva, e uma copia
+    /// interrompida no meio nao perde nada -- a proxima abertura tenta de
+    /// novo, porque so o fim da copia cria a pasta nova de vez. O cache fica
+    /// para tras: e descartavel por definicao, e o de audio pode ter gigabytes.
+    ///
+    /// Devolve `true` quando copiou.
+    pub fn migrate_from_morune(&self) -> std::io::Result<bool> {
+        match Self::legado() {
+            Some(antigo) => self.migrate_from(&antigo),
+            None => Ok(false),
+        }
+    }
+
+    fn migrate_from(&self, antigo: &AppPaths) -> std::io::Result<bool> {
+        if self.config_dir.exists() || !antigo.config_dir.is_dir() {
+            return Ok(false);
+        }
+        let pares = [
+            (&antigo.data_dir, &self.data_dir),
+            (&antigo.config_dir, &self.config_dir),
+        ];
+        for (de, para) in pares {
+            if !de.is_dir() {
+                continue;
+            }
+            // Copia ao lado e renomeia no fim: a pasta de config so passa a
+            // existir quando esta completa, e e ela que diz "ja migrou".
+            let parcial = para.with_extension("migrando");
+            let _ = std::fs::remove_dir_all(&parcial);
+            copy_dir(de, &parcial)?;
+            if let Some(pai) = para.parent() {
+                std::fs::create_dir_all(pai)?;
+            }
+            if para.exists() {
+                std::fs::remove_dir_all(para)?;
+            }
+            std::fs::rename(&parcial, para)?;
+        }
+        // O fundo escolhido e guardado com caminho completo, dentro da pasta
+        // antiga. Sem trocar, a tela recusaria a imagem: so serve arquivo das
+        // pastas do app atual.
+        let mut trocas = Vec::new();
+        for (de, para) in [
+            (&antigo.data_dir, &self.data_dir),
+            (&antigo.config_dir, &self.config_dir),
+        ] {
+            let de = de.to_string_lossy().to_string();
+            let para = para.to_string_lossy().to_string();
+            // Primeiro a forma escapada, `\\` dentro de aspas duplas; depois a
+            // crua, de aspas simples.
+            trocas.push((de.replace('\\', "\\\\"), para.replace('\\', "\\\\")));
+            trocas.push((de, para));
+        }
+        trocar_caminho_nos_toml(&self.config_dir, &trocas)?;
+        Ok(true)
     }
 
     /// Todos os dados dentro de uma unica pasta, para modo portatil e teste.
@@ -105,7 +173,7 @@ impl AppPaths {
     }
 
     pub fn log_file(&self) -> PathBuf {
-        self.data_dir.join("morune.log")
+        self.data_dir.join("otomori.log")
     }
 
     /// Cria as pastas necessarias. Idempotente.
@@ -116,6 +184,46 @@ impl AppPaths {
         std::fs::create_dir_all(self.themes_dir())?;
         Ok(())
     }
+}
+
+/// Aplica as trocas `(velho, novo)` em todo `.toml` dentro de `pasta`.
+fn trocar_caminho_nos_toml(pasta: &Path, trocas: &[(String, String)]) -> std::io::Result<()> {
+    for entrada in std::fs::read_dir(pasta)? {
+        let caminho = entrada?.path();
+        if caminho.is_dir() {
+            trocar_caminho_nos_toml(&caminho, trocas)?;
+            continue;
+        }
+        if caminho.extension().is_none_or(|e| e != "toml") {
+            continue;
+        }
+        let Ok(texto) = std::fs::read_to_string(&caminho) else {
+            continue;
+        };
+        let mut novo = texto.clone();
+        for (velho, atual) in trocas {
+            novo = novo.replace(velho.as_str(), atual);
+        }
+        if novo != texto {
+            std::fs::write(&caminho, novo)?;
+        }
+    }
+    Ok(())
+}
+
+/// Copia uma pasta inteira, com subpastas.
+fn copy_dir(de: &Path, para: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(para)?;
+    for entrada in std::fs::read_dir(de)? {
+        let entrada = entrada?;
+        let destino = para.join(entrada.file_name());
+        if entrada.file_type()?.is_dir() {
+            copy_dir(&entrada.path(), &destino)?;
+        } else {
+            std::fs::copy(entrada.path(), &destino)?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -154,6 +262,73 @@ mod tests {
         let p = AppPaths::portable(Path::new("D:/morune"));
         assert!(p.favorites_file().starts_with(p.data_dir()));
         assert!(!p.favorites_file().starts_with(p.cache_dir()));
+    }
+
+    #[test]
+    fn migration_copies_config_and_data_and_keeps_the_old_folder() {
+        let root = std::env::temp_dir().join(format!("morune-migra-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let antigo = AppPaths::portable(&root.join("morune"));
+        let novo = AppPaths::portable(&root.join("otomori"));
+        std::fs::create_dir_all(antigo.theme_dir("meu")).unwrap();
+        std::fs::write(antigo.config_file(), "tema = 'meu'").unwrap();
+        let fundo_antigo = antigo.backgrounds_dir().join("chuva.mp4");
+        let fundo_novo = novo.backgrounds_dir().join("chuva.mp4");
+        std::fs::write(
+            antigo.theme_dir("meu").parent().unwrap().join("fundo.toml"),
+            format!(
+                "cru = '{}'
+escapado = {:?}
+",
+                fundo_antigo.display(),
+                fundo_antigo.display().to_string()
+            ),
+        )
+        .unwrap();
+        std::fs::write(antigo.theme_dir("meu").join("theme.toml"), "x").unwrap();
+        std::fs::create_dir_all(antigo.data_dir()).unwrap();
+        std::fs::write(antigo.history_file(), "h").unwrap();
+        std::fs::create_dir_all(antigo.audio_cache_dir()).unwrap();
+        std::fs::write(antigo.audio_cache_dir().join("faixa"), "pesado").unwrap();
+
+        assert!(novo.migrate_from(&antigo).unwrap());
+
+        assert_eq!(
+            std::fs::read_to_string(novo.config_file()).unwrap(),
+            "tema = 'meu'"
+        );
+        assert!(novo.theme_dir("meu").join("theme.toml").is_file());
+        assert!(novo.history_file().is_file());
+        let fundo = std::fs::read_to_string(novo.themes_dir().join("fundo.toml")).unwrap();
+        let velho = fundo_antigo.display().to_string();
+        assert!(
+            !fundo.contains(&velho) && !fundo.contains(&format!("{velho:?}")),
+            "caminho antigo ficou no toml: {fundo}"
+        );
+        assert!(fundo.contains(&fundo_novo.display().to_string()));
+        assert!(!novo.audio_cache_dir().exists(), "cache nao viaja");
+        assert!(antigo.config_file().is_file(), "a pasta antiga fica");
+
+        // Ja migrado: a segunda abertura nao copia por cima do que mudou.
+        std::fs::write(novo.config_file(), "tema = 'outro'").unwrap();
+        assert!(!novo.migrate_from(&antigo).unwrap());
+        assert_eq!(
+            std::fs::read_to_string(novo.config_file()).unwrap(),
+            "tema = 'outro'"
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn migration_without_an_old_install_does_nothing() {
+        let root = std::env::temp_dir().join(format!("morune-migra0-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let novo = AppPaths::portable(&root.join("otomori"));
+        assert!(!novo
+            .migrate_from(&AppPaths::portable(&root.join("morune")))
+            .unwrap());
+        assert!(!novo.config_dir().exists());
     }
 
     #[test]

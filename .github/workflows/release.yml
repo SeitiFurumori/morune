@@ -191,8 +191,8 @@ jobs:
       - name: Conferir o tamanho
         shell: pwsh
         run: |
-          $setup = Get-Item dist/Morune-*-setup.exe | Select-Object -First 1
-          $exe = Get-Item target/release/morune.exe
+          $setup = Get-Item dist/Otomori-*-setup.exe | Select-Object -First 1
+          $exe = Get-Item target/release/otomori.exe
           $mbSetup = [math]::Round($setup.Length / 1MB, 1)
           $mbExe = [math]::Round($exe.Length / 1MB, 1)
           Write-Host "instalador: $mbSetup MB  executavel: $mbExe MB"
@@ -202,10 +202,10 @@ jobs:
       - name: Guardar artefatos do build
         uses: actions/upload-artifact@v4
         with:
-          name: Morune-Windows-${{ env.MORUNE_LABEL }}
+          name: Otomori-Windows-${{ env.MORUNE_LABEL }}
           path: |
-            dist/Morune-*-setup.exe
-            dist/Morune-*-setup.exe.sha256
+            dist/Otomori-*-setup.exe
+            dist/Otomori-*-setup.exe.sha256
           if-no-files-found: error
           retention-days: 14
 
@@ -214,7 +214,9 @@ jobs:
         shell: pwsh
         run: |
           @"
-          MORU•NE para Windows. O que mudou nesta versao esta no [historico de mudancas](https://github.com/SeitiFurumori/morune/blob/main/CHANGELOG.md).
+          Otomori para Windows. O som fica. O peso nao. O que mudou nesta versao esta no [historico de mudancas](https://github.com/SeitiFurumori/otomori/blob/main/CHANGELOG.md).
+
+          **Vem do Morune?** O Otomori e o mesmo app com nome novo. O instalador entra no lugar do Morune, e na primeira abertura suas configuracoes, temas e login vem junto. A pasta antiga fica intacta, como reserva.
 
           **Antes de instalar**
 
@@ -234,8 +236,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $assets = @(
-            "dist/Morune-$env:MORUNE_VERSION-setup.exe",
-            "dist/Morune-$env:MORUNE_VERSION-setup.exe.sha256"
+            "dist/Otomori-$env:MORUNE_VERSION-setup.exe",
+            "dist/Otomori-$env:MORUNE_VERSION-setup.exe.sha256"
           )
 
           # Uma tag reexecutada pode ja ter release: anexar por cima e o que
@@ -265,7 +267,7 @@ jobs:
             "release", "create", $env:MORUNE_TAG
           ) + $assets + @(
             "--verify-tag",
-            "--title", "MORU•NE $env:MORUNE_TAG",
+            "--title", "Otomori $env:MORUNE_TAG",
             "--notes-file", "release-notes.md"
           )
           if ($env:MORUNE_PRERELEASE -eq "true") {

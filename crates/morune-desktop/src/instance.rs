@@ -52,7 +52,7 @@ impl SingleInstance {
             // ficou para tras sem interface. Nao ha o que trazer para frente e
             // nem como oferecer fecha-lo, mas dizer isso e melhor que sumir.
             Self::warn(
-                w!("O Otomori parece estar aberto, mas nao tem janela para mostrar.\r\n\r\nEncerre o processo morune.exe pelo Gerenciador de Tarefas e abra de novo."),
+                w!("O Otomori parece estar aberto, mas nao tem janela para mostrar.\r\n\r\nEncerre o processo otomori.exe pelo Gerenciador de Tarefas e abra de novo."),
             );
             return Ok(None);
         };
@@ -78,7 +78,7 @@ impl SingleInstance {
 
         if !Self::terminate(instancia) {
             Self::warn(
-                w!("Nao foi possivel encerrar o Otomori que esta travado.\r\n\r\nFinalize o processo morune.exe pelo Gerenciador de Tarefas e abra de novo."),
+                w!("Nao foi possivel encerrar o Otomori que esta travado.\r\n\r\nFinalize o processo otomori.exe pelo Gerenciador de Tarefas e abra de novo."),
             );
             return Ok(None);
         }
@@ -199,15 +199,15 @@ impl Drop for SingleInstance {
     }
 }
 
-/// O processo aberto e um Morune?
+/// O processo aberto e um Otomori, ou o Morune da 1.0?
 ///
 /// Pergunta so o nome do arquivo -- ver `find_window` para o porque. Comparado
 /// sem distinguir maiusculas, que e como o Windows trata caminho.
 fn e_morune(process: HANDLE) -> bool {
     image_path_of(process).is_some_and(|caminho| {
-        caminho
-            .file_name()
-            .is_some_and(|nome| nome.eq_ignore_ascii_case("morune.exe"))
+        caminho.file_name().is_some_and(|nome| {
+            nome.eq_ignore_ascii_case("otomori.exe") || nome.eq_ignore_ascii_case("morune.exe")
+        })
     })
 }
 

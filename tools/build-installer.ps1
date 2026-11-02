@@ -1,4 +1,4 @@
-# Gera o instalador do Morune.
+# Gera o instalador do Otomori.
 #
 # Compila o binario de release, confere que ele roda sem nenhuma DLL externa e
 # so entao empacota. A checagem de isolamento vem antes de proposito: um
@@ -15,7 +15,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = (Resolve-Path "$PSScriptRoot\..").Path
-$exe = Join-Path $root "target\release\morune.exe"
+$exe = Join-Path $root "target\release\otomori.exe"
 # A tela web roda no WebView2 do Windows, carregado por esta DLL: o build da
 # toolchain GNU nao a embute no executavel, entao ela vai ao lado dele.
 $loader = Join-Path $root "target\release\WebView2Loader.dll"
@@ -57,7 +57,7 @@ if (-not (Test-Path $loader)) { Write-Error "WebView2Loader.dll nao encontrada: 
 # nao abre a janela: runners de CI executam como servico e nao possuem uma area
 # de trabalho interativa, portanto abrir UI ali produziria um falso negativo.
 Write-Host "verificando se o executavel roda sem dependencias externas..." -ForegroundColor DarkGray
-$stage = Join-Path $env:TEMP "morune-isolation-check"
+$stage = Join-Path $env:TEMP "otomori-isolation-check"
 Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $stage | Out-Null
 Copy-Item $exe $stage
@@ -70,7 +70,7 @@ try {
     # Com limite: DLL faltando faz o Windows abrir um aviso e esperar um
     # clique que no runner nunca vem -- sem limite, o build so cairia no teto
     # de 150 minutos, em vez de reprovar aqui.
-    $p = Start-Process -FilePath "$stage\morune.exe" -PassThru
+    $p = Start-Process -FilePath "$stage\otomori.exe" -PassThru
     if (-not $p.WaitForExit(60000)) {
         Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
         Write-Error "O executavel nao respondeu em 60 s isolado -- provavelmente falta uma DLL."
@@ -106,11 +106,11 @@ if ($LASTEXITCODE -ne 0) { Write-Error "assinatura do executavel falhou" }
 
 # --- empacotar ---
 if (-not (Test-Path $dist)) { New-Item -ItemType Directory -Force $dist | Out-Null }
-$out = Join-Path $dist "Morune-$Version-setup.exe"
+$out = Join-Path $dist "Otomori-$Version-setup.exe"
 Remove-Item $out -Force -ErrorAction SilentlyContinue
 
 Write-Host "empacotando com NSIS..." -ForegroundColor DarkGray
-& $makensis "/DVERSION=$Version" (Join-Path $root "installer\morune.nsi") | Select-Object -Last 12
+& $makensis "/DVERSION=$Version" (Join-Path $root "installer\otomori.nsi") | Select-Object -Last 12
 if ($LASTEXITCODE -ne 0) { Write-Error "makensis falhou (codigo $LASTEXITCODE)" }
 if (-not (Test-Path $out)) { Write-Error "Instalador nao foi gerado em $out" }
 

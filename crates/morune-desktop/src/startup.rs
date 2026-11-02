@@ -17,9 +17,31 @@ mod platform {
     };
 
     const RUN_KEY: PCWSTR = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
-    const VALUE_NAME: PCWSTR = w!("Morune");
+    const VALUE_NAME: PCWSTR = w!("Otomori");
+    /// Nome da entrada ate a 1.0. Ver [`migrar_do_morune`].
+    const LEGACY_NAME: PCWSTR = w!("Morune");
 
     pub fn is_enabled() -> bool {
+        exists(VALUE_NAME)
+    }
+
+    /// Troca a entrada "Morune" da 1.0 pela "Otomori", apontando para este exe.
+    ///
+    /// O instalador ja faz isso; aqui cobre quem copiou o exe sem instalar.
+    /// Sem isto o Windows abriria o `morune.exe` antigo no login, ou nada, se
+    /// ele ja tiver sido apagado.
+    pub fn migrar_do_morune() {
+        if !exists(LEGACY_NAME) {
+            return;
+        }
+        if let Err(error) = enable() {
+            tracing::warn!(%error, "nao consegui recriar a entrada de iniciar com o Windows");
+            return;
+        }
+        let _ = delete(LEGACY_NAME);
+    }
+
+    fn exists(name: PCWSTR) -> bool {
         let mut key = HKEY::default();
         // SAFETY: ponteiro de saida valido e caminho/flags constantes.
         let opened =
@@ -29,7 +51,7 @@ mod platform {
         }
         // Consultar sem buffer verifica somente a existencia do valor.
         // SAFETY: HKEY aberto acima e parametros opcionais nulos sao aceitos.
-        let queried = unsafe { RegQueryValueExW(key, VALUE_NAME, None, None, None, None) };
+        let queried = unsafe { RegQueryValueExW(key, name, None, None, None, None) };
         // SAFETY: fecha exatamente a chave aberta nesta funcao.
         let _ = unsafe { RegCloseKey(key) };
         queried == ERROR_SUCCESS
@@ -89,6 +111,11 @@ mod platform {
     }
 
     fn disable() -> Result<(), StartupError> {
+        delete(LEGACY_NAME)?;
+        delete(VALUE_NAME)
+    }
+
+    fn delete(name: PCWSTR) -> Result<(), StartupError> {
         let mut key = HKEY::default();
         // SAFETY: abre somente a chave Run do usuario atual para escrita.
         let opened =
@@ -101,7 +128,7 @@ mod platform {
         }
 
         // SAFETY: HKEY valido; remover valor ausente tambem conta como sucesso.
-        let deleted = unsafe { RegDeleteValueW(key, VALUE_NAME) };
+        let deleted = unsafe { RegDeleteValueW(key, name) };
         // SAFETY: fecha exatamente a chave aberta acima.
         let _ = unsafe { RegCloseKey(key) };
         if deleted == ERROR_SUCCESS || deleted == ERROR_FILE_NOT_FOUND {
@@ -125,18 +152,20 @@ mod platform {
 
         #[test]
         fn startup_command_quotes_paths_with_spaces_and_marks_the_launch() {
-            let command = command_for(std::path::Path::new(r"D:\Apps de musica\Morune\morune.exe"));
+            let command = command_for(std::path::Path::new(
+                r"D:\Apps de musica\Otomori\otomori.exe",
+            ));
             let decoded = String::from_utf16(&command[..command.len() - 1]).unwrap();
             assert_eq!(
                 decoded,
-                r#""D:\Apps de musica\Morune\morune.exe" --startup"#
+                r#""D:\Apps de musica\Otomori\otomori.exe" --startup"#
             );
         }
     }
 }
 
 #[cfg(windows)]
-pub use platform::{is_enabled, set_enabled};
+pub use platform::{is_enabled, migrar_do_morune, set_enabled};
 
 #[cfg(not(windows))]
 pub fn is_enabled() -> bool {

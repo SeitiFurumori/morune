@@ -49,10 +49,11 @@ use sha2::{Digest, Sha256};
 /// A lista vem em ordem decrescente de criacao, mas quem decide qual e a mais
 /// nova e a comparacao de versao, nao a posicao: republicar uma tag antiga --
 /// que o `workflow_dispatch` do projeto permite -- reordenaria a lista.
-const RELEASES_API: &str = "https://api.github.com/repos/SeitiFurumori/morune/releases?per_page=30";
+const RELEASES_API: &str =
+    "https://api.github.com/repos/SeitiFurumori/otomori/releases?per_page=30";
 
 /// Pagina de lancamentos, para quando o download falha.
-pub const RELEASES_URL: &str = "https://github.com/SeitiFurumori/morune/releases/latest";
+pub const RELEASES_URL: &str = "https://github.com/SeitiFurumori/otomori/releases/latest";
 
 /// Tempo maximo para a consulta de versao.
 ///
@@ -610,7 +611,7 @@ enum UpdateError {
 /// credencial so para verificar atualizacao seria um preco absurdo.
 fn client(timeout: Duration) -> Result<reqwest::blocking::Client, UpdateError> {
     Ok(reqwest::blocking::Client::builder()
-        .user_agent(concat!("morune/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("otomori/", env!("CARGO_PKG_VERSION")))
         .timeout(timeout)
         .build()?)
 }

@@ -2,6 +2,6 @@ schema_version = 1
 id = "grade"
 name = "Grade"
 version = "1.0.3"
-author = "Morune"
+author = "Otomori"
 appearance = "dark"
 description = "Preciso e frio: cantos quase retos, linhas finas e a cor da capa so nos detalhes."

@@ -1,4 +1,4 @@
-; Instalador do Morune.
+; Instalador do Otomori.
 ;
 ; Objetivos, nesta ordem:
 ;   1. um unico .exe, sem pre-requisitos e sem runtime para instalar antes;
@@ -23,17 +23,26 @@ ManifestDPIAware true
   !define VERSION "0.1.0"
 !endif
 !ifndef SOURCE_EXE
-  !define SOURCE_EXE "..\target\release\morune.exe"
+  !define SOURCE_EXE "..\target\release\otomori.exe"
 !endif
 
-!define APP_NAME    "Morune"
-!define APP_EXE     "morune.exe"
-!define PUBLISHER   "Morune"
-!define REG_UNINST  "Software\Microsoft\Windows\CurrentVersion\Uninstall\Morune"
-!define REG_APP     "Software\Morune"
+!define APP_NAME    "Otomori"
+!define APP_EXE     "otomori.exe"
+!define PUBLISHER   "Otomori"
+!define REG_UNINST  "Software\Microsoft\Windows\CurrentVersion\Uninstall\Otomori"
+!define REG_APP     "Software\Otomori"
+!define REG_RUN     "Software\Microsoft\Windows\CurrentVersion\Run"
+
+; Ate a 1.0 o app se chamava Morune. Quem atualiza dela termina com uma
+; instalacao so: a nova entra e a antiga sai (ver RemoveLegacy). As
+; configuracoes nao moram aqui -- o proprio app as copia na primeira abertura.
+!define LEGACY_NAME   "Morune"
+!define LEGACY_EXE    "morune.exe"
+!define LEGACY_UNINST "Software\Microsoft\Windows\CurrentVersion\Uninstall\Morune"
+!define LEGACY_APP    "Software\Morune"
 
 Name "${APP_NAME} ${VERSION}"
-OutFile "..\dist\Morune-${VERSION}-setup.exe"
+OutFile "..\dist\Otomori-${VERSION}-setup.exe"
 BrandingText "${APP_NAME} ${VERSION}"
 
 ; Sem elevacao: tudo que o instalador escreve fica no perfil do usuario ou na
@@ -55,7 +64,7 @@ InstallDirRegKey HKCU "${REG_APP}" "InstallDir"
 !define MUI_UNICON "..\assets\brand\otomori.ico"
 
 !define MUI_WELCOMEPAGE_TITLE "Instalar o ${APP_NAME}"
-!define MUI_WELCOMEPAGE_TEXT "Cliente de musica nativo para Windows: leve, rapido e customizavel.$\r$\n$\r$\nNao e preciso instalar nada antes. Na proxima tela voce escolhe em qual disco e em qual pasta instalar."
+!define MUI_WELCOMEPAGE_TEXT "O som fica. O peso nao.$\r$\n$\r$\nPlayer de musica para Windows, leve e do seu jeito. Nao e preciso instalar nada antes. Na proxima tela voce escolhe em qual disco e em qual pasta instalar.$\r$\n$\r$\nSe o Morune estiver instalado, o ${APP_NAME} entra no lugar dele e leva suas configuracoes."
 
 ; A pagina de diretorio ja mostra o espaco livre do disco selecionado, que e o
 ; que faz a escolha ser informada em vez de um chute.
@@ -65,7 +74,7 @@ InstallDirRegKey HKCU "${REG_APP}" "InstallDir"
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${APP_EXE}"
 !define MUI_FINISHPAGE_RUN_TEXT "Abrir o ${APP_NAME} agora"
 !define MUI_FINISHPAGE_LINK "Documentacao e codigo-fonte"
-!define MUI_FINISHPAGE_LINK_LOCATION "https://github.com/SeitiFurumori/morune"
+!define MUI_FINISHPAGE_LINK_LOCATION "https://github.com/SeitiFurumori/otomori"
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_COMPONENTS
@@ -91,7 +100,7 @@ VIAddVersionKey "FileVersion" "${VERSION}"
 VIAddVersionKey "ProductVersion" "${VERSION}"
 VIAddVersionKey "CompanyName" "${PUBLISHER}"
 VIAddVersionKey "LegalCopyright" "Copyright (c) 2026 Felipe Seiti Furumori. Licenca MIT."
-VIAddVersionKey "OriginalFilename" "Morune-${VERSION}-setup.exe"
+VIAddVersionKey "OriginalFilename" "Otomori-${VERSION}-setup.exe"
 
 ; ---------------------------------------------------------------------------
 
@@ -99,15 +108,18 @@ VIAddVersionKey "OriginalFilename" "Morune-${VERSION}-setup.exe"
 ; proprio aplicativo. Ver a secao "Atualizacao pelo aplicativo", abaixo.
 Var RestartApp
 
-; Diz se o Morune esta rodando, inclusive escondido na bandeja.
+; Pasta da instalacao do Morune, vazia quando nao ha. Lida em `.onInit`.
+Var LegacyDir
+
+; Diz se um exe esta rodando, inclusive escondido na bandeja.
 ;
 ; Deteccao sem plugin e sem busca em string: no formato CSV, `tasklist` responde
-; `"morune.exe","1234",...` quando encontra o processo e `INFO: ...` quando nao
-; encontra. Basta olhar o primeiro caractere.
+; `"otomori.exe","1234",...` quando encontra o processo e `INFO: ...` quando
+; nao encontra. Basta olhar o primeiro caractere.
 ;
-; Deixa `1` ou `0` na pilha.
-Function AppIsRunning
-    nsExec::ExecToStack 'cmd /c tasklist /FI "IMAGENAME eq ${APP_EXE}" /NH /FO CSV'
+; Recebe o nome do exe em $6 e deixa `1` ou `0` na pilha.
+Function IsRunning
+    nsExec::ExecToStack 'cmd /c tasklist /FI "IMAGENAME eq $6" /NH /FO CSV'
     Pop $0   ; codigo de saida
     Pop $1   ; saida
     StrCpy $2 $1 1
@@ -119,7 +131,7 @@ Function AppIsRunning
     ${EndIf}
 FunctionEnd
 
-; Fecha o Morune se ele estiver rodando.
+; Fecha o exe de $6 se ele estiver rodando.
 ;
 ; Ha dois caminhos, porque as duas situacoes sao diferentes:
 ;
@@ -131,8 +143,8 @@ FunctionEnd
 ;   de tudo, travando a atualizacao para sempre. O aplicativo ja decidiu sair
 ;   quando lancou este processo, entao a espera e pela saida dele, e o
 ;   `taskkill` fica so como ultimo recurso para o caso de ele travar ao fechar.
-Function CloseRunningApp
-    Call AppIsRunning
+Function CloseExe
+    Call IsRunning
     Pop $3
     ${If} $3 == 0
         Return
@@ -140,23 +152,23 @@ Function CloseRunningApp
 
     ${IfNot} ${Silent}
         MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION \
-            "O ${APP_NAME} esta aberto (pode estar apenas na bandeja, tocando).$\r$\n$\r$\nEle precisa ser fechado para continuar." \
+            "O $7 esta aberto (pode estar apenas na bandeja, tocando).$\r$\n$\r$\nEle precisa ser fechado para continuar." \
             IDOK closeit
         Abort
         closeit:
-        nsExec::ExecToLog 'taskkill /IM "${APP_EXE}" /F'
+        nsExec::ExecToLog 'taskkill /IM "$6" /F'
         Pop $0
         Sleep 1200
         Return
     ${EndIf}
 
-    ; Ate 15 segundos esperando a saida limpa. O Morune salva configuracao e
-    ; para a reproducao antes de sair; derrubar no meio disso perderia ajustes
-    ; que a pessoa acabou de fazer.
+    ; Ate 15 segundos esperando a saida limpa. O app salva configuracao e para
+    ; a reproducao antes de sair; derrubar no meio disso perderia ajustes que a
+    ; pessoa acabou de fazer.
     StrCpy $4 0
     wait:
         Sleep 500
-        Call AppIsRunning
+        Call IsRunning
         Pop $3
         ${If} $3 == 0
             Return
@@ -166,9 +178,49 @@ Function CloseRunningApp
             Goto wait
         ${EndIf}
 
-    nsExec::ExecToLog 'taskkill /IM "${APP_EXE}" /F'
+    nsExec::ExecToLog 'taskkill /IM "$6" /F'
     Pop $0
     Sleep 1200
+FunctionEnd
+
+; O Otomori e, na atualizacao vinda da 1.0, o Morune.
+Function CloseRunningApp
+    StrCpy $6 "${APP_EXE}"
+    StrCpy $7 "${APP_NAME}"
+    Call CloseExe
+    StrCpy $6 "${LEGACY_EXE}"
+    StrCpy $7 "${LEGACY_NAME}"
+    Call CloseExe
+FunctionEnd
+
+; Tira a instalacao do Morune: arquivos, atalhos, item de iniciar com o
+; Windows e a entrada em Aplicativos e Recursos.
+;
+; So apaga o que o instalador da 1.0 pos la, com `RMDir` sem /r -- arquivo que
+; a pessoa tenha colocado na pasta fica. O nome das notificacoes
+; (`Morune.Player`) fica tambem: o Otomori continua usando o mesmo, ver `AUMID`
+; em `notify.rs`.
+Function RemoveLegacy
+    ${If} $LegacyDir != ""
+        Delete "$LegacyDir\${LEGACY_EXE}"
+        ${If} $LegacyDir != $INSTDIR
+            Delete "$LegacyDir\WebView2Loader.dll"
+            Delete "$LegacyDir\README.md"
+            Delete "$LegacyDir\LICENSE"
+            Delete "$LegacyDir\THIRD-PARTY-LICENSES.txt"
+            Delete "$LegacyDir\Uninstall.exe"
+            RMDir "$LegacyDir"
+        ${EndIf}
+    ${EndIf}
+
+    Delete "$SMPROGRAMS\${LEGACY_NAME}\${LEGACY_NAME}.lnk"
+    Delete "$SMPROGRAMS\${LEGACY_NAME}\Desinstalar ${LEGACY_NAME}.lnk"
+    RMDir "$SMPROGRAMS\${LEGACY_NAME}"
+    Delete "$DESKTOP\${LEGACY_NAME}.lnk"
+
+    DeleteRegValue HKCU "${REG_RUN}" "${LEGACY_NAME}"
+    DeleteRegKey HKCU "${LEGACY_UNINST}"
+    DeleteRegKey HKCU "${LEGACY_APP}"
 FunctionEnd
 
 ; ---------------------------------------------------------------------------
@@ -179,11 +231,13 @@ FunctionEnd
 ; que o modo silencioso deixa faltando: `MUI_FINISHPAGE_RUN` nao roda sem a
 ; pagina final, entao sem isto a atualizacao terminaria com o aplicativo
 ; fechado e nenhuma janela de volta -- do ponto de vista de quem clicou, o
-; Morune teria simplesmente sumido.
+; app teria simplesmente sumido.
 ;
 ; A opcao e explicita, e nao "todo /S reabre", para que um `/S` usado por
 ; ferramenta de implantacao continue sendo uma instalacao silenciosa de
 ; verdade, sem abrir janela na cara de ninguem.
+;
+; O Morune 1.0 chama o instalador do mesmo jeito: e assim que ele vira Otomori.
 ; ---------------------------------------------------------------------------
 
 Function .onInstSuccess
@@ -214,9 +268,13 @@ Section "!${APP_NAME} (obrigatorio)" SecCore
 
     ; A secao opcional abaixo recria a entrada quando marcada. Remover aqui
     ; permite que desmarcar durante uma atualizacao realmente desligue a opcao.
-    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_NAME}"
+    DeleteRegValue HKCU "${REG_RUN}" "${APP_NAME}"
 
     WriteUninstaller "$INSTDIR\Uninstall.exe"
+
+    ; Depois do Uninstall.exe novo: com a mesma pasta, o antigo ja foi
+    ; sobrescrito, e o que sobra e so o morune.exe.
+    Call RemoveLegacy
 
     ; Entrada em Aplicativos e Recursos.
     WriteRegStr   HKCU "${REG_UNINST}" "DisplayName"     "${APP_NAME}"
@@ -247,7 +305,7 @@ SectionEnd
 Section /o "Abrir com o Windows" SecStartup
     ; Desmarcado por padrao: decidir sozinho que um player inicia junto com o
     ; sistema e o tipo de coisa que faz o usuario desinstalar.
-    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_NAME}" '"$INSTDIR\${APP_EXE}" --startup'
+    WriteRegStr HKCU "${REG_RUN}" "${APP_NAME}" '"$INSTDIR\${APP_EXE}" --startup'
 SectionEnd
 
 Function .onInit
@@ -266,20 +324,34 @@ Function .onInit
     ; travado e uma instalacao pela metade.
     Call CloseRunningApp
 
+    ReadRegStr $LegacyDir HKCU "${LEGACY_APP}" "InstallDir"
+
     ; Se ja existe instalacao, o padrao e atualizar no mesmo lugar em vez de
-    ; espalhar copias por varios discos.
+    ; espalhar copias por varios discos. Vindo do Morune, o mesmo disco e a
+    ; mesma pasta-mae: `...\Programs\Morune` vira `...\Programs\Otomori`.
     ReadRegStr $0 HKCU "${REG_APP}" "InstallDir"
     ${If} $0 != ""
         StrCpy $INSTDIR $0
+    ${ElseIf} $LegacyDir != ""
+        StrCpy $1 $LegacyDir "" -7
+        ${If} $1 == "\${LEGACY_NAME}"
+            StrCpy $0 $LegacyDir -7
+            StrCpy $INSTDIR "$0\${APP_NAME}"
+        ${Else}
+            StrCpy $INSTDIR $LegacyDir
+        ${EndIf}
     ${EndIf}
 
     ; Reinstalar/atualizar reflete a escolha atual em vez de mostrar a caixa
-    ; desmarcada quando o usuario ja habilitou pelo app ou por outro instalador.
-    ReadRegStr $1 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_NAME}"
+    ; desmarcada quando o usuario ja habilitou pelo app ou por outro instalador
+    ; -- inclusive no Morune.
+    ReadRegStr $1 HKCU "${REG_RUN}" "${APP_NAME}"
+    ReadRegStr $2 HKCU "${REG_RUN}" "${LEGACY_NAME}"
     ${If} $1 != ""
-        SectionGetFlags ${SecStartup} $2
-        IntOp $2 $2 | ${SF_SELECTED}
-        SectionSetFlags ${SecStartup} $2
+    ${OrIf} $2 != ""
+        SectionGetFlags ${SecStartup} $3
+        IntOp $3 $3 | ${SF_SELECTED}
+        SectionSetFlags ${SecStartup} $3
     ${EndIf}
 FunctionEnd
 
@@ -316,7 +388,7 @@ Section "un.${APP_NAME}" UnCore
     RMDir "$SMPROGRAMS\${APP_NAME}"
     Delete "$DESKTOP\${APP_NAME}.lnk"
 
-    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_NAME}"
+    DeleteRegValue HKCU "${REG_RUN}" "${APP_NAME}"
     DeleteRegKey HKCU "${REG_UNINST}"
     DeleteRegKey HKCU "${REG_APP}"
     ; Nome das notificacoes de troca de faixa. Ver `AUMID` em `notify.rs`.
@@ -326,11 +398,16 @@ SectionEnd
 Section /o "un.Configuracoes e temas" UnUserData
     ; Desmarcado por padrao: quem desinstala para reinstalar depois nao espera
     ; perder os temas que criou.
+    RMDir /r "$APPDATA\otomori"
+    RMDir /r "$LOCALAPPDATA\otomori"
+    ; A copia de reserva que ficou da 1.0, quando o app trouxe as
+    ; configuracoes para a pasta nova. "Apagar tudo" inclui ela.
     RMDir /r "$APPDATA\morune"
     RMDir /r "$LOCALAPPDATA\morune"
     ; O login do Spotify nao mora nessas pastas: fica no Gerenciador de
     ; Credenciais do Windows (ver morune-storage/src/credentials.rs). Sem isto,
-    ; "apagar tudo" deixava a sessao guardada no PC depois de desinstalar.
+    ; "apagar tudo" deixava a sessao guardada no PC depois de desinstalar. O
+    ; nome continua o da 1.0, para quem atualiza nao ter de entrar de novo.
     nsExec::ExecToLog 'cmdkey /delete:Morune:spotify.refresh_token'
 SectionEnd
 

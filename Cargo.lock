@@ -2841,7 +2841,7 @@ dependencies = [
 
 [[package]]
 name = "morune-core"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "futures-util",
  "serde",
@@ -2852,7 +2852,7 @@ dependencies = [
 
 [[package]]
 name = "morune-desktop"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "image",
@@ -2880,7 +2880,7 @@ dependencies = [
 
 [[package]]
 name = "morune-spotify"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "bytes",
  "cpal",
@@ -2906,7 +2906,7 @@ dependencies = [
 
 [[package]]
 name = "morune-storage"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "directories",
  "morune-core",
@@ -2920,7 +2920,7 @@ dependencies = [
 
 [[package]]
 name = "morune-theme"
-version = "1.0.0"
+version = "2.0.0"
 dependencies = [
  "notify",
  "serde",

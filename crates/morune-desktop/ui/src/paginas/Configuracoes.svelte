@@ -5,7 +5,7 @@
   const e = $derived(motor.e)
   const t = $derived(motor.tema ?? {})
   // Video de fundo acima de 1440p: a placa de video paga por cada quadro, e
-  // quem sente o PC pesado deve saber que e o video, nao o Morune.
+  // quem sente o PC pesado deve saber que e o video, nao o Otomori.
   const videoPesado = $derived.by(() => {
     const v = motor.fundoVideo
     return t.fundo_tipo === 'video' && v.src === t.fundo && v.w * v.h > 2560 * 1440 ? v : null

@@ -117,11 +117,21 @@ fn main() -> anyhow::Result<()> {
 
     let iniciou_com_windows = std::env::args_os().any(|arg| arg == "--startup");
     let paths = morune_storage::AppPaths::discover();
+    // Antes de `ensure`: e a pasta de config inexistente que diz "ainda nao
+    // migrou", e `ensure` a criaria vazia.
+    let migrou = paths.migrate_from_morune();
     let _ = paths.ensure();
     registro::init_logging(&paths);
     registro::log_panics();
     crash::instalar(paths.data_dir());
-    tracing::info!(versao = env!("MORUNE_RELEASE"), log = %paths.log_file().display(), "Morune iniciando (tela web)");
+    tracing::info!(versao = env!("MORUNE_RELEASE"), log = %paths.log_file().display(), "Otomori iniciando");
+    match migrou {
+        Ok(true) => tracing::info!("configuracoes copiadas da pasta do Morune"),
+        Ok(false) => {}
+        Err(error) => tracing::error!(%error, "nao consegui copiar as configuracoes do Morune"),
+    }
+    #[cfg(windows)]
+    startup::migrar_do_morune();
 
     capas::permitir(vec![
         paths.cache_dir().to_path_buf(),

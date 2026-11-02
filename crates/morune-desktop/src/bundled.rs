@@ -125,12 +125,18 @@ pub fn remover_aposentados(themes_dir: &Path) {
     }
 }
 
-/// `true` se o `manifest.toml` da pasta diz `author = "Morune"`.
+/// `true` se o `manifest.toml` da pasta diz que o tema veio com o app: autor
+/// `Otomori`, ou `Morune` nos temas instalados pela 1.0.
 fn feito_pelo_morune(dir: &Path) -> bool {
     std::fs::read_to_string(dir.join("manifest.toml"))
         .ok()
         .and_then(|texto| texto.parse::<toml::Table>().ok())
-        .is_some_and(|m| m.get("author").and_then(|a| a.as_str()) == Some("Morune"))
+        .is_some_and(|m| {
+            matches!(
+                m.get("author").and_then(|a| a.as_str()),
+                Some("Otomori" | "Morune")
+            )
+        })
 }
 
 /// `true` se o id e de um tema que saiu do aplicativo.
@@ -480,7 +486,7 @@ mod tests {
     fn temas_aposentados_saem_do_disco_com_as_copias() {
         let dir = temp_dir("aposentados");
         let nosso = "id = \"x\"
-author = \"Morune\"
+author = \"Otomori\"
 ";
         let alheio = "id = \"paper\"
 author = \"Fulano\"

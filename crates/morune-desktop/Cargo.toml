@@ -8,10 +8,10 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
-# `morune.exe`, e nao o nome do pacote: o instalador, a entrada de iniciar com
-# o Windows e a checagem de instancia unica procuram esse nome desde a 1.0.
+# `otomori.exe`, e nao o nome do pacote. A 2.0 ainda reconhece o `morune.exe`
+# da 1.0: na checagem de instancia unica e no instalador, que o remove.
 [[bin]]
-name = "morune"
+name = "otomori"
 path = "src/main.rs"
 
 [features]
