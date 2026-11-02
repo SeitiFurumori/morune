@@ -42,7 +42,7 @@ impl JanelaOculta {
             let hwnd = CreateWindowExW(
                 WINDOW_EX_STYLE(0),
                 w!("MoruneMotor"),
-                w!("Morune"),
+                w!("Otomori"),
                 WS_OVERLAPPED,
                 0,
                 0,

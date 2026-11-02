@@ -297,7 +297,7 @@ impl Session {
     /// Devolve a mensagem que a interface deve mostrar enquanto espera.
     pub fn login(&mut self) -> String {
         let Some(backend) = &self.backend else {
-            return "Não foi possível iniciar o Spotify nesta máquina. Feche e abra o Morune para tentar de novo.".into();
+            return "Não foi possível iniciar o Spotify nesta máquina. Feche e abra o Otomori para tentar de novo.".into();
         };
         // A restauracao silenciosa dura segundos e nao abre navegador: quem
         // clica nesse meio-tempo so precisa esperar.

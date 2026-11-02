@@ -870,7 +870,7 @@ impl AppState {
         // Uma vez por sessao, e no minuto em que acontece.
         if self.binary.poll() {
             self.status =
-                "O Morune foi atualizado em disco. Feche e abra para usar a versão nova.".into();
+                "O Otomori foi atualizado em disco. Feche e abra para usar a versão nova.".into();
             changed = true;
         }
 
@@ -1600,7 +1600,7 @@ impl AppState {
         };
         let Target::Track(alvo) = target else {
             let Some(browse) = self.session.browse_mut() else {
-                self.status = "Não foi possível iniciar o Spotify nesta máquina. Feche e abra o Morune para tentar de novo.".into();
+                self.status = "Não foi possível iniciar o Spotify nesta máquina. Feche e abra o Otomori para tentar de novo.".into();
                 return;
             };
             browse.open(target);
@@ -1646,7 +1646,7 @@ impl AppState {
         };
         let offset = detail.tracks.len() as u32;
         let Some(browse) = self.session.browse_mut() else {
-            self.status = "Não foi possível iniciar o Spotify nesta máquina. Feche e abra o Morune para tentar de novo.".into();
+            self.status = "Não foi possível iniciar o Spotify nesta máquina. Feche e abra o Otomori para tentar de novo.".into();
             return;
         };
         if browse.load_more(source, offset) {
@@ -2578,7 +2578,7 @@ impl AppState {
 
     pub fn import_theme_via_dialog(&mut self) {
         let Some(file) = rfd::FileDialog::new()
-            .add_filter("Pacote de tema Morune", &[morune_theme::PACK_EXTENSION])
+            .add_filter("Pacote de tema Otomori", &[morune_theme::PACK_EXTENSION])
             .set_title("Importar tema")
             .pick_file()
         else {
@@ -2694,7 +2694,7 @@ impl AppState {
         }
 
         let Some(target) = rfd::FileDialog::new()
-            .add_filter("Pacote de tema Morune", &[morune_theme::PACK_EXTENSION])
+            .add_filter("Pacote de tema Otomori", &[morune_theme::PACK_EXTENSION])
             .set_file_name(format!("{id}.{}", morune_theme::PACK_EXTENSION))
             .set_title("Exportar tema")
             .save_file()
@@ -2880,7 +2880,7 @@ impl AppState {
             return (
                 6,
                 atual,
-                "O executável do Morune mudou em disco depois que este processo abriu. \
+                "O executável do Otomori mudou em disco depois que este processo abriu. \
                  Feche e abra o aplicativo para usar a versão nova."
                     .into(),
                 0.0,
@@ -2916,7 +2916,7 @@ impl AppState {
             Phase::Ready => (
                 5,
                 format!("Versão {} pronta para instalar", nova()),
-                "O Morune fecha, instala e abre de novo. A música para durante a instalação."
+                "O Otomori fecha, instala e abre de novo. A música para durante a instalação."
                     .into(),
                 1.0,
             ),
@@ -3139,9 +3139,9 @@ impl AppState {
     pub fn set_close_to_tray(&mut self, on: bool) {
         self.config.window.close_to_tray = on;
         self.status = if on {
-            "Fechar a janela vai manter o Morune tocando na bandeja.".into()
+            "Fechar a janela vai manter o Otomori tocando na bandeja.".into()
         } else {
-            "Fechar a janela vai encerrar o Morune.".into()
+            "Fechar a janela vai encerrar o Otomori.".into()
         };
         self.save_config();
     }
@@ -3153,7 +3153,7 @@ impl AppState {
     pub fn set_track_notifications(&mut self, on: bool) {
         self.config.window.track_notifications = on;
         self.status = if on {
-            "O Windows vai avisar quando a música mudar com o Morune fora de vista.".into()
+            "O Windows vai avisar quando a música mudar com o Otomori fora de vista.".into()
         } else {
             "O Windows não vai mais avisar quando a música mudar.".into()
         };
@@ -3165,9 +3165,9 @@ impl AppState {
             Ok(()) => {
                 self.start_with_windows = on;
                 self.status = if on {
-                    "O Morune vai iniciar em segundo plano com o Windows.".into()
+                    "O Otomori vai iniciar em segundo plano com o Windows.".into()
                 } else {
-                    "O Morune não vai mais iniciar com o Windows.".into()
+                    "O Otomori não vai mais iniciar com o Windows.".into()
                 };
             }
             Err(error) => {
@@ -3199,7 +3199,7 @@ impl AppState {
         };
         self.config.playback.bitrate = kbps;
         self.apply_audio_settings();
-        self.status = "A qualidade vale a partir da próxima vez que o Morune abrir.".into();
+        self.status = "A qualidade vale a partir da próxima vez que o Otomori abrir.".into();
     }
 
     /// Dispositivos oferecidos na tela, sem a opcao "padrao do sistema" --
@@ -3225,9 +3225,9 @@ impl AppState {
         self.config.playback.output_device = nome.to_string();
         self.apply_audio_settings();
         self.status = if nome.is_empty() {
-            "A saída volta a seguir o Windows na próxima vez que o Morune abrir.".into()
+            "A saída volta a seguir o Windows na próxima vez que o Otomori abrir.".into()
         } else {
-            format!("A saída vale a partir da próxima vez que o Morune abrir: {nome}.")
+            format!("A saída vale a partir da próxima vez que o Otomori abrir: {nome}.")
         };
     }
 
@@ -3238,7 +3238,7 @@ impl AppState {
     pub fn set_normalize(&mut self, on: bool) {
         self.config.playback.normalize = on;
         self.apply_audio_settings();
-        self.status = "O nivelamento vale a partir da próxima vez que o Morune abrir.".into();
+        self.status = "O nivelamento vale a partir da próxima vez que o Otomori abrir.".into();
     }
 
     pub fn mono(&self) -> bool {
@@ -3248,7 +3248,7 @@ impl AppState {
     pub fn set_mono(&mut self, on: bool) {
         self.config.playback.mono = on;
         self.apply_audio_settings();
-        self.status = "O áudio mono vale a partir da próxima vez que o Morune abrir.".into();
+        self.status = "O áudio mono vale a partir da próxima vez que o Otomori abrir.".into();
     }
 
     /// Apaga o audio guardado, numa thread a parte.
@@ -3478,7 +3478,7 @@ impl AppState {
         }
 
         let Some(browse) = self.session.browse_mut() else {
-            self.status = "Não foi possível iniciar o Spotify nesta máquina. Feche e abra o Morune para tentar de novo.".into();
+            self.status = "Não foi possível iniciar o Spotify nesta máquina. Feche e abra o Otomori para tentar de novo.".into();
             return;
         };
         self.searching = true;
@@ -3532,7 +3532,7 @@ impl AppState {
             return;
         };
         let Some(browse) = self.session.browse_mut() else {
-            self.status = "Não foi possível iniciar o Spotify nesta máquina. Feche e abra o Morune para tentar de novo.".into();
+            self.status = "Não foi possível iniciar o Spotify nesta máquina. Feche e abra o Otomori para tentar de novo.".into();
             return;
         };
         browse.open(target);
@@ -3613,7 +3613,7 @@ impl AppState {
             // Beco sem saida virou saida: a frase antiga dizia o estado e parava
             // ali, sem dizer o que fazer com ele.
             self.status =
-                "Curtida não salva: sem conexão com o Spotify. Feche e abra o Morune.".into();
+                "Curtida não salva: sem conexão com o Spotify. Feche e abra o Otomori.".into();
             return;
         };
         browse.set_track_saved(id, saved);

@@ -52,7 +52,7 @@ impl SingleInstance {
             // ficou para tras sem interface. Nao ha o que trazer para frente e
             // nem como oferecer fecha-lo, mas dizer isso e melhor que sumir.
             Self::warn(
-                w!("O Morune parece estar aberto, mas nao tem janela para mostrar.\r\n\r\nEncerre o processo morune.exe pelo Gerenciador de Tarefas e abra de novo."),
+                w!("O Otomori parece estar aberto, mas nao tem janela para mostrar.\r\n\r\nEncerre o processo morune.exe pelo Gerenciador de Tarefas e abra de novo."),
             );
             return Ok(None);
         };
@@ -71,14 +71,14 @@ impl SingleInstance {
         // aplicativo que pode estar apenas ocupado, entao a escolha e de quem
         // esta na frente da tela.
         if !Self::ask(
-            w!("O Morune ja esta aberto, mas nao esta respondendo.\r\n\r\nDeseja encerra-lo e abrir de novo? A reproducao em andamento sera interrompida."),
+            w!("O Otomori ja esta aberto, mas nao esta respondendo.\r\n\r\nDeseja encerra-lo e abrir de novo? A reproducao em andamento sera interrompida."),
         ) {
             return Ok(None);
         }
 
         if !Self::terminate(instancia) {
             Self::warn(
-                w!("Nao foi possivel encerrar o Morune que esta travado.\r\n\r\nFinalize o processo morune.exe pelo Gerenciador de Tarefas e abra de novo."),
+                w!("Nao foi possivel encerrar o Otomori que esta travado.\r\n\r\nFinalize o processo morune.exe pelo Gerenciador de Tarefas e abra de novo."),
             );
             return Ok(None);
         }
@@ -94,7 +94,7 @@ impl SingleInstance {
         }
 
         Self::warn(
-            w!("O Morune travado foi encerrado, mas o sistema ainda o considera aberto.\r\n\r\nAguarde alguns segundos e abra de novo."),
+            w!("O Otomori travado foi encerrado, mas o sistema ainda o considera aberto.\r\n\r\nAguarde alguns segundos e abra de novo."),
         );
         Ok(None)
     }
@@ -181,13 +181,13 @@ impl SingleInstance {
     fn ask(texto: windows::core::PCWSTR) -> bool {
         // SAFETY: ponteiros para literais estaticos terminados em nulo, sem
         // janela dona -- a nossa ainda nao existe.
-        let resposta = unsafe { MessageBoxW(None, texto, w!("Morune"), MB_YESNO | MB_ICONWARNING) };
+        let resposta = unsafe { MessageBoxW(None, texto, w!("Otomori"), MB_YESNO | MB_ICONWARNING) };
         resposta == IDYES
     }
 
     fn warn(texto: windows::core::PCWSTR) {
         // SAFETY: ver `ask`.
-        unsafe { MessageBoxW(None, texto, w!("Morune"), MB_ICONWARNING) };
+        unsafe { MessageBoxW(None, texto, w!("Otomori"), MB_ICONWARNING) };
     }
 }
 
@@ -281,7 +281,10 @@ unsafe extern "system" fn visitar_janela(window: HWND, lparam: LPARAM) -> window
     let mut titulo = [0u16; 32];
     // SAFETY: HWND valido; o buffer e o limite descrevem a mesma variavel local.
     let escritos = unsafe { GetWindowTextW(window, &mut titulo) };
-    if String::from_utf16_lossy(&titulo[..escritos.max(0) as usize]) != "Morune" {
+    // "Morune" e o titulo de antes da troca de nome: na atualizacao, a versao
+    // nova ainda precisa achar a antiga aberta.
+    let titulo = String::from_utf16_lossy(&titulo[..escritos.max(0) as usize]);
+    if titulo != "Otomori" && titulo != "Morune" {
         return TRUE;
     }
 

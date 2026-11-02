@@ -1219,7 +1219,7 @@ fn describe(error: &CoreError) -> String {
         CoreError::AccountPlan(message) => message.clone(),
         CoreError::Network(_) => "Sem conexão com o Spotify. Verifique a internet.".into(),
         CoreError::NotFound(_) => "Isso não existe mais no Spotify.".into(),
-        CoreError::Decode(_) => "O Spotify respondeu de um jeito que o Morune não entendeu.".into(),
+        CoreError::Decode(_) => "O Spotify respondeu de um jeito que o Otomori não entendeu.".into(),
         other => format!("Não foi possível consultar o Spotify: {other}"),
     }
 }

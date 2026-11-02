@@ -204,7 +204,7 @@ fn abrir_janela(app: &AppHandle) {
     let (largura, altura, maximizada) =
         com_motor(|m| m.state.tamanho_inicial()).unwrap_or((1280.0, 800.0, false));
     let janela = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
-        .title("Morune")
+        .title("Otomori")
         .inner_size(largura as f64, altura as f64)
         .min_inner_size(720.0, 480.0)
         .maximized(maximizada)
@@ -328,7 +328,7 @@ fn suspender_tela(w: &tauri::WebviewWindow, suspender: bool) {
 fn criar_bandeja(app: &AppHandle) -> tauri::Result<()> {
     TrayIconBuilder::with_id("morune")
         .icon(app.default_window_icon().cloned().expect("icone embutido"))
-        .tooltip("Morune")
+        .tooltip("Otomori")
         .on_tray_icon_event(|tray, e| {
             if let TrayIconEvent::Click { button, button_state: MouseButtonState::Up, rect, .. } = e {
                 match button {
@@ -361,7 +361,7 @@ fn abrir_menu_bandeja(app: &AppHandle, icone: tauri::Rect) {
 
     // A janela nasce escondida, vai para o lugar e so entao aparece.
     let janela = WebviewWindowBuilder::new(app, "bandeja", WebviewUrl::App("index.html#bandeja".into()))
-        .title("Morune")
+        .title("Otomori")
         .inner_size(MENU_LARGURA, altura)
         .decorations(false)
         .resizable(false)

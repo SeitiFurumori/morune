@@ -1,6 +1,7 @@
 <script lang="ts">
   import Capa from './Capa.svelte'
   import Icone from './Icone.svelte'
+  import Marca from './Marca.svelte'
   import { acao, motor, Pagina } from './motor.svelte'
 
   const e = $derived(motor.e)
@@ -20,7 +21,7 @@
 </script>
 
 <aside class="lateral" class:recolhida>
-  <div class="marca"><span class="logo"></span><span class="nome">Morune</span></div>
+  <div class="marca"><Marca /></div>
   <!-- A pilula do item ativo e uma so e desliza entre eles com mola. -->
   <nav style:--ativo={nav.findIndex((n) => n.p === e.page)}>
     <span class="pilula" class:some={!nav.some((n) => n.p === e.page)} aria-hidden="true"></span>
@@ -66,8 +67,8 @@
 
 <style>
   .lateral { display: flex; flex-direction: column; min-height: 0; padding: var(--e-md) var(--e-sm); gap: var(--e-xs); }
-  .marca { display: flex; align-items: center; gap: 10px; padding: 4px var(--e-sm) var(--e-md); font: var(--peso-forte) var(--t-lg) var(--fonte-titulo); }
-  .logo { width: 22px; height: 22px; border-radius: 7px; background: linear-gradient(135deg, var(--acento-tema), color-mix(in srgb, var(--acento-tema) 50%, #fff)); }
+  /* Símbolo e nome na mesma cor: a de destaque que a pessoa escolheu. */
+  .marca { display: flex; align-items: center; height: 28px; padding: 4px var(--e-sm) var(--e-md); box-sizing: content-box; color: var(--acento-tema); }
   .item { display: flex; align-items: center; gap: var(--e-md); width: 100%; height: 42px; padding: 0 var(--e-sm); border-radius: var(--r-sm); color: var(--texto-suave); font-weight: var(--peso-medio); transition: background var(--m-rapido), color var(--m-rapido); }
   .item:hover { color: var(--texto); background: var(--hover); }
   /* O lugar onde a pessoa esta leva um fundo leve da cor de destaque. */

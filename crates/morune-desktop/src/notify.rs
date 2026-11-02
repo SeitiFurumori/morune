@@ -219,7 +219,7 @@ fn registrar_aumid() -> Result<(), NotifyError> {
         return Err(NotifyError::Registry(created.0));
     }
 
-    let nome: Vec<u16> = "Morune\0".encode_utf16().collect();
+    let nome: Vec<u16> = "Otomori\0".encode_utf16().collect();
     // SAFETY: REG_SZ recebe os bytes UTF-16 com o terminador; o buffer vive
     // durante a chamada.
     let bytes = unsafe { std::slice::from_raw_parts(nome.as_ptr().cast::<u8>(), nome.len() * 2) };

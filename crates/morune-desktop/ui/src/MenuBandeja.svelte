@@ -45,8 +45,8 @@
     </div>
   </div>
   <hr />
-  <button class="item" onclick={() => acao('abrir-janela')}><Icone nome="inicio" tamanho={18} />Abrir Morune</button>
-  <button class="item" onclick={() => acao('sair')}><Icone nome="sair" tamanho={18} />Sair do Morune</button>
+  <button class="item" onclick={() => acao('abrir-janela')}><Icone nome="inicio" tamanho={18} />Abrir Otomori</button>
+  <button class="item" onclick={() => acao('sair')}><Icone nome="sair" tamanho={18} />Sair do Otomori</button>
 </div>
 
 <style>

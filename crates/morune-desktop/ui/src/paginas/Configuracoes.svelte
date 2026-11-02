@@ -103,7 +103,7 @@
   {#if videoPesado}
     <div class="aviso-video">
       <b>Este vídeo é {videoPesado.h >= 2160 ? '4K' : 'maior que 1440p'} ({videoPesado.w}×{videoPesado.h}).</b>
-      A placa de vídeo trabalha a cada quadro enquanto ele toca, e o PC pode ficar mais pesado por causa do vídeo, não do Morune.
+      A placa de vídeo trabalha a cada quadro enquanto ele toca, e o PC pode ficar mais pesado por causa do vídeo, não do Otomori.
       A mesma cena em 1080p fica quase igual na janela e gasta bem menos. Com jogo em tela cheia, ele para sozinho.
     </div>
   {/if}
