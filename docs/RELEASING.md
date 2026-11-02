@@ -1,6 +1,6 @@
 # Publicacao de releases
 
-O instalador do MORU•NE e compilado pelo GitHub Actions. Binarios nao entram no
+O instalador do Otomori e compilado pelo GitHub Actions. Binarios nao entram no
 historico Git: o workflow `.github/workflows/release.yml` os anexa diretamente
 a uma GitHub Release.
 
@@ -12,8 +12,8 @@ a uma GitHub Release.
 4. Crie e envie uma tag anotada com o mesmo numero-base:
 
 ```powershell
-git tag -a v0.1.0-alpha.1 -m "MORU•NE 0.1.0 alpha 1"
-git push origin v0.1.0-alpha.1
+git tag -a v2.0.0 -m "Otomori 2.0.0"
+git push origin v2.0.0
 ```
 
 O sufixo `-alpha.1`, `-beta.1` ou `-rc.1` faz a publicacao ser marcada como
@@ -75,11 +75,11 @@ finais. Publicar `v0.2.0-alpha.1` nao mexe com ninguem que esteja num `v0.1.0`.
 Para conferir o caminho inteiro contra a API de verdade, sem interface:
 
 ```
-cargo test -p morune-app -- --ignored --nocapture atualizacao_de_verdade
+cargo test -p morune-desktop -- --ignored --nocapture atualizacao_de_verdade
 ```
 
 O instalador ganhou a opcao `/RESTART` para isso: com `/S /RESTART` ele espera
-o Morune sair, instala em silencio e reabre o aplicativo no fim. `/S` sozinho
+o Otomori sair, instala em silencio e reabre o aplicativo no fim. `/S` sozinho
 continua sendo uma instalacao silenciosa comum, que nao abre janela nenhuma.
 
 ## Acesso dos testadores

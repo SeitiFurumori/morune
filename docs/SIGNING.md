@@ -1,13 +1,13 @@
 # Assinatura de codigo
 
-Por que o Windows avisa ao instalar o Morune, o que resolve isso, quanto custa e
+Por que o Windows avisa ao instalar o Otomori, o que resolve isso, quanto custa e
 o que ja esta pronto para o dia em que a decisao for tomada.
 
 ---
 
 ## O que o usuario ve hoje
 
-Ao abrir `Morune-0.1.0-setup.exe` baixado da internet, o Windows mostra uma
+Ao abrir `Otomori-0.1.0-setup.exe` baixado da internet, o Windows mostra uma
 tela azul do **SmartScreen**: "O Windows protegeu o computador". O botao de
 instalar so aparece depois de clicar em "Mais informacoes", e a linha de editor
 diz **Editor desconhecido**.
@@ -47,7 +47,7 @@ disco.
 Comprar certificado **nao** e a unica saida, e provavelmente nem e a certa aqui.
 Duas das quatro opcoes custam zero.
 
-| Opcao | Custo | Efeito no SmartScreen | Serve para o Morune? |
+| Opcao | Custo | Efeito no SmartScreen | Serve para o Otomori? |
 |---|---|---|---|
 | **SignPath Foundation** | gratuito | OV: nome aparece, reputacao acumula | sim, e a primeira a tentar |
 | **Microsoft Store** | gratuito | nenhum aviso, a Microsoft assina | sim, mas custa a escolha de disco |
@@ -58,7 +58,7 @@ Duas das quatro opcoes custam zero.
 qualifiquem, com a chave guardada em HSM e assinatura pelo CI/CD. Os requisitos
 sao: licenca aprovada pela OSI sem dupla licenca comercial, nenhum componente
 proprietario, projeto mantido, **ja lancado**, documentado e com repositorio
-publico. O Morune cumpre a licenca (MIT) e a ausencia de codigo proprietario;
+publico. O Otomori cumpre a licenca (MIT) e a ausencia de codigo proprietario;
 falta publicar e lancar. A analise leva de dias a semanas.
 
 **Microsoft Store.** Desde o fim de 2025 o registro de desenvolvedor individual
@@ -66,7 +66,7 @@ e gratuito, e desde maio de 2026 tambem para empresa. Publicando um pacote MSIX,
 a Microsoft reassina o pacote: o SmartScreen simplesmente nao aparece, sem
 certificado nenhum. O preco nao e em dinheiro — e em controle. MSIX instala onde
 o Windows decidir, e a escolha de disco, que e uma funcionalidade declarada do
-Morune e a razao de o instalador existir do jeito que existe, deixaria de valer.
+Otomori e a razao de o instalador existir do jeito que existe, deixaria de valer.
 Faz sentido como canal **adicional**, nao como substituto do `.exe`.
 
 **Certum Open Source.** Vendido so para pessoa fisica e feito para projeto
@@ -95,15 +95,15 @@ que a adocao seja trivial depois:
 descricao e copyright. Aparecem nas propriedades do arquivo, no Gerenciador de
 Tarefas e na tela do SmartScreen. Isso nao remove o aviso — mas um arquivo
 anonimo e pior que um arquivo identificado e nao assinado. Ver `version_info` em
-[crates/morune-app/build.rs](../crates/morune-app/build.rs) e o bloco
-`VIAddVersionKey` em [installer/morune.nsi](../installer/morune.nsi).
+[crates/morune-desktop/build.rs](../crates/morune-desktop/build.rs) e o bloco
+`VIAddVersionKey` em [installer/otomori.nsi](../installer/otomori.nsi).
 
 **2. Hash SHA-256 publicado.** `tools/build-installer.ps1` grava um
-`Morune-<versao>-setup.exe.sha256` ao lado do instalador. E o unico jeito de
+`Otomori-<versao>-setup.exe.sha256` ao lado do instalador. E o unico jeito de
 alguem confirmar que baixou o arquivo certo enquanto nao ha assinatura:
 
 ```powershell
-Get-FileHash .\Morune-0.1.0-setup.exe -Algorithm SHA256
+Get-FileHash .\Otomori-0.1.0-setup.exe -Algorithm SHA256
 ```
 
 **3. Assinatura ja ligada no lugar certo.** `tools/build-installer.ps1` chama

@@ -2,10 +2,9 @@
 
 ## Versões suportadas
 
-O MORU•NE está em alpha. Correções de segurança são publicadas somente na
-versão mais recente disponível em
-[Releases](https://github.com/SeitiFurumori/morune/releases); versões anteriores
-não recebem manutenção retroativa neste estágio.
+Correções de segurança são publicadas somente na versão mais recente
+disponível em [Releases](https://github.com/SeitiFurumori/otomori/releases);
+versões anteriores não recebem manutenção retroativa.
 
 ## Modelo de ameaca
 
@@ -146,7 +145,7 @@ descoberta. Um tema cujo `id` diverge do diretorio e ignorado.
 ## Superficie de rede
 
 O aplicativo se conecta aos serviços do Spotify para autenticação, catálogo,
-biblioteca, capas e reprodução, usando OAuth com PKCE e librespot. O MORU•NE
+biblioteca, capas e reprodução, usando OAuth com PKCE e librespot. O Otomori
 não mantém servidor intermediário, não possui telemetria, analytics ou
 verificação automática de atualizações neste estágio.
 
@@ -159,11 +158,13 @@ pasta de temas". Nenhuma entrada do usuario e concatenada em linha de comando.
 
 `morune-core` e `morune-theme` sao `#![forbid(unsafe_code)]`.
 
-`morune-app` e `#![deny(unsafe_code)]` — o codigo gerado pelo Slint contem
-`allow(unsafe_code)` em trechos proprios, e `forbid` nao poderia ser suspenso
-nem por ele. O unico `unsafe` do nosso lado esta em `snapshot.rs`, atras da
-feature `snapshot`, que nao entra no binario de release, e e uma reinterpretacao
-de `&[Rgba8Pixel]` como `&[u8]` com justificativa no local.
+`morune-desktop` (o app) usa `unsafe` nas chamadas diretas ao Windows que o
+Tauri nao cobre: instancia unica, item de iniciar com o Windows, notificacoes,
+botoes da barra de tarefas, painel de midia, atalhos de teclado, deteccao de
+tela cheia, acrilico da janela e registro de queda. Cada bloco tem nota de
+seguranca dizendo por que o ponteiro ou o handle e valido. A tela web nao
+alcanca nada disso diretamente: fala com o motor pelos comandos do Tauri, com
+as permissoes em `crates/morune-desktop/capabilities/`.
 
 `morune-storage` usa `unsafe` apenas nas chamadas a `CredWriteW`, `CredReadW` e
 `CredDeleteW`, cada uma com nota de seguranca explicando por que o ponteiro e
@@ -174,7 +175,7 @@ valido.
 ## Reportar uma falha
 
 Não publique vulnerabilidades em uma issue. Use o formulário privado
-[Report a vulnerability](https://github.com/SeitiFurumori/morune/security/advisories/new)
+[Report a vulnerability](https://github.com/SeitiFurumori/otomori/security/advisories/new)
 na aba **Security** do repositório e inclua versão afetada, impacto e passos de
 reprodução. Não anexe tokens, credenciais reais ou dados pessoais.
 

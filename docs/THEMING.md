@@ -1,630 +1,133 @@
 # Temas
 
-Um tema do Morune muda muito mais que cor. Ele decide onde a barra lateral fica,
-se o player esta em cima ou embaixo, se colecoes aparecem em grade ou lista, o
-quanto a interface e densa, quanto tempo duram as animacoes e o formato de cada
-canto.
+Um tema do Otomori e **dado, nunca codigo**: dois arquivos TOML numa pasta, e
+opcionalmente uma imagem de fundo e fontes. A tela decide o layout; o tema
+decide cor, forma, fonte, movimento e efeitos.
 
-Tudo em TOML. Nenhuma linha de codigo, nunca.
+O jeito mais facil de fazer um tema nao e escrever TOML: e abrir
+**Configuracoes > Aparencia**, ajustar no modo liberdade total e clicar em
+**Salvar como tema**. Este guia e para quem quer ir alem, ou entender o que o
+arquivo salvo diz.
 
----
+> O guia da 1.0, com `layout.toml`, cenas e o resto do formato da tela em Slint,
+> esta em [archive/THEMING-1.0-slint.md](archive/THEMING-1.0-slint.md). Temas
+> da 1.0 continuam abrindo, mas `layout.toml` e `[scene]` sao ignorados.
 
-## Anatomia
-
-```
-meu-tema/
-  manifest.toml    obrigatorio  identificacao e versao do esquema
-  theme.toml       opcional     cor, tipografia, forma, movimento, efeitos
-  layout.toml      opcional     composicao da tela
-  assets/          opcional     imagens e icones
-  fonts/           opcional     fontes empacotadas
-```
-
-Um `.musicpack` e exatamente esse diretorio compactado em ZIP.
-
-Os dois arquivos opcionais sao independentes: um tema pode mudar so as cores, ou
-so a composicao, ou os dois.
-
-Pasta de temas do usuario:
+## Onde ficam
 
 ```
-%APPDATA%\morune\Morune\config\themes\
+%APPDATA%\otomori\Otomori\config\themes\
+  meu-tema\
+    manifest.toml   obrigatorio
+    theme.toml      cor, fonte, forma, movimento, efeitos
+    fundo.jpg       opcional, citado em [background]
+    fonts\          opcional
 ```
 
----
+Os quatro temas de fabrica (Lume, Vidro, Grade, Claro) ficam na mesma pasta. O
+app so os atualiza enquanto continuam como ele instalou.
 
 ## manifest.toml
 
 ```toml
 schema_version = 1          # obrigatorio
-id = "meu-tema"             # obrigatorio, [a-z0-9_-], vira nome de pasta
+id = "meu-tema"             # obrigatorio, [a-z0-9_-], igual ao nome da pasta
 name = "Meu Tema"           # obrigatorio
 version = "1.0.0"
 author = "Seu Nome"
 description = "Uma frase sobre o tema."
-license = "MIT"
-homepage = "https://exemplo"
-based_on = "midnight"       # herda deste tema
-min_app_version = "0.1.0"
-appearance = "dark"         # "dark" | "light", so agrupa na lista
+appearance = "dark"         # "dark" | "light"
+based_on = "lume"           # opcional: herda deste tema
 ```
 
-`id` precisa bater com o nome da pasta. Um tema em que os dois divergem e
-ignorado na descoberta.
+`appearance = "light"` muda tambem o esquema de cores das barras de rolagem e
+dos campos de texto.
 
-Um campo desconhecido no manifesto e **erro**, nao aviso: um `autor = "..."` com
-erro de digitacao seria silenciosamente perdido, e e melhor saber na hora.
-
-### Heranca
-
-Com `based_on`, o tema pai e carregado primeiro e o filho aplica por cima. Herdar
-e simplesmente **nao declarar** uma secao. Sem `based_on`, o pai e o tema
-embutido: o `travessia`, por exemplo, nao declara `layout.toml` e por isso usa a
-composicao do `midnight`.
-
-A substituicao e **por secao**, nao por campo. Declarar `[color]` substitui a
-paleta inteira. Isso mantem o formato previsivel para quem escreve a mao.
-
-Cadeias de heranca sao limitadas a 4 niveis, e um ciclo termina no limite em vez
-de travar.
-
----
-
-
-> **Armadilha:** declarar uma secao substitui a **secao inteira**, e os campos
-> que voce nao listar vem do **padrao embutido**, nao do tema pai. Um tema com
-> `based_on = "bruma"` e um `[color]` de tres linhas nao herda as outras cores
-> do Bruma -- ele herda as do tema embutido, e o resultado quase nunca e o que
-> se queria. Para mudar poucas cores de um tema pai, copie a secao `[color]`
-> dele inteira e altere o que precisa.
+Um campo desconhecido no manifesto e **erro**: um `autor = "..."` digitado
+errado se perderia em silencio. Com `based_on`, o pai carrega primeiro e o
+filho substitui **secoes inteiras** por cima -- declarar `[color]` troca a
+paleta toda, entao copie a secao do pai inteira e mude o que quiser.
 
 ## theme.toml
 
+Toda chave e opcional. Cor e `#rrggbb` ou `#rrggbbaa`.
+
 ### `[color]`
 
-Nomes semanticos, nao literais. Um tema claro define `surface` como quase branco
-e nada acima precisa saber disso.
-
-| Campo | Papel |
+| Chave | Onde aparece |
 |---|---|
-| `background` | fundo da janela |
-| `surface` | paineis sobre o fundo (cards, sidebar) |
-| `surface_raised` | segundo nivel (menus, modais) |
-| `player_background` | fundo do player |
-| `sidebar_background` | fundo da barra lateral |
-| `text` | texto principal |
-| `text_muted` | texto secundario |
-| `text_on_accent` | texto sobre a cor de destaque |
-| `accent` | cor de marca: botao primario, progresso |
-| `accent_hover` | destaque sob o cursor |
-| `border` | separadores e contornos |
-| `border_highlight` | realce da aresta superior (gloss). Transparente = usa `border` |
-| `hover` | realce sob o cursor |
-| `selected` | realce de item selecionado |
-| `focus_ring` | anel de foco de teclado |
-| `success` / `warning` / `danger` | estados |
-| `shadow` | sombra de superficies elevadas |
-| `scrollbar` | trilho de rolagem |
+| `background` | fundo da janela. Com alfa e `acrylic`, deixa ver o que esta atras |
+| `surface` | paineis e cartoes |
+| `surface_raised` | menus e o que flutua por cima |
+| `sidebar_background` | barra lateral |
+| `player_background` | barra de reproducao |
+| `text`, `text_muted` | texto principal e secundario |
+| `accent`, `accent_hover` | botao de tocar, progresso, item ativo |
+| `text_on_accent` | texto em cima do acento |
+| `border`, `border_highlight` | contorno dos paineis e a aresta de luz |
+| `hover`, `selected`, `focus_ring` | estados de interacao |
+| `danger`, `success` | avisos |
 
-Formatos aceitos:
-
-```toml
-accent = "#6dd49e"          # rrggbb
-accent = "#6dd49eaa"        # rrggbbaa
-accent = "#6d9"             # rgb
-accent = "#6d9a"            # rgba
-accent = "rgb(109, 212, 158)"
-accent = "rgba(109, 212, 158, 0.5)"   # alfa como fracao
-accent = "rgba(109, 212, 158, 128)"   # ou como byte
-```
+A cor de destaque e a paleta escolhidas em Configuracoes vencem as do tema, sem
+mudar o arquivo.
 
 ### `[typography]`
 
-```toml
-family = "Inter"            # vazio = fonte do sistema
-display_family = "Inter"    # vazio = usa family
-bundled_font = "Inter.ttf"  # arquivo dentro de fonts/
-scale = 1.0                 # 0.5 .. 3.0, multiplica todos os tamanhos
-size_xs = 11.0              # 6 .. 96
-size_sm = 12.0
-size_md = 14.0
-size_lg = 17.0
-size_xl = 22.0
-size_display = 32.0
-weight_normal = 400
-weight_medium = 500
-weight_bold = 700
-line_height = 1.4           # 1.0 .. 2.5
-letter_spacing = 0.0
-```
-
-`scale` existe para o usuario aumentar a interface inteira sem editar oito
-valores. A escala de DPI do Windows e aplicada **por cima** disso, nao no lugar.
+`family` e `display_family` (titulos) recebem um nome de familia instalada;
+se faltar, cai no Segoe UI. `size_xs` a `size_xl` e `size_display` em pixels,
+multiplicados por `scale`. `weight_normal`, `weight_medium`, `weight_bold`,
+`line_height` e `letter_spacing` (px).
 
 ### `[shape]`
 
-```toml
-radius_sm = 4.0
-radius_md = 8.0
-radius_lg = 14.0
-radius_artwork = 6.0        # 0 deixa capas quadradas
-radius_avatar = 999.0       # valor alto vira circulo
-spacing_xs = 4.0
-spacing_sm = 8.0
-spacing_md = 12.0
-spacing_lg = 20.0
-spacing_xl = 32.0
-border_width = 1.0
-progress_thickness = 4.0
-scrollbar_width = 10.0
-```
-
-### `[control]`
-
-Medida dos alvos que a pessoa clica. Vive separado de `[shape]` porque responde
-a outra pergunta: `shape` diz como uma superficie e recortada, `control` diz o
-tamanho do botao.
-
-```toml
-button_size = 32.0          # diametro do botao de icone
-button_radius = 999.0       # alto = circular
-primary_button_size = 40.0  # play/pause
-icon_size = 16.0
-icon_size_primary = 18.0
-icon_stroke = 2.0           # unidades do viewbox 24x24, NAO pixels
-slider_knob = 12.0
-tooltip_height = 28.0
-```
-
-`icon_stroke` esta em unidades de desenho de proposito: assim o traco acompanha
-o tamanho do icone. Um valor em pixels engordaria desproporcionalmente os
-icones pequenos.
-
-Os pisos existem para que nenhum tema consiga produzir um alvo pequeno demais
-para acertar com o mouse enquanto se joga: `button_size` fica em `[20, 96]`,
-`icon_stroke` em `[0.5, 6]`.
-
-### Fonte que vem com o tema
-
-Ponha o arquivo em `fonts/` dentro do tema e cite **so o nome do arquivo**:
-
-```toml
-[typography]
-bundled_font = "MinhaFonte.ttf"
-family = "Minha Fonte"
-```
-
-Para mais de um arquivo (regular e negrito, ou uma fonte de titulo), use a
-lista `bundled_fonts`, que soma com `bundled_font`:
-
-```toml
-bundled_fonts = ["Texto-Regular.ttf", "Texto-Bold.ttf", "Titulo-Regular.ttf"]
-family = "Texto"
-display_family = "Titulo"
-```
-
-`family` precisa ser o **nome interno da fonte**, nao o nome do arquivo:
-registrar `MinhaFonte.ttf` nao cria uma familia chamada "MinhaFonte". Se o texto
-sair na fonte padrao, e quase sempre isso.
-
-**So empacote fonte que voce tem direito de redistribuir.** OFL, Apache e CC0
-permitem; fontes compradas e fontes que vem com um sistema operacional nao. As
-fontes SF da Apple estao explicitamente fora -- ver
-[Direitos em temas](DIREITOS-EM-TEMAS.md).
-
-Formatos aceitos no pacote: `.ttf`, `.otf`, `.woff2`. Uma fonte registrada fica
-ate o aplicativo fechar -- o Slint nao tem como remove-la --, entao trocar de
-tema varias vezes acumula fontes na memoria do processo. E aceitavel: o custo e
-o arquivo, e ninguem troca de tema mil vezes numa sessao.
-
-### `[background]`
-
-Imagem de fundo da janela.
-
-```toml
-image = "assets/backgrounds/fundo.jpg"  # relativo ao tema; vazio = sem imagem
-fit = "cover"          # cover | contain | center | stretch
-opacity = 1.0
-tint = "#0b0d12"       # cor sobreposta a imagem
-tint_strength = 0.55   # quanto do veu acima e aplicado
-blur = 0.0             # px, aplicado UMA VEZ no carregamento
-```
-
-**Para o fundo aparecer, as cores de superficie precisam de alfa.** Nao existe
-um modo "transparencia": um tema com `sidebar_background` opaco cobre a imagem,
-e o resultado e o mesmo de nao ter posto imagem nenhuma. Use `#rrggbbaa`:
-
-```toml
-[color]
-sidebar_background = "#0d1016cc"
-player_background = "#0f1219d9"
-surface = "#12151dbf"
-```
-
-O caminho e sempre relativo ao diretorio do tema. Caminho absoluto ou com `..` e
-descartado com aviso -- num `.musicpack` importado ele apontaria para a maquina
-de quem exportou.
-
-`blur` custa uma vez, no carregamento, e nunca por quadro. A imagem tambem e
-reduzida se passar de 3840 px de lado. As duas coisas existem pelo mesmo motivo:
-o Morune toca enquanto a pessoa joga, e nada aqui pode disputar GPU com o jogo.
+`radius_sm`, `radius_md`, `radius_lg` e `radius_artwork` (capas), em px;
+`spacing_xs` a `spacing_xl`; `border_width` (contorno dos paineis, `0` tira) e
+`progress_thickness` (a barra de progresso). Em `[control]`, `button_radius`:
+`999` da botoes em pilula.
 
 ### `[motion]`
 
-```toml
-enabled = true              # false zera todas as duracoes
-speed = 1.0                 # 0.0 .. 5.0, multiplica as duracoes
-duration_fast = 120         # ms, hover e foco
-duration_normal = 200       # ms, troca de pagina
-duration_slow = 320         # ms, transicoes grandes
-easing = "ease-in-out"      # linear | ease-in | ease-out | ease-in-out
-```
+`duration_fast`, `duration_normal`, `duration_slow` em ms, divididos por
+`speed`. `spring_stiffness` e `spring_damping` dao a mola da troca de faixa.
+`enabled = false` desliga todo movimento -- o mesmo que a preferencia de
+reduzir movimento.
 
-A interface recebe as duracoes **ja resolvidas**: com movimento reduzido tudo
-chega como zero, e nenhuma tela precisa checar a preferencia.
+Qualquer que seja o tema, **o movimento para sozinho** quando um jogo ou video
+ocupa a tela cheia, e com a janela minimizada.
 
 ### `[effects]`
 
-`material` seleciona a familia optica: `"aero"` para gel e `"liquid"` para
-lente. O padrao `"legacy"` conserva o comportamento de pacotes anteriores.
-`gloss` controla intensidade; nao deve selecionar uma familia diferente nos
-temas novos. A fidelidade e os limites de renderizacao estao documentados em
-`docs/design/PESQUISA-AQUARIO-BRUMA-2026-09-10.md`.
-
-```toml
-window_opacity = 1.0        # 0.2 .. 1.0
-acrylic = false             # fundo translucido estilo Windows, quando disponivel
-shadow_strength = 0.5       # 0.0 .. 1.0
-gloss = 0.0                 # brilho na superficie dos paineis, 0 desliga
-backdrop_blur = 0.0         # px atras de modais, 0 desliga
-artwork_tint = true         # tinge o fundo com a capa
-artwork_tint_strength = 0.35
-artwork_accent = false      # cor da capa na barra de progresso e no "tocando"
-```
-
-O piso de `window_opacity` e alto de proposito: uma janela quase transparente
-deixaria o aplicativo irrecuperavel pelo proprio usuario.
-
-`finish` e o acabamento dos paineis flutuantes do material `liquid`:
-
-| Valor | Aparencia |
+| Chave | Efeito |
 |---|---|
-| `"none"` | vidro puro (padrao) |
-| `"neon"` | aresta acesa em `border_highlight`, cantoneiras de HUD em `accent` e brilho para fora |
-| `"sticker"` | contorno grosso e sombra dura deslocada, como adesivo |
-| `"dream"` | leitoso, com halo suave nos itens de menu |
-| `"starry"` | fio violeta, clarao de cima e estrelas cintilando; itens de menu em cascata |
+| `acrylic` | pede o acrilico do Windows atras da janela. Com a transparencia desligada no Windows, o fundo vira solido sozinho |
+| `window_opacity` | opacidade da janela com acrilico, de 0,2 a 1 |
+| `material` | desenho dos paineis: `legacy`, `liquid` ou `aero` |
+| `backdrop_blur` | desfoque atras dos paineis de vidro, em px |
+| `artwork_glow` | brilho da cor da capa em volta dela, de 0 a 1 |
+| `breathe` | esse brilho pulsa de leve com a musica |
+| `artwork_tint`, `artwork_tint_strength` | a capa tinge o fundo |
+| `artwork_accent` | a cor da capa vira o acento vivo (progresso, "tocando") |
+| `artwork_paints_ui` | a cor da capa tinge tambem cabecalhos, selecao e foco |
 
-### `[scene]`
+### `[background]`
 
-Uma cena animada atras da interface. Nao e codigo: o tema escolhe uma das cenas
-que o Morune sabe desenhar e entrega as imagens. Toda cena para sozinha com jogo
-em tela cheia, com a janela escondida e com movimento reduzido.
-
-```toml
-[scene]
-kind = "travessia"          # "none" (padrao), "travessia" ou "chuva"
-layers = ["assets/cena/ceu.jpg", ...]   # so a travessia usa camadas
-```
-
-`travessia` quer seis camadas, nesta ordem: ceu de madrugada, ceu da hora azul,
-ceu do amanhecer (os tres se misturam pelo relogio do Windows), colinas ao
-longe, colinas perto com a estrada, nevoa. Caminhos fora do tema sao ignorados.
-
-`chuva` cai sobre a imagem de `[background]` e nao tem camadas. A area e em
-**fracao da imagem**, nao da janela: o Morune refaz o recorte do fundo, e a
-chuva continua no mesmo lugar da foto (o vidro de uma janela, por exemplo) em
-qualquer tamanho de janela do aplicativo.
-
-```toml
-[scene.rain]
-x = 0.39          # canto esquerdo da area, 0 .. 1
-y = 0.0           # topo
-width = 0.38      # largura, 0 .. 1 (1 = a imagem inteira)
-height = 0.53     # altura
-strength = 0.25   # 0 garoa, 1 temporal com gotas grossas na frente
-wind = 0.0        # inclinacao da queda, -1 .. 1
-```
-
-Sem `[scene.rain]`, chove na imagem inteira com forca media e sem vento.
-
-## Vidro: as duas metades
-
-`color.border_highlight` e o realce da aresta superior -- a linha clara na quina
-de cima que da a impressao de espessura. Transparente (o padrao) faz a aresta
-usar `border`, e a interface fica como sempre foi.
-
-`effects.gloss` e o par dele: um degrade claro que nasce no topo do painel e
-some antes do meio. A aresta desenha o **contorno** do vidro; o gloss desenha a
-**luz caindo sobre ele**. Um sem o outro parece painel contornado; os dois
-juntos parecem vidro.
-
-Os dois so fazem sentido num tema translucido -- num tema opaco a luz nao teria
-de onde vir, e por isso ambos nascem desligados.
-
-Nenhum dos dois custa por quadro: sao preenchimento estatico, resolvidos na
-pintura como qualquer cor chapada.
-
-`acrylic` e composicao do **sistema**, feita pelo DWM, e nao um efeito que o
-Morune desenha: nao custa nada por quadro. Como a imagem de fundo, ele so
-aparece se a cor de fundo do tema tiver alfa. Em Windows 10 o atributo nao
-existe e a janela fica opaca, sem erro.
-
-`window_opacity` e do tema, mas a pessoa pode sobrepor pelo slider
-**Transparencia da janela** em Configuracoes > Aparencia. Como todo ajuste
-daquela secao, a escolha dela vence a do tema e sobrevive a troca de tema.
-Trocar para um tema opaco **desliga** a transparencia; um tema nao deixa
-sequela no seguinte.
-
-`artwork_tint` **funciona**: a cor dominante da capa que esta tocando vaza para
-dentro da barra de reproducao, num degrade que morre antes dos controles. A cor
-e calculada uma vez por faixa -- nao por quadro -- e o criterio e quantidade
-vezes saturacao, com quase-preto e quase-branco descartados: um encarte de fundo
-preto devolve a cor do disco, e nao o preto.
-
-`backdrop_blur` continua **reservado**: esta no esquema e e validado, mas nada
-o consome ainda.
-
----
-
-## layout.toml
-
-### `[window]`
-
-```toml
-default_width = 1180.0      # 480 .. 8000
-default_height = 760.0      # 360 .. 8000
-min_width = 720.0
-min_height = 480.0
-custom_titlebar = false
-show_page_title = true
-```
-
-O tamanho do tema so vale na primeira abertura; depois o ultimo tamanho
-escolhido pelo usuario tem prioridade, e trocar de tema nunca redimensiona a
-janela.
-
-### `[sidebar]`
-
-```toml
-position = "left"           # left | right | hidden
-width = 232.0               # 120 .. 600
-collapsed_width = 64.0      # 40 .. 200
-collapsible = true
-start_collapsed = false
-show_icons = true
-show_labels = true
-show_playlists = true
-items = ["home", "search", "library"]
-```
-
-### `[player]`
-
-```toml
-position = "bottom"         # bottom | top | sidebar
-height = 88.0               # 48 .. 260
-show_artwork = true
-artwork_size = 56.0
-show_progress = true
-progress_edge_to_edge = false   # barra colada na borda da janela
-show_volume = true
-show_shuffle_repeat = true
-show_queue_button = true
-show_stop_button = false    # botao de parar entre pause e proxima
-show_times = true
-center_controls = true
-```
-
-### `[content]`
-
-```toml
-density = "normal"          # comfortable | normal | compact
-view_mode = "grid"          # grid | list | compact
-card_width = 168.0          # 80 .. 480
-row_height = 44.0           # 24 .. 120
-max_content_width = 0.0     # 0 = ocupa tudo
-show_hero = true
-hero_height = 240.0
-page_size = 100             # 1 .. 1000
-```
-
----
+`image` aponta um arquivo dentro da pasta do tema. Fundo com GIF ou video se
+escolhe em Configuracoes, nao no tema: e escolha de cada pessoa, e o peso de
+um video 4K e dela.
 
 ## O que acontece com um tema errado
 
-**Um tema quebrado nunca impede o aplicativo de abrir.** Essa e a garantia
-central, e ela e testada.
+**Um tema quebrado nunca impede o app de abrir.** Pasta ou manifesto invalidos
+caem no tema padrao; valor fora de faixa e ajustado ao limite; campo ausente
+usa o padrao. Tudo vai para o registro (`otomori.log`).
 
-| Problema | Resultado |
-|---|---|
-| Pasta inexistente | tema embutido, erro registrado |
-| `manifest.toml` invalido | tema embutido, erro registrado |
-| `theme.toml` invalido | o tema carrega; tokens caem para o padrao, erro registrado |
-| Valor fora de faixa | ajustado para o limite, aviso registrado |
-| `NaN` ou infinito | substituido por valor finito, aviso registrado |
-| Secao ausente | herda do pai ou usa o padrao |
-| Campo ausente | usa o padrao |
-| Campo com nome errado | erro de leitura da secao — nao passa em silencio |
-| Contraste ilegivel | **aplicado assim mesmo**, com aviso |
+## Guardar, exportar e importar
 
-Sobre a ultima linha: um tema pode ser de baixo contraste de proposito, e nao
-cabe ao aplicativo proibir. Mas o aviso aparece, com a razao WCAG calculada, nos
-diagnosticos em Configuracoes.
+Em **Configuracoes > Aparencia > Guardar e compartilhar**:
 
-Valores como `sidebar.width = 9999` ou `player.height = 1` sao corrigidos em
-silencio com aviso, em vez de recusarem o tema. O objetivo e sempre chegar numa
-tela utilizavel.
-
----
-
-## Fluxo de trabalho
-
-### Recarregar ao salvar
-
-Ligue **Recarregar tema ao salvar** em Configuracoes > Temas. O Morune passa a
-observar a pasta de temas e aplica o tema assim que voce salva o arquivo, sem
-clicar em nada.
-
-O observador agrupa eventos numa janela de 180 ms -- editores gravam um arquivo
-em varias operacoes, e sem isso um unico salvamento dispararia tres recargas --
-e ignora temporarios de editor (`.swp`, `theme.toml~`, `.tmp`).
-
-Ele custa uma thread e alguns handles do sistema, por isso nasce desligado.
-O botao **Recarregar temas** continua funcionando do mesmo jeito.
-
-### Criar um tema
-
-1. Configuracoes → **Duplicar** num tema existente. A copia e completa e nao
-   herda do original, entao apagar o original nao a quebra.
-2. Configuracoes → **Abrir pasta de temas**.
-3. Edite `theme.toml` ou `layout.toml`.
-4. Configuracoes → **Recarregar**.
-
-### Exportar e compartilhar
-
-Configuracoes → **Exportar** gera um `.musicpack`. So sao empacotados arquivos
-que o importador aceitaria de volta, entao um pacote exportado pelo Morune
-sempre pode ser reimportado.
-
-### Importar
-
-Configuracoes → **Importar tema**. O pacote passa por validacao completa antes
-de qualquer escrita em disco — ver [SECURITY.md](../SECURITY.md). Um pacote
-recusado nunca deixa residuo.
-
-### Voltar atras
-
-Configuracoes → **Restaurar padrao** volta ao tema embutido. Ele nunca pode ser
-apagado nem corrompido, porque nao esta em disco: e o `Default` do proprio
-codigo.
-
----
-
-## Temas que acompanham o aplicativo
-
-| Id | O que demonstra |
-|---|---|
-| `midnight` | tema embutido. Escuro, verde, cantos medios, grade, sidebar a esquerda, player embaixo |
-| `bruma` | vidro **sobre a area de trabalho**: neutro, azul frio, com `gloss` e `border_highlight` ligados. E o exemplo de como as duas metades do vidro se somam |
-| `aquario` | gel Aero (Frutiger): borda de Windows 7, aurora que anda e layout proprio em `layout.toml` |
-| `travessia` | `[scene]` com camadas: ceu que acompanha a hora, estrelas, estrela cadente e acabamento `starry` |
-| `dreamcore` | imagem de fundo com paineis de vidro ameixa e acabamento `dream` |
-| `lofi` | imagem de fundo com `[scene] kind = "chuva"` so numa area da foto (o vidro da janela) |
-| `neo-shinjuku` | chuva com vento na tela inteira, cantos retos e acabamento `neon` |
-
-Os quatro ultimos trazem as proprias fontes (OFL, com a licenca em `fonts/`).
-Paper, Pulse e Cristal sairam em 26/09/2026; o Morune apaga as copias antigas
-deles da pasta de temas e, se um deles estava escolhido, volta para o Bruma.
-
-**O Slint aceita um nome de familia, nao uma lista.** `family = "Inter, Segoe
-UI"` e lido como um nome unico que nao existe -- medido, nao suposto. Nao ha
-como declarar uma cadeia de reserva num tema.
-
----
-
-## A previa na lista de temas
-
-Cada tema aparece com uma miniatura da janela do Morune pintada com as cores
-dele: barra lateral, conteudo, barra de reproducao e o botao primario em
-destaque.
-
-Nao e uma captura de tela. E um desenho de cinco retangulos a partir de
-`background`, `surface`, `sidebar_background`, `player_background`, `accent` e
-`text` -- entao ela esta sempre atualizada, inclusive no instante seguinte a
-voce salvar o TOML, e nao custa render nenhum.
-
-Consequencia pratica para quem escreve tema: **a previa mostra exatamente a
-relacao entre essas seis cores**. Se duas delas forem quase iguais, a miniatura
-vai parecer chapada -- e a janela de verdade tambem.
-
----
-
-## Icones
-
-Um tema substitui qualquer icone pondo um **`.svg`** de mesmo nome em
-`assets/icons/`. O que nao for substituido continua com o desenho embutido.
-
-```
-meu-tema/
-  manifest.toml
-  theme.toml
-  assets/
-    icons/
-      play.svg
-      pause.svg
-```
-
-Os nomes aceitos sao exatamente estes:
-
-```
-home  search  library  settings
-play  pause  stop  next  previous  shuffle  repeat  repeat-one
-queue  queue-add  queue-next  mini-player  volume  volume-muted
-heart  pin  plus  link  sleep  hide
-chevron-left  chevron-right  chevron-up  chevron-down  close
-minimize-window  maximize-window  restore-window
-```
-
-**Os embutidos sao do [Phosphor](https://phosphoricons.com)** (MIT), peso
-*regular*, com a versao *fill* para o estado ligado (play no botao principal,
-coracao curtido, fixado). O caminho mais curto para mudar o estilo inteiro de
-um tema e baixar os mesmos icones do Phosphor em outro peso -- *thin*,
-*light*, *bold*, *fill* ou *duotone* -- e salvar cada um com o nome do Morune:
-
-| Nome no Morune | Nome no Phosphor |
-|---|---|
-| `home` | `house` |
-| `search` | `magnifying-glass` |
-| `library` | `books` |
-| `settings` | `gear-six` |
-| `play`, `pause`, `stop` | `play`, `pause`, `stop` |
-| `next`, `previous` | `skip-forward`, `skip-back` |
-| `shuffle`, `repeat`, `repeat-one` | `shuffle`, `repeat`, `repeat-once` |
-| `queue`, `queue-add`, `queue-next` | `queue`, `list-plus`, `list-numbers` |
-| `mini-player` | `picture-in-picture` |
-| `volume`, `volume-muted` | `speaker-high`, `speaker-slash` |
-| `heart`, `pin`, `plus`, `link` | `heart`, `push-pin`, `plus`, `link` |
-| `sleep`, `hide` | `moon`, `eye-slash` |
-| `chevron-*`, `close` | `caret-*`, `x` |
-
-Qualquer outro banco serve do mesmo jeito (Fluent, Material Symbols, Lucide),
-desde que a licenca permita redistribuir junto com o tema.
-
-Um arquivo com nome fora da lista e ignorado, e o aviso aparece no log -- a
-alternativa seria um erro de digitacao virar silencio, com o icone
-simplesmente nao trocando e ninguem sabendo por que.
-
-**O icone do tema continua obedecendo a cor do tema.** Ele e tingido com a
-mesma cor que o desenho embutido receberia, entao um SVG multicolorido sai
-chapado. Desenhe em uma cor so; a paleta e do tema, nao do icone.
-
-Qualquer viewbox serve: o icone e encaixado na caixa do botao. O que importa e
-a **margem interna igual a do resto do conjunto** -- no Phosphor o desenho
-ocupa cerca de 12% a 88% da caixa. Um icone trocado que encosta nas bordas sai
-visivelmente maior que os vizinhos. Trocar o conjunto inteiro de uma vez, do
-mesmo banco, e o que mantem tudo com o mesmo peso.
-
-Nao ha substituicao para a marca do Morune: ver o item sobre isso nos limites
-abaixo. Icones de terceiros seguem a mesma regra das fontes -- ver
-[Direitos em temas](DIREITOS-EM-TEMAS.md).
-
----
-
-## Limites atuais
-
-- **Layout arbitrario nao e possivel.** Um tema escolhe entre os eixos
-  oferecidos; nao desenha telas novas. Layout livre via `slint-interpreter` esta
-  previsto atras do Developer Mode, e o motivo de nao ser o padrao esta em
-[ADR-0004](adr/0004-temas-declarativos.md).
-- **A marca nao e customizavel, e isso e proposital.** O simbolo do Morune tem
-  geometria e cor fixas (`#8B63F6 → #6937EC`), fora do esquema de tema: aparece
-  na barra lateral, na janela, na barra de tarefas, na bandeja e no instalador.
-  Um tema muda tudo o que o usuario ve, menos o que diz de qual aplicativo se
-  trata. A especificacao esta em
-  `assets/brand/morune-logo-system/SPECIFICATION.md`.
-- **Fontes empacotadas dependem de uma API instavel do Slint.** `bundled_font`
-  funciona e vem ligado por padrao (feature `bundled-fonts`), mas o Slint 1.17
-  nao tem API estavel para registrar fonte em tempo de execucao -- a unica via
-  e `slint::fontique_010`, que o proprio Slint marca como instavel. Uma
-  atualizacao do Slint pode quebrar a compilacao desse trecho. E uma quebra
-  visivel no build, nunca silenciosa em execucao.
+- **Salvar como tema** grava o que esta na tela como um tema seu;
+- **Exportar** gera um `.musicpack` do tema ativo;
+- **Importar** le um `.musicpack`. O pacote e conferido inteiro antes de
+  qualquer escrita em disco -- id restrito, caminhos contidos, limites de
+  tamanho -- e um pacote recusado nao deixa resto. Ver
+  [SECURITY.md](../SECURITY.md).

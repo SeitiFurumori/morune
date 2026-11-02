@@ -1,4 +1,4 @@
-# Contribuindo com o MORU•NE
+# Contribuindo com o Otomori
 
 Obrigado por ajudar a construir um cliente de música leve, claro e livre para
 ser personalizado. Contribuições de código, documentação, acessibilidade,
@@ -6,7 +6,7 @@ design e testes são bem-vindas.
 
 ## Antes de começar
 
-- Consulte as [issues abertas](https://github.com/SeitiFurumori/morune/issues)
+- Consulte as [issues abertas](https://github.com/SeitiFurumori/otomori/issues)
   para evitar trabalho duplicado.
 - Para uma mudança grande, abra uma issue primeiro e descreva o problema que
   ela resolve. Isso permite alinhar produto e arquitetura antes da implementação.
@@ -15,13 +15,16 @@ design e testes são bem-vindas.
 
 ## Ambiente de desenvolvimento
 
-O projeto exige Windows, Rust 1.92+ e MinGW-w64 no `PATH`.
+O projeto exige Windows, Node 20+, Rust 1.92+ e MinGW-w64 no `PATH`. A tela
+fica em `crates/morune-desktop/ui` (Svelte) e precisa ser montada antes do
+`cargo`, porque vai embutida no executavel.
 
 ```powershell
-git clone https://github.com/SeitiFurumori/morune.git
-cd morune
+git clone https://github.com/SeitiFurumori/otomori.git
+cd otomori
 . .\tools\env.ps1
-cargo build -p morune-app
+cd crates\morune-desktop\ui; npm ci; npm run build; cd ..\..\..
+cargo build -p morune-desktop
 ```
 
 ## Fluxo recomendado

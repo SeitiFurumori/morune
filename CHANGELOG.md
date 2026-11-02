@@ -5,6 +5,51 @@ Versionamento semantico.
 
 ## [Nao lancado]
 
+## [2.0.0] — Otomori
+
+O Morune passa a se chamar **Otomori** (音 som + 森 floresta): "O som fica. O
+peso nao." A tela foi refeita em web sobre o WebView2 do Windows (Tauri),
+sobre o mesmo motor em Rust. Ver [ADR 0007](docs/adr/0007-tela-em-tauri.md).
+
+### Vindo do Morune 1.0
+- A atualizacao chega pelo botao de sempre. O instalador fecha o Morune, entra
+  no lugar dele (`Programs\Morune` vira `Programs\Otomori`) e remove atalhos,
+  entrada em Aplicativos e item de iniciar com o Windows antigos.
+- Na primeira abertura, configuracoes, temas, historico e fundos sao copiados
+  para a pasta nova. A pasta do Morune fica intacta, como reserva. O login
+  continua valendo: nao e preciso entrar de novo.
+- Os seis temas da 1.0 sairam com a tela antiga. Quem usava um deles abre no
+  Lume.
+
+### Adicionado
+- **Quatro temas:** Lume (a cor vem da capa), Vidro (acrilico do Windows),
+  Grade e Claro, com mola, brilho e o pulso da musica.
+- **Modo liberdade total:** cor de destaque, paleta, transparencia, forma,
+  fonte e fundo com imagem, GIF ou video, que param quando um jogo ocupa a
+  tela cheia. Salvar como tema, exportar e importar.
+- **Desenho da musica** na barra de progresso, com as partes dela, para achar
+  o refrao.
+- **Arrastar para reordenar** as musicas curtidas (a ordem fica no Otomori) e
+  as playlists suas (vai para o Spotify).
+- **Busca** com buscas recentes, artistas que voce ouve e as categorias do
+  Spotify antes de digitar.
+- **Retomar:** ao abrir, a ultima musica volta pausada, no mesmo ponto.
+- Mini player com fixar e buscar; capa que voa ao abrir um album; lista que
+  se anima ao mudar.
+
+### Corrigido
+- "Os fas tambem curtem" voltou a aparecer na pagina de artista.
+- Tocar enquanto a conexao com o Spotify volta agora avisa e comeca sozinho
+  quando ela voltar, em vez de nao fazer nada.
+- Pedido que estava no meio quando a conexao caiu e refeito na volta.
+- Rolagem lisa: a tela nova rola a 240 quadros por segundo, a do Slint nao
+  ficava lisa.
+
+### Mudou
+- Instalador de ~3 MB (era 13 MB). Exige o WebView2, que ja vem no Windows 11
+  e chega ao 10 pelas atualizacoes do Edge.
+- O executavel passa a ser `otomori.exe`; o repositorio, `SeitiFurumori/otomori`.
+
 ## [1.0.0] — 2026-09-26
 
 Primeira versao estavel. Toca pelo Spotify (conta Premium), com Inicio montado

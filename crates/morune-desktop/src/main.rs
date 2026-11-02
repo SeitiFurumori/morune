@@ -1,11 +1,11 @@
-//! Morune com a tela em web. O motor (`AppState`) e o mesmo do app em Slint;
-//! aqui ele roda na thread principal do Tauri, e a tela recebe o estado em JSON.
+//! Otomori: a tela em web sobre o motor (`AppState`), que veio do app em Slint.
+//! Ele roda na thread principal do Tauri, e a tela recebe o estado em JSON.
 //!
 //! Regras de segundo plano (ADR-0007):
 //! - na bandeja a tela e destruida e sobra so o motor;
 //! - minimizada, a tela e suspensa;
 //! - com jogo em tela cheia, o movimento vai a zero (`set_tela_cheia`).
-// Sem terminal tambem na versao de teste: o registro vai para o morune.log.
+// Sem terminal tambem na versao de teste: o registro vai para o otomori.log.
 #![windows_subsystem = "windows"]
 // O motor veio do app em Slint, que tem metodos que esta tela ainda nao usa.
 #![allow(dead_code)]

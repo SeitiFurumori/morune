@@ -8,8 +8,8 @@ de contratos em `morune-core` que nenhuma das pontas pode contornar.
 Isso nao e purismo. E o que torna possivel:
 
 - testar fila, shuffle e repeticao sem rede, sem disco e sem janela;
-- rodar a interface contra implementacoes falsas para capturar temas em PNG
-  (`tools/snapshot.ps1`) sem precisar de conta nem de credencial;
+- abrir a tela com dados de demonstracao (`MORUNE_SNAPSHOT_*`) para capturar
+  temas sem precisar de conta nem de credencial;
 - trocar de provedor de musica sem reescrever nenhuma tela;
 - abrir o aplicativo mesmo sem sessao, sem backend e com tema corrompido.
 
@@ -18,7 +18,7 @@ Isso nao e purismo. E o que torna possivel:
 ## Camadas
 
 ```
-morune-app        interface Slint, estado de tela, fiacao
+morune-desktop    o app: motor de tela em Rust + tela web (Tauri, Svelte)
    |  depende de
 morune-spotify    login, reproducao, catalogo e biblioteca sobre librespot
 morune-storage    configuracao, caminhos, cofre de credenciais
@@ -28,8 +28,8 @@ morune-core       modelo, fila, contratos. Zero UI, zero Spotify, zero I/O.
 ```
 
 As setas apontam sempre para baixo. `morune-core` nao conhece nenhuma das
-outras; `morune-theme` nao conhece Slint; `morune-app` e a unica que conhece
-todas.
+outras; `morune-theme` nao conhece a tela; `morune-desktop` e a unica que
+conhece todas.
 
 ### `morune-core`
 
@@ -90,69 +90,77 @@ Configuracao, caminhos e segredos.
 - segredos vao para o Gerenciador de Credenciais do Windows, nunca para arquivo
   nosso.
 
-### `morune-app`
+### `morune-desktop`
 
-Interface e fiacao.
+O app. Duas metades que conversam por JSON:
 
-- `ui/*.slint` — a interface. Nenhuma cor, tamanho ou duracao literal: se um
-  valor nao esta em `Theme` ou `Layout`, ele nao e customizavel, e isso e um bug.
-- `theme_bridge.rs` — **o unico lugar** que conhece o formato de tema e o
-  formato da interface ao mesmo tempo.
-- `state.rs` — estado de tela e as acoes que a interface dispara.
-- `main.rs` — so fiacao e ordem de inicializacao.
-- `bundled.rs` — temas de exemplo embutidos, gravados na primeira execucao e
-  nunca sobrescritos depois.
+- **o motor** (`src/`, Rust) — `state.rs` guarda tudo que a tela mostra e
+  todas as acoes; `ui.rs` e o retrato desse estado, serializado para a tela;
+  `main.rs` e fiacao, laco do motor e janelas; os modulos do Windows (`smtc`,
+  `taskbar`, `notify`, `hotkeys`, `startup`, `instance`, `tela_cheia`,
+  `material`) ficam cada um no seu arquivo;
+- **a tela** (`ui/`, Svelte + Vite) — so desenha e pede. `lib/motor.svelte.ts`
+  recebe o estado, `lib/tema.ts` aplica o tema como variaveis CSS, e
+  `paginas/` tem uma pagina por tela.
+
+A tela fala com o motor por tres comandos do Tauri: `estado_inicial` (o
+retrato inteiro, uma vez), `acao(nome, args)` (tudo que a pessoa faz) e
+`pronta`. O motor responde por eventos: `estado` leva **so os campos que
+mudaram** desde o ultimo envio, `tema` leva o tema quando ele troca, e
+`tela_cheia` e `visibilidade` dizem quando parar de animar.
+
+**O motor mora num `RefCell` na linha principal** (`com_motor`). Mexer na
+janela por dentro dele -- tamanho, maximizar, criar janela -- faz o Windows
+chamar o tratador na hora, que pede o motor de novo. Isso e feito fora, com
+`depois()` (`run_on_main_thread`).
+
+`bundled.rs` grava os temas de fabrica na primeira execucao e so os atualiza
+quando o tema instalado ainda e o que o app pos la.
 
 ---
 
 ## Como um tema chega na tela
 
 ```
-theme.toml + layout.toml
+manifest.toml + theme.toml
         |  serde
    ThemeSpec  (tipado, com padrao para todo campo)
         |  sanitize  -> Vec<ThemeWarning>
-   ThemeSpec valido
-        |  theme_bridge::apply
-   globais Theme e Layout do Slint
-        |
-   a interface inteira reage
+   ThemeSpec valido  + ajustes da pessoa (liberdade total)
+        |  AppState::tema_json
+   evento `tema`
+        |  ui/src/lib/tema.ts
+   variaveis CSS no :root -- a tela inteira reage
 ```
 
-Trocar de tema e re-executar a etapa `apply`. Nao ha recompilacao, nao ha
-recriacao de janela, e o estado de reproducao nao e tocado.
+Trocar de tema e mandar o evento de novo. Nao ha recarga de pagina nem
+recriacao de janela, e a reproducao nao e tocada.
 
-**Por que globais tipadas e nao `.slint` dentro do pacote.** Um `.slint` no
-pacote daria liberdade total de layout, mas um arquivo `.slint` tem expressoes,
-ligacoes e callbacks — e um formato ativo, nao um dado. Comeca declarativo e
-some dessa condicao aos poucos. O conjunto de globais cobre os eixos que
-importam (posicao, tamanho, densidade, forma, movimento, visibilidade de cada
-peca) com um formato que e inequivocamente dado. Layout arbitrario via
-`slint-interpreter` esta previsto atras do Developer Mode — ver
+**Por que tokens e nao CSS dentro do pacote.** CSS ou HTML no pacote daria
+liberdade total de layout, mas e formato ativo: seletores alcancam qualquer
+coisa, e `url()` busca na rede. O tema continua sendo dado -- cores, forma,
+fonte, movimento, fundo -- e a tela decide o layout. Ver
 [ADR-0004](adr/0004-temas-declarativos.md).
 
 ---
 
 ## Vida do processo
 
-O aplicativo nao morre quando a janela fecha. Isso muda tres coisas:
+O app nao morre quando a janela fecha. Isso muda tres coisas:
 
-**O laco de eventos e explicito.** `Window::run()` termina quando a janela some,
-que e exatamente o que nao pode acontecer. O `main` faz `window.show()` seguido
-de `slint::run_event_loop_until_quit()`; quem encerra o laco e `quit_event_loop`,
-chamado pelo item "Sair" da bandeja.
+**Fechar para a bandeja destroi a tela.** Sobra so o motor, tocando. A janela
+volta inteira quando a pessoa clica na bandeja. Minimizada, a tela e suspensa;
+com jogo ou video em tela cheia, toda animacao vai a zero. E isso que deixa o
+app parado enquanto alguem joga (ADR-0007).
 
-**Fechar e uma decisao, nao um fim.** `on_close_requested` consulta a
-configuracao e sempre esconde a janela; a diferenca esta em encerrar o laco ou
-nao.
+**O motor gira sozinho.** Uma linha de fundo acorda o motor a cada 100 ms
+(`GIRO`): recolhe respostas do Spotify, eventos de reproducao, bandeja, teclas
+de midia e botoes da barra de tarefas, e manda a diferenca para a tela, se
+houver tela.
 
 **Sair precisa ser sempre alcancavel.** Se a bandeja falhar ao ser criada, o
-aplicativo volta a encerrar ao fechar. Um processo vivo, invisivel e sem forma
-de encerrar seria pior que perder a funcionalidade.
-
-A bandeja entrega eventos por canal, entao ha uma leitura a cada 150 ms num
-`slint::Timer`. O temporizador precisa continuar vivo: descartado, a bandeja
-para de responder — por isso `wire_tray` devolve o `Timer` em vez de solta-lo.
+app volta a encerrar ao fechar. Um processo vivo, invisivel e sem forma de
+encerrar seria pior que perder a funcionalidade.
 
 ## Ordem de inicializacao
 
@@ -197,8 +205,8 @@ medido, nao preferencia de implementacao.
 
 **A interface nunca espera rede.** Comandos de reproducao entram por canal e nao
 devolvem resultado; quem quer saber o que aconteceu assina os eventos. Consultas
-de catalogo viram tarefa no runtime do backend e sao recolhidas no temporizador
-de 100 ms que ja atende bandeja e reproducao.
+de catalogo viram tarefa no runtime do backend e sao recolhidas no giro de
+100 ms do motor, que ja atende bandeja e reproducao.
 
 ---
 

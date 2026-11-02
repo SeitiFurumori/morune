@@ -1,161 +1,131 @@
 <div align="center">
-  <img src="assets/brand/morune-logo-system/morune-symbol-128.png" width="88" alt="MORU•NE symbol">
-  <h1>MORU•NE</h1>
-  <p><strong>Your music. Your way.</strong></p>
-  <p>A native, lightweight and deeply themeable Spotify client for Windows —<br>built to play your music while you play your game.</p>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/otomori-assinatura-clara.svg">
+    <img src="assets/brand/otomori-assinatura-escura.svg" width="380" alt="Otomori — O som fica. O peso não.">
+  </picture>
+
+  <p><strong>All of the sound. None of the weight.</strong></p>
+  <p>A light Spotify player for Windows, made your way —<br>built to play your music while you game.</p>
 
   <p>
-    <a href="https://github.com/SeitiFurumori/morune/releases"><img src="https://img.shields.io/github/v/release/SeitiFurumori/morune?include_prereleases&amp;label=release" alt="Release"></a>
-    <a href="https://github.com/SeitiFurumori/morune/actions/workflows/ci.yml"><img src="https://github.com/SeitiFurumori/morune/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-c05cff.svg" alt="MIT License"></a>
+    <a href="https://github.com/SeitiFurumori/otomori/releases"><img src="https://img.shields.io/github/v/release/SeitiFurumori/otomori?label=release" alt="Release"></a>
+    <a href="https://github.com/SeitiFurumori/otomori/actions/workflows/ci.yml"><img src="https://github.com/SeitiFurumori/otomori/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-7c5cff.svg" alt="MIT license"></a>
     <img src="https://img.shields.io/badge/platform-Windows-6b7280.svg" alt="Windows">
-    <img src="https://img.shields.io/badge/built%20with-Rust%20%2B%20Slint-dea584.svg" alt="Rust + Slint">
   </p>
 
   <p><a href="README.pt-BR.md">🇧🇷 Leia em português</a></p>
 </div>
 
 <div align="center">
-  <img src="assets/screenshots/temas.png" width="880" alt="The same Home screen in the six bundled themes: Bruma, Aquario, Travessia, Dreamcore, Lo-fi and Neo-Shinjuku">
-  <p><em>One app, six bundled themes. Each brings its own material and motion: Travessia's sky follows the real time of day, and it rains on Lo-fi's window and over Neo-Shinjuku.</em></p>
+  <img src="assets/screenshots/lume.png" width="880" alt="Otomori in the Lume theme, playing a song: the album art tints the window">
 </div>
 
 > [!IMPORTANT]
-> MORU•NE **1.0** is the first stable release.
+> **Morune is now Otomori.** 2.0 is the same app with a new name and a new
+> interface. If you have Morune 1.0, the update arrives as usual: the installer
+> takes its place, and your settings, themes and login come along.
+>
 > Playback requires a Spotify Premium account.
 
-## Why another Spotify client?
+## Why another Spotify player?
 
-The official desktop client is an Electron app. It idles at hundreds of
-megabytes, wakes the GPU to animate things nobody is looking at, and stutters
-for a second when you alt-tab back to it. If you listen to music while gaming,
-you feel all three.
+The official app sits open using hundreds of megabytes, wakes the GPU to
+animate things nobody is looking at, and stutters when you switch back to it
+mid-game.
 
-MORU•NE is built around a single performance criterion: **be indistinguishable
-from a stopped process while you play.** No stolen frames, no GPU wakeups, no
-CPU contention, and no frozen window when you come back to it. Memory is a
-ceiling to stay under, not a number to brag about — see
-[PERFORMANCE.md](docs/PERFORMANCE.md) for the method and the real measurements,
-including what has **not** been measured yet.
+Otomori has a single rule: **while you play, it must not get in the way.** No
+stolen frames, no waking the GPU, no frozen window when you come back to it.
+When a game or video goes fullscreen, every animation stops on its own. The
+measurements, including what has **not** been measured yet, are in
+[PERFORMANCE.md](docs/PERFORMANCE.md).
 
-The second reason is ownership of how it looks. Most "themes" are a color
-swap. Here a theme is a declarative package that controls color, typography,
-shape, motion, spacing, icons, fonts and the composition of the window itself.
+The name joins 音 (*oto*, sound) and 森 (*mori*, forest).
 
-## What makes it different
+## What it has
 
-- **Native and light** — Rust + [Slint](https://slint.dev). No Electron, no
-  Chromium, no WebView. The installer is about 13 MB, six themes included.
-- **Built for the background** — closes to the system tray and keeps playing,
-  with a tray menu and volume control for when a game is in the foreground.
-- **Themes that change the layout** — sidebar position, player position,
-  density, and content composition, not only colors.
-- **Safe by construction** — themes are declarative data, never executable
-  code. Your token lives in the Windows Credential Manager, never in a file.
-- **Accessible** — a real AccessKit tree exposed to Windows, keyboard
-  navigation, visible focus, and contrast enforced by a test.
-- **Your Spotify, not a copy of it** — playback, playlists and liked songs use
-  your account. MORU•NE never builds a parallel library.
-
-## Screenshots
-
-| Bruma (acrylic glass) | Aquário (Frutiger Aero gel) |
-|---|---|
-| <img src="assets/screenshots/bruma.png" alt="Bruma theme"> | <img src="assets/screenshots/aquario.png" alt="Aquario theme"> |
-
-| Travessia (animated night sky) | Dreamcore |
-|---|---|
-| <img src="assets/screenshots/travessia.png" alt="Travessia theme"> | <img src="assets/screenshots/dreamcore.png" alt="Dreamcore theme"> |
-
-| Lo-fi (rain on the window) | Neo-Shinjuku (neon, rain) |
-|---|---|
-| <img src="assets/screenshots/lofi.png" alt="Lo-fi theme"> | <img src="assets/screenshots/neo-shinjuku.png" alt="Neo-Shinjuku theme"> |
-
-## Install
-
-Download `Morune-<version>-setup.exe` from
-[Releases](https://github.com/SeitiFurumori/morune/releases) and run it. No
-admin rights required, and you pick the drive.
-
-The installer is not code-signed yet, so Windows SmartScreen may show "Unknown
-publisher". Verify the SHA-256 against the `.sha256` published in the same
-release before installing:
-
-```powershell
-Get-FileHash .\Morune-0.1.0-setup.exe -Algorithm SHA256
-```
-
-See [installation, security and code signing](docs/SIGNING.md) for details.
-
-### First run
-
-1. Open MORU•NE.
-2. Go to **Settings → Sign in to Spotify**.
-3. Authorize in your browser.
-4. Pick a song and press **Play**.
-
-MORU•NE never sees your password. Spotify authenticates you in the browser and
-the app stores only the token, in the Windows vault.
-
-## What works today
-
-- Spotify sign-in via OAuth with PKCE;
-- search across tracks, albums, artists and playlists;
-- playback, queue, shuffle, repeat, volume and media keys;
-- liked songs synced with Spotify;
-- library and playlists with progressive loading;
-- manageable queue: play next, add to end, reorder, remove, clear, undo;
-- import, export, preview and restore `.musicpack` themes;
-- mini-player, system tray, and optional start with Windows;
-- keyboard navigation, visible focus and native accessibility via AccessKit;
-- adaptive layout down to a 720 × 480 window.
-
-See the [roadmap](docs/ROADMAP.md) for what is planned and the
-[UX audit](docs/UX_AUDIT.md) for current limitations.
+- **Light** — an installer of about 3 MB. The interface runs on the WebView2
+  that ships with Windows; the audio engine is Rust.
+- **Built for the background** — closes to the tray and keeps playing, with a
+  tray menu, a mini player, taskbar thumbnail buttons and media keys.
+- **Your way** — four built-in themes and a free-form mode: colors, shape,
+  font, and an image, GIF or video background. Whatever you build becomes a
+  theme of your own, to keep and share.
+- **Color from the music** — in Lume the window takes the color of the album
+  art that is playing.
+- **Your Spotify, not a copy** — playlists, likes and queue are your account's.
+  Reordering one of your playlists changes it on Spotify too.
+- **Picks up where you left off** — on launch, your last song is there, paused,
+  at the same spot.
+- **Safe** — themes are data, never code. Your login lives in the Windows
+  Credential Manager, never in a file.
 
 ## Themes
 
-A theme is a directory or a `.musicpack` file made of TOML and assets:
+| Lume — color from the art | Vidro — Windows acrylic glass |
+|---|---|
+| <img src="assets/screenshots/lume.png" alt="Lume theme"> | <img src="assets/screenshots/vidro.png" alt="Vidro theme"> |
 
-```text
-manifest.toml    identity and schema version
-theme.toml       color, typography, shape, motion and effects
-layout.toml      window composition
-assets/          optional images, icons and animated-scene layers
-fonts/           optional bundled fonts
+| Grade — precise and cool | Claro — cool paper, soft shadows |
+|---|---|
+| <img src="assets/screenshots/grade.png" alt="Grade theme"> | <img src="assets/screenshots/claro.png" alt="Claro theme"> |
+
+## Install
+
+Download `Otomori-<version>-setup.exe` from
+[Releases](https://github.com/SeitiFurumori/otomori/releases) and run it. No
+administrator prompt, and you pick the drive.
+
+Requirements: 64-bit Windows 10 or 11 with WebView2 (included in Windows 11,
+delivered to Windows 10 through Edge updates).
+
+The installer is not code-signed yet, so SmartScreen may show "Unknown
+publisher". To check the download, compare this against the `.sha256`
+published in the same release:
+
+```powershell
+Get-FileHash .\Otomori-2.0.0-setup.exe -Algorithm SHA256
 ```
 
-Themes are validated on load: unsafe paths are rejected, absurd values are
-clamped, and unreadable contrast produces a warning. A theme can be ugly on
-purpose — it cannot be accidentally impossible to read.
+Details in [installation, security and signing](docs/SIGNING.md).
 
-Full reference: [THEMING.md](docs/THEMING.md).
+### First run
 
-## Building from source
+1. Open Otomori.
+2. Click **Entrar no Spotify** (sign in to Spotify — the interface is in
+   Brazilian Portuguese for now).
+3. Approve in your browser.
+4. Pick a song and play.
 
-Requirements: Windows, Rust 1.92+, and MinGW-w64 on `PATH` (`dlltool` and `as`).
+Otomori never sees your password: Spotify confirms the sign-in in the browser,
+and the app keeps only the access key, in the Windows credential vault.
+
+## Build from source
+
+Requirements: Windows, Node 20+, Rust 1.92+ and MinGW-w64 on `PATH`
+(`dlltool` and `as`).
 
 ```powershell
 . .\tools\env.ps1
-cargo build --release -p morune-app
+cd crates\morune-desktop\ui; npm ci; npm run build; cd ..\..\..
+cargo build --release -p morune-desktop
 cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-To build the installer locally:
+The executable lands in `target\release\otomori.exe`. To build the installer:
 
 ```powershell
-.\tools\build-installer.ps1
+.\tools\build-installer.ps1 -Version 2.0.0
 ```
 
-Read the [contributing guide](CONTRIBUTING.md) first. Architecture, decision
-records and the release process are indexed in [docs/](docs/README.md).
+Read the [contributing guide](CONTRIBUTING.md) first. Architecture, decisions
+and the release process are indexed in [docs/](docs/README.md).
 
 ## License and trademarks
 
-MORU•NE is released under the [MIT license](LICENSE). Third-party notices are
+Otomori is released under the [MIT license](LICENSE). Third-party notices are
 in [THIRD-PARTY-LICENSES.txt](THIRD-PARTY-LICENSES.txt).
 
-MORU•NE is not affiliated with, associated with, or endorsed by Spotify.
+Otomori is not affiliated with, associated with or endorsed by Spotify.
 Streaming uses [librespot](https://github.com/librespot-org/librespot) and
-requires a Spotify Premium account. Spotify is a trademark of Spotify AB.
+requires Premium. Spotify is a trademark of Spotify AB.

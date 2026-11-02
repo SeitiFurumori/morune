@@ -1,4 +1,4 @@
-# Documentação do MORU•NE
+# Documentação do Otomori
 
 Este diretório concentra a documentação técnica e de produto. Para instalar ou
 conhecer o aplicativo, comece pelo README ([inglês](../README.md) ou
@@ -17,7 +17,7 @@ conhecer o aplicativo, comece pelo README ([inglês](../README.md) ou
 | Documento | Finalidade |
 |---|---|
 | [Arquitetura](ARCHITECTURE.md) | Camadas, contratos e fluxo do aplicativo |
-| [Temas](THEMING.md) | Esquema e criação de pacotes `.musicpack` |
+| [Temas](THEMING.md) | Formato do tema, efeitos e pacotes `.musicpack` |
 | [Decisões arquiteturais](adr/) | Registro das decisões relevantes (ADRs) |
 
 ## Manutenção
