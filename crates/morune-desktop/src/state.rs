@@ -4064,6 +4064,16 @@ impl AppState {
     }
 
     fn send(&mut self, command: PlayerCommand) {
+        // O motor de agora morreu com a sessao: o comando sumiria calado, ou
+        // voltaria como "channel closed". A intencao ja esta na fila e em
+        // `playing`, e `restore_recreated_engine` a refaz quando a conexao
+        // voltar -- falta so dizer isso a quem clicou.
+        if self.session.is_offline() {
+            if pede_som(&command) {
+                self.status = "Sem conexão com o Spotify agora. Toco assim que ela voltar.".into();
+            }
+            return;
+        }
         if let Err(e) = self.engine.send(command) {
             self.status = e.to_string();
         }
@@ -5133,6 +5143,20 @@ fn audio_settings(config: &morune_storage::config::PlaybackConfig) -> AudioSetti
 }
 
 /// Comandos que devolvem ao motor recem-criado o estado que pertence a tela.
+/// O comando e um pedido de ouvir algo? So esses merecem o aviso de que vai
+/// esperar a conexao; volume ou pausa nao.
+fn pede_som(command: &PlayerCommand) -> bool {
+    matches!(
+        command,
+        PlayerCommand::Play
+            | PlayerCommand::TogglePlay
+            | PlayerCommand::Load {
+                start_paused: false,
+                ..
+            }
+    )
+}
+
 fn recreated_engine_commands(
     current: Option<Track>,
     playing: bool,
@@ -5849,6 +5873,23 @@ mod tests {
                 PlayerCommand::SetRepeat(RepeatMode::All),
             ]
         );
+    }
+
+    #[test]
+    fn only_asking_to_hear_something_warns_while_offline() {
+        let track = playback_track("4cOdK2wGLETKBW3PvgPWqT");
+        assert!(pede_som(&PlayerCommand::Play));
+        assert!(pede_som(&PlayerCommand::TogglePlay));
+        assert!(pede_som(&PlayerCommand::Load {
+            track: track.clone(),
+            start_paused: false,
+        }));
+        assert!(!pede_som(&PlayerCommand::Load {
+            track,
+            start_paused: true,
+        }));
+        assert!(!pede_som(&PlayerCommand::Pause));
+        assert!(!pede_som(&PlayerCommand::SetVolume(0.5)));
     }
 
     #[test]
