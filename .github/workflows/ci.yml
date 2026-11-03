@@ -60,7 +60,7 @@ jobs:
       # existir antes de qualquer `cargo` que compile o app -- sem ela nem o
       # clippy passa da macro que embute a tela.
       - name: Preparar o Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
