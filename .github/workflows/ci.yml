@@ -30,7 +30,7 @@ jobs:
 
     steps:
       - name: Baixar o codigo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Mesmo alvo do instalador publicado. Um erro que so aparece em GNU
       # precisa aparecer aqui, e nao uma hora depois, no meio de uma release.
