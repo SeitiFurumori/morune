@@ -47,7 +47,7 @@
   {:else if !e.categoria_feed?.length}
     <p class="suave bloco">Nada nesta categoria que o Otomori toque.</p>
   {:else}
-    {#each e.categoria_feed as sh (sh.title)}<Prateleira titulo={sh.title} itens={sh.items} />{/each}
+    {#each e.categoria_feed as sh, i (sh.title + ':' + i)}<Prateleira titulo={sh.title} itens={sh.items} />{/each}
   {/if}
 {:else if !e.search_query}
   {#if temRecentes}
@@ -56,7 +56,7 @@
         <button class="botao" onclick={() => acao('clear-recent-searches')}>Limpar</button></div>
       {#if e.busca_recentes?.length}
         <div class="recentes">
-          {#each e.busca_recentes as r (r.id)}
+          {#each e.busca_recentes as r, i (r.id + ':' + i)}
             <div class="recente">
               <button class="abre" onclick={() => acao('play-track', r.id)} title={r.title}>
                 <Capa src={r.cover} inicial={r.initial} matiz={r.hue} pendente={r.cover_pending}
@@ -84,7 +84,7 @@
     <section class="bloco">
       <h2 class="secao-titulo cab">Navegar por tudo</h2>
       <div class="categorias">
-        {#each e.busca_categorias as c (c.id)}
+        {#each e.busca_categorias as c, i (c.id + ':' + i)}
           <button class="categoria" style:--cor={c.subtitle} onclick={() => acao('abrir-categoria', c.id)}>
             <span class="nome">{c.title}</span>
             {#if c.cover}<img src={c.cover} alt="" loading="lazy" decoding="async" onerror={(ev) => ev.currentTarget.remove()} />{/if}
@@ -106,7 +106,7 @@
   {/if}
   {#if e.search_items?.length}
     <section class="bloco">
-      <div class="grade">{#each e.search_items as item (item.id)}<Cartao {item} />{/each}</div>
+      <div class="grade">{#each e.search_items as item, i (item.id + ':' + i)}<Cartao {item} />{/each}</div>
     </section>
   {/if}
   {#if !e.search_tracks?.length && !e.search_items?.length}

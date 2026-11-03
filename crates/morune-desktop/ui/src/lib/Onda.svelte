@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { motor } from './motor.svelte'
   // Barra de progresso com o desenho da musica: tracos altos onde ela e forte,
   // baixos onde e quieta. A parte tocada leva a cor de destaque, e um brilho
   // corre de um lado para o outro no ritmo do som.
@@ -105,9 +106,11 @@
     else quadro = 0
   }
 
-  // Redesenha quando algo muda; anima so enquanto toca.
+  // Redesenha quando algo muda; anima so enquanto toca. O tema entra na lista
+  // porque as cores sao lidas na hora de desenhar: pausada, a onda ficava com
+  // as do tema anterior -- no Claro, traco claro sobre fundo branco.
   $effect(() => {
-    progresso; picos; tocando; faixa
+    progresso; picos; tocando; faixa; motor.tema
     cancelAnimationFrame(quadro)
     antes = 0
     quadro = requestAnimationFrame(laco)

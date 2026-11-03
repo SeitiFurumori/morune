@@ -41,7 +41,7 @@
       <button role="menuitem" onclick={() => (submenu = !submenu)}><Icone nome="biblioteca" tamanho={16} />Adicionar à playlist</button>
       {#if submenu}
         <div class="menu lista-pl">
-          {#each motor.e.acoes_playlists ?? [] as pl (pl.id)}
+          {#each motor.e.acoes_playlists ?? [] as pl, i (pl.id + ':' + i)}
             <button role="menuitem" class="corta" onclick={() => fazer('add-to-playlist', pl.id, f.id)}>{pl.title}</button>
           {:else}
             <span class="vazio suave">Nenhuma playlist sua</span>

@@ -49,7 +49,7 @@
   </div>
 
   <div class="playlists">
-    {#each e.sidebar_playlists ?? [] as pl (pl.id)}
+    {#each e.sidebar_playlists ?? [] as pl, i (pl.id + ':' + i)}
       <button class="pl" onpointerdown={semFoco} onclick={() => acao('play-track', pl.id)} title={pl.title}>
         <Capa src={pl.cover} inicial={pl.initial} matiz={pl.hue} pendente={pl.cover_pending} curtidas={pl.id === 'liked'} tamanho="44px" />
         <div class="pl-txt">

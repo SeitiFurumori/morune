@@ -34,7 +34,7 @@
     </section>
   {/if}
 
-  {#each e.home_feed ?? [] as sh (sh.title)}
+  {#each e.home_feed ?? [] as sh, i (sh.title + ':' + i)}
     <Prateleira titulo={sh.title} itens={sh.items} />
   {:else}
     <Prateleira titulo="Feito para você" itens={e.home_made_for_you} />

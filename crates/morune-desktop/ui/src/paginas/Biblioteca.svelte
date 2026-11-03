@@ -30,13 +30,13 @@
 {#if e.library_playlists?.length}
   <section class="bloco">
     <h2 class="secao-titulo">Playlists</h2>
-    <div class="grade">{#each e.library_playlists as item (item.id)}<Cartao {item} />{/each}</div>
+    <div class="grade">{#each e.library_playlists as item, i (item.id + ':' + i)}<Cartao {item} />{/each}</div>
   </section>
 {/if}
 {#if e.library_items?.length}
   <section class="bloco">
     <h2 class="secao-titulo">Álbuns e artistas</h2>
-    <div class="grade">{#each e.library_items as item (item.id)}<Cartao {item} />{/each}</div>
+    <div class="grade">{#each e.library_items as item, i (item.id + ':' + i)}<Cartao {item} />{/each}</div>
   </section>
 {/if}
 {#if !e.library_playlists?.length && !e.library_items?.length}

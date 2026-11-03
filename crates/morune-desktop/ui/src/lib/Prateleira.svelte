@@ -37,7 +37,7 @@
       {/if}
     </div>
     <div class="fileira" bind:this={fileira} onscroll={medir}>
-      {#each itens as item (item.id)}<Cartao {item} />{/each}
+      {#each itens as item, i (item.id + ':' + i)}<Cartao {item} />{/each}
     </div>
   </section>
 {/if}
